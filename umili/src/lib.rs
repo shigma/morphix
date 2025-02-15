@@ -2,8 +2,11 @@ use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 use std::cell::RefCell;
 
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde::Serialize;
+
+pub use crate::delta::{Delta, DeltaKind};
+
+pub mod delta;
 
 #[cfg(feature = "derive")]
 extern crate umili_derive;
@@ -15,12 +18,6 @@ pub trait Observe {
     type Target<'i> where Self: 'i;
 
     fn observe<'i>(&'i mut self, prefix: &str, diff: &Rc<RefCell<Vec<Delta>>>) -> Self::Target<'i>;
-
-    fn with_observe<F: FnOnce(Self::Target<'_>)>(&mut self, f: F) -> Vec<Delta> {
-        let diff = Rc::new(RefCell::new(vec![]));
-        f(self.observe("", &diff));
-        diff.take()
-    }
 }
 
 pub struct Ob<'i, T: Clone + Serialize + PartialEq> {
@@ -48,7 +45,6 @@ impl<'i, T: Clone + Serialize + PartialEq> Ob<'i, T> {
     }
 }
 
-// 由 derive macro 生成
 impl<'i, T: Clone + Serialize + PartialEq + Observe> Ob<'i, T> {
     #[inline]
     pub fn borrow(&mut self) -> T::Target<'_> {
@@ -64,6 +60,7 @@ pub struct Ref<'i, T: Clone + Serialize + PartialEq> {
     pub diff: Rc<RefCell<Vec<Delta>>>,
 }
 
+#[cfg(feature = "append")]
 impl<'i> Ref<'i, String> {
     pub fn add_assign(&mut self, s: &str) {
         self.push_str(s);
@@ -89,6 +86,7 @@ impl<'i> Ref<'i, String> {
     }
 }
 
+#[cfg(feature = "append")]
 impl<'i, T: Clone + Serialize + PartialEq> Ref<'i, Vec<T>> {
     pub fn push(&mut self, value: T) {
         self.diff.borrow_mut().push(Delta::APPEND {
@@ -98,7 +96,8 @@ impl<'i, T: Clone + Serialize + PartialEq> Ref<'i, Vec<T>> {
         self.value.push(value);
     }
 
-    pub fn extend(&mut self, other: Vec<T>) { // FIXME iter
+    pub fn extend<I: IntoIterator<Item = T>>(&mut self, other: I) {
+        let other = other.into_iter().collect::<Vec<_>>();
         if other.is_empty() {
             return;
         }
@@ -138,39 +137,4 @@ impl<'i, T: Clone + Serialize + PartialEq> Drop for Ref<'i, T> {
             }
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[serde(tag = "o")]
-pub enum Delta {
-    SET { p: String, v: Value },
-    APPEND { p: String, v: Value },
-    BATCH { p: String, v: Vec<Delta> },
-    HISTORY { p: String, v: DeltaTag },
-}
-
-impl Delta {
-    pub fn set<P: Into<String>, V: Into<Value>>(p: P, v: V) -> Self {
-        Delta::SET { p: p.into(), v: v.into() }
-    }
-
-    pub fn append<P: Into<String>, V: Into<Value>>(p: P, v: V) -> Self {
-        Delta::APPEND { p: p.into(), v: v.into() }
-    }
-
-    pub fn batch<P: Into<String>>(p: P, v: Vec<Delta>) -> Self {
-        Delta::BATCH { p: p.into(), v }
-    }
-
-    pub fn history<P: Into<String>>(p: P, v: DeltaTag) -> Self {
-        Delta::HISTORY { p: p.into(), v }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub enum DeltaTag {
-    SET,
-    APPEND,
-    BATCH,
-    HISTORY,
 }

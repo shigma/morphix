@@ -8,7 +8,8 @@ repository = "https://github.com/shigma/umili"
 documentation = "https://docs.rs/umili"
 
 [features]
-default = ["derive"]
+append = []
+default = ["append", "derive"]
 derive = []
 
 [dependencies]
