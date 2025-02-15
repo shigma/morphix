@@ -69,7 +69,6 @@ impl<'i> Ref<'i, String> {
         self.push_str(s);
     }
 
-
     pub fn push(&mut self, c: char) {
         self.diff.borrow_mut().push(Delta::APPEND {
             p: self.path.to_string(),
@@ -141,7 +140,7 @@ impl<'i, T: Clone + Serialize + PartialEq> Drop for Ref<'i, T> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "o")]
 pub enum Delta {
     SET { p: String, v: Value },
@@ -150,7 +149,7 @@ pub enum Delta {
     HISTORY { p: String, v: DeltaTag },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum DeltaTag {
     SET,
     APPEND,
