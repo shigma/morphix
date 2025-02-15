@@ -1,5 +1,6 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
+use syn::spanned::Spanned;
 
 #[proc_macro_derive(Observe)]
 pub fn derive_observe(input: TokenStream) -> TokenStream {
@@ -36,7 +37,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
         impl #impl_generics Observe for #ident #type_generics #where_clause {
             type Target<'i> = #ident_ob<'i>;
 
-            fn observe(&mut self, prefix: &str, diff: &Rc<RefCell<Vec<Delta>>>) -> Self::Target<'_> {
+            fn observe(&mut self, prefix: &str, diff: &std::rc::Rc<std::cell::RefCell<Vec<Delta>>>) -> Self::Target<'_> {
                 #ident_ob {
                     #(#inst_fields)*
                 }
@@ -65,7 +66,8 @@ pub fn observe(input: TokenStream) -> TokenStream {
     subst_expr(body, ident);
     quote! {
         {
-            let diff = Rc::new(RefCell::new(vec![]));
+            use std::ops::*;
+            let diff = std::rc::Rc::new(std::cell::RefCell::new(vec![]));
             let mut #ident = #ident.observe("", &diff);
             #body
             diff.take()
@@ -120,11 +122,12 @@ fn subst_expr(expr: &mut syn::Expr, ident: &syn::Ident) {
             subst_expr(&mut expr_binary.left, ident);
             subst_expr(&mut expr_binary.right, ident);
             match &expr_binary.op {
-                syn::BinOp::AddAssign(..) => {
+                syn::BinOp::AddAssign(token) => {
                     let left = &expr_binary.left;
                     let right = &expr_binary.right;
+                    let method = syn::Ident::new("add_assign".into(), token.span());
                     *expr = syn::parse_quote! {
-                        #left.add_assign(#right)
+                        #left.#method(#right)
                     }
                 },
                 _ => {},

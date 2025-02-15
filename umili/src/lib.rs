@@ -149,6 +149,24 @@ pub enum Delta {
     HISTORY { p: String, v: DeltaTag },
 }
 
+impl Delta {
+    pub fn set<P: Into<String>, V: Into<Value>>(p: P, v: V) -> Self {
+        Delta::SET { p: p.into(), v: v.into() }
+    }
+
+    pub fn append<P: Into<String>, V: Into<Value>>(p: P, v: V) -> Self {
+        Delta::APPEND { p: p.into(), v: v.into() }
+    }
+
+    pub fn batch<P: Into<String>>(p: P, v: Vec<Delta>) -> Self {
+        Delta::BATCH { p: p.into(), v }
+    }
+
+    pub fn history<P: Into<String>>(p: P, v: DeltaTag) -> Self {
+        Delta::HISTORY { p: p.into(), v }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub enum DeltaTag {
     SET,
