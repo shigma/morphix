@@ -9,7 +9,7 @@ use serde_json::Value;
 extern crate umili_derive;
 
 #[cfg(feature = "derive")]
-pub use umili_derive::Observe;
+pub use umili_derive::{observe, Observe};
 
 pub trait Observe {
     type Target<'i> where Self: 'i;

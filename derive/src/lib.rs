@@ -1,6 +1,5 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote, ToTokens};
-use syn::spanned::Spanned;
 
 #[proc_macro_derive(Observe)]
 pub fn derive_observe(input: TokenStream) -> TokenStream {
@@ -63,20 +62,23 @@ pub fn observe(input: TokenStream) -> TokenStream {
         panic!("expect a closure with one argument")
     };
     let body = &mut closure.body;
+    let body_shadow = body.to_token_stream();
     subst_expr(body, ident);
     quote! {
         {
             use std::ops::*;
+            let _ = || #body_shadow;
             let diff = std::rc::Rc::new(std::cell::RefCell::new(vec![]));
             let mut #ident = #ident.observe("", &diff);
-            #body
+            #body;
             diff.take()
         }
     }.into()
 }
 
 fn subst_expr_field(expr_field: &mut syn::ExprField, ident: &syn::Ident, inner: bool) -> Option<syn::Expr> {
-    let member = &expr_field.member;
+    // erase span info from expr_field
+    let member = format_ident!("{}", expr_field.member.to_token_stream().to_string());
     let method = match inner {
         true => format_ident!("borrow"),
         false => format_ident!("borrow_mut"),
@@ -85,7 +87,7 @@ fn subst_expr_field(expr_field: &mut syn::ExprField, ident: &syn::Ident, inner: 
         syn::Expr::Path(expr_path) => {
             if expr_path.to_token_stream().to_string() == ident.to_string() {
                 return Some(syn::parse_quote! {
-                    #expr_path.#member.#method()
+                    #ident.#member.#method()
                 });
             }
         },
@@ -122,12 +124,11 @@ fn subst_expr(expr: &mut syn::Expr, ident: &syn::Ident) {
             subst_expr(&mut expr_binary.left, ident);
             subst_expr(&mut expr_binary.right, ident);
             match &expr_binary.op {
-                syn::BinOp::AddAssign(token) => {
+                syn::BinOp::AddAssign(..) => {
                     let left = &expr_binary.left;
                     let right = &expr_binary.right;
-                    let method = syn::Ident::new("add_assign".into(), token.span());
                     *expr = syn::parse_quote! {
-                        #left.#method(#right)
+                        #left.add_assign(#right)
                     }
                 },
                 _ => {},

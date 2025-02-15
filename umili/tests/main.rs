@@ -1,6 +1,5 @@
 use serde::{Serialize, Deserialize};
-use umili::{Delta, Observe, Ob};
-use umili_derive::observe;
+use umili::{observe, Delta, Ob, Observe};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Observe)]
 pub struct Foo {
@@ -17,7 +16,7 @@ pub struct Bar {
 fn main() {
     let mut foo = Foo { bar: Bar { baz: 42 }, qux: "hello".to_string() };
 
-    let diff = observe!(|foo| {
+    let diff = observe!(|mut foo| {
         foo.bar.baz += 1;
         foo.qux += " world";
     });
