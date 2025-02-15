@@ -1,7 +1,7 @@
 use std::{cell::RefCell, ops::AddAssign, rc::Rc};
 
 use serde::{Serialize, Deserialize};
-use umili::{Delta, Observer};
+use umili::{Delta, Observe, Ob};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct Foo {
@@ -10,26 +10,22 @@ pub struct Foo {
 }
 
 // 由 derive macro 生成
-impl Foo {
-    pub fn as_mut(&mut self, prefix: &str, diff: &Rc<RefCell<Vec<Delta>>>) -> FooMut {
+impl Observe for Foo {
+    type Target<'i> = FooMut<'i>;
+
+    fn observe(&mut self, prefix: &str, diff: &Rc<RefCell<Vec<Delta>>>) -> FooMut {
         FooMut {
-            bar: Observer {
+            bar: Ob {
                 value: &mut self.bar,
                 path: prefix.to_string() + "bar",
                 diff: diff.clone(),
             },
-            qux: Observer {
+            qux: Ob {
                 value: &mut self.qux,
                 path: prefix.to_string() + "qux",
                 diff: diff.clone(),
             },
         }
-    }
-
-    pub fn observe<'i, F: FnOnce(FooMut<'i>)>(&'i mut self, f: F) -> Vec<Delta> {
-        let diff = Rc::new(RefCell::new(vec![]));
-        f(self.as_mut("", &diff));
-        diff.take()
     }
 }
 
@@ -39,42 +35,29 @@ pub struct Bar {
 }
 
 // 由 derive macro 生成
-impl Bar {
-    pub fn as_mut(&mut self, prefix: &str, diff: &Rc<RefCell<Vec<Delta>>>) -> BarMut {
+impl Observe for Bar {
+    type Target<'i> = BarMut<'i>;
+
+    fn observe(&mut self, prefix: &str, diff: &Rc<RefCell<Vec<Delta>>>) -> BarMut {
         BarMut {
-            baz: Observer {
+            baz: Ob {
                 value: &mut self.baz,
                 path: prefix.to_string() + "baz",
                 diff: diff.clone(),
             },
         }
     }
-
-    pub fn observe<'i, F: FnOnce(BarMut<'i>)>(&'i mut self, f: F) -> Vec<Delta> {
-        let diff = Rc::new(RefCell::new(vec![]));
-        f(self.as_mut("", &diff));
-        diff.take()
-    }
 }
 
 // 由 derive macro 生成
 pub struct FooMut<'i> {
-    pub bar: Observer<'i, Bar>,
-    pub qux: Observer<'i, String>,
+    pub bar: Ob<'i, Bar>,
+    pub qux: Ob<'i, String>,
 }
 
 // 由 derive macro 生成
 pub struct BarMut<'i> {
-    pub baz: Observer<'i, i32>,
-}
-
-// 由 derive macro 生成
-impl<'i> Observer<'i, Bar> {
-    #[inline]
-    pub fn borrow(&mut self) -> BarMut {
-        let prefix = self.path.to_string() + "/";
-        self.value.as_mut(&prefix, &self.diff)
-    }
+    pub baz: Ob<'i, i32>,
 }
 
 fn main() {
@@ -85,7 +68,7 @@ fn main() {
     //     foo.bar.baz += 1;
     //     foo.qux += " world";
     // });
-    let diff = foo.observe(|mut foo| {
+    let diff = foo.with_observe(|mut foo| {
         foo.bar.borrow().baz.borrow_mut().add_assign(1);
         foo.qux.borrow_mut().add_assign(" world");
     });

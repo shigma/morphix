@@ -8,13 +8,25 @@ use serde_json::Value;
 #[cfg(feature = "derive")]
 extern crate umili_derive;
 
-pub struct Observer<'i, T: Clone + Serialize + PartialEq> {
+pub trait Observe {
+    type Target<'i> where Self: 'i;
+
+    fn observe<'i>(&'i mut self, prefix: &str, diff: &Rc<RefCell<Vec<Delta>>>) -> Self::Target<'i>;
+
+    fn with_observe<F: FnOnce(Self::Target<'_>)>(&mut self, f: F) -> Vec<Delta> {
+        let diff = Rc::new(RefCell::new(vec![]));
+        f(self.observe("", &diff));
+        diff.take()
+    }
+}
+
+pub struct Ob<'i, T: Clone + Serialize + PartialEq> {
     pub value: &'i mut T,
     pub path: String,
     pub diff: Rc<RefCell<Vec<Delta>>>,
 }
 
-impl<'i, T: Clone + Serialize + PartialEq> Deref for Observer<'i, T> {
+impl<'i, T: Clone + Serialize + PartialEq> Deref for Ob<'i, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -22,7 +34,7 @@ impl<'i, T: Clone + Serialize + PartialEq> Deref for Observer<'i, T> {
     }
 }
 
-impl<'i, T: Clone + Serialize + PartialEq> Observer<'i, T> {
+impl<'i, T: Clone + Serialize + PartialEq> Ob<'i, T> {
     pub fn borrow_mut(&mut self) -> Ref<T> {
         Ref {
             old_value: None,
@@ -30,6 +42,15 @@ impl<'i, T: Clone + Serialize + PartialEq> Observer<'i, T> {
             path: &self.path,
             diff: self.diff.clone(),
         }
+    }
+}
+
+// 由 derive macro 生成
+impl<'i, T: Clone + Serialize + PartialEq + Observe> Ob<'i, T> {
+    #[inline]
+    pub fn borrow(&mut self) -> T::Target<'_> {
+        let prefix = self.path.to_string() + "/";
+        self.value.observe(&prefix, &self.diff)
     }
 }
 
