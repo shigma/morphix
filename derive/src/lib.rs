@@ -18,10 +18,10 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
                 let ident = name.ident.as_ref().unwrap();
                 let ty = &name.ty;
                 type_fields.push(quote! {
-                    pub #ident: Ob<'i, #ty>,
+                    pub #ident: umili::Ob<'i, #ty>,
                 });
                 inst_fields.push(quote! {
-                    #ident: Ob {
+                    #ident: umili::Ob {
                         value: &mut self.#ident,
                         path: prefix.to_string() + stringify!(#ident),
                         diff: diff.clone(),

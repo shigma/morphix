@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use umili::{observe, Delta, Ob, Observe};
+use umili::{observe, Delta, Observe};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Observe)]
 pub struct Foo {

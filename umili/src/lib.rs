@@ -67,10 +67,7 @@ impl<'i> Ref<'i, String> {
     }
 
     pub fn push(&mut self, c: char) {
-        self.diff.borrow_mut().push(Delta::APPEND {
-            p: self.path.to_string(),
-            v: serde_json::to_value(c).unwrap(),
-        });
+        self.diff.borrow_mut().push(Delta::append(self.path, c));
         self.value.push(c);
     }
 
@@ -78,10 +75,7 @@ impl<'i> Ref<'i, String> {
         if s.is_empty() {
             return;
         }
-        self.diff.borrow_mut().push(Delta::APPEND {
-            p: self.path.to_string(),
-            v: serde_json::to_value(s).unwrap(),
-        });
+        self.diff.borrow_mut().push(Delta::append(self.path, s));
         self.value.push_str(s);
     }
 }
@@ -89,10 +83,7 @@ impl<'i> Ref<'i, String> {
 #[cfg(feature = "append")]
 impl<'i, T: Clone + Serialize + PartialEq> Ref<'i, Vec<T>> {
     pub fn push(&mut self, value: T) {
-        self.diff.borrow_mut().push(Delta::APPEND {
-            p: self.path.to_string(),
-            v: serde_json::to_value(vec![&value]).unwrap(),
-        });
+        self.diff.borrow_mut().push(Delta::append(self.path, vec![&value]));
         self.value.push(value);
     }
 
@@ -101,10 +92,7 @@ impl<'i, T: Clone + Serialize + PartialEq> Ref<'i, Vec<T>> {
         if other.is_empty() {
             return;
         }
-        self.diff.borrow_mut().push(Delta::APPEND {
-            p: self.path.to_string(),
-            v: serde_json::to_value(&other).unwrap(),
-        });
+        self.diff.borrow_mut().push(Delta::append(self.path, &other));
         self.value.extend(other);
     }
 }
@@ -130,10 +118,7 @@ impl<'i, T: Clone + Serialize + PartialEq> Drop for Ref<'i, T> {
     fn drop(&mut self) {
         if let Some(old_value) = self.old_value.take() {
             if old_value != *self.value {
-                self.diff.borrow_mut().push(Delta::SET {
-                    p: self.path.to_string(),
-                    v: serde_json::to_value(&self.value).unwrap(),
-                });
+                self.diff.borrow_mut().push(Delta::set(self.path, &self.value));
             }
         }
     }
