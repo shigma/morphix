@@ -87,6 +87,17 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "umili-derive",
+]
+
+[[package]]
+name = "umili-derive"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "serde",
+ "serde_json",
+ "syn",
 ]
 
 [[package]]
