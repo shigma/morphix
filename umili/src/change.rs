@@ -6,9 +6,33 @@ use crate::error::Error;
 /// A change in JSON format.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Change {
+    /// SET is the default change for `DerefMut` operations.
+    /// 
+    /// ## Example
+    /// 
+    /// ```ignore
+    /// foo.a.b = 1;        // SET "a/b"
+    /// foo.num *= 2;       // SET "num"
+    /// foo.vec.clear();    // SET "vec"
+    /// ```
+    /// 
+    /// If an operation triggers APPEND, no SET change is emitted.
     SET { p: String, v: Value },
+
+    /// APPEND represents a `String` or `Vec` append operation.
+    /// 
+    /// ## Example
+    /// 
+    /// ```ignore
+    /// foo.a.b += "text";          // APPEND "a/b"
+    /// foo.a.b.push_str("text");   // APPEND "a/b"
+    /// foo.vec.push(1);            // APPEND "vec"
+    /// foo.vec.extend(iter);       // APPEND "vec"
+    /// ```
     #[cfg(feature = "append")]
     APPEND { p: String, v: Value },
+
+    /// BATCH represents a sequence of changes.
     BATCH { p: String, v: Vec<Self> },
 }
 

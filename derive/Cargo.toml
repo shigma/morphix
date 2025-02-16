@@ -3,9 +3,15 @@ name = "umili-derive"
 version = "0.2.0"
 edition = "2024"
 license = "MIT"
+authors = [
+    "Shigma <shigma10826@gmail.com>",
+]
 description = "Derive macros for umili"
 repository = "https://github.com/shigma/umili"
 documentation = "https://docs.rs/umili-derive"
+
+[features]
+default = []
 
 [lib]
 proc-macro = true

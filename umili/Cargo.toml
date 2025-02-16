@@ -1,8 +1,11 @@
 [package]
 name = "umili"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 license = "MIT"
+authors = [
+    "Shigma <shigma10826@gmail.com>",
+]
 description = "Mutate and observe Rust data structures"
 repository = "https://github.com/shigma/umili"
 documentation = "https://docs.rs/umili"
