@@ -4,9 +4,11 @@ use std::cell::RefCell;
 
 use serde::Serialize;
 
-pub use crate::delta::{Change, DeltaKind};
-
+pub mod change;
 pub mod delta;
+
+pub use crate::change::Change;
+pub use crate::delta::{Delta, DeltaHistory, DeltaKind};
 
 #[cfg(feature = "derive")]
 extern crate umili_derive;
