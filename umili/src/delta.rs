@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{json, to_value, Value};
+use serde_json::{from_value, json, to_value, Value};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(tag = "o")]
@@ -8,7 +8,6 @@ pub enum Change {
     #[cfg(feature = "append")]
     APPEND { p: String, v: Value },
     BATCH { p: String, v: Vec<Self> },
-    HISTORY(DeltaHistory),
 }
 
 impl Change {
@@ -25,16 +24,11 @@ impl Change {
         Self::BATCH { p: p.into(), v }
     }
 
-    pub fn history<P: Into<String>>(p: P, v: DeltaKind) -> Self {
-        Self::HISTORY(DeltaHistory { p: p.into(), v })
-    }
-
     pub fn path(&self) -> &str {
         match self {
             Self::BATCH { p, .. } => p,
             Self::SET { p, .. } => p,
             Self::APPEND { p, .. } => p,
-            Self::HISTORY(history) => &history.p,
         }
     }
 
@@ -57,6 +51,7 @@ impl Change {
             Self::SET { v, .. } => {
                 *json_index(node, &key, true) = v;
             },
+            #[cfg(feature = "append")]
             Self::APPEND { v, .. } => {
                 match (&mut value, v) {
                     (Value::String(lhs), Value::String(rhs)) => {
@@ -73,7 +68,6 @@ impl Change {
                     value = delta.apply(value);
                 }
             },
-            Self::HISTORY(..) => {},
         }
         root["__ROOT__"].take()
     }
@@ -96,17 +90,89 @@ fn json_index<'v>(node: &'v mut Value, key: &str, insert: bool) -> &'v mut Value
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-pub struct DeltaHistory {
-    p: String,
-    v: DeltaKind,
+pub struct Delta {
+    p: Option<String>,
+    o: Option<DeltaKind>,
+    v: Value,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Copy, Default)]
 pub enum DeltaKind {
+    #[default]
     SET,
     #[cfg(feature = "append")]
     APPEND,
     BATCH,
+    HISTORY,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default)]
+pub struct DeltaHistory {
+    p: String,
+    // TODO: rename to v
+    o: DeltaKind,
+}
+
+impl DeltaHistory {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn load(&mut self, delta: Delta) -> Change {
+        if let Some(p) = delta.p {
+            self.p = p;
+        }
+        if let Some(o) = delta.o {
+            self.o = o;
+        }
+        match self.o {
+            DeltaKind::SET => Change::set(self.p.clone(), delta.v),
+            #[cfg(feature = "append")]
+            DeltaKind::APPEND => Change::append(self.p.clone(), delta.v),
+            DeltaKind::BATCH => {
+                let mut history = Self::new();
+                let Value::Array(deltas) = delta.v else {
+                    panic!("invalid batch operation");
+                };
+                let changes = deltas.into_iter().map(|delta| {
+                    history.load(from_value(delta).unwrap())
+                }).collect();
+                Change::batch(self.p.clone(), changes)
+            },
+            DeltaKind::HISTORY => {
+                self.o = from_value(delta.v).unwrap();
+                Change::batch(self.p.clone(), vec![])
+            },
+        }
+    }
+
+    pub fn dump(&mut self, change: Change) -> Delta {
+        let (p, o, v) = match change {
+            Change::SET { p, v } => (p, DeltaKind::SET, v),
+            #[cfg(feature = "append")]
+            Change::APPEND { p, v } => (p, DeltaKind::APPEND, v),
+            Change::BATCH { p, v } => {
+                let mut history = Self::new();
+                let deltas = v.into_iter().map(|change| {
+                    history.dump(change)
+                }).collect::<Vec<_>>();
+                (p, DeltaKind::BATCH, to_value(deltas).unwrap())
+            },
+        };
+        let p = if self.p == p {
+            None
+        } else {
+            self.p = p;
+            Some(self.p.clone())
+        };
+        let o = if self.o == o {
+            None
+        } else {
+            self.o = o;
+            Some(self.o.clone())
+        };
+        Delta { p, o, v }
+    }
 }
 
 fn concat_path(key: String, path: String) -> String {
