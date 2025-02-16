@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 
-use crate::change::{append, concat_path, split_path, Change, Error};
+use crate::change::{append, concat_path, split_path, Change};
+use crate::error::Error;
 
 #[derive(Debug, Default)]
 pub struct Batch {
@@ -14,37 +15,47 @@ impl Batch {
         Self::default()
     }
 
-    pub fn load(&mut self, mut change: Change) -> Result<(), Error> {
-        let mut node = self;
+    pub fn load(&mut self, mut change: Change, prefix: &str) -> Result<(), Error> {
+        let mut batch = self;
         let mut parts = split_path(change.path());
-        if let Some(Change::SET { v, .. }) = &mut node.change {
-            change.apply(v)?;
+        if let Some(Change::SET { v, .. }) = &mut batch.change {
+            change.apply(v, prefix)?;
             return Ok(())
         }
-        while let Some(part) = parts.pop() {
-            node = node.children.entry(part).or_default();
-            *change.path_mut() = parts.join("/");
-            if let Some(Change::SET { v, .. }) = &mut node.change {
-                change.apply(v)?;
+        let mut prefix = prefix.to_string();
+        while let Some(key) = parts.pop() {
+            prefix += key;
+            prefix += "/";
+            batch = batch.children.entry(key.to_string()).or_default();
+            if let Some(Change::SET { v, .. }) = &mut batch.change {
+                *change.path_mut() = parts.join("/");
+                change.apply(v, &prefix)?;
                 return Ok(())
             }
         }
         match change {
             Change::SET { .. } => {
-                node.change = Some(change);
-                node.children.clear();
+                batch.change = Some(change);
+                batch.children.clear();
             },
             #[cfg(feature = "append")]
-            Change::APPEND { p, v: rhs } => {
-                match &mut node.change {
+            Change::APPEND { p, v } => {
+                match &mut batch.change {
                     Some(Change::APPEND { v: lhs, .. }) => {
-                        append(lhs, rhs)?
+                        if !append(lhs, v) {
+                            prefix.pop();
+                            return Err(Error::OperationError { path: prefix })
+                        }
                     },
-                    Some(_) => panic!("invalid append operation"),
-                    None => node.change = Some(Change::APPEND { p, v: rhs }),
+                    Some(_) => unreachable!(),
+                    None => batch.change = Some(Change::APPEND { p, v }),
                 }
             },
-            Change::BATCH { .. } => unreachable!(),
+            Change::BATCH { v, .. } => {
+                for change in v {
+                    batch.load(change, &prefix)?;
+                }
+            },
         }
         Ok(())
     }
@@ -79,35 +90,42 @@ mod test {
         assert_eq!(batch.dump(), Change::batch("", vec![]));
 
         let mut batch = Batch::new();
-        batch.load(Change::set("foo/bar", 1).unwrap()).unwrap();
+        batch.load(Change::set("foo/bar", 1).unwrap(), "").unwrap();
         assert_eq!(batch.dump(), Change::set("foo/bar", 1).unwrap());
 
         let mut batch = Batch::new();
-        batch.load(Change::set("foo/bar", 1).unwrap()).unwrap();
-        batch.load(Change::set("foo/bar", 2).unwrap()).unwrap();
+        batch.load(Change::set("foo/bar", 1).unwrap(), "").unwrap();
+        batch.load(Change::set("foo/bar", 2).unwrap(), "").unwrap();
         assert_eq!(batch.dump(), Change::set("foo/bar", 2).unwrap());
 
         let mut batch = Batch::new();
-        batch.load(Change::set("foo/bar", json!({"qux": "1"})).unwrap()).unwrap();
-        batch.load(Change::append("foo/bar/qux", "2").unwrap()).unwrap();
+        batch.load(Change::set("foo/bar", json!({"qux": "1"})).unwrap(), "").unwrap();
+        batch.load(Change::append("foo/bar/qux", "2").unwrap(), "").unwrap();
         assert_eq!(batch.dump(), Change::set("foo/bar", json!({"qux": "12"})).unwrap());
 
         let mut batch = Batch::new();
-        batch.load(Change::append("foo/bar/qux", "2").unwrap()).unwrap();
-        batch.load(Change::set("foo/bar", json!({"qux": "1"})).unwrap()).unwrap();
+        batch.load(Change::append("foo/bar/qux", "2").unwrap(), "").unwrap();
+        batch.load(Change::set("foo/bar", json!({"qux": "1"})).unwrap(), "").unwrap();
         assert_eq!(batch.dump(), Change::set("foo/bar", json!({"qux": "1"})).unwrap());
 
         let mut batch = Batch::new();
-        batch.load(Change::append("bar", "2").unwrap()).unwrap();
-        batch.load(Change::append("qux", "1").unwrap()).unwrap();
+        batch.load(Change::batch("foo", vec![
+            Change::append("bar", "1").unwrap(),
+            Change::append("bar", "2").unwrap(),
+        ]), "").unwrap();
+        assert_eq!(batch.dump(), Change::append("foo/bar", "12").unwrap());
+
+        let mut batch = Batch::new();
+        batch.load(Change::append("bar", "2").unwrap(), "").unwrap();
+        batch.load(Change::append("qux", "1").unwrap(), "").unwrap();
         assert_eq!(batch.dump(), Change::batch("", vec![
             Change::append("bar", "2").unwrap(),
             Change::append("qux", "1").unwrap(),
         ]));
 
         let mut batch = Batch::new();
-        batch.load(Change::append("foo/bar", "2").unwrap()).unwrap();
-        batch.load(Change::append("foo/qux", "1").unwrap()).unwrap();
+        batch.load(Change::append("foo/bar", "2").unwrap(), "").unwrap();
+        batch.load(Change::append("foo/qux", "1").unwrap(), "").unwrap();
         assert_eq!(batch.dump(), Change::batch("foo", vec![
             Change::append("bar", "2").unwrap(),
             Change::append("qux", "1").unwrap(),

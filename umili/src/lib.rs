@@ -9,6 +9,7 @@ use serde_json::Error;
 pub mod batch;
 pub mod change;
 pub mod delta;
+pub mod error;
 
 pub use crate::change::Change;
 pub use crate::delta::{Delta, DeltaHistory, DeltaKind};
