@@ -6,6 +6,7 @@ use std::cell::RefCell;
 use serde::Serialize;
 use serde_json::Error;
 
+pub mod batch;
 pub mod change;
 pub mod delta;
 

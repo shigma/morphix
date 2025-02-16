@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{from_value, to_value, Value};
 
-use crate::change::{BatchTree, Change, Error};
+use crate::batch::Batch;
+use crate::change::{Change, Error};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Delta {
@@ -94,10 +95,10 @@ impl DeltaHistory {
     }
 
     pub fn batch_encode(&mut self, changes: Vec<Change>) -> Result<Delta, Error> {
-        let mut tree = BatchTree::new();
+        let mut batch = Batch::new();
         for change in changes {
-            tree.load(change)?;
+            batch.load(change)?;
         }
-        self.encode(tree.dump())
+        self.encode(batch.dump())
     }
 }

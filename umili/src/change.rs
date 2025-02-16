@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use serde::Serialize;
 use serde_json::{to_value, Value};
 
@@ -67,71 +65,6 @@ impl Change {
     }
 }
 
-#[derive(Debug, Default)]
-pub struct BatchTree {
-    /// can only be SET or APPEND
-    change: Option<Change>,
-    children: BTreeMap<String, BatchTree>,
-}
-
-impl BatchTree {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn load(&mut self, mut change: Change) -> Result<(), Error> {
-        let mut node = self;
-        let mut parts = split_path(change.path());
-        if let Some(Change::SET { v, .. }) = &mut node.change {
-            change.apply(v)?;
-            return Ok(())
-        }
-        while let Some(part) = parts.pop() {
-            node = node.children.entry(part).or_default();
-            *change.path_mut() = parts.join("/");
-            if let Some(Change::SET { v, .. }) = &mut node.change {
-                change.apply(v)?;
-                return Ok(())
-            }
-        }
-        match change {
-            Change::SET { .. } => {
-                node.change = Some(change);
-                node.children.clear();
-            },
-            #[cfg(feature = "append")]
-            Change::APPEND { p, v: rhs } => {
-                match &mut node.change {
-                    Some(Change::APPEND { v: lhs, .. }) => {
-                        append(lhs, rhs)?
-                    },
-                    Some(_) => panic!("invalid append operation"),
-                    None => node.change = Some(Change::APPEND { p, v: rhs }),
-                }
-            },
-            Change::BATCH { .. } => unreachable!(),
-        }
-        Ok(())
-    }
-
-    pub fn dump(self) -> Change {
-        let mut changes = vec![];
-        if let Some(mut change) = self.change {
-            *change.path_mut() = String::new();
-            changes.push(change);
-        }
-        for (key, tree) in self.children {
-            let mut change = tree.dump();
-            *change.path_mut() = concat_path(key, change.path());
-            changes.push(change);
-        }
-        match changes.len() {
-            1 => changes.swap_remove(0),
-            _ => Change::batch("", changes),
-        }
-    }
-}
-
 #[derive(Debug)]
 pub enum Error {
     JsonError(serde_json::Error),
@@ -155,7 +88,7 @@ fn json_index<'v>(node: &'v mut Value, key: &str, insert: bool) -> Result<&'v mu
 }
 
 #[cfg(feature = "append")]
-fn append(lhs: &mut Value, rhs: Value) -> Result<(), Error> {
+pub(crate) fn append(lhs: &mut Value, rhs: Value) -> Result<(), Error> {
     Ok(match (lhs, rhs) {
         (Value::String(lhs), Value::String(rhs)) => {
             *lhs += &rhs;
@@ -167,7 +100,7 @@ fn append(lhs: &mut Value, rhs: Value) -> Result<(), Error> {
     })
 }
 
-fn split_path(path: &str) -> Vec<String> {
+pub(crate) fn split_path(path: &str) -> Vec<String> {
     if path.is_empty() {
         vec![]
     } else {
@@ -175,7 +108,7 @@ fn split_path(path: &str) -> Vec<String> {
     }
 }
 
-fn concat_path(key: String, path: &str) -> String {
+pub(crate) fn concat_path(key: String, path: &str) -> String {
     if path.is_empty() {
         key
     } else {
@@ -185,8 +118,9 @@ fn concat_path(key: String, path: &str) -> String {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn apply_set() {
@@ -225,5 +159,22 @@ mod test {
         Change::append("", "3").unwrap().apply(&mut json!({})).unwrap_err();
         Change::append("", "3").unwrap().apply(&mut json!([])).unwrap_err();
         Change::append("", [3]).unwrap().apply(&mut json!("")).unwrap_err();
+    }
+
+    #[test]
+    fn apply_batch() {
+        let mut value = json!({"a": {"b": {"c": {}}}});
+        Change::batch("", vec![]).apply(&mut value).unwrap();
+        assert_eq!(value, json!({"a": {"b": {"c": {}}}}));
+
+        let mut value = json!({"a": {"b": {"c": "1"}}});
+        Change::batch("a/d", vec![]).apply(&mut value).unwrap_err();
+
+        let mut value = json!({"a": {"b": {"c": "1"}}});
+        Change::batch("a", vec![
+            Change::append("b/c", "2").unwrap(),
+            Change::set("d", 3).unwrap(),
+        ]).apply(&mut value).unwrap();
+        assert_eq!(value, json!({"a": {"b": {"c": "12"}, "d": 3}}));
     }
 }
