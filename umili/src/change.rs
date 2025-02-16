@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use serde::Serialize;
-use serde_json::{json, to_value, Value};
+use serde_json::{json, to_value, Error, Value};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Change {
@@ -12,13 +12,13 @@ pub enum Change {
 }
 
 impl Change {
-    pub fn set<P: Into<String>, V: Serialize>(p: P, v: V) -> Self {
-        Self::SET { p: p.into(), v: to_value(v).unwrap() }
+    pub fn set<P: Into<String>, V: Serialize>(p: P, v: V) -> Result<Self, Error> {
+        Ok(Self::SET { p: p.into(), v: to_value(v)? })
     }
 
     #[cfg(feature = "append")]
-    pub fn append<P: Into<String>, V: Serialize>(p: P, v: V) -> Self {
-        Self::APPEND { p: p.into(), v: to_value(v).unwrap() }
+    pub fn append<P: Into<String>, V: Serialize>(p: P, v: V) -> Result<Self, Error> {
+        Ok(Self::APPEND { p: p.into(), v: to_value(v)? })
     }
 
     pub fn batch<P: Into<String>>(p: P, v: Vec<Change>) -> Self {
@@ -134,11 +134,9 @@ impl BatchTree {
             *change.path_mut() = concat_path(key, change.path());
             changes.push(change);
         }
-        assert!(changes.len() > 0);
-        if changes.len() == 1 {
-            changes.swap_remove(0)
-        } else {
-            Change::batch("", changes)
+        match changes.len() {
+            1 => changes.swap_remove(0),
+            _ => Change::batch("", changes),
         }
     }
 }

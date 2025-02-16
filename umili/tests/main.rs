@@ -19,11 +19,11 @@ fn main() {
     let diff = observe!(|mut foo| {
         foo.bar.baz += 1;
         foo.qux += " world";
-    });
+    }).unwrap();
 
     assert_eq!(diff, vec![
-        Change::set("bar/baz", 43),
-        Change::append("qux", " world"),
+        Change::set("bar/baz", 43).unwrap(),
+        Change::append("qux", " world").unwrap(),
     ]);
 
     assert_eq!(foo, Foo { bar: Bar { baz: 43 }, qux: "hello world".to_string() });

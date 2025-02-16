@@ -39,9 +39,9 @@ impl DeltaHistory {
             self.o = o;
         }
         match self.o {
-            DeltaKind::SET => Change::set(self.p.clone(), delta.v),
+            DeltaKind::SET => Change::SET { p: self.p.clone(), v: delta.v },
             #[cfg(feature = "append")]
-            DeltaKind::APPEND => Change::append(self.p.clone(), delta.v),
+            DeltaKind::APPEND => Change::APPEND { p: self.p.clone(), v: delta.v },
             DeltaKind::BATCH => {
                 let mut history = Self::new();
                 let Value::Array(deltas) = delta.v else {
