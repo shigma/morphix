@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use serde::Serialize;
-use serde_json::{json, to_value, Error, Value};
+use serde_json::{json, to_value, Value};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Change {
@@ -12,12 +12,12 @@ pub enum Change {
 }
 
 impl Change {
-    pub fn set<P: Into<String>, V: Serialize>(p: P, v: V) -> Result<Self, Error> {
+    pub fn set<P: Into<String>, V: Serialize>(p: P, v: V) -> Result<Self, serde_json::Error> {
         Ok(Self::SET { p: p.into(), v: to_value(v)? })
     }
 
     #[cfg(feature = "append")]
-    pub fn append<P: Into<String>, V: Serialize>(p: P, v: V) -> Result<Self, Error> {
+    pub fn append<P: Into<String>, V: Serialize>(p: P, v: V) -> Result<Self, serde_json::Error> {
         Ok(Self::APPEND { p: p.into(), v: to_value(v)? })
     }
 
@@ -43,24 +43,24 @@ impl Change {
         }
     }
 
-    pub fn apply(self, value: Value) -> Value {
+    pub fn apply(self, value: Value) -> Result<Value, Error> {
         let mut root = json!({ "__ROOT__": value });
         let mut parts = vec!["__ROOT__".to_string()];
         parts.extend(split_path(Some(self.path())));
         let mut node = &mut root;
         while parts.len() > 1 {
             let key = parts.remove(0);
-            node = json_index(node, &key, false);
+            node = json_index(node, &key, false)?;
         }
         let key = parts.remove(0);
         // node[key] = value;
         let mut value = match self {
             Self::SET { .. } => Value::Null,
-            _ => json_index(node, &key, false).clone(),
+            _ => json_index(node, &key, false)?.clone(),
         };
         match self {
             Self::SET { v, .. } => {
-                *json_index(node, &key, true) = v;
+                *json_index(node, &key, true)? = v;
             },
             #[cfg(feature = "append")]
             Self::APPEND { v, .. } => {
@@ -68,11 +68,11 @@ impl Change {
             },
             Self::BATCH { v, .. } => {
                 for delta in v {
-                    value = delta.apply(value);
+                    value = delta.apply(value)?;
                 }
             },
         }
-        root["__ROOT__"].take()
+        Ok(root["__ROOT__"].take())
     }
 }
 
@@ -88,20 +88,20 @@ impl BatchTree {
         Self::default()
     }
 
-    pub fn load(&mut self, mut change: Change) {
+    pub fn load(&mut self, mut change: Change) -> Result<(), Error> {
         let mut node = self;
         let mut parts = split_path(Some(change.path()));
         if let Some(Change::SET { v, .. }) = &mut node.change {
-            *v = change.apply(v.clone()); // FIXME: no clone
-            return
+            *v = change.apply(v.clone())?; // FIXME: no clone
+            return Ok(())
         }
         while parts.len() > 0 {
             let part = parts.remove(0);
             node = node.children.entry(part).or_default();
             *change.path_mut() = parts.join("/");
             if let Some(Change::SET { v, .. }) = &mut node.change {
-                *v = change.apply(v.clone()); // FIXME: no clone
-                return
+                *v = change.apply(v.clone())?; // FIXME: no clone
+                return Ok(())
             }
         }
         match change {
@@ -121,6 +121,7 @@ impl BatchTree {
             },
             Change::BATCH { .. } => unreachable!(),
         }
+        Ok(())
     }
 
     pub fn dump(self) -> Change {
@@ -141,20 +142,24 @@ impl BatchTree {
     }
 }
 
-fn json_index<'v>(node: &'v mut Value, key: &str, insert: bool) -> &'v mut Value {
+pub enum Error {
+    JsonError(serde_json::Error),
+    IndexError(String),
+}
+
+fn json_index<'v>(node: &'v mut Value, key: &str, insert: bool) -> Result<&'v mut Value, Error> {
     match node {
         Value::Array(vec) => {
-            let index = key.parse::<usize>().unwrap(); // TODO: handle error
-            vec.get_mut(index).unwrap() // TODO: handle error
+            key.parse::<usize>().ok().and_then(|index| vec.get_mut(index))
         },
         Value::Object(map) => {
             match insert {
-                true => map.entry(key.to_string()).or_insert(Value::Null),
-                false => map.get_mut(key).unwrap(), // TODO: handle error
+                true => Some(map.entry(key.to_string()).or_insert(Value::Null)),
+                false => map.get_mut(key),
             }
         },
         _ => panic!("invalid index"),
-    }
+    }.ok_or_else(|| Error::IndexError(key.to_string())) // FIXME: full path
 }
 
 #[cfg(feature = "append")]
