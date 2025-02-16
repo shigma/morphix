@@ -4,7 +4,7 @@ use crate::change::{append, concat_path, split_path, Change};
 use crate::error::Error;
 
 #[derive(Debug, Default)]
-pub struct Batch {
+pub(crate) struct Batch {
     /// can only be SET or APPEND
     change: Option<Change>,
     children: BTreeMap<String, Batch>,

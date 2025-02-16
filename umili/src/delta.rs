@@ -5,6 +5,7 @@ use crate::batch::Batch;
 use crate::change::Change;
 use crate::error::Error;
 
+/// A structured change with optional `p` and `o` fields.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Delta {
     p: Option<String>,
@@ -12,6 +13,7 @@ pub struct Delta {
     v: Value,
 }
 
+/// The kind of a delta operation.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeltaKind {
     #[default]
@@ -22,6 +24,7 @@ pub enum DeltaKind {
     HISTORY,
 }
 
+/// A history of delta operations, used for caching `p` and `o` fields.
 #[derive(Debug, Clone, Default)]
 pub struct DeltaHistory {
     p: String,
@@ -33,6 +36,7 @@ impl DeltaHistory {
         Self::default()
     }
 
+    /// Decode a `Delta` into a `Change`.
     pub fn decode(&mut self, delta: Delta) -> Result<Change, Error> {
         if let Some(p) = delta.p {
             self.p = p;
@@ -64,6 +68,7 @@ impl DeltaHistory {
         })
     }
 
+    /// Encode a `Change` into a `Delta`.
     pub fn encode(&mut self, change: Change) -> Result<Delta, Error> {
         let (p, o, v) = match change {
             Change::SET { p, v } => (p, DeltaKind::SET, v),
@@ -95,7 +100,8 @@ impl DeltaHistory {
         Ok(Delta { p, o, v })
     }
 
-    pub fn batch_encode(&mut self, changes: Vec<Change>) -> Result<Delta, Error> {
+    /// Batch encode a list of `Change`s into a `Delta`.
+    pub fn batch_encode<I: IntoIterator<Item = Change>>(&mut self, changes: I) -> Result<Delta, Error> {
         let mut batch = Batch::new();
         for change in changes {
             batch.load(change, "")?;

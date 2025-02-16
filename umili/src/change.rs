@@ -3,6 +3,7 @@ use serde_json::{to_value, Value};
 
 use crate::error::Error;
 
+/// A change in JSON format.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Change {
     SET { p: String, v: Value },
@@ -12,19 +13,23 @@ pub enum Change {
 }
 
 impl Change {
+    /// Construct a SET change.
     pub fn set<P: Into<String>, V: Serialize>(p: P, v: V) -> Result<Self, serde_json::Error> {
         Ok(Self::SET { p: p.into(), v: to_value(v)? })
     }
 
+    /// Construct an APPEND change.
     #[cfg(feature = "append")]
     pub fn append<P: Into<String>, V: Serialize>(p: P, v: V) -> Result<Self, serde_json::Error> {
         Ok(Self::APPEND { p: p.into(), v: to_value(v)? })
     }
 
+    /// Construct a BATCH change.
     pub fn batch<P: Into<String>>(p: P, v: Vec<Change>) -> Self {
         Self::BATCH { p: p.into(), v }
     }
 
+    /// Get the path of the change.
     pub fn path(&self) -> &String {
         match self {
             Self::BATCH { p, .. } => p,
@@ -34,6 +39,7 @@ impl Change {
         }
     }
 
+    /// Get the mutable path of the change.
     pub fn path_mut(&mut self) -> &mut String {
         match self {
             Self::BATCH { p, .. } => p,
@@ -43,6 +49,7 @@ impl Change {
         }
     }
 
+    /// Apply the change to a JSON value.
     pub fn apply(self, mut value: &mut Value, prefix: &str) -> Result<(), Error> {
         let mut parts = split_path(self.path());
         let mut prefix = prefix.to_string();

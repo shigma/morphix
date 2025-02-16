@@ -23,8 +23,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
                 inst_fields.push(quote! {
                     #ident: ::umili::Ob {
                         value: &mut self.#ident,
-                        path: prefix.to_string() + stringify!(#ident),
-                        mutation: mutation.clone(),
+                        ctx: ctx.extend(stringify!(#ident)),
                     },
                 });
             }
@@ -36,7 +35,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
         impl #impl_generics Observe for #ident #type_generics #where_clause {
             type Target<'i> = #ident_ob<'i>;
 
-            fn observe(&mut self, prefix: &str, mutation: &::std::rc::Rc<::std::cell::RefCell<::umili::Mutation>>) -> Self::Target<'_> {
+            fn observe(&mut self, ctx: &::umili::Context) -> Self::Target<'_> {
                 #ident_ob {
                     #(#inst_fields)*
                 }
@@ -68,10 +67,10 @@ pub fn observe(input: TokenStream) -> TokenStream {
         {
             use ::std::ops::*;
             let _ = || #body_shadow;
-            let mutation = ::umili::Mutation::new();
-            let mut #ident = #ident.observe("", &mutation);
+            let ctx = ::umili::Context::new();
+            let mut #ident = #ident.observe(&ctx);
             #body;
-            mutation.take().collect()
+            ctx.collect()
         }
     }.into()
 }

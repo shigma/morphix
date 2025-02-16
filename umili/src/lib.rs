@@ -1,12 +1,11 @@
-use std::mem::replace;
+use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
-use std::cell::RefCell;
 
 use serde::Serialize;
 use serde_json::Error;
 
-pub mod batch;
+mod batch;
 pub mod change;
 pub mod delta;
 pub mod error;
@@ -20,42 +19,77 @@ extern crate umili_derive;
 #[cfg(feature = "derive")]
 pub use umili_derive::{observe, Observe};
 
+/// Trait for observing changes.
 pub trait Observe {
     type Target<'i> where Self: 'i;
 
-    fn observe<'i>(&'i mut self, prefix: &str, mutation: &Rc<RefCell<Mutation>>) -> Self::Target<'i>;
+    fn observe<'i>(&'i mut self, ctx: &Context) -> Self::Target<'i>;
+}
+
+/// Context for observing changes.
+#[derive(Debug, Default)]
+pub struct Context {
+    prefix: String,
+    mutation: Rc<RefCell<Mutation>>,
+}
+
+impl Context {
+    /// Create a root context.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create a sub-context for a sub-path.
+    pub fn extend(&self, path: &str) -> Self {
+        Self {
+            prefix: self.prefix.clone() + "/" + path,
+            mutation: self.mutation.clone(),
+        }
+    }
+
+    /// Collect changes and errors.
+    pub fn collect(self) -> Result<Vec<Change>, Vec<Error>> {
+        self.mutation.take().collect()
+    }
 }
 
 #[derive(Debug, Default)]
-pub struct Mutation {
+struct Mutation {
     changes: Vec<Change>,
     errors: Vec<Error>,
 }
 
 impl Mutation {
-    pub fn new() -> Rc<RefCell<Self>> {
-        Default::default()
-    }
-
-    pub fn push(&mut self, result: Result<Change, Error>) {
+    fn push(&mut self, result: Result<Change, Error>) {
         match result {
             Ok(change) => self.changes.push(change),
             Err(error) => self.errors.push(error),
         }
     }
 
-    pub fn collect(&mut self) -> Result<Vec<Change>, Vec<Error>> {
+    fn collect(self) -> Result<Vec<Change>, Vec<Error>> {
         match self.errors.len() {
-            0 => Ok(replace(&mut self.changes, vec![])),
-            _ => Err(replace(&mut self.errors, vec![])),
+            0 => Ok(self.changes),
+            _ => Err(self.errors),
         }
     }
 }
 
+/// An observable value.
 pub struct Ob<'i, T: Clone + Serialize + PartialEq> {
     pub value: &'i mut T,
-    pub path: String,
-    pub mutation: Rc<RefCell<Mutation>>,
+    pub ctx: Context,
+}
+
+impl<'i, T: Clone + Serialize + PartialEq> Ob<'i, T> {
+    pub fn borrow_mut(&mut self) -> Ref<T> {
+        Ref {
+            old_value: None,
+            value: self.value,
+            path: &self.ctx.prefix[1..],
+            mutation: self.ctx.mutation.clone(),
+        }
+    }
 }
 
 impl<'i, T: Clone + Serialize + PartialEq> Deref for Ob<'i, T> {
@@ -66,30 +100,19 @@ impl<'i, T: Clone + Serialize + PartialEq> Deref for Ob<'i, T> {
     }
 }
 
-impl<'i, T: Clone + Serialize + PartialEq> Ob<'i, T> {
-    pub fn borrow_mut(&mut self) -> Ref<T> {
-        Ref {
-            old_value: None,
-            value: self.value,
-            path: &self.path,
-            mutation: self.mutation.clone(),
-        }
-    }
-}
-
 impl<'i, T: Clone + Serialize + PartialEq + Observe> Ob<'i, T> {
     #[inline]
     pub fn borrow(&mut self) -> T::Target<'_> {
-        let prefix = self.path.to_string() + "/";
-        self.value.observe(&prefix, &self.mutation)
+        self.value.observe(&self.ctx)
     }
 }
 
+/// Reference to an observable value.
 pub struct Ref<'i, T: Clone + Serialize + PartialEq> {
-    pub old_value: Option<T>,
-    pub value: &'i mut T,
-    pub path: &'i str,
-    pub mutation: Rc<RefCell<Mutation>>,
+    old_value: Option<T>,
+    value: &'i mut T,
+    path: &'i str,
+    mutation: Rc<RefCell<Mutation>>,
 }
 
 #[cfg(feature = "append")]
