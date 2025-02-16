@@ -1,17 +1,19 @@
+#![doc = include_str!("../README.md")]
+
 use std::cell::RefCell;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
 use serde::Serialize;
-use serde_json::Error;
 
 mod batch;
-pub mod change;
-pub mod delta;
-pub mod error;
+mod change;
+mod delta;
+mod error;
 
 pub use crate::change::Change;
 pub use crate::delta::{Delta, DeltaHistory, DeltaKind};
+pub use crate::error::Error;
 
 #[cfg(feature = "derive")]
 extern crate umili_derive;
@@ -48,7 +50,7 @@ impl Context {
     }
 
     /// Collect changes and errors.
-    pub fn collect(self) -> Result<Vec<Change>, Vec<Error>> {
+    pub fn collect(self) -> Result<Vec<Change>, Vec<serde_json::Error>> {
         self.mutation.take().collect()
     }
 }
@@ -56,18 +58,18 @@ impl Context {
 #[derive(Debug, Default)]
 struct Mutation {
     changes: Vec<Change>,
-    errors: Vec<Error>,
+    errors: Vec<serde_json::Error>,
 }
 
 impl Mutation {
-    fn push(&mut self, result: Result<Change, Error>) {
+    fn push(&mut self, result: Result<Change, serde_json::Error>) {
         match result {
             Ok(change) => self.changes.push(change),
             Err(error) => self.errors.push(error),
         }
     }
 
-    fn collect(self) -> Result<Vec<Change>, Vec<Error>> {
+    fn collect(self) -> Result<Vec<Change>, Vec<serde_json::Error>> {
         match self.errors.len() {
             0 => Ok(self.changes),
             _ => Err(self.errors),

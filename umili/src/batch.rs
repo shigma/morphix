@@ -5,7 +5,7 @@ use crate::error::Error;
 
 #[derive(Debug, Default)]
 pub(crate) struct Batch {
-    /// can only be SET or APPEND
+    /// Change in a batch, can only be SET or APPEND.
     change: Option<Change>,
     children: BTreeMap<String, Batch>,
 }
