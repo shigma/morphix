@@ -18,10 +18,10 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
                 let ident = name.ident.as_ref().unwrap();
                 let ty = &name.ty;
                 type_fields.push(quote! {
-                    pub #ident: umili::Ob<'i, #ty>,
+                    pub #ident: ::umili::Ob<'i, #ty>,
                 });
                 inst_fields.push(quote! {
-                    #ident: umili::Ob {
+                    #ident: ::umili::Ob {
                         value: &mut self.#ident,
                         path: prefix.to_string() + stringify!(#ident),
                         diff: diff.clone(),
@@ -36,7 +36,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
         impl #impl_generics Observe for #ident #type_generics #where_clause {
             type Target<'i> = #ident_ob<'i>;
 
-            fn observe(&mut self, prefix: &str, diff: &std::rc::Rc<std::cell::RefCell<Vec<Delta>>>) -> Self::Target<'_> {
+            fn observe(&mut self, prefix: &str, diff: &::std::rc::Rc<::std::cell::RefCell<Vec<::umili::Change>>>) -> Self::Target<'_> {
                 #ident_ob {
                     #(#inst_fields)*
                 }
@@ -66,9 +66,9 @@ pub fn observe(input: TokenStream) -> TokenStream {
     subst_expr(body, ident);
     quote! {
         {
-            use std::ops::*;
+            use ::std::ops::*;
             let _ = || #body_shadow;
-            let diff = std::rc::Rc::new(std::cell::RefCell::new(vec![]));
+            let diff = ::std::rc::Rc::new(::std::cell::RefCell::new(vec![]));
             let mut #ident = #ident.observe("", &diff);
             #body;
             diff.take()

@@ -4,7 +4,7 @@ use std::cell::RefCell;
 
 use serde::Serialize;
 
-pub use crate::delta::{Delta, DeltaKind};
+pub use crate::delta::{Change, DeltaKind};
 
 pub mod delta;
 
@@ -17,13 +17,13 @@ pub use umili_derive::{observe, Observe};
 pub trait Observe {
     type Target<'i> where Self: 'i;
 
-    fn observe<'i>(&'i mut self, prefix: &str, diff: &Rc<RefCell<Vec<Delta>>>) -> Self::Target<'i>;
+    fn observe<'i>(&'i mut self, prefix: &str, diff: &Rc<RefCell<Vec<Change>>>) -> Self::Target<'i>;
 }
 
 pub struct Ob<'i, T: Clone + Serialize + PartialEq> {
     pub value: &'i mut T,
     pub path: String,
-    pub diff: Rc<RefCell<Vec<Delta>>>,
+    pub diff: Rc<RefCell<Vec<Change>>>,
 }
 
 impl<'i, T: Clone + Serialize + PartialEq> Deref for Ob<'i, T> {
@@ -57,7 +57,7 @@ pub struct Ref<'i, T: Clone + Serialize + PartialEq> {
     pub old_value: Option<T>,
     pub value: &'i mut T,
     pub path: &'i str,
-    pub diff: Rc<RefCell<Vec<Delta>>>,
+    pub diff: Rc<RefCell<Vec<Change>>>,
 }
 
 #[cfg(feature = "append")]
@@ -67,7 +67,7 @@ impl<'i> Ref<'i, String> {
     }
 
     pub fn push(&mut self, c: char) {
-        self.diff.borrow_mut().push(Delta::append(self.path, c));
+        self.diff.borrow_mut().push(Change::append(self.path, c));
         self.value.push(c);
     }
 
@@ -75,7 +75,7 @@ impl<'i> Ref<'i, String> {
         if s.is_empty() {
             return;
         }
-        self.diff.borrow_mut().push(Delta::append(self.path, s));
+        self.diff.borrow_mut().push(Change::append(self.path, s));
         self.value.push_str(s);
     }
 }
@@ -83,7 +83,7 @@ impl<'i> Ref<'i, String> {
 #[cfg(feature = "append")]
 impl<'i, T: Clone + Serialize + PartialEq> Ref<'i, Vec<T>> {
     pub fn push(&mut self, value: T) {
-        self.diff.borrow_mut().push(Delta::append(self.path, vec![&value]));
+        self.diff.borrow_mut().push(Change::append(self.path, vec![&value]));
         self.value.push(value);
     }
 
@@ -92,7 +92,7 @@ impl<'i, T: Clone + Serialize + PartialEq> Ref<'i, Vec<T>> {
         if other.is_empty() {
             return;
         }
-        self.diff.borrow_mut().push(Delta::append(self.path, &other));
+        self.diff.borrow_mut().push(Change::append(self.path, &other));
         self.value.extend(other);
     }
 }
@@ -118,7 +118,7 @@ impl<'i, T: Clone + Serialize + PartialEq> Drop for Ref<'i, T> {
     fn drop(&mut self) {
         if let Some(old_value) = self.old_value.take() {
             if old_value != *self.value {
-                self.diff.borrow_mut().push(Delta::set(self.path, &self.value));
+                self.diff.borrow_mut().push(Change::set(self.path, &self.value));
             }
         }
     }

@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use umili::{observe, Delta, Observe};
+use umili::{observe, Change, Observe};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Observe)]
 pub struct Foo {
@@ -22,8 +22,8 @@ fn main() {
     });
 
     assert_eq!(diff, vec![
-        Delta::set("bar/baz", 43),
-        Delta::append("qux", " world"),
+        Change::set("bar/baz", 43),
+        Change::append("qux", " world"),
     ]);
 
     assert_eq!(foo, Foo { bar: Bar { baz: 43 }, qux: "hello world".to_string() });
