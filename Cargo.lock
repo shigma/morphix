@@ -87,6 +87,7 @@ version = "0.2.2"
 dependencies = [
  "serde",
  "serde_json",
+ "umili",
  "umili-derive",
 ]
 

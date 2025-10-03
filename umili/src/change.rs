@@ -1,109 +1,115 @@
 use serde::Serialize;
-use serde_json::{to_value, Value};
+use serde_json::{Value, to_value};
 
-use crate::error::Error;
+use super::error::MutationError;
 
 /// A change in JSON format.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Change {
-    /// SET is the default change for `DerefMut` operations.
-    /// 
+    /// `Set` is the default change for `DerefMut` operations.
+    ///
     /// ## Example
-    /// 
+    ///
     /// ```ignore
-    /// foo.a.b = 1;        // SET "a/b"
-    /// foo.num *= 2;       // SET "num"
-    /// foo.vec.clear();    // SET "vec"
+    /// foo.a.b = 1;        // Set "a/b"
+    /// foo.num *= 2;       // Set "num"
+    /// foo.vec.clear();    // Set "vec"
     /// ```
-    /// 
-    /// If an operation triggers APPEND, no SET change is emitted.
-    SET { p: String, v: Value },
+    ///
+    /// If an operation triggers `Append`, no `Set` change is emitted.
+    Set { p: String, v: Value },
 
-    /// APPEND represents a `String` or `Vec` append operation.
-    /// 
+    /// `Append` represents a `String` or `Vec` append operation.
+    ///
     /// ## Example
-    /// 
+    ///
     /// ```ignore
-    /// foo.a.b += "text";          // APPEND "a/b"
-    /// foo.a.b.push_str("text");   // APPEND "a/b"
-    /// foo.vec.push(1);            // APPEND "vec"
-    /// foo.vec.extend(iter);       // APPEND "vec"
+    /// foo.a.b += "text";          // Append "a/b"
+    /// foo.a.b.push_str("text");   // Append "a/b"
+    /// foo.vec.push(1);            // Append "vec"
+    /// foo.vec.extend(iter);       // Append "vec"
     /// ```
     #[cfg(feature = "append")]
-    APPEND { p: String, v: Value },
+    Append { p: String, v: Value },
 
-    /// BATCH represents a sequence of changes.
-    BATCH { p: String, v: Vec<Self> },
+    /// `Batch` represents a sequence of changes.
+    Batch { p: String, v: Vec<Self> },
 }
 
 impl Change {
-    /// Construct a SET change.
+    /// Construct a `Set` change.
     pub fn set<P: Into<String>, V: Serialize>(p: P, v: V) -> Result<Self, serde_json::Error> {
-        Ok(Self::SET { p: p.into(), v: to_value(v)? })
+        Ok(Self::Set {
+            p: p.into(),
+            v: to_value(v)?,
+        })
     }
 
-    /// Construct an APPEND change.
+    /// Construct an `Append` change.
     #[cfg(feature = "append")]
     pub fn append<P: Into<String>, V: Serialize>(p: P, v: V) -> Result<Self, serde_json::Error> {
-        Ok(Self::APPEND { p: p.into(), v: to_value(v)? })
+        Ok(Self::Append {
+            p: p.into(),
+            v: to_value(v)?,
+        })
     }
 
-    /// Construct a BATCH change.
+    /// Construct a `Batch` change.
     pub fn batch<P: Into<String>>(p: P, v: Vec<Change>) -> Self {
-        Self::BATCH { p: p.into(), v }
+        Self::Batch { p: p.into(), v }
     }
 
     /// Get the path of the change.
     pub fn path(&self) -> &String {
         match self {
-            Self::BATCH { p, .. } => p,
-            Self::SET { p, .. } => p,
+            Self::Batch { p, .. } => p,
+            Self::Set { p, .. } => p,
             #[cfg(feature = "append")]
-            Self::APPEND { p, .. } => p,
+            Self::Append { p, .. } => p,
         }
     }
 
     /// Get the mutable path of the change.
     pub fn path_mut(&mut self) -> &mut String {
         match self {
-            Self::BATCH { p, .. } => p,
-            Self::SET { p, .. } => p,
+            Self::Batch { p, .. } => p,
+            Self::Set { p, .. } => p,
             #[cfg(feature = "append")]
-            Self::APPEND { p, .. } => p,
+            Self::Append { p, .. } => p,
         }
     }
 
     /// Apply the change to a JSON value.
-    pub fn apply(self, mut value: &mut Value, prefix: &str) -> Result<(), Error> {
+    pub fn apply(self, mut value: &mut Value, prefix: &str) -> Result<(), MutationError> {
         let mut parts = split_path(self.path());
         let mut prefix = prefix.to_string();
         while let Some(key) = parts.pop() {
             prefix += key;
             prefix += "/";
-            match json_index(value, key, parts.is_empty() && matches!(self, Self::SET { .. })) {
+            match json_index(value, key, parts.is_empty() && matches!(self, Self::Set { .. })) {
                 Some(v) => value = v,
                 None => {
                     prefix.pop();
-                    return Err(Error::IndexError { path: prefix })
-                },
+                    return Err(MutationError::IndexError { path: prefix });
+                }
             }
         }
         match self {
-            Self::SET { v, .. } => {
+            Self::Set { v, .. } => {
                 *value = v;
-            },
+            }
             #[cfg(feature = "append")]
-            Self::APPEND { v, .. } => {
+            Self::Append { v, .. } => {
                 if !append(value, v) {
                     prefix.pop();
-                    return Err(Error::OperationError { path: prefix })
+                    return Err(MutationError::OperationError { path: prefix });
                 }
-            },
-            Self::BATCH { v, .. } => {
+            }
+            Self::Batch { v, .. } => {
                 for delta in v {
                     delta.apply(value, &prefix)?;
                 }
-            },
+            }
         }
         Ok(())
     }
@@ -111,14 +117,10 @@ impl Change {
 
 fn json_index<'v>(value: &'v mut Value, key: &str, insert: bool) -> Option<&'v mut Value> {
     match value {
-        Value::Array(vec) => {
-            key.parse::<usize>().ok().and_then(|index| vec.get_mut(index))
-        },
-        Value::Object(map) => {
-            match insert {
-                true => Some(map.entry(key.to_string()).or_insert(Value::Null)),
-                false => map.get_mut(key),
-            }
+        Value::Array(vec) => key.parse::<usize>().ok().and_then(|index| vec.get_mut(index)),
+        Value::Object(map) => match insert {
+            true => Some(map.entry(key.to_string()).or_insert(Value::Null)),
+            false => map.get_mut(key),
         },
         _ => None,
     }
@@ -129,10 +131,10 @@ pub(crate) fn append(lhs: &mut Value, rhs: Value) -> bool {
     match (lhs, rhs) {
         (Value::String(lhs), Value::String(rhs)) => {
             *lhs += &rhs;
-        },
+        }
         (Value::Array(lhs), Value::Array(rhs)) => {
             lhs.extend(rhs);
-        },
+        }
         _ => return false,
     }
     true
@@ -147,11 +149,7 @@ pub(crate) fn split_path(path: &str) -> Vec<&str> {
 }
 
 pub(crate) fn concat_path(key: String, path: &str) -> String {
-    if path.is_empty() {
-        key
-    } else {
-        format!("{}/{}", key, path)
-    }
+    if path.is_empty() { key } else { format!("{key}/{path}") }
 }
 
 #[cfg(test)]
@@ -175,13 +173,29 @@ mod test {
         assert_eq!(value, json!({"a": 2}));
 
         let error = Change::set("a/b", 3).unwrap().apply(&mut json!({}), "").unwrap_err();
-        assert_eq!(error, Error::IndexError { path: "a".to_string() });
+        assert_eq!(error, MutationError::IndexError { path: "a".to_string() });
 
-        let error = Change::set("a/b", 3).unwrap().apply(&mut json!({"a": 1}), "").unwrap_err();
-        assert_eq!(error, Error::IndexError { path: "a/b".to_string() });
+        let error = Change::set("a/b", 3)
+            .unwrap()
+            .apply(&mut json!({"a": 1}), "")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            MutationError::IndexError {
+                path: "a/b".to_string()
+            }
+        );
 
-        let error = Change::set("a/b", 3).unwrap().apply(&mut json!({"a": []}), "").unwrap_err();
-        assert_eq!(error, Error::IndexError { path: "a/b".to_string() });
+        let error = Change::set("a/b", 3)
+            .unwrap()
+            .apply(&mut json!({"a": []}), "")
+            .unwrap_err();
+        assert_eq!(
+            error,
+            MutationError::IndexError {
+                path: "a/b".to_string()
+            }
+        );
 
         let mut value = json!({"a": {}});
         Change::set("a/b", 3).unwrap().apply(&mut value, "").unwrap();
@@ -199,16 +213,16 @@ mod test {
         assert_eq!(value, json!([2, "3", "4"]));
 
         let error = Change::append("", 3).unwrap().apply(&mut json!(""), "").unwrap_err();
-        assert_eq!(error, Error::OperationError { path: "".to_string() });
+        assert_eq!(error, MutationError::OperationError { path: "".to_string() });
 
         let error = Change::append("", "3").unwrap().apply(&mut json!({}), "").unwrap_err();
-        assert_eq!(error, Error::OperationError { path: "".to_string() });
+        assert_eq!(error, MutationError::OperationError { path: "".to_string() });
 
         let error = Change::append("", "3").unwrap().apply(&mut json!([]), "").unwrap_err();
-        assert_eq!(error, Error::OperationError { path: "".to_string() });
+        assert_eq!(error, MutationError::OperationError { path: "".to_string() });
 
         let error = Change::append("", [3]).unwrap().apply(&mut json!(""), "").unwrap_err();
-        assert_eq!(error, Error::OperationError { path: "".to_string() });
+        assert_eq!(error, MutationError::OperationError { path: "".to_string() });
     }
 
     #[test]
@@ -219,13 +233,20 @@ mod test {
 
         let mut value = json!({"a": {"b": {"c": "1"}}});
         let error = Change::batch("a/d", vec![]).apply(&mut value, "").unwrap_err();
-        assert_eq!(error, Error::IndexError { path: "a/d".to_string() });
+        assert_eq!(
+            error,
+            MutationError::IndexError {
+                path: "a/d".to_string()
+            }
+        );
 
         let mut value = json!({"a": {"b": {"c": "1"}}});
-        Change::batch("a", vec![
-            Change::append("b/c", "2").unwrap(),
-            Change::set("d", 3).unwrap(),
-        ]).apply(&mut value, "").unwrap();
+        Change::batch(
+            "a",
+            vec![Change::append("b/c", "2").unwrap(), Change::set("d", 3).unwrap()],
+        )
+        .apply(&mut value, "")
+        .unwrap();
         assert_eq!(value, json!({"a": {"b": {"c": "12"}, "d": 3}}));
     }
 }

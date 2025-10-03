@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
-use serde_json::{from_value, to_value, Value};
+use serde_json::{Value, from_value, to_value};
 
-use crate::batch::Batch;
-use crate::change::Change;
-use crate::error::Error;
+use super::batch::Batch;
+use super::change::Change;
 
 /// A structured change with optional `p` and `o` fields.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -13,18 +12,17 @@ pub struct Delta {
     v: Value,
 }
 
-/// The kind of a delta operation.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeltaKind {
     #[default]
-    SET,
+    Set,
     #[cfg(feature = "append")]
-    APPEND,
-    BATCH,
-    STATE,
+    Append,
+    Batch,
+    State,
 }
 
-/// State of delta operations, used for caching `p` and `o` fields.
+/// State of `Delta` operations, used for caching `p` and `o` fields.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DeltaState {
     p: String,
@@ -32,56 +30,58 @@ pub struct DeltaState {
 }
 
 impl DeltaState {
+    /// Create a new `DeltaState`.
     pub fn new() -> Self {
         Self::default()
     }
 
     /// Decode a `Delta` into a `Change`.
-    pub fn decode(&mut self, delta: Delta) -> Result<Change, Error> {
+    pub fn decode(&mut self, delta: Delta) -> Change {
         if let Some(p) = delta.p {
             self.p = p;
         }
         if let Some(o) = delta.o {
             self.o = o;
         }
-        Ok(match self.o {
-            DeltaKind::SET => Change::SET { p: self.p.clone(), v: delta.v },
+        match self.o {
+            DeltaKind::Set => Change::Set {
+                p: self.p.clone(),
+                v: delta.v,
+            },
             #[cfg(feature = "append")]
-            DeltaKind::APPEND => Change::APPEND { p: self.p.clone(), v: delta.v },
-            DeltaKind::BATCH => {
+            DeltaKind::Append => Change::Append {
+                p: self.p.clone(),
+                v: delta.v,
+            },
+            DeltaKind::Batch => {
                 let mut state = Self::new();
                 let Value::Array(deltas) = delta.v else {
                     panic!("invalid batch operation");
                 };
                 let changes = deltas
                     .into_iter()
-                    .map(|delta| -> Result<Change, Error> {
-                        state.decode(from_value(delta).map_err(Error::JsonError)?)
-                    })
-                    .collect::<Result<_, _>>()?;
+                    .map(|delta| state.decode(from_value(delta).unwrap()))
+                    .collect::<Vec<_>>();
                 Change::batch(self.p.clone(), changes)
-            },
-            DeltaKind::STATE => {
-                self.o = from_value(delta.v).map_err(Error::JsonError)?;
+            }
+            DeltaKind::State => {
+                self.o = from_value(delta.v).unwrap();
                 Change::batch(self.p.clone(), vec![])
-            },
-        })
+            }
+        }
     }
 
     /// Encode a `Change` into a `Delta`.
-    pub fn encode(&mut self, change: Change) -> Result<Delta, Error> {
+    pub fn encode(&mut self, change: Change) -> Delta {
         let (p, o, v) = match change {
-            Change::SET { p, v } => (p, DeltaKind::SET, v),
+            Change::Set { p, v } => (p, DeltaKind::Set, v),
             #[cfg(feature = "append")]
-            Change::APPEND { p, v } => (p, DeltaKind::APPEND, v),
-            Change::BATCH { p, v } => {
+            Change::Append { p, v } => (p, DeltaKind::Append, v),
+            Change::Batch { p, v } => {
                 let mut state = Self::new();
-                let deltas = v
-                    .into_iter()
-                    .map(|change| state.encode(change))
-                    .collect::<Result<Vec<_>, _>>()?;
-                (p, DeltaKind::BATCH, to_value(deltas).map_err(Error::JsonError)?)
-            },
+                let deltas = v.into_iter().map(|change| state.encode(change)).collect::<Vec<_>>();
+                (p, DeltaKind::Batch, to_value(deltas).unwrap())
+            }
         };
         let p = if self.p == p {
             None
@@ -95,15 +95,15 @@ impl DeltaState {
             self.o = o;
             Some(self.o)
         };
-        Ok(Delta { p, o, v })
+        Delta { p, o, v }
     }
 
     /// Batch encode a list of `Change`s into a `Delta`.
-    pub fn batch_encode<I: IntoIterator<Item = Change>>(&mut self, changes: I) -> Result<Delta, Error> {
+    pub fn batch_encode<I: IntoIterator<Item = Change>>(&mut self, changes: I) -> Option<Delta> {
         let mut batch = Batch::new();
         for change in changes {
-            batch.load(change, "")?;
+            batch.load(change, "").unwrap(); // TODO: remove unwrap
         }
-        self.encode(batch.dump())
+        batch.dump().map(|change| self.encode(change))
     }
 }

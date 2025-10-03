@@ -11,19 +11,17 @@ mod change;
 mod delta;
 mod error;
 
-pub use crate::change::Change;
-pub use crate::delta::{Delta, DeltaKind, DeltaState};
-pub use crate::error::Error;
-
+pub use change::Change;
+pub use delta::{Delta, DeltaComposer, DeltaState};
+pub use error::MutationError;
 #[cfg(feature = "derive")]
-extern crate umili_derive;
-
-#[cfg(feature = "derive")]
-pub use umili_derive::{observe, Observe};
+pub use umili_derive::{Observe, observe};
 
 /// Trait for observing changes.
 pub trait Observe {
-    type Target<'i> where Self: 'i;
+    type Target<'i>
+    where
+        Self: 'i;
 
     fn observe<'i>(&'i mut self, ctx: &Context) -> Self::Target<'i>;
 }
@@ -41,7 +39,7 @@ impl Context {
         Self::default()
     }
 
-    /// Create a sub-context for a sub-path.
+    /// Create a sub-context at a sub-path.
     pub fn extend(&self, path: &str) -> Self {
         Self {
             prefix: self.prefix.clone() + "/" + path,
@@ -118,39 +116,42 @@ pub struct Ref<'i, T: Clone + Serialize + PartialEq> {
 }
 
 #[cfg(feature = "append")]
-impl<'i> Ref<'i, String> {
-    pub fn add_assign(&mut self, s: &str) {
-        self.push_str(s);
-    }
+mod append {
+    use super::*;
 
-    pub fn push(&mut self, c: char) {
-        self.mutation.borrow_mut().push(Change::append(self.path, c));
-        self.value.push(c);
-    }
-
-    pub fn push_str(&mut self, s: &str) {
-        if s.is_empty() {
-            return;
+    impl<'i> Ref<'i, String> {
+        pub fn add_assign(&mut self, s: &str) {
+            self.push_str(s);
         }
-        self.mutation.borrow_mut().push(Change::append(self.path, s));
-        self.value.push_str(s);
-    }
-}
 
-#[cfg(feature = "append")]
-impl<'i, T: Clone + Serialize + PartialEq> Ref<'i, Vec<T>> {
-    pub fn push(&mut self, value: T) {
-        self.mutation.borrow_mut().push(Change::append(self.path, vec![&value]));
-        self.value.push(value);
-    }
-
-    pub fn extend<I: IntoIterator<Item = T>>(&mut self, other: I) {
-        let other = other.into_iter().collect::<Vec<_>>();
-        if other.is_empty() {
-            return;
+        pub fn push(&mut self, c: char) {
+            self.mutation.borrow_mut().push(Change::append(self.path, c));
+            self.value.push(c);
         }
-        self.mutation.borrow_mut().push(Change::append(self.path, &other));
-        self.value.extend(other);
+
+        pub fn push_str(&mut self, s: &str) {
+            if s.is_empty() {
+                return;
+            }
+            self.mutation.borrow_mut().push(Change::append(self.path, s));
+            self.value.push_str(s);
+        }
+    }
+
+    impl<'i, T: Clone + Serialize + PartialEq> Ref<'i, Vec<T>> {
+        pub fn push(&mut self, value: T) {
+            self.mutation.borrow_mut().push(Change::append(self.path, vec![&value]));
+            self.value.push(value);
+        }
+
+        pub fn extend<I: IntoIterator<Item = T>>(&mut self, other: I) {
+            let other = other.into_iter().collect::<Vec<_>>();
+            if other.is_empty() {
+                return;
+            }
+            self.mutation.borrow_mut().push(Change::append(self.path, &other));
+            self.value.extend(other);
+        }
     }
 }
 
@@ -174,8 +175,9 @@ impl<'i, T: Clone + Serialize + PartialEq> DerefMut for Ref<'i, T> {
 impl<'i, T: Clone + Serialize + PartialEq> Drop for Ref<'i, T> {
     fn drop(&mut self) {
         if let Some(old_value) = self.old_value.take()
-            && old_value != *self.value {
-                self.mutation.borrow_mut().push(Change::set(self.path, &self.value));
-            }
+            && old_value != *self.value
+        {
+            self.mutation.borrow_mut().push(Change::set(self.path, &self.value));
+        }
     }
 }
