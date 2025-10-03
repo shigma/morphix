@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use crate::change::{Change, append, concat_path, split_path};
-use crate::error::MutationError;
+use crate::error::UmiliError;
 
 #[derive(Debug, Default)]
 pub struct Batch {
@@ -14,7 +14,7 @@ impl Batch {
         Self::default()
     }
 
-    pub fn load(&mut self, mut change: Change, prefix: &str) -> Result<(), MutationError> {
+    pub fn load(&mut self, mut change: Change, prefix: &str) -> Result<(), UmiliError> {
         let mut batch = self;
         let mut parts = split_path(change.path());
         if let Some(Change::Set { v, .. }) = &mut batch.change {
@@ -42,7 +42,7 @@ impl Batch {
                 Some(Change::Append { v: lhs, .. }) => {
                     if !append(lhs, v) {
                         prefix.pop();
-                        return Err(MutationError::OperationError { path: prefix });
+                        return Err(UmiliError::OperationError { path: prefix });
                     }
                 }
                 Some(_) => unreachable!(),

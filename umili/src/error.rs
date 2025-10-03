@@ -3,30 +3,30 @@ use std::fmt::Display;
 
 /// Error types for mutation operations.
 #[derive(Debug)]
-pub enum MutationError {
+pub enum UmiliError {
+    /// Error during JSON serialization or deserialization.
+    JsonError(serde_json::Error),
     /// The specified path does not exist.
     IndexError { path: String },
     /// Operation could not be performed at the specified path.
     OperationError { path: String },
 }
 
-impl PartialEq for MutationError {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::IndexError { path: a }, Self::IndexError { path: b }) => a == b,
-            (Self::OperationError { path: a }, Self::OperationError { path: b }) => a == b,
-            _ => false,
-        }
-    }
-}
-
-impl Display for MutationError {
+impl Display for UmiliError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::IndexError { path } => write!(f, "index error at {path}"),
-            Self::OperationError { path } => write!(f, "operation error at {path}"),
+            Self::JsonError(inner) => inner.fmt(f),
+            Self::IndexError { path } => write!(f, "path \"{path}\" does not exist"),
+            Self::OperationError { path } => write!(f, "operation could not be performed at \"{path}\""),
         }
     }
 }
 
-impl Error for MutationError {}
+impl Error for UmiliError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::JsonError(inner) => Some(inner),
+            _ => None,
+        }
+    }
+}

@@ -17,8 +17,8 @@ derive = []
 full = ["append", "derive"]
 
 [dependencies]
-serde = { version = "1.0.217", features = ["derive"] }
-serde_json = "1.0.138"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.145"
 umili-derive = { version = "0.2.0", path = "../derive" }
 
 [dev-dependencies]

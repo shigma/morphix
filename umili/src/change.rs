@@ -1,7 +1,7 @@
 use serde::Serialize;
 use serde_json::{Value, to_value};
 
-use super::error::MutationError;
+use super::error::UmiliError;
 
 /// A change in JSON format.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,7 +80,7 @@ impl Change {
     }
 
     /// Apply the change to a JSON value.
-    pub fn apply(self, mut value: &mut Value, prefix: &str) -> Result<(), MutationError> {
+    pub fn apply(self, mut value: &mut Value, prefix: &str) -> Result<(), UmiliError> {
         let mut parts = split_path(self.path());
         let mut prefix = prefix.to_string();
         while let Some(key) = parts.pop() {
@@ -90,7 +90,7 @@ impl Change {
                 Some(v) => value = v,
                 None => {
                     prefix.pop();
-                    return Err(MutationError::IndexError { path: prefix });
+                    return Err(UmiliError::IndexError { path: prefix });
                 }
             }
         }
@@ -102,7 +102,7 @@ impl Change {
             Self::Append { v, .. } => {
                 if !append(value, v) {
                     prefix.pop();
-                    return Err(MutationError::OperationError { path: prefix });
+                    return Err(UmiliError::OperationError { path: prefix });
                 }
             }
             Self::Batch { v, .. } => {
@@ -173,17 +173,21 @@ mod test {
         assert_eq!(value, json!({"a": 2}));
 
         let error = Change::set("a/b", 3).unwrap().apply(&mut json!({}), "").unwrap_err();
-        assert_eq!(error, MutationError::IndexError { path: "a".to_string() });
+        assert_eq!(
+            error.to_string(),
+            UmiliError::IndexError { path: "a".to_string() }.to_string()
+        );
 
         let error = Change::set("a/b", 3)
             .unwrap()
             .apply(&mut json!({"a": 1}), "")
             .unwrap_err();
         assert_eq!(
-            error,
-            MutationError::IndexError {
+            error.to_string(),
+            UmiliError::IndexError {
                 path: "a/b".to_string()
             }
+            .to_string()
         );
 
         let error = Change::set("a/b", 3)
@@ -191,10 +195,11 @@ mod test {
             .apply(&mut json!({"a": []}), "")
             .unwrap_err();
         assert_eq!(
-            error,
-            MutationError::IndexError {
+            error.to_string(),
+            UmiliError::IndexError {
                 path: "a/b".to_string()
             }
+            .to_string()
         );
 
         let mut value = json!({"a": {}});
@@ -213,16 +218,28 @@ mod test {
         assert_eq!(value, json!([2, "3", "4"]));
 
         let error = Change::append("", 3).unwrap().apply(&mut json!(""), "").unwrap_err();
-        assert_eq!(error, MutationError::OperationError { path: "".to_string() });
+        assert_eq!(
+            error.to_string(),
+            UmiliError::OperationError { path: "".to_string() }.to_string()
+        );
 
         let error = Change::append("", "3").unwrap().apply(&mut json!({}), "").unwrap_err();
-        assert_eq!(error, MutationError::OperationError { path: "".to_string() });
+        assert_eq!(
+            error.to_string(),
+            UmiliError::OperationError { path: "".to_string() }.to_string()
+        );
 
         let error = Change::append("", "3").unwrap().apply(&mut json!([]), "").unwrap_err();
-        assert_eq!(error, MutationError::OperationError { path: "".to_string() });
+        assert_eq!(
+            error.to_string(),
+            UmiliError::OperationError { path: "".to_string() }.to_string()
+        );
 
         let error = Change::append("", [3]).unwrap().apply(&mut json!(""), "").unwrap_err();
-        assert_eq!(error, MutationError::OperationError { path: "".to_string() });
+        assert_eq!(
+            error.to_string(),
+            UmiliError::OperationError { path: "".to_string() }.to_string()
+        );
     }
 
     #[test]
@@ -234,10 +251,11 @@ mod test {
         let mut value = json!({"a": {"b": {"c": "1"}}});
         let error = Change::batch("a/d", vec![]).apply(&mut value, "").unwrap_err();
         assert_eq!(
-            error,
-            MutationError::IndexError {
+            error.to_string(),
+            UmiliError::IndexError {
                 path: "a/d".to_string()
             }
+            .to_string()
         );
 
         let mut value = json!({"a": {"b": {"c": "1"}}});

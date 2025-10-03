@@ -13,7 +13,7 @@ mod error;
 
 pub use change::Change;
 pub use delta::{Delta, DeltaComposer, DeltaState};
-pub use error::MutationError;
+pub use error::UmiliError;
 #[cfg(feature = "derive")]
 pub use umili_derive::{Observe, observe};
 
