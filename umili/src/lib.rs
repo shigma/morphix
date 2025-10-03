@@ -12,7 +12,7 @@ mod delta;
 mod error;
 
 pub use crate::change::Change;
-pub use crate::delta::{Delta, DeltaHistory, DeltaKind};
+pub use crate::delta::{Delta, DeltaKind, DeltaState};
 pub use crate::error::Error;
 
 #[cfg(feature = "derive")]
@@ -84,7 +84,7 @@ pub struct Ob<'i, T: Clone + Serialize + PartialEq> {
 }
 
 impl<'i, T: Clone + Serialize + PartialEq> Ob<'i, T> {
-    pub fn borrow_mut(&mut self) -> Ref<T> {
+    pub fn borrow_mut<'j>(&'j mut self) -> Ref<'j, T> {
         Ref {
             old_value: None,
             value: self.value,
@@ -173,10 +173,9 @@ impl<'i, T: Clone + Serialize + PartialEq> DerefMut for Ref<'i, T> {
 
 impl<'i, T: Clone + Serialize + PartialEq> Drop for Ref<'i, T> {
     fn drop(&mut self) {
-        if let Some(old_value) = self.old_value.take() {
-            if old_value != *self.value {
+        if let Some(old_value) = self.old_value.take()
+            && old_value != *self.value {
                 self.mutation.borrow_mut().push(Change::set(self.path, &self.value));
             }
-        }
     }
 }

@@ -21,17 +21,17 @@ pub enum DeltaKind {
     #[cfg(feature = "append")]
     APPEND,
     BATCH,
-    HISTORY,
+    STATE,
 }
 
-/// A history of delta operations, used for caching `p` and `o` fields.
-#[derive(Debug, Clone, Default)]
-pub struct DeltaHistory {
+/// State of delta operations, used for caching `p` and `o` fields.
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct DeltaState {
     p: String,
     o: DeltaKind,
 }
 
-impl DeltaHistory {
+impl DeltaState {
     pub fn new() -> Self {
         Self::default()
     }
@@ -49,19 +49,19 @@ impl DeltaHistory {
             #[cfg(feature = "append")]
             DeltaKind::APPEND => Change::APPEND { p: self.p.clone(), v: delta.v },
             DeltaKind::BATCH => {
-                let mut history = Self::new();
+                let mut state = Self::new();
                 let Value::Array(deltas) = delta.v else {
                     panic!("invalid batch operation");
                 };
                 let changes = deltas
                     .into_iter()
                     .map(|delta| -> Result<Change, Error> {
-                        history.decode(from_value(delta).map_err(Error::JsonError)?)
+                        state.decode(from_value(delta).map_err(Error::JsonError)?)
                     })
                     .collect::<Result<_, _>>()?;
                 Change::batch(self.p.clone(), changes)
             },
-            DeltaKind::HISTORY => {
+            DeltaKind::STATE => {
                 self.o = from_value(delta.v).map_err(Error::JsonError)?;
                 Change::batch(self.p.clone(), vec![])
             },
@@ -75,12 +75,10 @@ impl DeltaHistory {
             #[cfg(feature = "append")]
             Change::APPEND { p, v } => (p, DeltaKind::APPEND, v),
             Change::BATCH { p, v } => {
-                let mut history = Self::new();
+                let mut state = Self::new();
                 let deltas = v
                     .into_iter()
-                    .map(|change| -> Result<Delta, Error> {
-                        history.encode(change)
-                    })
+                    .map(|change| state.encode(change))
                     .collect::<Result<Vec<_>, _>>()?;
                 (p, DeltaKind::BATCH, to_value(deltas).map_err(Error::JsonError)?)
             },
@@ -95,7 +93,7 @@ impl DeltaHistory {
             None
         } else {
             self.o = o;
-            Some(self.o.clone())
+            Some(self.o)
         };
         Ok(Delta { p, o, v })
     }

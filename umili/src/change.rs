@@ -80,7 +80,7 @@ impl Change {
         while let Some(key) = parts.pop() {
             prefix += key;
             prefix += "/";
-            match json_index(value, &key, parts.len() == 0 && matches!(self, Self::SET { .. })) {
+            match json_index(value, key, parts.is_empty() && matches!(self, Self::SET { .. })) {
                 Some(v) => value = v,
                 None => {
                     prefix.pop();
