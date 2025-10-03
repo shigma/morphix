@@ -107,3 +107,38 @@ impl DeltaState {
         batch.dump().map(|change| self.encode(change))
     }
 }
+
+/// A composer for `Delta` operations, maintaining input and output states.
+#[derive(Debug, Default)]
+pub struct DeltaComposer {
+    input_state: DeltaState,
+    output_state: DeltaState,
+    batched_changes: Vec<Change>,
+}
+
+impl DeltaComposer {
+    /// Create a new `DeltaComposer`.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Load a `Delta` into the composer.
+    pub fn load_delta(&mut self, delta: Delta) {
+        self.batched_changes.push(self.input_state.decode(delta));
+    }
+
+    /// Load a `DeltaState` into the composer.
+    pub fn load_delta_state(&mut self, state: DeltaState) {
+        self.input_state = state;
+    }
+
+    /// Dump the composed `Delta`.
+    pub fn dump_delta(&mut self) -> Option<Delta> {
+        self.output_state.batch_encode(self.batched_changes.drain(..))
+    }
+
+    /// Dump the current `DeltaState`.
+    pub fn dump_delta_state(self) -> DeltaState {
+        self.output_state
+    }
+}
