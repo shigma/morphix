@@ -1,15 +1,15 @@
 #![doc = include_str!("../README.md")]
 
+mod adapter;
 mod batch;
 mod change;
-mod delta;
 mod error;
 mod observe;
-mod operation;
 
-pub use change::Operation;
-pub use delta::{Delta, DeltaComposer, DeltaState};
-pub use error::UmiliError;
-pub use observe::{Context, Ob, Observe};
+pub use adapter::{Adapter, JsonAdapter};
+pub use batch::Batch;
+pub use change::{Change, Operation};
+pub use error::ChangeError;
 #[cfg(feature = "derive")]
-pub use umili_derive::{Observe, observe};
+pub use morphix_derive::{Observe, observe};
+pub use observe::{Context, Ob, Observe};

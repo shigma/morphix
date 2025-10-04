@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 
+use crate::adapter::{Adapter, MutationAdapter};
 use crate::batch::Batch;
 use crate::change::{Change, Operation};
-use crate::operation::MutationOperator;
 
 /// Trait for observing changes.
 pub trait Observe {
@@ -20,7 +20,7 @@ pub trait Observe {
 #[derive(Debug, Default)]
 pub struct Context {
     prefix: String,
-    mutations: Arc<Mutex<Batch<MutationOperator>>>,
+    mutations: Arc<Mutex<Batch<MutationAdapter>>>,
 }
 
 impl Context {
@@ -38,8 +38,7 @@ impl Context {
     }
 
     /// Collect changes and errors.
-    pub fn collect(self) -> Result<Vec<Operation>, Vec<serde_json::Error>> {
-        // self.mutation.take().collect()
+    pub fn collect<A: Adapter>(self) -> Result<Option<Change<A>>, A::Error> {
         todo!()
     }
 }

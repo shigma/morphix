@@ -1,15 +1,15 @@
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 
+use crate::adapter::Adapter;
 use crate::change::{Change, Operation};
-use crate::operation::{Operator, ValueOperator};
 
-pub struct Batch<O: Operator = ValueOperator> {
-    operation: Option<Operation<O>>,
+pub struct Batch<A: Adapter> {
+    operation: Option<Operation<A>>,
     children: BTreeMap<String, Self>,
 }
 
-impl<O: Operator> Default for Batch<O> {
+impl<A: Adapter> Default for Batch<A> {
     fn default() -> Self {
         Self {
             operation: None,
@@ -18,10 +18,10 @@ impl<O: Operator> Default for Batch<O> {
     }
 }
 
-impl<O: Operator> Debug for Batch<O>
+impl<A: Adapter> Debug for Batch<A>
 where
-    O::Replace: Debug,
-    O::Append: Debug,
+    A::Replace: Debug,
+    A::Append: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Batch")
@@ -31,26 +31,26 @@ where
     }
 }
 
-impl<O: Operator> Batch<O> {
+impl<A: Adapter> Batch<A> {
     pub fn new() -> Self {
         Default::default()
     }
 
-    pub fn load(&mut self, change: Change<O>) -> Result<(), O::Error> {
+    pub fn load(&mut self, change: Change<A>) -> Result<(), A::Error> {
         self.load_with_stack(change, &mut vec![])
     }
 
-    fn load_with_stack(&mut self, mut change: Change<O>, path_stack: &mut Vec<String>) -> Result<(), O::Error> {
+    fn load_with_stack(&mut self, mut change: Change<A>, path_stack: &mut Vec<String>) -> Result<(), A::Error> {
         let mut batch = self;
         if let Some(Operation::Replace(value)) = &mut batch.operation {
-            O::apply(change, value, path_stack)?;
+            A::apply(change, value, path_stack)?;
             return Ok(());
         }
         while let Some(key) = change.path_rev.pop() {
             path_stack.push(key.clone()); // TODO: avoid clone
             batch = batch.children.entry(key).or_default();
             if let Some(Operation::Replace(value)) = &mut batch.operation {
-                O::apply(change, value, path_stack)?;
+                A::apply(change, value, path_stack)?;
                 return Ok(());
             }
         }
@@ -62,7 +62,7 @@ impl<O: Operator> Batch<O> {
             }
             Operation::Append(new_value) => match &mut batch.operation {
                 Some(Operation::Append(old_value)) => {
-                    O::append(old_value, new_value, path_stack)?;
+                    A::append(old_value, new_value, path_stack)?;
                 }
                 Some(_) => unreachable!(),
                 None => batch.operation = Some(Operation::Append(new_value)),
@@ -79,7 +79,7 @@ impl<O: Operator> Batch<O> {
         Ok(())
     }
 
-    pub fn dump(self) -> Option<Change<O>> {
+    pub fn dump(self) -> Option<Change<A>> {
         let mut changes = vec![];
         if let Some(operation) = self.operation {
             changes.push(Change {
@@ -109,13 +109,14 @@ mod test {
     use serde_json::json;
 
     use super::*;
+    use crate::JsonAdapter;
 
     #[test]
     fn batch() {
-        let batch = Batch::<ValueOperator>::new();
+        let batch = Batch::<JsonAdapter>::new();
         assert_eq!(batch.dump(), None);
 
-        let mut batch = Batch::<ValueOperator>::new();
+        let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
                 path_rev: vec!["foo".to_string(), "bar".to_string()],
@@ -130,7 +131,7 @@ mod test {
             }),
         );
 
-        let mut batch = Batch::<ValueOperator>::new();
+        let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
                 path_rev: vec!["foo".to_string(), "bar".to_string()],
@@ -151,7 +152,7 @@ mod test {
             }),
         );
 
-        let mut batch = Batch::<ValueOperator>::new();
+        let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
                 path_rev: vec!["foo".to_string(), "bar".to_string()],
@@ -172,7 +173,7 @@ mod test {
             }),
         );
 
-        let mut batch = Batch::<ValueOperator>::new();
+        let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
                 path_rev: vec!["foo".to_string(), "bar".to_string(), "qux".to_string()],
@@ -193,7 +194,7 @@ mod test {
             }),
         );
 
-        let mut batch = Batch::<ValueOperator>::new();
+        let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
                 path_rev: vec!["foo".to_string()],
@@ -217,7 +218,7 @@ mod test {
             }),
         );
 
-        let mut batch = Batch::<ValueOperator>::new();
+        let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
                 path_rev: vec!["bar".to_string()],
@@ -247,7 +248,7 @@ mod test {
             }),
         );
 
-        let mut batch = Batch::<ValueOperator>::new();
+        let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
                 path_rev: vec!["foo".to_string(), "bar".to_string()],

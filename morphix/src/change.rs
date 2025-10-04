@@ -1,24 +1,24 @@
 use std::fmt::Debug;
 
-use crate::operation::{Operator, ValueOperator};
+use crate::adapter::Adapter;
 
 /// A change in JSON format.
-pub struct Change<O: Operator = ValueOperator> {
+pub struct Change<A: Adapter> {
     pub path_rev: Vec<String>,
-    pub operation: Operation<O>,
+    pub operation: Operation<A>,
 }
 
-impl<O: Operator> Change<O> {
+impl<A: Adapter> Change<A> {
     /// Apply the change to a JSON value.
-    pub fn apply(self, value: &mut O::Replace) -> Result<(), O::Error> {
-        O::apply(self, value, &mut vec![])
+    pub fn apply(self, value: &mut A::Replace) -> Result<(), A::Error> {
+        A::apply(self, value, &mut vec![])
     }
 }
 
-impl<O: Operator> Debug for Change<O>
+impl<A: Adapter> Debug for Change<A>
 where
-    O::Replace: Debug,
-    O::Append: Debug,
+    A::Replace: Debug,
+    A::Append: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Change")
@@ -28,10 +28,10 @@ where
     }
 }
 
-impl<O: Operator> Clone for Change<O>
+impl<A: Adapter> Clone for Change<A>
 where
-    O::Replace: Clone,
-    O::Append: Clone,
+    A::Replace: Clone,
+    A::Append: Clone,
 {
     fn clone(&self) -> Self {
         Self {
@@ -41,25 +41,25 @@ where
     }
 }
 
-impl<O: Operator> PartialEq for Change<O>
+impl<A: Adapter> PartialEq for Change<A>
 where
-    O::Replace: PartialEq,
-    O::Append: PartialEq,
+    A::Replace: PartialEq,
+    A::Append: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         self.path_rev == other.path_rev && self.operation == other.operation
     }
 }
 
-impl<O: Operator> Eq for Change<O>
+impl<A: Adapter> Eq for Change<A>
 where
-    O::Replace: Eq,
-    O::Append: Eq,
+    A::Replace: Eq,
+    A::Append: Eq,
 {
 }
 
 /// A change in JSON format.
-pub enum Operation<O: Operator = ValueOperator> {
+pub enum Operation<A: Adapter> {
     /// `Replace` is the default change for `DerefMut` operations.
     ///
     /// ## Example
@@ -71,7 +71,7 @@ pub enum Operation<O: Operator = ValueOperator> {
     /// ```
     ///
     /// If an operation triggers `Append`, no `Replace` change is emitted.
-    Replace(O::Replace),
+    Replace(A::Replace),
 
     /// `Append` represents a `String` or `Vec` append operation.
     ///
@@ -83,16 +83,16 @@ pub enum Operation<O: Operator = ValueOperator> {
     /// foo.vec.push(1);            // Append "vec"
     /// foo.vec.extend(iter);       // Append "vec"
     /// ```
-    Append(O::Append),
+    Append(A::Append),
 
     /// `Batch` represents a sequence of changes.
-    Batch(Vec<Change<O>>),
+    Batch(Vec<Change<A>>),
 }
 
-impl<O: Operator> Debug for Operation<O>
+impl<A: Adapter> Debug for Operation<A>
 where
-    O::Replace: Debug,
-    O::Append: Debug,
+    A::Replace: Debug,
+    A::Append: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -103,10 +103,10 @@ where
     }
 }
 
-impl<O: Operator> Clone for Operation<O>
+impl<A: Adapter> Clone for Operation<A>
 where
-    O::Replace: Clone,
-    O::Append: Clone,
+    A::Replace: Clone,
+    A::Append: Clone,
 {
     fn clone(&self) -> Self {
         match self {
@@ -117,10 +117,10 @@ where
     }
 }
 
-impl<O: Operator> PartialEq for Operation<O>
+impl<A: Adapter> PartialEq for Operation<A>
 where
-    O::Replace: PartialEq,
-    O::Append: PartialEq,
+    A::Replace: PartialEq,
+    A::Append: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -132,10 +132,10 @@ where
     }
 }
 
-impl<O: Operator> Eq for Operation<O>
+impl<A: Adapter> Eq for Operation<A>
 where
-    O::Replace: Eq,
-    O::Append: Eq,
+    A::Replace: Eq,
+    A::Append: Eq,
 {
 }
 
@@ -144,12 +144,12 @@ mod test {
     use serde_json::json;
 
     use super::*;
-    use crate::UmiliError;
+    use crate::{ChangeError, JsonAdapter};
 
     #[test]
     fn apply_set() {
         let mut value = json!({"a": 1});
-        let change = Change::<ValueOperator> {
+        let change = Change::<JsonAdapter> {
             path_rev: vec![],
             operation: Operation::Replace(json!({})),
         };
@@ -157,7 +157,7 @@ mod test {
         assert_eq!(value, json!({}));
 
         let mut value = json!({});
-        Change::<ValueOperator> {
+        Change::<JsonAdapter> {
             path_rev: vec!["a".to_string()],
             operation: Operation::Replace(json!(1)),
         }
@@ -166,7 +166,7 @@ mod test {
         assert_eq!(value, json!({"a": 1}));
 
         let mut value = json!({"a": 1});
-        Change::<ValueOperator> {
+        Change::<JsonAdapter> {
             path_rev: vec!["a".to_string()],
             operation: Operation::Replace(json!(2)),
         }
@@ -174,7 +174,7 @@ mod test {
         .unwrap();
         assert_eq!(value, json!({"a": 2}));
 
-        let error = Change::<ValueOperator> {
+        let error = Change::<JsonAdapter> {
             path_rev: vec!["a".to_string(), "b".to_string()],
             operation: Operation::Replace(json!(3)),
         }
@@ -182,13 +182,13 @@ mod test {
         .unwrap_err();
         assert_eq!(
             error.to_string(),
-            UmiliError::IndexError {
+            ChangeError::IndexError {
                 path: vec!["a".to_string()]
             }
             .to_string()
         );
 
-        let error = Change::<ValueOperator> {
+        let error = Change::<JsonAdapter> {
             path_rev: vec!["a".to_string(), "b".to_string()],
             operation: Operation::Replace(json!(3)),
         }
@@ -196,13 +196,13 @@ mod test {
         .unwrap_err();
         assert_eq!(
             error.to_string(),
-            UmiliError::IndexError {
+            ChangeError::IndexError {
                 path: vec!["a".to_string(), "b".to_string()],
             }
             .to_string()
         );
 
-        let error = Change::<ValueOperator> {
+        let error = Change::<JsonAdapter> {
             path_rev: vec!["a".to_string(), "b".to_string()],
             operation: Operation::Replace(json!(3)),
         }
@@ -210,14 +210,14 @@ mod test {
         .unwrap_err();
         assert_eq!(
             error.to_string(),
-            UmiliError::IndexError {
+            ChangeError::IndexError {
                 path: vec!["a".to_string(), "b".to_string()],
             }
             .to_string()
         );
 
         let mut value = json!({"a": {}});
-        Change::<ValueOperator> {
+        Change::<JsonAdapter> {
             path_rev: vec!["a".to_string(), "b".to_string()],
             operation: Operation::Replace(json!(3)),
         }
@@ -229,7 +229,7 @@ mod test {
     #[test]
     fn apply_append() {
         let mut value = json!("2");
-        Change::<ValueOperator> {
+        Change::<JsonAdapter> {
             path_rev: vec![],
             operation: Operation::Append(json!("34")),
         }
@@ -238,7 +238,7 @@ mod test {
         assert_eq!(value, json!("234"));
 
         let mut value = json!([2]);
-        Change::<ValueOperator> {
+        Change::<JsonAdapter> {
             path_rev: vec![],
             operation: Operation::Append(json!(["3", "4"])),
         }
@@ -246,7 +246,7 @@ mod test {
         .unwrap();
         assert_eq!(value, json!([2, "3", "4"]));
 
-        let error = Change::<ValueOperator> {
+        let error = Change::<JsonAdapter> {
             path_rev: vec![],
             operation: Operation::Append(json!(3)),
         }
@@ -254,10 +254,10 @@ mod test {
         .unwrap_err();
         assert_eq!(
             error.to_string(),
-            UmiliError::OperationError { path: vec![] }.to_string()
+            ChangeError::OperationError { path: vec![] }.to_string()
         );
 
-        let error = Change::<ValueOperator> {
+        let error = Change::<JsonAdapter> {
             path_rev: vec![],
             operation: Operation::Append(json!("3")),
         }
@@ -265,10 +265,10 @@ mod test {
         .unwrap_err();
         assert_eq!(
             error.to_string(),
-            UmiliError::OperationError { path: vec![] }.to_string()
+            ChangeError::OperationError { path: vec![] }.to_string()
         );
 
-        let error = Change::<ValueOperator> {
+        let error = Change::<JsonAdapter> {
             path_rev: vec![],
             operation: Operation::Append(json!("3")),
         }
@@ -276,10 +276,10 @@ mod test {
         .unwrap_err();
         assert_eq!(
             error.to_string(),
-            UmiliError::OperationError { path: vec![] }.to_string()
+            ChangeError::OperationError { path: vec![] }.to_string()
         );
 
-        let error = Change::<ValueOperator> {
+        let error = Change::<JsonAdapter> {
             path_rev: vec![],
             operation: Operation::Append(json!([3])),
         }
@@ -287,14 +287,14 @@ mod test {
         .unwrap_err();
         assert_eq!(
             error.to_string(),
-            UmiliError::OperationError { path: vec![] }.to_string()
+            ChangeError::OperationError { path: vec![] }.to_string()
         );
     }
 
     #[test]
     fn apply_batch() {
         let mut value = json!({"a": {"b": {"c": {}}}});
-        Change::<ValueOperator> {
+        Change::<JsonAdapter> {
             path_rev: vec![],
             operation: Operation::Batch(vec![]),
         }
@@ -303,7 +303,7 @@ mod test {
         assert_eq!(value, json!({"a": {"b": {"c": {}}}}));
 
         let mut value = json!({"a": {"b": {"c": "1"}}});
-        let error = Change::<ValueOperator> {
+        let error = Change::<JsonAdapter> {
             path_rev: vec!["a".to_string(), "d".to_string()],
             operation: Operation::Batch(vec![]),
         }
@@ -311,21 +311,21 @@ mod test {
         .unwrap_err();
         assert_eq!(
             error.to_string(),
-            UmiliError::IndexError {
+            ChangeError::IndexError {
                 path: vec!["a".to_string(), "d".to_string()],
             }
             .to_string()
         );
 
         let mut value = json!({"a": {"b": {"c": "1"}}});
-        Change::<ValueOperator> {
+        Change::<JsonAdapter> {
             path_rev: vec!["a".to_string()],
             operation: Operation::Batch(vec![
-                Change::<ValueOperator> {
+                Change::<JsonAdapter> {
                     path_rev: vec!["b".to_string(), "c".to_string()],
                     operation: Operation::Append(json!("2")),
                 },
-                Change::<ValueOperator> {
+                Change::<JsonAdapter> {
                     path_rev: vec!["d".to_string()],
                     operation: Operation::Replace(json!(3)),
                 },

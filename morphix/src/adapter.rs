@@ -6,9 +6,9 @@ use serde_json::Value;
 
 use crate::Operation;
 use crate::change::Change;
-use crate::error::UmiliError;
+use crate::error::ChangeError;
 
-pub trait Operator: Sized {
+pub trait Adapter: Sized {
     type Replace;
     type Append;
     type Error;
@@ -27,12 +27,12 @@ pub trait Operator: Sized {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct ValueOperator;
+pub struct JsonAdapter;
 
-impl Operator for ValueOperator {
+impl Adapter for JsonAdapter {
     type Replace = Value;
     type Append = Value;
-    type Error = UmiliError;
+    type Error = ChangeError;
 
     fn apply(
         mut change: Change<Self>,
@@ -46,7 +46,7 @@ impl Operator for ValueOperator {
             match next_value {
                 Some(value) => root_value = value,
                 None => {
-                    return Err(UmiliError::IndexError { path: take(path_stack) });
+                    return Err(ChangeError::IndexError { path: take(path_stack) });
                 }
             }
         }
@@ -82,16 +82,27 @@ impl Operator for ValueOperator {
             (Value::Array(lhs), Value::Array(rhs)) => {
                 lhs.extend(rhs);
             }
-            _ => return Err(UmiliError::OperationError { path: take(path_stack) }),
+            _ => return Err(ChangeError::OperationError { path: take(path_stack) }),
         }
         Ok(())
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct MutationOperator;
+fn json_index<'v>(value: &'v mut Value, key: &str, insert: bool) -> Option<&'v mut Value> {
+    match value {
+        Value::Array(vec) => key.parse::<usize>().ok().and_then(|index| vec.get_mut(index)),
+        Value::Object(map) => match insert {
+            true => Some(map.entry(Cow::Borrowed(key)).or_insert(Value::Null)),
+            false => map.get_mut(key),
+        },
+        _ => None,
+    }
+}
 
-impl Operator for MutationOperator {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MutationAdapter;
+
+impl Adapter for MutationAdapter {
     type Replace = ();
     type Append = usize;
     type Error = Infallible;
@@ -110,16 +121,5 @@ impl Operator for MutationOperator {
         _path_stack: &mut Vec<String>,
     ) -> Result<(), Self::Error> {
         Ok(())
-    }
-}
-
-fn json_index<'v>(value: &'v mut Value, key: &str, insert: bool) -> Option<&'v mut Value> {
-    match value {
-        Value::Array(vec) => key.parse::<usize>().ok().and_then(|index| vec.get_mut(index)),
-        Value::Object(map) => match insert {
-            true => Some(map.entry(Cow::Borrowed(key)).or_insert(Value::Null)),
-            false => map.get_mut(key),
-        },
-        _ => None,
     }
 }
