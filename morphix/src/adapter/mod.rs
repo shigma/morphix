@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use crate::adapter::observe::ObserveAdapter;
 use crate::change::Change;
 use crate::error::ChangeError;
@@ -14,14 +16,14 @@ pub trait Adapter: Sized {
     fn apply_change(
         change: Change<Self>,
         value: &mut Self::Replace,
-        path_stack: &mut Vec<String>,
+        path_stack: &mut Vec<Cow<'static, str>>,
     ) -> Result<(), ChangeError>;
 
     fn append(
         old_value: &mut Self::Append,
         new_value: Self::Append,
-        path_stack: &mut Vec<String>,
+        path_stack: &mut Vec<Cow<'static, str>>,
     ) -> Result<(), ChangeError>;
 
-    fn from_observe<T: Observe>(value: &T, change: Change<ObserveAdapter>) -> Result<Change<Self>, Self::Error>;
+    fn try_from_observe<T: Observe>(value: &T, change: Change<ObserveAdapter>) -> Result<Change<Self>, Self::Error>;
 }

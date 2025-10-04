@@ -32,11 +32,11 @@ fn main() {
             path_rev: vec![],
             operation: Operation::Batch(vec![
                 Change {
-                    path_rev: vec!["bar".to_string(), "baz".to_string()],
+                    path_rev: vec!["bar".into(), "baz".into()],
                     operation: Operation::Replace(json!(43)),
                 },
                 Change {
-                    path_rev: vec!["qux".to_string()],
+                    path_rev: vec!["qux".into()],
                     operation: Operation::Append(json!(" world")),
                 },
             ]),

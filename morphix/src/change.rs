@@ -1,11 +1,26 @@
-use std::fmt::Debug;
+use std::borrow::Cow;
+use std::fmt::{Debug, Display};
 
 use crate::adapter::Adapter;
 use crate::error::ChangeError;
 
+struct Path<'i>(&'i Vec<Cow<'static, str>>);
+
+impl<'i> Display for Path<'i> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (index, value) in self.0.iter().enumerate().rev() {
+            f.write_str(value)?;
+            if index != 0 {
+                f.write_str(".")?;
+            }
+        }
+        Ok(())
+    }
+}
+
 /// A change in JSON format.
 pub struct Change<A: Adapter> {
-    pub path_rev: Vec<String>,
+    pub path_rev: Vec<Cow<'static, str>>,
     pub operation: Operation<A>,
 }
 
@@ -23,7 +38,7 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Change")
-            .field("path_rev", &self.path_rev)
+            .field("path", &Path(&self.path_rev).to_string())
             .field("operation", &self.operation)
             .finish()
     }
@@ -160,7 +175,7 @@ mod test {
 
         let mut value = json!({});
         Change::<JsonAdapter> {
-            path_rev: vec!["a".to_string()],
+            path_rev: vec!["a".into()],
             operation: Operation::Replace(json!(1)),
         }
         .apply(&mut value)
@@ -169,7 +184,7 @@ mod test {
 
         let mut value = json!({"a": 1});
         Change::<JsonAdapter> {
-            path_rev: vec!["a".to_string()],
+            path_rev: vec!["a".into()],
             operation: Operation::Replace(json!(2)),
         }
         .apply(&mut value)
@@ -177,50 +192,42 @@ mod test {
         assert_eq!(value, json!({"a": 2}));
 
         let error = Change::<JsonAdapter> {
-            path_rev: vec!["b".to_string(), "a".to_string()],
+            path_rev: vec!["b".into(), "a".into()],
             operation: Operation::Replace(json!(3)),
         }
         .apply(&mut json!({}))
         .unwrap_err();
-        assert_eq!(
-            error.to_string(),
-            ChangeError::IndexError {
-                path: vec!["a".to_string()]
-            }
-            .to_string()
-        );
+        assert_eq!(error, ChangeError::IndexError { path: vec!["a".into()] });
 
         let error = Change::<JsonAdapter> {
-            path_rev: vec!["b".to_string(), "a".to_string()],
+            path_rev: vec!["b".into(), "a".into()],
             operation: Operation::Replace(json!(3)),
         }
         .apply(&mut json!({"a": 1}))
         .unwrap_err();
         assert_eq!(
-            error.to_string(),
+            error,
             ChangeError::IndexError {
-                path: vec!["a".to_string(), "b".to_string()],
+                path: vec!["a".into(), "b".into()],
             }
-            .to_string()
         );
 
         let error = Change::<JsonAdapter> {
-            path_rev: vec!["b".to_string(), "a".to_string()],
+            path_rev: vec!["b".into(), "a".into()],
             operation: Operation::Replace(json!(3)),
         }
         .apply(&mut json!({"a": []}))
         .unwrap_err();
         assert_eq!(
-            error.to_string(),
+            error,
             ChangeError::IndexError {
-                path: vec!["a".to_string(), "b".to_string()],
+                path: vec!["a".into(), "b".into()],
             }
-            .to_string()
         );
 
         let mut value = json!({"a": {}});
         Change::<JsonAdapter> {
-            path_rev: vec!["b".to_string(), "a".to_string()],
+            path_rev: vec!["b".into(), "a".into()],
             operation: Operation::Replace(json!(3)),
         }
         .apply(&mut value)
@@ -254,10 +261,7 @@ mod test {
         }
         .apply(&mut json!(""))
         .unwrap_err();
-        assert_eq!(
-            error.to_string(),
-            ChangeError::OperationError { path: vec![] }.to_string()
-        );
+        assert_eq!(error, ChangeError::OperationError { path: vec![] });
 
         let error = Change::<JsonAdapter> {
             path_rev: vec![],
@@ -265,10 +269,7 @@ mod test {
         }
         .apply(&mut json!({}))
         .unwrap_err();
-        assert_eq!(
-            error.to_string(),
-            ChangeError::OperationError { path: vec![] }.to_string()
-        );
+        assert_eq!(error, ChangeError::OperationError { path: vec![] });
 
         let error = Change::<JsonAdapter> {
             path_rev: vec![],
@@ -276,10 +277,7 @@ mod test {
         }
         .apply(&mut json!([]))
         .unwrap_err();
-        assert_eq!(
-            error.to_string(),
-            ChangeError::OperationError { path: vec![] }.to_string()
-        );
+        assert_eq!(error, ChangeError::OperationError { path: vec![] });
 
         let error = Change::<JsonAdapter> {
             path_rev: vec![],
@@ -287,10 +285,7 @@ mod test {
         }
         .apply(&mut json!(""))
         .unwrap_err();
-        assert_eq!(
-            error.to_string(),
-            ChangeError::OperationError { path: vec![] }.to_string()
-        );
+        assert_eq!(error, ChangeError::OperationError { path: vec![] });
     }
 
     #[test]
@@ -306,29 +301,28 @@ mod test {
 
         let mut value = json!({"a": {"b": {"c": "1"}}});
         let error = Change::<JsonAdapter> {
-            path_rev: vec!["d".to_string(), "a".to_string()],
+            path_rev: vec!["d".into(), "a".into()],
             operation: Operation::Batch(vec![]),
         }
         .apply(&mut value)
         .unwrap_err();
         assert_eq!(
-            error.to_string(),
+            error,
             ChangeError::IndexError {
-                path: vec!["a".to_string(), "d".to_string()],
+                path: vec!["a".into(), "d".into()],
             }
-            .to_string()
         );
 
         let mut value = json!({"a": {"b": {"c": "1"}}});
         Change::<JsonAdapter> {
-            path_rev: vec!["a".to_string()],
+            path_rev: vec!["a".into()],
             operation: Operation::Batch(vec![
                 Change::<JsonAdapter> {
-                    path_rev: vec!["c".to_string(), "b".to_string()],
+                    path_rev: vec!["c".into(), "b".into()],
                     operation: Operation::Append(json!("2")),
                 },
                 Change::<JsonAdapter> {
-                    path_rev: vec!["d".to_string()],
+                    path_rev: vec!["d".into()],
                     operation: Operation::Replace(json!(3)),
                 },
             ]),

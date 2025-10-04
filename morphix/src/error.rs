@@ -1,13 +1,14 @@
+use std::borrow::Cow;
 use std::error::Error;
 use std::fmt::Display;
 
 /// Error types for mutation operations.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ChangeError {
     /// The specified path does not exist.
-    IndexError { path: Vec<String> },
+    IndexError { path: Vec<Cow<'static, str>> },
     /// Operation could not be performed at the specified path.
-    OperationError { path: Vec<String> },
+    OperationError { path: Vec<Cow<'static, str>> },
 }
 
 impl Display for ChangeError {

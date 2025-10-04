@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::mem::take;
@@ -8,7 +9,7 @@ use crate::error::ChangeError;
 
 pub struct Batch<A: Adapter> {
     operation: Option<Operation<A>>,
-    children: BTreeMap<String, Self>,
+    children: BTreeMap<Cow<'static, str>, Self>,
 }
 
 impl<A: Adapter> Default for Batch<A> {
@@ -42,14 +43,19 @@ impl<A: Adapter> Batch<A> {
         self.load_with_stack(change, &mut vec![])
     }
 
-    fn load_with_stack(&mut self, mut change: Change<A>, path_stack: &mut Vec<String>) -> Result<(), ChangeError> {
+    fn load_with_stack(
+        &mut self,
+        mut change: Change<A>,
+        path_stack: &mut Vec<Cow<'static, str>>,
+    ) -> Result<(), ChangeError> {
         let mut batch = self;
         if let Some(Operation::Replace(value)) = &mut batch.operation {
             A::apply_change(change, value, path_stack)?;
             return Ok(());
         }
         while let Some(key) = change.path_rev.pop() {
-            path_stack.push(key.clone()); // TODO: avoid clone
+            // We cannot avoid allocation here because `BTreeMap::entry` requires owned key.
+            path_stack.push(key.clone());
             batch = batch.children.entry(key).or_default();
             if let Some(Operation::Replace(value)) = &mut batch.operation {
                 A::apply_change(change, value, path_stack)?;
@@ -121,14 +127,14 @@ mod test {
         let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
-                path_rev: vec!["bar".to_string(), "foo".to_string()],
+                path_rev: vec!["bar".into(), "foo".into()],
                 operation: Operation::Replace(json!(1)),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
             Some(Change {
-                path_rev: vec!["bar".to_string(), "foo".to_string()],
+                path_rev: vec!["bar".into(), "foo".into()],
                 operation: Operation::Replace(json!(1))
             }),
         );
@@ -136,20 +142,20 @@ mod test {
         let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
-                path_rev: vec!["bar".to_string(), "foo".to_string()],
+                path_rev: vec!["bar".into(), "foo".into()],
                 operation: Operation::Replace(json!(1)),
             })
             .unwrap();
         batch
             .load(Change {
-                path_rev: vec!["bar".to_string(), "foo".to_string()],
+                path_rev: vec!["bar".into(), "foo".into()],
                 operation: Operation::Replace(json!(2)),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
             Some(Change {
-                path_rev: vec!["bar".to_string(), "foo".to_string()],
+                path_rev: vec!["bar".into(), "foo".into()],
                 operation: Operation::Replace(json!(2)),
             }),
         );
@@ -157,20 +163,20 @@ mod test {
         let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
-                path_rev: vec!["bar".to_string(), "foo".to_string()],
+                path_rev: vec!["bar".into(), "foo".into()],
                 operation: Operation::Replace(json!({"qux": "1"})),
             })
             .unwrap();
         batch
             .load(Change {
-                path_rev: vec!["qux".to_string(), "bar".to_string(), "foo".to_string()],
+                path_rev: vec!["qux".into(), "bar".into(), "foo".into()],
                 operation: Operation::Append(json!("2")),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
             Some(Change {
-                path_rev: vec!["bar".to_string(), "foo".to_string()],
+                path_rev: vec!["bar".into(), "foo".into()],
                 operation: Operation::Replace(json!({"qux": "12"})),
             }),
         );
@@ -178,20 +184,20 @@ mod test {
         let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
-                path_rev: vec!["qux".to_string(), "bar".to_string(), "foo".to_string()],
+                path_rev: vec!["qux".into(), "bar".into(), "foo".into()],
                 operation: Operation::Append(json!("2")),
             })
             .unwrap();
         batch
             .load(Change {
-                path_rev: vec!["bar".to_string(), "foo".to_string()],
+                path_rev: vec!["bar".into(), "foo".into()],
                 operation: Operation::Replace(json!({"qux": "1"})),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
             Some(Change {
-                path_rev: vec!["bar".to_string(), "foo".to_string()],
+                path_rev: vec!["bar".into(), "foo".into()],
                 operation: Operation::Replace(json!({"qux": "1"})),
             }),
         );
@@ -199,14 +205,14 @@ mod test {
         let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
-                path_rev: vec!["foo".to_string()],
+                path_rev: vec!["foo".into()],
                 operation: Operation::Batch(vec![
                     Change {
-                        path_rev: vec!["bar".to_string()],
+                        path_rev: vec!["bar".into()],
                         operation: Operation::Append(json!("1")),
                     },
                     Change {
-                        path_rev: vec!["bar".to_string()],
+                        path_rev: vec!["bar".into()],
                         operation: Operation::Append(json!("2")),
                     },
                 ]),
@@ -215,7 +221,7 @@ mod test {
         assert_eq!(
             batch.dump(),
             Some(Change {
-                path_rev: vec!["bar".to_string(), "foo".to_string()],
+                path_rev: vec!["bar".into(), "foo".into()],
                 operation: Operation::Append(json!("12")),
             }),
         );
@@ -223,13 +229,13 @@ mod test {
         let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
-                path_rev: vec!["bar".to_string()],
+                path_rev: vec!["bar".into()],
                 operation: Operation::Append(json!("2")),
             })
             .unwrap();
         batch
             .load(Change {
-                path_rev: vec!["qux".to_string()],
+                path_rev: vec!["qux".into()],
                 operation: Operation::Append(json!("1")),
             })
             .unwrap();
@@ -239,11 +245,11 @@ mod test {
                 path_rev: vec![],
                 operation: Operation::Batch(vec![
                     Change {
-                        path_rev: vec!["bar".to_string()],
+                        path_rev: vec!["bar".into()],
                         operation: Operation::Append(json!("2")),
                     },
                     Change {
-                        path_rev: vec!["qux".to_string()],
+                        path_rev: vec!["qux".into()],
                         operation: Operation::Append(json!("1")),
                     },
                 ]),
@@ -253,27 +259,27 @@ mod test {
         let mut batch = Batch::<JsonAdapter>::new();
         batch
             .load(Change {
-                path_rev: vec!["bar".to_string(), "foo".to_string()],
+                path_rev: vec!["bar".into(), "foo".into()],
                 operation: Operation::Append(json!("2")),
             })
             .unwrap();
         batch
             .load(Change {
-                path_rev: vec!["qux".to_string(), "foo".to_string()],
+                path_rev: vec!["qux".into(), "foo".into()],
                 operation: Operation::Append(json!("1")),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
             Some(Change {
-                path_rev: vec!["foo".to_string()],
+                path_rev: vec!["foo".into()],
                 operation: Operation::Batch(vec![
                     Change {
-                        path_rev: vec!["bar".to_string()],
+                        path_rev: vec!["bar".into()],
                         operation: Operation::Append(json!("2")),
                     },
                     Change {
-                        path_rev: vec!["qux".to_string()],
+                        path_rev: vec!["qux".into()],
                         operation: Operation::Append(json!("1")),
                     },
                 ]),

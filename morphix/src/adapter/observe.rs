@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::convert::Infallible;
 
 use crate::Observe;
@@ -15,7 +16,7 @@ impl Adapter for ObserveAdapter {
     fn apply_change(
         _change: Change<Self>,
         _value: &mut Self::Replace,
-        _path_stack: &mut Vec<String>,
+        _path_stack: &mut Vec<Cow<'static, str>>,
     ) -> Result<(), ChangeError> {
         Ok(())
     }
@@ -23,12 +24,12 @@ impl Adapter for ObserveAdapter {
     fn append(
         _old_value: &mut Self::Append,
         _new_value: Self::Append,
-        _path_stack: &mut Vec<String>,
+        _path_stack: &mut Vec<Cow<'static, str>>,
     ) -> Result<(), ChangeError> {
         Ok(())
     }
 
-    fn from_observe<T: Observe>(_value: &T, change: Change<ObserveAdapter>) -> Result<Change<Self>, Self::Error> {
+    fn try_from_observe<T: Observe>(_value: &T, change: Change<ObserveAdapter>) -> Result<Change<Self>, Self::Error> {
         Ok(change)
     }
 }

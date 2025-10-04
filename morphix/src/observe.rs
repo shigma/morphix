@@ -24,7 +24,7 @@ pub trait Observe {
 /// Context for observing changes.
 #[derive(Debug, Default)]
 pub struct Context {
-    path: Vec<String>,
+    path: Vec<&'static str>,
     batch: Arc<Mutex<Batch<ObserveAdapter>>>,
 }
 
@@ -35,9 +35,9 @@ impl Context {
     }
 
     /// Create a sub-context at a sub-path.
-    pub fn extend(&self, part: &str) -> Self {
+    pub fn extend(&self, part: &'static str) -> Self {
         let mut path = self.path.clone();
-        path.push(part.to_string());
+        path.push(part);
         Self {
             path,
             batch: self.batch.clone(),
@@ -46,11 +46,10 @@ impl Context {
 
     /// Collect changes and errors.
     pub fn collect<A: Adapter>(self, value: &impl Observe) -> Result<Option<Change<A>>, A::Error> {
-        if let Some(v) = self.batch.lock().unwrap().dump() {
-            Ok(Some(A::from_observe(value, v)?))
-        } else {
-            Ok(None)
-        }
+        Ok(match self.batch.lock().unwrap().dump() {
+            Some(v) => Some(A::try_from_observe(value, v)?),
+            None => None,
+        })
     }
 }
 
@@ -71,7 +70,7 @@ impl<'i, T> DerefMut for Ob<'i, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         let mut batch = self.ctx.batch.lock().unwrap();
         let _ = batch.load(Change {
-            path_rev: self.ctx.path.iter().rev().cloned().collect(),
+            path_rev: self.ctx.path.iter().map(|s| (*s).into()).rev().collect(),
             operation: Operation::Replace(()),
         });
         self.value
@@ -86,7 +85,7 @@ impl<'i> Ob<'i, String> {
     pub fn push(&mut self, c: char) {
         let mut batch = self.ctx.batch.lock().unwrap();
         let _ = batch.load(Change {
-            path_rev: self.ctx.path.iter().rev().cloned().collect(),
+            path_rev: self.ctx.path.iter().map(|s| (*s).into()).rev().collect(),
             operation: Operation::Append(self.len()),
         });
         self.value.push(c);
@@ -98,7 +97,7 @@ impl<'i> Ob<'i, String> {
         }
         let mut batch = self.ctx.batch.lock().unwrap();
         let _ = batch.load(Change {
-            path_rev: self.ctx.path.iter().rev().cloned().collect(),
+            path_rev: self.ctx.path.iter().map(|s| (*s).into()).rev().collect(),
             operation: Operation::Append(self.len()),
         });
         self.value.push_str(s);
@@ -115,7 +114,7 @@ impl<'i, T> Ob<'i, Vec<T>> {
     pub fn push(&mut self, value: T) {
         let mut batch = self.ctx.batch.lock().unwrap();
         let _ = batch.load(Change {
-            path_rev: self.ctx.path.iter().rev().cloned().collect(),
+            path_rev: self.ctx.path.iter().map(|s| (*s).into()).rev().collect(),
             operation: Operation::Append(self.len()),
         });
         self.value.push(value);
@@ -128,7 +127,7 @@ impl<'i, T> Ob<'i, Vec<T>> {
         }
         let mut batch = self.ctx.batch.lock().unwrap();
         let _ = batch.load(Change {
-            path_rev: self.ctx.path.iter().rev().cloned().collect(),
+            path_rev: self.ctx.path.iter().map(|s| (*s).into()).rev().collect(),
             operation: Operation::Append(self.len()),
         });
         self.value.extend(other);

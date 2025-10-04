@@ -40,10 +40,11 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
                 type_fields.push(quote! {
                     pub #ident: ::morphix::Ob<'i, #ty>,
                 });
+                let ident_name = syn::LitStr::new(&ident.to_string(), Span::call_site());
                 inst_fields.push(quote! {
                     #ident: ::morphix::Ob {
                         value: &mut self.#ident,
-                        ctx: ctx.extend(stringify!(#ident)),
+                        ctx: ctx.extend(#ident_name),
                     },
                 });
             }
