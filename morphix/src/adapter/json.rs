@@ -6,19 +6,20 @@ use serde_json::Value;
 use crate::adapter::Adapter;
 use crate::change::{Change, Operation};
 use crate::error::ChangeError;
+use crate::{Observe, ObserveAdapter};
 
 pub struct JsonAdapter;
 
 impl Adapter for JsonAdapter {
     type Replace = Value;
     type Append = Value;
-    type Error = ChangeError;
+    type Error = serde_json::Error;
 
     fn apply_change(
         mut change: Change<Self>,
         mut curr_value: &mut Self::Replace,
         path_stack: &mut Vec<String>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), ChangeError> {
         let is_replace = matches!(change.operation, Operation::Replace { .. });
         while let Some(key) = change.path_rev.pop() {
             let next_value = match curr_value {
@@ -61,7 +62,7 @@ impl Adapter for JsonAdapter {
         old_value: &mut Self::Append,
         new_value: Self::Append,
         path_stack: &mut Vec<String>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), ChangeError> {
         match (old_value, new_value) {
             (Value::String(lhs), Value::String(rhs)) => {
                 *lhs += &rhs;
@@ -72,5 +73,20 @@ impl Adapter for JsonAdapter {
             _ => return Err(ChangeError::OperationError { path: take(path_stack) }),
         }
         Ok(())
+    }
+
+    fn from_observe<T: Observe>(value: &T, change: Change<ObserveAdapter>) -> Result<Change<Self>, Self::Error> {
+        let v = value.serialize_at::<serde_json::value::Serializer>(change.clone())?;
+        Ok(match change.operation {
+            Operation::Replace(_) => Change {
+                path_rev: change.path_rev,
+                operation: Operation::Replace(v),
+            },
+            Operation::Append(_) => Change {
+                path_rev: change.path_rev,
+                operation: Operation::Append(v),
+            },
+            _ => unreachable!(),
+        })
     }
 }

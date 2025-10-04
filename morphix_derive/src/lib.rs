@@ -3,6 +3,7 @@
 use proc_macro::TokenStream;
 use proc_macro2::Span;
 use quote::{format_ident, quote};
+use syn::parse_quote;
 use syn::visit_mut::VisitMut;
 
 /// Derive `Observe` trait for a struct.
@@ -22,13 +23,13 @@ use syn::visit_mut::VisitMut;
 /// ```
 #[proc_macro_derive(Observe)]
 pub fn derive_observe(input: TokenStream) -> TokenStream {
-    let derive: syn::DeriveInput = syn::parse_macro_input!(input);
-    let ident = &derive.ident;
-    let (impl_generics, type_generics, where_clause) = derive.generics.split_for_impl();
+    let input: syn::DeriveInput = syn::parse_macro_input!(input);
+    let ident = &input.ident;
+    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
     let ident_ob = format_ident!("{}Ob", ident);
     let mut type_fields = vec![];
     let mut inst_fields = vec![];
-    match &derive.data {
+    match &input.data {
         syn::Data::Struct(syn::DataStruct {
             fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
             ..
@@ -49,20 +50,26 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
         }
         _ => unimplemented!("not implemented"),
     };
+    let mod_ident = format_ident!("__morphix_{}", ident);
     quote! {
-        #[automatically_derived]
-        impl #impl_generics Observe for #ident #type_generics #where_clause {
-            type Target<'i> = #ident_ob<'i>;
+        #[allow(nonstandard_style)]
+        mod #mod_ident {
+            use super::*;
 
-            fn observe(&mut self, ctx: &::morphix::Context) -> Self::Target<'_> {
-                #ident_ob {
-                    #(#inst_fields)*
+            pub struct #ident_ob<'i> {
+                #(#type_fields)*
+            }
+
+            #[automatically_derived]
+            impl #impl_generics Observe for #ident #type_generics #where_clause {
+                type Target<'i> = #ident_ob<'i>;
+
+                fn observe(&mut self, ctx: &::morphix::Context) -> Self::Target<'_> {
+                    #ident_ob {
+                        #(#inst_fields)*
+                    }
                 }
             }
-        }
-
-        pub struct #ident_ob<'i> {
-            #(#type_fields)*
         }
     }
     .into()
@@ -101,18 +108,20 @@ pub fn observe(input: TokenStream) -> TokenStream {
         panic!("expect a closure with one argument")
     };
     let body = &mut closure.body;
-    let mut ident_shadow = ident.clone();
-    let mut body_shadow = body.clone();
-    CallSite.visit_ident_mut(&mut ident_shadow);
+    let mut body_shadow: syn::Expr = parse_quote! {
+        {
+            #[allow(unused)]
+            let mut #ident = #ident.observe(&ctx);
+            #body;
+        }
+    };
     CallSite.visit_expr_mut(&mut body_shadow);
     quote! {
         {
             let _ = || #body;
             let ctx = ::morphix::Context::new();
-            #[allow(unused_mut)]
-            let mut #ident_shadow = #ident.observe(&ctx);
-            #body_shadow;
-            ctx.collect()
+            #body_shadow
+            ctx.collect(&#ident)
         }
     }
     .into()

@@ -1,11 +1,13 @@
 use std::convert::Infallible;
 
+use crate::Observe;
 use crate::adapter::Adapter;
 use crate::change::Change;
+use crate::error::ChangeError;
 
-pub struct MutationAdapter;
+pub struct ObserveAdapter;
 
-impl Adapter for MutationAdapter {
+impl Adapter for ObserveAdapter {
     type Replace = ();
     type Append = usize;
     type Error = Infallible;
@@ -14,7 +16,7 @@ impl Adapter for MutationAdapter {
         _change: Change<Self>,
         _value: &mut Self::Replace,
         _path_stack: &mut Vec<String>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), ChangeError> {
         Ok(())
     }
 
@@ -22,7 +24,11 @@ impl Adapter for MutationAdapter {
         _old_value: &mut Self::Append,
         _new_value: Self::Append,
         _path_stack: &mut Vec<String>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), ChangeError> {
         Ok(())
+    }
+
+    fn from_observe<T: Observe>(_value: &T, change: Change<ObserveAdapter>) -> Result<Change<Self>, Self::Error> {
+        Ok(change)
     }
 }

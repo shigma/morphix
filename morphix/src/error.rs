@@ -15,11 +15,11 @@ impl Display for ChangeError {
         match self {
             Self::IndexError { path } => {
                 // use `Debug` for quotes around path
-                write!(f, "path {:?} does not exist", path.join("/"))
+                write!(f, "path {:?} does not exist", path.join("."))
             }
             Self::OperationError { path } => {
                 // use `Debug` for quotes around path
-                write!(f, "operation could not be performed at {:?}", path.join("/"))
+                write!(f, "operation could not be performed at {:?}", path.join("."))
             }
         }
     }

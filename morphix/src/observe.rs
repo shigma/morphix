@@ -1,10 +1,10 @@
 use std::ops::{AddAssign, Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
-use serde::Serialize;
+use serde::Serializer;
 
 use crate::adapter::Adapter;
-use crate::adapter::mutation::MutationAdapter;
+use crate::adapter::observe::ObserveAdapter;
 use crate::batch::Batch;
 use crate::change::{Change, Operation};
 
@@ -15,13 +15,17 @@ pub trait Observe {
         Self: 'i;
 
     fn observe<'i>(&'i mut self, ctx: &Context) -> Self::Target<'i>;
+
+    fn serialize_at<S: Serializer>(&self, _change: Change<ObserveAdapter>) -> Result<S::Ok, S::Error> {
+        todo!()
+    }
 }
 
 /// Context for observing changes.
 #[derive(Debug, Default)]
 pub struct Context {
-    prefix: String,
-    mutations: Arc<Mutex<Batch<MutationAdapter>>>,
+    path: Vec<String>,
+    batch: Arc<Mutex<Batch<ObserveAdapter>>>,
 }
 
 impl Context {
@@ -31,16 +35,22 @@ impl Context {
     }
 
     /// Create a sub-context at a sub-path.
-    pub fn extend(&self, path: &str) -> Self {
+    pub fn extend(&self, part: &str) -> Self {
+        let mut path = self.path.clone();
+        path.push(part.to_string());
         Self {
-            prefix: self.prefix.clone() + "/" + path,
-            mutations: self.mutations.clone(),
+            path,
+            batch: self.batch.clone(),
         }
     }
 
     /// Collect changes and errors.
-    pub fn collect<A: Adapter>(self) -> Result<Option<Change<A>>, A::Error> {
-        todo!()
+    pub fn collect<A: Adapter>(self, value: &impl Observe) -> Result<Option<Change<A>>, A::Error> {
+        if let Some(v) = self.batch.lock().unwrap().dump() {
+            Ok(Some(A::from_observe(value, v)?))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -59,9 +69,9 @@ impl<'i, T> Deref for Ob<'i, T> {
 
 impl<'i, T> DerefMut for Ob<'i, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        let mut batch = self.ctx.mutations.lock().unwrap();
+        let mut batch = self.ctx.batch.lock().unwrap();
         let _ = batch.load(Change {
-            path_rev: vec![], // &self.ctx.prefix
+            path_rev: self.ctx.path.iter().rev().cloned().collect(),
             operation: Operation::Replace(()),
         });
         self.value
@@ -74,10 +84,10 @@ impl<'i> Ob<'i, String> {
     }
 
     pub fn push(&mut self, c: char) {
-        let mut batch = self.ctx.mutations.lock().unwrap();
+        let mut batch = self.ctx.batch.lock().unwrap();
         let _ = batch.load(Change {
-            path_rev: vec![], // &self.ctx.prefix
-            operation: Operation::Append(self.chars().count()),
+            path_rev: self.ctx.path.iter().rev().cloned().collect(),
+            operation: Operation::Append(self.len()),
         });
         self.value.push(c);
     }
@@ -86,10 +96,10 @@ impl<'i> Ob<'i, String> {
         if s.is_empty() {
             return;
         }
-        let mut batch = self.ctx.mutations.lock().unwrap();
+        let mut batch = self.ctx.batch.lock().unwrap();
         let _ = batch.load(Change {
-            path_rev: vec![], // &self.ctx.prefix
-            operation: Operation::Append(self.chars().count()),
+            path_rev: self.ctx.path.iter().rev().cloned().collect(),
+            operation: Operation::Append(self.len()),
         });
         self.value.push_str(s);
     }
@@ -101,11 +111,11 @@ impl<'i> AddAssign<&str> for Ob<'i, String> {
     }
 }
 
-impl<'i, T: Serialize> Ob<'i, Vec<T>> {
+impl<'i, T> Ob<'i, Vec<T>> {
     pub fn push(&mut self, value: T) {
-        let mut batch = self.ctx.mutations.lock().unwrap();
+        let mut batch = self.ctx.batch.lock().unwrap();
         let _ = batch.load(Change {
-            path_rev: vec![], // &self.ctx.prefix
+            path_rev: self.ctx.path.iter().rev().cloned().collect(),
             operation: Operation::Append(self.len()),
         });
         self.value.push(value);
@@ -116,9 +126,9 @@ impl<'i, T: Serialize> Ob<'i, Vec<T>> {
         if other.is_empty() {
             return;
         }
-        let mut batch = self.ctx.mutations.lock().unwrap();
+        let mut batch = self.ctx.batch.lock().unwrap();
         let _ = batch.load(Change {
-            path_rev: vec![], // &self.ctx.prefix
+            path_rev: self.ctx.path.iter().rev().cloned().collect(),
             operation: Operation::Append(self.len()),
         });
         self.value.extend(other);

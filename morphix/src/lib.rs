@@ -8,6 +8,7 @@ mod observe;
 
 pub use adapter::Adapter;
 pub use adapter::json::JsonAdapter;
+pub use adapter::observe::ObserveAdapter;
 pub use batch::Batch;
 pub use change::{Change, Operation};
 pub use error::ChangeError;
