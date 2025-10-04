@@ -43,14 +43,14 @@ impl<A: Adapter> Batch<A> {
     fn load_with_stack(&mut self, mut change: Change<A>, path_stack: &mut Vec<String>) -> Result<(), A::Error> {
         let mut batch = self;
         if let Some(Operation::Replace(value)) = &mut batch.operation {
-            A::apply(change, value, path_stack)?;
+            A::apply_change(change, value, path_stack)?;
             return Ok(());
         }
         while let Some(key) = change.path_rev.pop() {
             path_stack.push(key.clone()); // TODO: avoid clone
             batch = batch.children.entry(key).or_default();
             if let Some(Operation::Replace(value)) = &mut batch.operation {
-                A::apply(change, value, path_stack)?;
+                A::apply_change(change, value, path_stack)?;
                 return Ok(());
             }
         }

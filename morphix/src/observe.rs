@@ -3,7 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 
-use crate::adapter::{Adapter, MutationAdapter};
+use crate::adapter::Adapter;
+use crate::adapter::mutation::MutationAdapter;
 use crate::batch::Batch;
 use crate::change::{Change, Operation};
 
