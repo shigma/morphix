@@ -1,5 +1,5 @@
 [package]
-name = "umili"
+name = "morphix"
 version = "0.2.2"
 edition = "2024"
 license = "MIT"
@@ -7,8 +7,8 @@ authors = [
     "Shigma <shigma10826@gmail.com>",
 ]
 description = "Mutate and observe Rust data structures"
-repository = "https://github.com/shigma/umili"
-documentation = "https://docs.rs/umili"
+repository = "https://github.com/shigma/morphix"
+documentation = "https://docs.rs/morphix"
 
 [features]
 append = []
@@ -17,9 +17,9 @@ derive = []
 full = ["append", "derive"]
 
 [dependencies]
+morphix_derive = { version = "0.2.0", path = "../morphix_derive" }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
-umili-derive = { version = "0.2.0", path = "../derive" }
 
 [dev-dependencies]
-umili = { path = ".", features = ["full"] }
+morphix = { path = ".", features = ["full"] }

@@ -1,4 +1,4 @@
-# umili
+# morphix
 
 Mutate and observe Rust data structures.
 
@@ -6,7 +6,7 @@ Mutate and observe Rust data structures.
 
 ```rust
 use serde::{Serialize, Deserialize};
-use umili::{observe, Change, Observe};
+use morphix::{observe, Change, Observe};
 
 // 1. Define any data structure with `#[derive(Observe)]`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Observe)]
