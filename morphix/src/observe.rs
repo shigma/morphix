@@ -1,4 +1,4 @@
-use std::ops::{Deref, DerefMut};
+use std::ops::{AddAssign, Deref, DerefMut};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
@@ -91,6 +91,12 @@ impl<'i> Ob<'i, String> {
             operation: Operation::Append(self.chars().count()),
         });
         self.value.push_str(s);
+    }
+}
+
+impl<'i> AddAssign<&str> for Ob<'i, String> {
+    fn add_assign(&mut self, rhs: &str) {
+        self.push_str(rhs);
     }
 }
 

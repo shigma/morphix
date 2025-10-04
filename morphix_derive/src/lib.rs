@@ -1,10 +1,9 @@
 #![doc = include_str!("../README.md")]
 
 use proc_macro::TokenStream;
-use quote::{ToTokens, format_ident, quote};
-use sub::SynSub;
-
-mod sub;
+use proc_macro2::Span;
+use quote::{format_ident, quote};
+use syn::visit_mut::VisitMut;
 
 /// Derive `Observe` trait for a struct.
 ///
@@ -77,7 +76,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 /// use serde::Serialize;
 /// use morphix::{observe, Observe};
 ///
-/// #[derive(Serialize, Clone, PartialEq, Observe)]
+/// #[derive(Serialize, Observe)]
 /// struct Point {
 ///   x: f64,
 ///   y: f64,
@@ -102,72 +101,27 @@ pub fn observe(input: TokenStream) -> TokenStream {
         panic!("expect a closure with one argument")
     };
     let body = &mut closure.body;
-    let body_shadow = body.to_token_stream();
-    SubstIdent { ident: ident.clone() }.expr(body);
+    let mut ident_shadow = ident.clone();
+    let mut body_shadow = body.clone();
+    CallSite.visit_ident_mut(&mut ident_shadow);
+    CallSite.visit_expr_mut(&mut body_shadow);
     quote! {
         {
-            use ::std::ops::*;
-            let _ = || #body_shadow;
+            let _ = || #body;
             let ctx = ::morphix::Context::new();
-            let mut #ident = #ident.observe(&ctx);
-            #body;
+            #[allow(unused_mut)]
+            let mut #ident_shadow = #ident.observe(&ctx);
+            #body_shadow;
             ctx.collect()
         }
     }
     .into()
 }
 
-struct SubstIdent {
-    ident: syn::Ident,
-}
+struct CallSite;
 
-impl SubstIdent {
-    fn _expr_field(&mut self, expr_field: &mut syn::ExprField, inner: bool) -> Option<syn::Expr> {
-        // erase span info from expr_field
-        let member = format_ident!("{}", expr_field.member.to_token_stream().to_string());
-        let method = match inner {
-            true => format_ident!("borrow"),
-            false => format_ident!("borrow_mut"),
-        };
-        match &mut *expr_field.base {
-            syn::Expr::Path(expr_path) => {
-                if self.ident == expr_path.to_token_stream().to_string() {
-                    let ident = &self.ident;
-                    return Some(syn::parse_quote! {
-                        #ident.#member.#method()
-                    });
-                }
-            }
-            syn::Expr::Field(expr_field) => {
-                if let Some(new_expr) = self._expr_field(expr_field, true) {
-                    return Some(syn::parse_quote! {
-                        #new_expr.#member.#method()
-                    });
-                }
-            }
-            _ => self.expr(&mut expr_field.base),
-        }
-        None
-    }
-}
-
-impl SynSub for SubstIdent {
-    fn expr_binary(&mut self, expr_binary: &mut syn::ExprBinary) -> Option<syn::Expr> {
-        self.expr(&mut expr_binary.left);
-        self.expr(&mut expr_binary.right);
-        match &expr_binary.op {
-            syn::BinOp::AddAssign(..) => {
-                let left = &expr_binary.left;
-                let right = &expr_binary.right;
-                Some(syn::parse_quote! {
-                    #left.add_assign(#right)
-                })
-            }
-            _ => None,
-        }
-    }
-
-    fn expr_field(&mut self, expr_filed: &mut syn::ExprField) -> Option<syn::Expr> {
-        self._expr_field(expr_filed, false)
+impl VisitMut for CallSite {
+    fn visit_span_mut(&mut self, span: &mut Span) {
+        *span = Span::call_site();
     }
 }
