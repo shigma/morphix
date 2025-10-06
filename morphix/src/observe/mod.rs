@@ -89,7 +89,11 @@ impl<'i, T, U: Default> Ob<'i, T, U> {
         }
     }
 
-    pub fn get(this: &Self) -> &T {
+    pub fn into_inner(self) -> T {
+        unsafe { std::ptr::read(self.ptr) }
+    }
+
+    pub fn get_ref(this: &Self) -> &T {
         unsafe { &*this.ptr }
     }
 
