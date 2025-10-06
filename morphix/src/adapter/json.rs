@@ -77,15 +77,15 @@ impl Adapter for JsonAdapter {
     }
 
     fn try_from_observe<T: Observe>(value: &T, change: Change<ObserveAdapter>) -> Result<Change<Self>, Self::Error> {
-        let v = value.serialize_at::<Serializer>(change.clone())?;
+        let value = value.serialize_at(Serializer, &change)?;
         Ok(match change.operation {
             Operation::Replace(_) => Change {
                 path_rev: change.path_rev,
-                operation: Operation::Replace(v),
+                operation: Operation::Replace(value),
             },
             Operation::Append(_) => Change {
                 path_rev: change.path_rev,
-                operation: Operation::Append(v),
+                operation: Operation::Append(value),
             },
             _ => unreachable!(),
         })
