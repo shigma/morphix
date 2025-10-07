@@ -27,11 +27,12 @@ let mut foo = Foo {
 };
 
 // 2. Use `observe!` to mutate and observe the data structure.
-let change: Option<Change<JsonAdapter>> = observe!(|mut foo| {
+let change = observe!(JsonAdapter, |mut foo| {
     foo.bar.baz += 1;
     foo.qux.push(' ');
     foo.qux += "world";
-}).unwrap();
+})
+.unwrap();
 
 // 3. See the changes.
 assert_eq!(

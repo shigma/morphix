@@ -36,13 +36,13 @@ impl<'i> Observer<'i, String> for StringOb<'i> {
         }
     }
 
-    fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Change<A>>, A::Error> {
-        Ok(if let Some(mutation) = Self::mutation(this).take() {
+    fn collect<A: Adapter>(mut this: Self) -> Result<Option<Change<A>>, A::Error> {
+        Ok(if let Some(mutation) = Self::mutation(&mut this).take() {
             Some(Change {
                 path_rev: vec![],
                 operation: match mutation {
-                    Mutation::Replace => Operation::Replace(A::new_replace(&**this)?),
-                    Mutation::Append(start_index) => Operation::Append(A::new_append(&**this, start_index)?),
+                    Mutation::Replace => Operation::Replace(A::new_replace(&*this)?),
+                    Mutation::Append(start_index) => Operation::Append(A::new_append(&*this, start_index)?),
                 },
             })
         } else {

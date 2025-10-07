@@ -20,7 +20,7 @@ fn main() {
         qux: "hello".to_string(),
     };
 
-    let change: Option<Change<JsonAdapter>> = observe!(|mut foo| {
+    let change = observe!(JsonAdapter, |mut foo| {
         foo.bar.baz += 1;
         foo.qux.push(' ');
         foo.qux += "world";

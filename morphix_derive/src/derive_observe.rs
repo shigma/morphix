@@ -103,7 +103,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                 }
                 if meta.mode != ObserveMode::Ignore {
                     collect_stmts.push(quote! {
-                        if let Some(mut change) = ::morphix::Observer::collect::<A>(&mut this.#field_ident)? {
+                        if let Some(mut change) = ::morphix::Observer::collect::<A>(this.#field_ident)? {
                             change.path_rev.push(stringify!(#field_ident).into());
                             changes.push(change);
                         }
@@ -147,13 +147,13 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                 }
 
                 fn collect<A: ::morphix::Adapter>(
-                    this: &mut Self,
+                    this: Self,
                 ) -> ::std::result::Result<::std::option::Option<::morphix::Change<A>>, A::Error> {
                     let mut changes = vec![];
                     if this.replaced {
                         changes.push(::morphix::Change {
                             path_rev: vec![],
-                            operation: ::morphix::Operation::Replace(A::new_replace(&**this)?),
+                            operation: ::morphix::Operation::Replace(A::new_replace(&*this)?),
                         });
                     };
                     #(#collect_stmts)*

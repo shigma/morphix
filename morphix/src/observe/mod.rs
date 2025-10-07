@@ -32,17 +32,19 @@ pub trait Observe: Serialize {
 pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
     fn observe(value: &'i mut T) -> Self;
 
-    fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Change<A>>, A::Error>
+    fn collect<A: Adapter>(this: Self) -> Result<Option<Change<A>>, A::Error>
     where
         T: Serialize;
 }
 
+#[doc(hidden)]
 #[derive(Clone, Copy)]
 pub enum Mutation {
     Replace,
     Append(usize),
 }
 
+#[doc(hidden)]
 pub trait MutationObserver<'i, T>: Observer<'i, T> {
     fn mutation(this: &mut Self) -> &mut Option<Mutation>;
 

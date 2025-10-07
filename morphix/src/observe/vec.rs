@@ -42,30 +42,30 @@ impl<'i, T: Observe> Observer<'i, Vec<T>> for VecOb<'i, T> {
         }
     }
 
-    fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Change<A>>, A::Error> {
+    fn collect<A: Adapter>(mut this: Self) -> Result<Option<Change<A>>, A::Error> {
         let mut changes = vec![];
         let mut max_index = None;
-        if let Some(mutation) = Self::mutation(this).take() {
+        if let Some(mutation) = Self::mutation(&mut this).take() {
             changes.push(Change {
                 path_rev: vec![],
                 operation: match mutation {
-                    Mutation::Replace => Operation::Replace(A::new_replace(&**this)?),
+                    Mutation::Replace => Operation::Replace(A::new_replace(&*this)?),
                     Mutation::Append(start_index) => {
                         max_index = Some(start_index);
-                        Operation::Append(A::new_append(&**this, start_index)?)
+                        Operation::Append(A::new_append(&*this, start_index)?)
                     }
                 },
             });
         };
         let obs = take(unsafe { &mut *this.obs.get() });
-        for (index, mut ob) in obs {
+        for (index, observer) in obs {
             if let Some(max_index) = max_index
                 && index >= max_index
             {
                 // already included in append
                 continue;
             }
-            if let Some(mut change) = Observer::collect::<A>(&mut ob)? {
+            if let Some(mut change) = Observer::collect::<A>(observer)? {
                 change.path_rev.push(index.to_string().into());
                 changes.push(change);
             }

@@ -17,14 +17,14 @@ impl<'i, T> Observer<'i, T> for ShallowObserver<'i, T> {
         ShallowObserver::new(value)
     }
 
-    fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Change<A>>, A::Error>
+    fn collect<A: Adapter>(this: Self) -> Result<Option<Change<A>>, A::Error>
     where
         T: Serialize,
     {
         Ok(if this.replaced {
             Some(Change {
                 path_rev: vec![],
-                operation: Operation::Replace(A::new_replace(&**this)?),
+                operation: Operation::Replace(A::new_replace(&*this)?),
             })
         } else {
             None

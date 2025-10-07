@@ -20,5 +20,6 @@
         "morphix",
         "serde",
         "shigma",
+        "turbofish"
     ]
 }
