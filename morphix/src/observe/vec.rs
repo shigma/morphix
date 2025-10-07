@@ -1,9 +1,9 @@
 use std::cell::UnsafeCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, TryReserveError};
 use std::marker::PhantomData;
-use std::ops::{Index, IndexMut};
+use std::ops::{Index, IndexMut, RangeBounds};
 
-use crate::{Ob, Observe};
+use crate::{Ob, Observe, Operation};
 
 pub struct VecObInner<'i, T: Observe + 'i> {
     obs: UnsafeCell<HashMap<usize, T::Target<'i>>>,
@@ -29,25 +29,74 @@ impl<T: Observe> Observe for Vec<T> {
 }
 
 impl<'i, T: Observe> VecOb<'i, T> {
+    pub fn reserve(&mut self, additional: usize) {
+        Self::get_mut(self).reserve(additional);
+    }
+
+    pub fn reserve_exact(&mut self, additional: usize) {
+        Self::get_mut(self).reserve_exact(additional);
+    }
+
+    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
+        Self::get_mut(self).try_reserve(additional)
+    }
+
+    pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
+        Self::get_mut(self).try_reserve_exact(additional)
+    }
+
+    pub fn shrink_to_fit(&mut self) {
+        Self::get_mut(self).shrink_to_fit();
+    }
+
+    pub fn shrink_to(&mut self, min_capacity: usize) {
+        Self::get_mut(self).shrink_to(min_capacity);
+    }
+
     pub fn push(&mut self, value: T) {
-        if let Some(ctx) = &self.ctx {
-            println!("append {:?} (VecOb::push)", ctx.path);
-        }
+        Self::record(self, Operation::Append(self.len()));
         Self::get_mut(self).push(value);
     }
 
-    pub fn extend<I: IntoIterator<Item = T>>(&mut self, other: I) {
-        let other = other.into_iter().collect::<Vec<_>>();
+    pub fn append(&mut self, other: &mut Vec<T>) {
         if other.is_empty() {
             return;
         }
-        if let Some(ctx) = &self.ctx {
-            println!("append {:?} (VecOb::extend)", ctx.path);
+        Self::record(self, Operation::Append(self.len()));
+        Self::get_mut(self).append(other);
+    }
+}
+
+impl<'i, T: Observe + Clone> VecOb<'i, T> {
+    pub fn extend_from_slice(&mut self, other: &[T]) {
+        if other.is_empty() {
+            return;
         }
+        Self::record(self, Operation::Append(self.len()));
+        Self::get_mut(self).extend_from_slice(other);
+    }
+
+    pub fn extend_from_within<R: RangeBounds<usize>>(&mut self, range: R) {
+        Self::record(self, Operation::Append(self.len()));
+        Self::get_mut(self).extend_from_within(range);
+    }
+}
+
+impl<'i, T: Observe> Extend<T> for VecOb<'i, T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, other: I) {
+        Self::record(self, Operation::Append(self.len()));
         Self::get_mut(self).extend(other);
     }
 }
 
+impl<'i, 'a, T: Observe + Copy + 'a> Extend<&'a T> for VecOb<'i, T> {
+    fn extend<I: IntoIterator<Item = &'a T>>(&mut self, other: I) {
+        Self::record(self, Operation::Append(self.len()));
+        Self::get_mut(self).extend(other);
+    }
+}
+
+// TODO: handle range
 impl<'i, T: Observe> Index<usize> for VecOb<'i, T> {
     type Output = T::Target<'i>;
     fn index(&self, index: usize) -> &Self::Output {

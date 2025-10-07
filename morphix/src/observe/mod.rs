@@ -120,15 +120,11 @@ macro_rules! impl_observe {
                 type Target<'i> = Ob<'i, $ty>
                 where
                     Self: 'i;
-
-                fn observe<'i>(&'i mut self, ctx: Option<Context>) -> Self::Target<'i> {
-                    Ob::new(self, ctx)
-                }
             }
         )*
     };
 }
 
 impl_observe! {
-    usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64,
+    usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool,
 }

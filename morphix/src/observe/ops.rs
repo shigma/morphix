@@ -33,6 +33,18 @@ impl<'i, T: IndexMut<U>, U> IndexMut<U> for Ob<'i, T> {
     }
 }
 
+impl<'i, T: PartialEq<U>, U: ?Sized> PartialEq<U> for Ob<'i, T> {
+    fn eq(&self, other: &U) -> bool {
+        Self::get_ref(self).eq(other)
+    }
+}
+
+impl<'i, T: PartialOrd<U>, U: ?Sized> PartialOrd<U> for Ob<'i, T> {
+    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
+        Self::get_ref(self).partial_cmp(other)
+    }
+}
+
 macro_rules! impl_assign_ops {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
