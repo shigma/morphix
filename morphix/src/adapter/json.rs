@@ -4,10 +4,10 @@ use std::mem::take;
 use serde_json::value::Serializer;
 use serde_json::{Error, Value};
 
+use crate::Observe;
 use crate::adapter::Adapter;
 use crate::change::{Change, Operation};
 use crate::error::ChangeError;
-use crate::{Observe, ObserveAdapter, Observer};
 
 pub struct JsonAdapter;
 
@@ -16,9 +16,17 @@ impl Adapter for JsonAdapter {
     type Append = Value;
     type Error = Error;
 
+    fn new_replace<T: Observe + ?Sized>(value: &T) -> Result<Self::Replace, Self::Error> {
+        value.serialize(Serializer)
+    }
+
+    fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Append, Self::Error> {
+        value.serialize_append(Serializer, start_index)
+    }
+
     fn apply_change(
-        mut change: Change<Self>,
         mut curr_value: &mut Self::Replace,
+        mut change: Change<Self>,
         path_stack: &mut Vec<Cow<'static, str>>,
     ) -> Result<(), ChangeError> {
         let is_replace = matches!(change.operation, Operation::Replace { .. });
@@ -45,12 +53,12 @@ impl Adapter for JsonAdapter {
                 *curr_value = value;
             }
             Operation::Append(value) => {
-                Self::append(curr_value, value, path_stack)?;
+                Self::merge_append(curr_value, value, path_stack)?;
             }
             Operation::Batch(changes) => {
                 let len = path_stack.len();
                 for change in changes {
-                    Self::apply_change(change, curr_value, path_stack)?;
+                    Self::apply_change(curr_value, change, path_stack)?;
                     path_stack.truncate(len);
                 }
             }
@@ -59,7 +67,7 @@ impl Adapter for JsonAdapter {
         Ok(())
     }
 
-    fn append(
+    fn merge_append(
         old_value: &mut Self::Append,
         new_value: Self::Append,
         path_stack: &mut Vec<Cow<'static, str>>,
@@ -74,36 +82,5 @@ impl Adapter for JsonAdapter {
             _ => return Err(ChangeError::OperationError { path: take(path_stack) }),
         }
         Ok(())
-    }
-
-    fn new_replace<T: Observe + ?Sized>(value: &T) -> Result<Self::Replace, Self::Error> {
-        value.serialize(Serializer)
-    }
-
-    fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Append, Self::Error> {
-        value.serialize_append(Serializer, start_index)
-    }
-
-    fn try_from_observe<'i, T: Observe + ?Sized>(
-        observer: &mut T::Target<'i>,
-        operation: Operation<ObserveAdapter>,
-    ) -> Result<Operation<Self>, Self::Error> {
-        Ok(match operation {
-            Operation::Replace(()) => Operation::Replace(observer.get_ref().serialize(Serializer)?),
-            Operation::Append(start_index) => {
-                Operation::Append(observer.get_ref().serialize_append(Serializer, start_index)?)
-            }
-            Operation::Batch(changes) => Operation::Batch(
-                changes
-                    .into_iter()
-                    .map(|change| -> Result<Change<Self>, Self::Error> {
-                        Ok(Change {
-                            path_rev: change.path_rev,
-                            operation: Self::try_from_observe::<T>(observer, change.operation)?,
-                        })
-                    })
-                    .collect::<Result<_, _>>()?,
-            ),
-        })
     }
 }

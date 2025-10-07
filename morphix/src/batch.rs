@@ -50,7 +50,7 @@ impl<A: Adapter> Batch<A> {
     ) -> Result<(), ChangeError> {
         let mut batch = self;
         if let Some(Operation::Replace(value)) = &mut batch.operation {
-            A::apply_change(change, value, path_stack)?;
+            A::apply_change(value, change, path_stack)?;
             return Ok(());
         }
         while let Some(key) = change.path_rev.pop() {
@@ -58,7 +58,7 @@ impl<A: Adapter> Batch<A> {
             path_stack.push(key.clone());
             batch = batch.children.entry(key).or_default();
             if let Some(Operation::Replace(value)) = &mut batch.operation {
-                A::apply_change(change, value, path_stack)?;
+                A::apply_change(value, change, path_stack)?;
                 return Ok(());
             }
         }
@@ -70,7 +70,7 @@ impl<A: Adapter> Batch<A> {
             }
             Operation::Append(new_value) => match &mut batch.operation {
                 Some(Operation::Append(old_value)) => {
-                    A::append(old_value, new_value, path_stack)?;
+                    A::merge_append(old_value, new_value, path_stack)?;
                 }
                 Some(_) => unreachable!(),
                 None => batch.operation = Some(Operation::Append(new_value)),
@@ -101,6 +101,10 @@ impl<A: Adapter> Batch<A> {
                 changes.push(change);
             }
         }
+        Self::build(changes)
+    }
+
+    pub fn build(mut changes: Vec<Change<A>>) -> Option<Change<A>> {
         match changes.len() {
             0 => None,
             1 => Some(changes.swap_remove(0)),

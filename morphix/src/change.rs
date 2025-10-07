@@ -27,7 +27,7 @@ pub struct Change<A: Adapter> {
 impl<A: Adapter> Change<A> {
     /// Apply the change to a JSON value.
     pub fn apply(self, value: &mut A::Replace) -> Result<(), ChangeError> {
-        A::apply_change(self, value, &mut vec![])
+        A::apply_change(value, self, &mut vec![])
     }
 }
 

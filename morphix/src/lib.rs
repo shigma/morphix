@@ -8,10 +8,9 @@ mod observe;
 
 pub use adapter::Adapter;
 pub use adapter::json::JsonAdapter;
-pub use adapter::observe::ObserveAdapter;
 pub use batch::Batch;
 pub use change::{Change, Operation};
 pub use error::ChangeError;
 #[cfg(feature = "derive")]
 pub use morphix_derive::{Observe, observe};
-pub use observe::{Ob, ObInner, Observe, Observer};
+pub use observe::{Mutation, MutationObserver, Observe, Observer, RawOb};
