@@ -28,8 +28,11 @@ dependencies = [
 name = "morphix_derive"
 version = "0.2.0"
 dependencies = [
+ "morphix",
  "proc-macro2",
  "quote",
+ "serde",
+ "serde_json",
  "syn",
 ]
 

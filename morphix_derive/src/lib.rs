@@ -16,8 +16,8 @@ mod derive_observe;
 /// use serde::Serialize;
 /// use morphix::Observe;
 ///
-/// // It is commonly used with `Serialize`, `Clone` and `PartialEq` traits.
-/// #[derive(Serialize, Clone, PartialEq, Observe)]
+/// // Observe: Serialize
+/// #[derive(Serialize, Observe)]
 /// struct Point {
 ///    x: f64,
 ///    y: f64,
@@ -40,7 +40,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 ///
 /// ```
 /// use serde::Serialize;
-/// use morphix::{observe, Observe};
+/// use morphix::{JsonAdapter, Change, Observe, observe};
 ///
 /// #[derive(Serialize, Observe)]
 /// struct Point {
@@ -49,7 +49,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 /// }
 ///
 /// let mut point = Point { x: 1.0, y: 2.0 };
-/// observe!(|mut point| {
+/// let change: Option<Change<JsonAdapter>> = observe!(|mut point| {
 ///    point.x += 1.0;
 ///    point.y += 1.0;
 /// }).unwrap();
@@ -69,18 +69,16 @@ pub fn observe(input: TokenStream) -> TokenStream {
     let body = &mut closure.body;
     let mut body_shadow: syn::Expr = parse_quote! {
         {
-            #[allow(unused)]
-            let mut #ident = #ident.observe(&ctx);
+            let mut #ident = #ident.observe();
             #body;
+            ::morphix::Observer::collect(&mut #ident)
         }
     };
     CallSite.visit_expr_mut(&mut body_shadow);
     quote! {
         {
             let _ = || #body;
-            let ctx = ::morphix::Context::new();
             #body_shadow
-            ctx.collect(&#ident)
         }
     }
     .into()

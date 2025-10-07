@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde_json::json;
 
 #[derive(Serialize, Debug, PartialEq, Observe)]
-struct Foo {
+pub struct Foo {
     bar: Bar,
     qux: String,
 }
@@ -22,7 +22,8 @@ fn main() {
 
     let change: Option<Change<JsonAdapter>> = observe!(|mut foo| {
         foo.bar.baz += 1;
-        foo.qux += " world";
+        foo.qux.push(' ');
+        foo.qux += "world";
     })
     .unwrap();
 
@@ -32,7 +33,7 @@ fn main() {
             path_rev: vec![],
             operation: Operation::Batch(vec![
                 Change {
-                    path_rev: vec!["bar".into(), "baz".into()],
+                    path_rev: vec!["baz".into(), "bar".into()],
                     operation: Operation::Replace(json!(43)),
                 },
                 Change {
@@ -47,7 +48,7 @@ fn main() {
         foo,
         Foo {
             bar: Bar { baz: 43 },
-            qux: "hello world".to_string()
+            qux: "hello world".to_string(),
         }
     );
 }

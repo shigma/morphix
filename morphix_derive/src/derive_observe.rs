@@ -1,17 +1,12 @@
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, quote_spanned};
+use quote::{format_ident, quote};
 use syn::spanned::Spanned;
 
 pub fn derive_observe(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let input_ident = &input.ident;
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
     let ob_ident = format_ident!("{}Ob", input_ident);
-    let mod_ident = format_ident!("__morphix_{}", input_ident);
-    let vis_span = input.vis.span();
-    let ob_vis = match &input.vis {
-        syn::Visibility::Public(_) => quote_spanned! { vis_span => pub },
-        _ => quote_spanned! { vis_span => pub(crate) },
-    };
+    let input_vis = &input.vis;
     let mut type_fields = vec![];
     let mut inst_fields = vec![];
     let mut collect_stmts = vec![];
@@ -45,11 +40,8 @@ pub fn derive_observe(input: syn::DeriveInput) -> syn::Result<TokenStream> {
         }
     };
     Ok(quote! {
-        #[allow(nonstandard_style)]
-        mod #mod_ident {
-            use super::*;
-
-            #ob_vis struct #ob_ident<'morphix> {
+        const _: () = {
+            #input_vis struct #ob_ident<'morphix> {
                 ptr: *mut #input_ident,
                 replaced: bool,
                 phantom: ::std::marker::PhantomData<&'morphix mut #input_ident>,
@@ -77,7 +69,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> syn::Result<TokenStream> {
                 ) -> ::std::result::Result<::std::option::Option<::morphix::Change<A>>, A::Error> {
                     let mut changes = vec![];
                     if this.replaced {
-                        changes.push(Change {
+                        changes.push(::morphix::Change {
                             path_rev: vec![],
                             operation: ::morphix::Operation::Replace(A::new_replace(&**this)?),
                         });
@@ -102,6 +94,6 @@ pub fn derive_observe(input: syn::DeriveInput) -> syn::Result<TokenStream> {
                     unsafe { &mut *self.ptr }
                 }
             }
-        }
+        };
     })
 }
