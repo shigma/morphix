@@ -3,14 +3,14 @@ use std::collections::{HashMap, TryReserveError};
 use std::marker::PhantomData;
 use std::ops::{Index, IndexMut, RangeBounds};
 
-use crate::{Ob, Observe, Operation};
+use crate::{Ob, Observe, Observer, Operation};
 
-pub struct VecObInner<'i, T: Observe + 'i> {
+pub struct VecObserverInner<'i, T: Observe + 'i> {
     obs: UnsafeCell<HashMap<usize, T::Target<'i>>>,
     phantom: PhantomData<&'i mut T>,
 }
 
-impl<'i, T: Observe> Default for VecObInner<'i, T> {
+impl<'i, T: Observe> Default for VecObserverInner<'i, T> {
     fn default() -> Self {
         Self {
             obs: Default::default(),
@@ -19,16 +19,16 @@ impl<'i, T: Observe> Default for VecObInner<'i, T> {
     }
 }
 
-pub type VecOb<'i, T> = Ob<'i, Vec<T>, VecObInner<'i, T>>;
+pub type VecObserver<'i, T> = Ob<'i, Vec<T>, VecObserverInner<'i, T>>;
 
 impl<T: Observe> Observe for Vec<T> {
     type Target<'i>
-        = VecOb<'i, T>
+        = VecObserver<'i, T>
     where
         Self: 'i;
 }
 
-impl<'i, T: Observe> VecOb<'i, T> {
+impl<'i, T: Observe> VecObserver<'i, T> {
     pub fn reserve(&mut self, additional: usize) {
         Self::get_mut(self).reserve(additional);
     }
@@ -67,7 +67,7 @@ impl<'i, T: Observe> VecOb<'i, T> {
     }
 }
 
-impl<'i, T: Observe + Clone> VecOb<'i, T> {
+impl<'i, T: Observe + Clone> VecObserver<'i, T> {
     pub fn extend_from_slice(&mut self, other: &[T]) {
         if other.is_empty() {
             return;
@@ -82,14 +82,14 @@ impl<'i, T: Observe + Clone> VecOb<'i, T> {
     }
 }
 
-impl<'i, T: Observe> Extend<T> for VecOb<'i, T> {
+impl<'i, T: Observe> Extend<T> for VecObserver<'i, T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, other: I) {
         Self::record(self, Operation::Append(self.len()));
         Self::get_mut(self).extend(other);
     }
 }
 
-impl<'i, 'a, T: Observe + Copy + 'a> Extend<&'a T> for VecOb<'i, T> {
+impl<'i, 'a, T: Observe + Copy + 'a> Extend<&'a T> for VecObserver<'i, T> {
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, other: I) {
         Self::record(self, Operation::Append(self.len()));
         Self::get_mut(self).extend(other);
@@ -97,7 +97,7 @@ impl<'i, 'a, T: Observe + Copy + 'a> Extend<&'a T> for VecOb<'i, T> {
 }
 
 // TODO: handle range
-impl<'i, T: Observe> Index<usize> for VecOb<'i, T> {
+impl<'i, T: Observe> Index<usize> for VecObserver<'i, T> {
     type Output = T::Target<'i>;
     fn index(&self, index: usize) -> &Self::Output {
         let value = unsafe { &mut (&mut *self.ptr)[index] };
@@ -107,7 +107,7 @@ impl<'i, T: Observe> Index<usize> for VecOb<'i, T> {
     }
 }
 
-impl<'i, T: Observe> IndexMut<usize> for VecOb<'i, T> {
+impl<'i, T: Observe> IndexMut<usize> for VecObserver<'i, T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         let value = unsafe { &mut (&mut *self.ptr)[index] };
         let obs = unsafe { &mut *self.inner.obs.get() };

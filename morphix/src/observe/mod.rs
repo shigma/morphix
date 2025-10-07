@@ -31,6 +31,19 @@ pub trait Observe {
 
 pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
     fn observe(value: &'i mut T, ctx: Option<Context>) -> Self;
+
+    fn context(this: &mut Self) -> &mut Option<Context>;
+
+    fn record(this: &mut Self, operation: Operation<ObserveAdapter>) {
+        let Some(ctx) = Self::context(this) else {
+            return;
+        };
+        let mut batch = ctx.batch.lock().unwrap();
+        let _ = batch.load(Change {
+            path_rev: ctx.path.iter().cloned().rev().collect(),
+            operation,
+        });
+    }
 }
 
 /// Context for observing changes.
@@ -77,6 +90,10 @@ impl<'i, T, U: Default> Observer<'i, T> for Ob<'i, T, U> {
     fn observe(value: &'i mut T, ctx: Option<Context>) -> Self {
         Ob::new(value, ctx)
     }
+
+    fn context(this: &mut Self) -> &mut Option<Context> {
+        &mut this.ctx
+    }
 }
 
 impl<'i, T, U: Default> Ob<'i, T, U> {
@@ -99,17 +116,6 @@ impl<'i, T, U: Default> Ob<'i, T, U> {
 
     pub fn get_mut(this: &mut Self) -> &mut T {
         unsafe { &mut *this.ptr }
-    }
-
-    pub fn record(this: &mut Self, operation: Operation<ObserveAdapter>) {
-        let Some(ctx) = &this.ctx else {
-            return;
-        };
-        let mut batch = ctx.batch.lock().unwrap();
-        let _ = batch.load(Change {
-            path_rev: ctx.path.iter().cloned().rev().collect(),
-            operation,
-        });
     }
 }
 

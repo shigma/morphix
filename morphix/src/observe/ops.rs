@@ -1,7 +1,7 @@
 use std::mem::take;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
-use crate::{Ob, Operation};
+use crate::{Ob, Observer, Operation};
 
 impl<'i, T, U: Default> Deref for Ob<'i, T, U> {
     type Target = T;
