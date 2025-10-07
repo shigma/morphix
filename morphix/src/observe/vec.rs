@@ -9,21 +9,35 @@ use serde::{Serialize, Serializer};
 use crate::observe::Mutation;
 use crate::{Adapter, Batch, Change, MutationObserver, Observe, Observer, Operation};
 
-pub struct VecOb<'i, T: Observe> {
+/// An observer for [Vec](std::vec::Vec) that tracks both replacements and appends.
+///
+/// `VecObserver` provides special handling for vector append operations,
+/// distinguishing them from complete replacements for efficiency.
+///
+/// ## Supported Operations
+///
+/// The following mutations are tracked as `Append`:
+///
+/// - [Vec::push](std::vec::Vec::push)
+/// - [Vec::append](std::vec::Vec::append)
+/// - [Vec::extend](std::iter::Extend)
+/// - [Vec::extend_from_slice](std::vec::Vec::extend_from_slice)
+/// - [Vec::extend_from_within](std::vec::Vec::extend_from_within)
+pub struct VecObserver<'i, T: Observe> {
     ptr: *mut Vec<T>,
     mutation: Option<Mutation>,
     obs: UnsafeCell<HashMap<usize, T::Observer<'i>>>,
     phantom: PhantomData<&'i mut T>,
 }
 
-impl<'i, T: Observe> Deref for VecOb<'i, T> {
+impl<'i, T: Observe> Deref for VecObserver<'i, T> {
     type Target = Vec<T>;
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.ptr }
     }
 }
 
-impl<'i, T: Observe> DerefMut for VecOb<'i, T> {
+impl<'i, T: Observe> DerefMut for VecObserver<'i, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         Self::mark_replace(self);
         take(&mut self.obs);
@@ -31,7 +45,7 @@ impl<'i, T: Observe> DerefMut for VecOb<'i, T> {
     }
 }
 
-impl<'i, T: Observe> Observer<'i, Vec<T>> for VecOb<'i, T> {
+impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
     #[inline]
     fn observe(value: &'i mut Vec<T>) -> Self {
         Self {
@@ -74,7 +88,7 @@ impl<'i, T: Observe> Observer<'i, Vec<T>> for VecOb<'i, T> {
     }
 }
 
-impl<'i, T: Observe> MutationObserver<'i, Vec<T>> for VecOb<'i, T> {
+impl<'i, T: Observe> MutationObserver<'i, Vec<T>> for VecObserver<'i, T> {
     fn mutation(this: &mut Self) -> &mut Option<Mutation> {
         &mut this.mutation
     }
@@ -82,7 +96,7 @@ impl<'i, T: Observe> MutationObserver<'i, Vec<T>> for VecOb<'i, T> {
 
 impl<T: Observe> Observe for Vec<T> {
     type Observer<'i>
-        = VecOb<'i, T>
+        = VecObserver<'i, T>
     where
         Self: 'i;
 
@@ -91,7 +105,7 @@ impl<T: Observe> Observe for Vec<T> {
     }
 }
 
-impl<'i, T: Observe> VecOb<'i, T> {
+impl<'i, T: Observe> VecObserver<'i, T> {
     #[inline]
     fn as_mut(&mut self) -> &mut Vec<T> {
         unsafe { &mut *self.ptr }
@@ -135,7 +149,7 @@ impl<'i, T: Observe> VecOb<'i, T> {
     }
 }
 
-impl<'i, T: Observe + Clone> VecOb<'i, T> {
+impl<'i, T: Observe + Clone> VecObserver<'i, T> {
     pub fn extend_from_slice(&mut self, other: &[T]) {
         if other.is_empty() {
             return;
@@ -150,14 +164,14 @@ impl<'i, T: Observe + Clone> VecOb<'i, T> {
     }
 }
 
-impl<'i, T: Observe> Extend<T> for VecOb<'i, T> {
+impl<'i, T: Observe> Extend<T> for VecObserver<'i, T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, other: I) {
         Self::mark_append(self, self.len());
         self.as_mut().extend(other);
     }
 }
 
-impl<'i, 'a, T: Observe + Copy + 'a> Extend<&'a T> for VecOb<'i, T> {
+impl<'i, 'a, T: Observe + Copy + 'a> Extend<&'a T> for VecObserver<'i, T> {
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, other: I) {
         Self::mark_append(self, self.len());
         self.as_mut().extend(other);
@@ -165,7 +179,7 @@ impl<'i, 'a, T: Observe + Copy + 'a> Extend<&'a T> for VecOb<'i, T> {
 }
 
 // TODO: handle range
-impl<'i, T: Observe> Index<usize> for VecOb<'i, T> {
+impl<'i, T: Observe> Index<usize> for VecObserver<'i, T> {
     type Output = T::Observer<'i>;
     fn index(&self, index: usize) -> &Self::Output {
         let value = unsafe { &mut (&mut *self.ptr)[index] };
@@ -174,7 +188,7 @@ impl<'i, T: Observe> Index<usize> for VecOb<'i, T> {
     }
 }
 
-impl<'i, T: Observe> IndexMut<usize> for VecOb<'i, T> {
+impl<'i, T: Observe> IndexMut<usize> for VecObserver<'i, T> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         let value = unsafe { &mut (&mut *self.ptr)[index] };
         let obs = unsafe { &mut *self.obs.get() };
