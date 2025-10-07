@@ -7,7 +7,7 @@ use serde_json::{Error, Value};
 use crate::adapter::Adapter;
 use crate::change::{Change, Operation};
 use crate::error::ChangeError;
-use crate::{Observe, ObserveAdapter};
+use crate::{Observe, ObserveAdapter, Observer};
 
 pub struct JsonAdapter;
 
@@ -76,18 +76,34 @@ impl Adapter for JsonAdapter {
         Ok(())
     }
 
-    fn try_from_observe<T: Observe>(value: &T, change: Change<ObserveAdapter>) -> Result<Change<Self>, Self::Error> {
-        let value = value.serialize_at(Serializer, &change)?;
-        Ok(match change.operation {
-            Operation::Replace(_) => Change {
-                path_rev: change.path_rev,
-                operation: Operation::Replace(value),
-            },
-            Operation::Append(_) => Change {
-                path_rev: change.path_rev,
-                operation: Operation::Append(value),
-            },
-            _ => unreachable!(),
+    fn new_replace<T: Observe + ?Sized>(value: &T) -> Result<Self::Replace, Self::Error> {
+        value.serialize(Serializer)
+    }
+
+    fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Append, Self::Error> {
+        value.serialize_append(Serializer, start_index)
+    }
+
+    fn try_from_observe<'i, T: Observe + ?Sized>(
+        observer: &mut T::Target<'i>,
+        operation: Operation<ObserveAdapter>,
+    ) -> Result<Operation<Self>, Self::Error> {
+        Ok(match operation {
+            Operation::Replace(()) => Operation::Replace(observer.get_ref().serialize(Serializer)?),
+            Operation::Append(start_index) => {
+                Operation::Append(observer.get_ref().serialize_append(Serializer, start_index)?)
+            }
+            Operation::Batch(changes) => Operation::Batch(
+                changes
+                    .into_iter()
+                    .map(|change| -> Result<Change<Self>, Self::Error> {
+                        Ok(Change {
+                            path_rev: change.path_rev,
+                            operation: Self::try_from_observe::<T>(observer, change.operation)?,
+                        })
+                    })
+                    .collect::<Result<_, _>>()?,
+            ),
         })
     }
 }

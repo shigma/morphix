@@ -1,47 +1,47 @@
 use std::mem::take;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
-use crate::{Ob, Observer, Operation};
+use crate::observe::ObInner;
+use crate::{Ob, Observer};
 
-impl<'i, T, U: Default> Deref for Ob<'i, T, U> {
+impl<'i, T, U: ObInner> Deref for Ob<'i, T, U> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
-        Self::get_ref(self)
+        self.get_ref()
     }
 }
 
-impl<'i, T, U: Default> DerefMut for Ob<'i, T, U> {
+impl<'i, T, U: ObInner> DerefMut for Ob<'i, T, U> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        Self::record(self, Operation::Replace(()));
+        self.mark_replace();
         take(&mut self.inner);
-        take(&mut self.ctx);
-        Self::get_mut(self)
+        self.get_mut()
     }
 }
 
 impl<'i, T: Index<U>, U> Index<U> for Ob<'i, T> {
     type Output = T::Output;
     fn index(&self, index: U) -> &Self::Output {
-        Self::get_ref(self).index(index)
+        self.get_ref().index(index)
     }
 }
 
 impl<'i, T: IndexMut<U>, U> IndexMut<U> for Ob<'i, T> {
     fn index_mut(&mut self, index: U) -> &mut Self::Output {
-        Self::record(self, Operation::Replace(()));
-        Self::get_mut(self).index_mut(index)
+        self.mark_replace();
+        self.get_mut().index_mut(index)
     }
 }
 
 impl<'i, T: PartialEq<U>, U: ?Sized> PartialEq<U> for Ob<'i, T> {
     fn eq(&self, other: &U) -> bool {
-        Self::get_ref(self).eq(other)
+        self.get_ref().eq(other)
     }
 }
 
 impl<'i, T: PartialOrd<U>, U: ?Sized> PartialOrd<U> for Ob<'i, T> {
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        Self::get_ref(self).partial_cmp(other)
+        self.get_ref().partial_cmp(other)
     }
 }
 
@@ -50,8 +50,8 @@ macro_rules! impl_assign_ops {
         $(
             impl<'i, T: ::std::ops::$trait<U>, U> ::std::ops::$trait<U> for Ob<'i, T> {
                 fn $method(&mut self, rhs: U) {
-                    Self::record(self, Operation::Replace(()));
-                    Self::get_mut(self).$method(rhs);
+                    self.mark_replace();
+                    self.get_mut().$method(rhs);
                 }
             }
         )*

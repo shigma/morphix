@@ -14,4 +14,4 @@ pub use change::{Change, Operation};
 pub use error::ChangeError;
 #[cfg(feature = "derive")]
 pub use morphix_derive::{Observe, observe};
-pub use observe::{Context, Ob, Observe, Observer};
+pub use observe::{Ob, ObInner, Observe, Observer};

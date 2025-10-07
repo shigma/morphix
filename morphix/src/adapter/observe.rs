@@ -1,10 +1,10 @@
 use std::borrow::Cow;
 use std::convert::Infallible;
 
-use crate::Observe;
 use crate::adapter::Adapter;
 use crate::change::Change;
 use crate::error::ChangeError;
+use crate::{Observe, Operation};
 
 pub struct ObserveAdapter;
 
@@ -29,7 +29,18 @@ impl Adapter for ObserveAdapter {
         Ok(())
     }
 
-    fn try_from_observe<T: Observe>(_value: &T, change: Change<ObserveAdapter>) -> Result<Change<Self>, Self::Error> {
+    fn try_from_observe<'i, T: Observe + ?Sized>(
+        _observer: &mut T::Target<'i>,
+        change: Operation<ObserveAdapter>,
+    ) -> Result<Operation<Self>, Self::Error> {
         Ok(change)
+    }
+
+    fn new_replace<T: Observe + ?Sized>(_value: &T) -> Result<Self::Replace, Self::Error> {
+        Ok(())
+    }
+
+    fn new_append<T: Observe + ?Sized>(_value: &T, start_index: usize) -> Result<Self::Append, Self::Error> {
+        Ok(start_index)
     }
 }

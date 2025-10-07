@@ -1,121 +1,143 @@
-use std::borrow::Cow;
 use std::marker::PhantomData;
-use std::ops::DerefMut;
-use std::sync::{Arc, Mutex};
 
-use serde::Serializer;
+use serde::{Serialize, Serializer};
 
+use crate::Change;
 use crate::adapter::Adapter;
 use crate::adapter::observe::ObserveAdapter;
-use crate::batch::Batch;
-use crate::change::{Change, Operation};
+use crate::change::Operation;
 
 mod ops;
 mod string;
 mod vec;
 
 /// Trait for observing changes.
-pub trait Observe {
+pub trait Observe: Serialize {
     type Target<'i>: Observer<'i, Self>
     where
         Self: 'i;
 
-    fn observe<'i>(&'i mut self, ctx: Option<Context>) -> Self::Target<'i> {
-        Self::Target::observe(self, ctx)
+    #[inline]
+    fn observe<'i>(&'i mut self) -> Self::Target<'i> {
+        Self::Target::observe(self)
     }
 
-    fn serialize_at<S: Serializer>(&self, _serializer: S, _change: &Change<ObserveAdapter>) -> Result<S::Ok, S::Error> {
-        todo!()
+    #[inline]
+    #[expect(unused_variables)]
+    fn serialize_append<S: Serializer>(&self, serializer: S, start_index: usize) -> Result<S::Ok, S::Error> {
+        unimplemented!()
     }
 }
 
-pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
-    fn observe(value: &'i mut T, ctx: Option<Context>) -> Self;
+pub trait Observer<'i, T: ?Sized> {
+    fn observe(value: &'i mut T) -> Self;
 
-    fn context(this: &mut Self) -> &mut Option<Context>;
+    fn into_inner(self) -> T;
 
-    fn record(this: &mut Self, operation: Operation<ObserveAdapter>) {
-        let Some(ctx) = Self::context(this) else {
+    fn get_ref(&self) -> &T;
+
+    fn get_mut(&mut self) -> &mut T;
+
+    fn op(&mut self) -> &mut Option<Operation<ObserveAdapter>>;
+
+    fn take_op(&mut self) -> Option<Operation<ObserveAdapter>> {
+        self.op().take()
+    }
+
+    fn mark_replace(&mut self) {
+        *self.op() = Some(Operation::Replace(()));
+    }
+
+    fn mark_append(&mut self, start_index: usize) {
+        if let Some(Operation::Replace(())) = self.op() {
             return;
-        };
-        let mut batch = ctx.batch.lock().unwrap();
-        let _ = batch.load(Change {
-            path_rev: ctx.path.iter().cloned().rev().collect(),
-            operation,
-        });
-    }
-}
-
-/// Context for observing changes.
-#[derive(Debug, Default)]
-pub struct Context {
-    path: Vec<Cow<'static, str>>,
-    batch: Arc<Mutex<Batch<ObserveAdapter>>>,
-}
-
-impl Context {
-    /// Create a root context.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Create a sub-context at a sub-path.
-    pub fn extend(&self, part: Cow<'static, str>) -> Self {
-        let mut path = self.path.clone();
-        path.push(part);
-        Self {
-            path,
-            batch: self.batch.clone(),
         }
+        *self.op() = Some(Operation::Append(start_index));
     }
 
-    /// Collect changes and errors.
-    pub fn collect<A: Adapter>(self, value: &impl Observe) -> Result<Option<Change<A>>, A::Error> {
-        Ok(match self.batch.lock().unwrap().dump() {
-            Some(v) => Some(A::try_from_observe(value, v)?),
-            None => None,
-        })
+    fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Change<A>>, A::Error>
+    where
+        T: Observe<Target<'i> = Self> + 'i;
+}
+
+pub trait ObInner: Default {
+    #[expect(unused)]
+    fn dump<A: Adapter>(&mut self, changes: &mut Vec<Change<A>>) -> Result<(), A::Error> {
+        Ok(())
     }
 }
+
+impl ObInner for () {}
 
 /// An observable value.
-pub struct Ob<'i, T, U: Default = ()> {
+pub struct Ob<'i, T, U: ObInner = ()> {
     ptr: *mut T,
-    ctx: Option<Context>,
+    operation: Option<Operation<ObserveAdapter>>,
     inner: U,
     phantom: PhantomData<&'i mut T>,
 }
 
-impl<'i, T, U: Default> Observer<'i, T> for Ob<'i, T, U> {
-    fn observe(value: &'i mut T, ctx: Option<Context>) -> Self {
-        Ob::new(value, ctx)
+impl<'i, T, U: ObInner> Observer<'i, T> for Ob<'i, T, U> {
+    #[inline]
+    fn observe(value: &'i mut T) -> Self {
+        Ob::new(value)
     }
 
-    fn context(this: &mut Self) -> &mut Option<Context> {
-        &mut this.ctx
-    }
-}
-
-impl<'i, T, U: Default> Ob<'i, T, U> {
-    pub fn new(value: &'i mut T, ctx: Option<Context>) -> Self {
-        Self {
-            ptr: value as *mut T,
-            ctx,
-            inner: Default::default(),
-            phantom: PhantomData,
-        }
+    #[inline]
+    fn op(&mut self) -> &mut Option<Operation<ObserveAdapter>> {
+        &mut self.operation
     }
 
-    pub fn into_inner(self) -> T {
+    #[inline]
+    fn into_inner(self) -> T {
         unsafe { std::ptr::read(self.ptr) }
     }
 
-    pub fn get_ref(this: &Self) -> &T {
-        unsafe { &*this.ptr }
+    #[inline]
+    fn get_ref(&self) -> &T {
+        unsafe { &*self.ptr }
     }
 
-    pub fn get_mut(this: &mut Self) -> &mut T {
-        unsafe { &mut *this.ptr }
+    #[inline]
+    fn get_mut(&mut self) -> &mut T {
+        unsafe { &mut *self.ptr }
+    }
+
+    fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Change<A>>, A::Error>
+    where
+        T: Observe,
+    {
+        let mut changes = vec![];
+        if let Some(operation) = this.take_op() {
+            changes.push(Change {
+                path_rev: vec![],
+                operation: match operation {
+                    Operation::Replace(()) => Operation::Replace(A::new_replace(this.get_ref())?),
+                    Operation::Append(start_index) => Operation::Append(A::new_append(this.get_ref(), start_index)?),
+                    _ => unreachable!(),
+                },
+            })
+        };
+        this.inner.dump(&mut changes)?;
+        Ok(match changes.len() {
+            0 => None,
+            1 => Some(changes.swap_remove(0)),
+            _ => Some(Change {
+                path_rev: vec![],
+                operation: Operation::Batch(changes),
+            }),
+        })
+    }
+}
+
+impl<'i, T, U: ObInner> Ob<'i, T, U> {
+    pub fn new(value: &'i mut T) -> Self {
+        Self {
+            ptr: value as *mut T,
+            operation: None,
+            inner: U::default(),
+            phantom: PhantomData,
+        }
     }
 }
 
