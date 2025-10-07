@@ -1,6 +1,18 @@
 # morphix
 
-Mutate and observe Rust data structures.
+[![Crates.io](https://img.shields.io/crates/v/morphix.svg)](https://crates.io/crates/morphix)
+[![Documentation](https://docs.rs/morphix/badge.svg)](https://docs.rs/morphix)
+ 
+A Rust library for observing and serializing changes.
+
+## Installation
+
+Add this to your `Cargo.toml`:
+
+```toml
+[dependencies]
+morphix = { version = "0.1" }
+```
 
 ## Basic Usage
 
@@ -26,7 +38,7 @@ let mut foo = Foo {
     qux: "hello".to_string(),
 };
 
-// 2. Use `observe!` to mutate and observe the data structure.
+// 2. Use `observe!` to mutate data and track changes.
 let change = observe!(JsonAdapter, |mut foo| {
     foo.bar.baz += 1;
     foo.qux.push(' ');
@@ -34,7 +46,7 @@ let change = observe!(JsonAdapter, |mut foo| {
 })
 .unwrap();
 
-// 3. See the changes.
+// 3. Inspect the changes.
 assert_eq!(
     change,
     Some(Change {
@@ -61,3 +73,34 @@ assert_eq!(
     },
 );
 ```
+
+## Change Types
+
+morphix recognizes three types of changes:
+
+### Replace
+
+The most general change type, used for any mutation that replaces a value:
+
+```rust ignore
+person.age = 35;                // Replace at path .age
+person.name = "Bob".into();     // Replace at path .name
+```
+
+### Append
+
+Optimized for appending to strings and vectors:
+
+```rust ignore
+person.name.push_str(" Smith");         // Append to .name
+person.hobbies.push("gaming".into());   // Append to .hobbies
+```
+
+### Batch
+
+Multiple changes combined into a single operation.
+
+## Features
+
+- `derive` (default): Enables the Observe derive macro
+- `json` (default): Includes JSON serialization support via serde_json

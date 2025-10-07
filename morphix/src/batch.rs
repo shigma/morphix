@@ -7,6 +7,33 @@ use crate::adapter::Adapter;
 use crate::change::{Change, Operation};
 use crate::error::ChangeError;
 
+/// A batch collector for aggregating and optimizing multiple changes.
+///
+/// `Batch` is used internally to collect multiple changes and optimize them
+/// before creating the final change representation. It can merge consecutive
+/// append operations and eliminate redundant changes.
+///
+/// ## Type Parameters
+///
+/// - `A` - The adapter type used for serialization
+///
+/// ## Example
+///
+/// ```rust
+/// use morphix::{Batch, Change, JsonAdapter, Operation};
+/// use serde_json::json;
+///
+/// let mut batch = Batch::<JsonAdapter>::new();
+///
+/// // Load multiple changes
+/// batch.load(Change {
+///     path_rev: vec!["field".into()],
+///     operation: Operation::Replace(json!(1)),
+/// }).unwrap();
+///
+/// // Dump optimized changes
+/// let optimized = batch.dump();
+/// ```
 pub struct Batch<A: Adapter> {
     operation: Option<Operation<A>>,
     children: BTreeMap<Cow<'static, str>, Self>,
@@ -35,10 +62,22 @@ where
 }
 
 impl<A: Adapter> Batch<A> {
+    /// Creates a new empty batch.
     pub fn new() -> Self {
         Default::default()
     }
 
+    /// Loads a change into the batch, potentially merging with existing changes.
+    ///
+    /// ## Arguments
+    ///
+    /// - `change` - change to add to the batch
+    ///
+    /// ## Errors
+    ///
+    /// - Returns an [ChangeError] if the change cannot be applied.
+    ///
+    /// [`ChangeError`]: crate::error::ChangeError
     pub fn load(&mut self, change: Change<A>) -> Result<(), ChangeError> {
         self.load_with_stack(change, &mut vec![])
     }
@@ -87,6 +126,11 @@ impl<A: Adapter> Batch<A> {
         Ok(())
     }
 
+    /// Dumps all accumulated changes as a single optimized change.
+    ///
+    /// - Returns `None` if no changes have been accumulated.
+    /// - Returns a single `Change` if only one change exists.
+    /// - Returns a `Batch` operation if multiple changes exist.
     pub fn dump(&mut self) -> Option<Change<A>> {
         let mut changes = vec![];
         if let Some(operation) = self.operation.take() {
@@ -104,6 +148,7 @@ impl<A: Adapter> Batch<A> {
         Self::build(changes)
     }
 
+    #[doc(hidden)]
     pub fn build(mut changes: Vec<Change<A>>) -> Option<Change<A>> {
         match changes.len() {
             0 => None,

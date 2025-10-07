@@ -7,6 +7,28 @@ use serde_json::{Error, Value};
 
 use crate::{Adapter, Change, ChangeError, Observe, Operation};
 
+/// JSON adapter for morphix change serialization.
+///
+/// `JsonAdapter` implements the `Adapter` trait using `serde_json::Value` for both
+/// replacement and append operations.
+///
+/// ## Example
+///
+/// ```rust
+/// use morphix::{JsonAdapter, observe};
+/// use serde::Serialize;
+///
+/// #[derive(Serialize, Observe)]
+/// struct Data {
+///     value: i32,
+/// }
+///
+/// let mut data = Data { value: 42 };
+/// let change = observe!(JsonAdapter, |mut data| {
+///     data.value += 1;
+/// })
+/// .unwrap();
+/// ```
 pub struct JsonAdapter;
 
 impl Adapter for JsonAdapter {
