@@ -44,7 +44,7 @@ macro_rules! impl_observe {
     ($($ty:ty $(=> $target:ty)?),* $(,)?) => {
         $(
             impl Observe for $ty {
-                type Target<'i> = RawOb<'i, $ty>
+                type Observer<'i> = RawOb<'i, $ty>
                 where
                     Self: 'i;
             }

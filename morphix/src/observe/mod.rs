@@ -13,13 +13,13 @@ pub use raw::RawOb;
 
 /// Trait for observing changes.
 pub trait Observe: Serialize {
-    type Target<'i>: Observer<'i, Self>
+    type Observer<'i>: Observer<'i, Self>
     where
         Self: 'i;
 
     #[inline]
-    fn observe<'i>(&'i mut self) -> Self::Target<'i> {
-        Self::Target::observe(self)
+    fn observe<'i>(&'i mut self) -> Self::Observer<'i> {
+        Self::Observer::observe(self)
     }
 
     #[inline]
@@ -34,7 +34,7 @@ pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
 
     fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Change<A>>, A::Error>
     where
-        T: Observe<Target<'i> = Self> + 'i;
+        T: Observe<Observer<'i> = Self> + 'i;
 }
 
 #[derive(Clone, Copy)]

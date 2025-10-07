@@ -58,7 +58,7 @@ impl<'i> MutationObserver<'i, String> for StringOb<'i> {
 }
 
 impl Observe for String {
-    type Target<'i>
+    type Observer<'i>
         = StringOb<'i>
     where
         Self: 'i;

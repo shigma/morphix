@@ -2,9 +2,11 @@
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::parse_quote;
 use syn::visit_mut::VisitMut;
+
+mod derive_observe;
 
 /// Derive `Observe` trait for a struct.
 ///
@@ -24,54 +26,10 @@ use syn::visit_mut::VisitMut;
 #[proc_macro_derive(Observe)]
 pub fn derive_observe(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = syn::parse_macro_input!(input);
-    let ident = &input.ident;
-    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
-    let ident_ob = format_ident!("{}Ob", ident);
-    let mut type_fields = vec![];
-    let mut inst_fields = vec![];
-    match &input.data {
-        syn::Data::Struct(syn::DataStruct {
-            fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
-            ..
-        }) => {
-            for name in named {
-                let ident = name.ident.as_ref().unwrap();
-                let ty = &name.ty;
-                type_fields.push(quote! {
-                    pub #ident: ::morphix::Ob<'i, #ty>,
-                });
-                let ident_name = syn::LitStr::new(&ident.to_string(), Span::call_site());
-                inst_fields.push(quote! {
-                    #ident: ::morphix::Ob {
-                        value: &mut self.#ident,
-                        ctx: ctx.extend(#ident_name),
-                    },
-                });
-            }
-        }
-        _ => unimplemented!("not implemented"),
-    };
-    let mod_ident = format_ident!("__morphix_{}", ident);
-    quote! {
-        #[allow(nonstandard_style)]
-        mod #mod_ident {
-            use super::*;
 
-            pub struct #ident_ob<'i> {
-                #(#type_fields)*
-            }
-
-            #[automatically_derived]
-            impl #impl_generics Observe for #ident #type_generics #where_clause {
-                type Target<'i> = #ident_ob<'i>;
-
-                fn observe(&mut self, ctx: &::morphix::Context) -> Self::Target<'_> {
-                    #ident_ob {
-                        #(#inst_fields)*
-                    }
-                }
-            }
-        }
+    match crate::derive_observe::derive_observe(input) {
+        Ok(ts) => ts,
+        Err(error) => error.to_compile_error(),
     }
     .into()
 }

@@ -12,7 +12,7 @@ use crate::{Adapter, Batch, Change, MutationObserver, Observe, Observer, Operati
 pub struct VecOb<'i, T: Observe> {
     ptr: *mut Vec<T>,
     mutation: Option<Mutation>,
-    obs: UnsafeCell<HashMap<usize, T::Target<'i>>>,
+    obs: UnsafeCell<HashMap<usize, T::Observer<'i>>>,
     phantom: PhantomData<&'i mut T>,
 }
 
@@ -65,7 +65,7 @@ impl<'i, T: Observe> Observer<'i, Vec<T>> for VecOb<'i, T> {
                 // already included in append
                 continue;
             }
-            if let Some(mut change) = <T as Observe>::Target::<'i>::collect::<A>(&mut ob)? {
+            if let Some(mut change) = Observer::collect::<A>(&mut ob)? {
                 change.path_rev.push(index.to_string().into());
                 changes.push(change);
             }
@@ -81,7 +81,7 @@ impl<'i, T: Observe> MutationObserver<'i, Vec<T>> for VecOb<'i, T> {
 }
 
 impl<T: Observe> Observe for Vec<T> {
-    type Target<'i>
+    type Observer<'i>
         = VecOb<'i, T>
     where
         Self: 'i;
@@ -166,7 +166,7 @@ impl<'i, 'a, T: Observe + Copy + 'a> Extend<&'a T> for VecOb<'i, T> {
 
 // TODO: handle range
 impl<'i, T: Observe> Index<usize> for VecOb<'i, T> {
-    type Output = T::Target<'i>;
+    type Output = T::Observer<'i>;
     fn index(&self, index: usize) -> &Self::Output {
         let value = unsafe { &mut (&mut *self.ptr)[index] };
         let obs = unsafe { &mut *self.obs.get() };
