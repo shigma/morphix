@@ -22,7 +22,7 @@ impl<'i> Deref for StringOb<'i> {
 impl<'i> DerefMut for StringOb<'i> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         Self::mark_replace(self);
-        self.__mut()
+        self.as_mut()
     }
 }
 
@@ -70,13 +70,13 @@ impl Observe for String {
 
 impl<'i> StringOb<'i> {
     #[inline]
-    fn __mut(&mut self) -> &mut String {
+    fn as_mut(&mut self) -> &mut String {
         unsafe { &mut *self.ptr }
     }
 
     pub fn push(&mut self, c: char) {
         Self::mark_append(self, self.len());
-        self.__mut().push(c);
+        self.as_mut().push(c);
     }
 
     pub fn push_str(&mut self, s: &str) {
@@ -84,7 +84,7 @@ impl<'i> StringOb<'i> {
             return;
         }
         Self::mark_append(self, self.len());
-        self.__mut().push_str(s);
+        self.as_mut().push_str(s);
     }
 }
 

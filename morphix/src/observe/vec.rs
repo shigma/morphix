@@ -27,7 +27,7 @@ impl<'i, T: Observe> DerefMut for VecOb<'i, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         Self::mark_replace(self);
         take(&mut self.obs);
-        self.__mut()
+        self.as_mut()
     }
 }
 
@@ -44,17 +44,27 @@ impl<'i, T: Observe> Observer<'i, Vec<T>> for VecOb<'i, T> {
 
     fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Change<A>>, A::Error> {
         let mut changes = vec![];
+        let mut max_index = None;
         if let Some(mutation) = Self::mutation(this).take() {
             changes.push(Change {
                 path_rev: vec![],
                 operation: match mutation {
                     Mutation::Replace => Operation::Replace(A::new_replace(&**this)?),
-                    Mutation::Append(start_index) => Operation::Append(A::new_append(&**this, start_index)?),
+                    Mutation::Append(start_index) => {
+                        max_index = Some(start_index);
+                        Operation::Append(A::new_append(&**this, start_index)?)
+                    }
                 },
             });
         };
         let obs = take(unsafe { &mut *this.obs.get() });
         for (index, mut ob) in obs {
+            if let Some(max_index) = max_index
+                && index >= max_index
+            {
+                // already included in append
+                continue;
+            }
             if let Some(mut change) = <T as Observe>::Target::<'i>::collect::<A>(&mut ob)? {
                 change.path_rev.push(index.to_string().into());
                 changes.push(change);
@@ -83,37 +93,37 @@ impl<T: Observe> Observe for Vec<T> {
 
 impl<'i, T: Observe> VecOb<'i, T> {
     #[inline]
-    fn __mut(&mut self) -> &mut Vec<T> {
+    fn as_mut(&mut self) -> &mut Vec<T> {
         unsafe { &mut *self.ptr }
     }
 
     pub fn reserve(&mut self, additional: usize) {
-        self.__mut().reserve(additional);
+        self.as_mut().reserve(additional);
     }
 
     pub fn reserve_exact(&mut self, additional: usize) {
-        self.__mut().reserve_exact(additional);
+        self.as_mut().reserve_exact(additional);
     }
 
     pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
-        self.__mut().try_reserve(additional)
+        self.as_mut().try_reserve(additional)
     }
 
     pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
-        self.__mut().try_reserve_exact(additional)
+        self.as_mut().try_reserve_exact(additional)
     }
 
     pub fn shrink_to_fit(&mut self) {
-        self.__mut().shrink_to_fit();
+        self.as_mut().shrink_to_fit();
     }
 
     pub fn shrink_to(&mut self, min_capacity: usize) {
-        self.__mut().shrink_to(min_capacity);
+        self.as_mut().shrink_to(min_capacity);
     }
 
     pub fn push(&mut self, value: T) {
         Self::mark_append(self, self.len());
-        self.__mut().push(value);
+        self.as_mut().push(value);
     }
 
     pub fn append(&mut self, other: &mut Vec<T>) {
@@ -121,7 +131,7 @@ impl<'i, T: Observe> VecOb<'i, T> {
             return;
         }
         Self::mark_append(self, self.len());
-        self.__mut().append(other);
+        self.as_mut().append(other);
     }
 }
 
@@ -131,26 +141,26 @@ impl<'i, T: Observe + Clone> VecOb<'i, T> {
             return;
         }
         Self::mark_append(self, self.len());
-        self.__mut().extend_from_slice(other);
+        self.as_mut().extend_from_slice(other);
     }
 
     pub fn extend_from_within<R: RangeBounds<usize>>(&mut self, range: R) {
         Self::mark_append(self, self.len());
-        self.__mut().extend_from_within(range);
+        self.as_mut().extend_from_within(range);
     }
 }
 
 impl<'i, T: Observe> Extend<T> for VecOb<'i, T> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, other: I) {
         Self::mark_append(self, self.len());
-        self.__mut().extend(other);
+        self.as_mut().extend(other);
     }
 }
 
 impl<'i, 'a, T: Observe + Copy + 'a> Extend<&'a T> for VecOb<'i, T> {
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, other: I) {
         Self::mark_append(self, self.len());
-        self.__mut().extend(other);
+        self.as_mut().extend(other);
     }
 }
 

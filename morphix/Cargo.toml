@@ -11,13 +11,12 @@ repository = "https://github.com/shigma/morphix"
 documentation = "https://docs.rs/morphix"
 
 [features]
-append = []
-default = ["append", "derive"]
-derive = []
-full = ["append", "derive"]
+default = ["derive"]
+derive = ["dep:morphix_derive"]
+full = ["derive"]
 
 [dependencies]
-morphix_derive = { version = "0.2.0", path = "../morphix_derive" }
+morphix_derive = { version = "0.2.0", path = "../morphix_derive", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.145"
 
