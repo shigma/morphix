@@ -5,19 +5,46 @@ use proc_macro::TokenStream;
 mod derive_observe;
 mod observe;
 
-/// Derive `Observe` trait for a struct.
+/// Derive the `Observe` trait for structs to enable change tracking.
+///
+/// This macro generates an observer type that wraps your struct and tracks
+/// mutations to its fields. The generated observer provides field-level
+/// change detection with support for nested structures.
+///
+/// ## Requirements
+///
+/// - The struct must also derive or implement `Serialize`
+/// - Only named structs are supported (not tuple structs or enums)
+///
+/// ## Field Attributes
+///
+/// You can customize how individual fields are observed using the `#[observe(...)]` attribute:
+///
+/// - `#[observe(ignore)]` - Field mutations will not be tracked
+/// - `#[observe(shallow)]` - Field will use `ShallowObserver` (only tracks complete replacement)
 ///
 /// ## Example
 ///
-/// ```
+/// ```rust
 /// use serde::Serialize;
 /// use morphix::Observe;
 ///
-/// // Observe: Serialize
 /// #[derive(Serialize, Observe)]
-/// struct Point {
-///    x: f64,
-///    y: f64,
+/// struct User {
+///     name: String,         // StringObserver
+///     age: i32,             // ShallowObserver<i32>
+///     
+///     #[observe(ignore)]
+///     cache: String,        // Not tracked
+///     
+///     #[observe(shallow)]
+///     metadata: Metadata,   // ShallowObserver<Metadata>
+/// }
+///
+/// #[derive(Serialize)]
+/// struct Metadata {
+///     created_at: String,
+///     updated_at: String,
 /// }
 /// ```
 #[proc_macro_derive(Observe, attributes(observe))]
@@ -31,26 +58,74 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Observe the side effects of a closure.
+/// Observe mutations within a closure and collect changes.
+///
+/// This macro wraps a closure's operations to track all mutations that occur
+/// within it. The closure receives a mutable reference to the value, and any
+/// changes made are automatically collected and returned.
+///
+/// ## Syntax
+///
+/// ```ignore
+/// observe!(Adapter, |mut_binding| { /* mutations */ })
+/// observe!(|mut_binding| { /* mutations */ })  // Type inference
+/// ```
+///
+/// ## Parameters
+///
+/// - `Adapter` (optional) - adapter to use for serialization (e.g., `JsonAdapter`)
+/// - `mut_binding` - binding pattern for the mutable value in the closure
+///
+/// ## Returns
+///
+/// Returns `Result<Option<Change<A>>, A::Error>` where:
+/// - `Ok(None)` - No changes were made
+/// - `Ok(Some(change))` - Contains the collected changes
+/// - `Err(error)` - Serialization failed
 ///
 /// ## Example
 ///
-/// ```
+/// With explicit adapter type:
+///
+/// ```rust
 /// use serde::Serialize;
-/// use morphix::{JsonAdapter, Change, Observe, observe};
+/// use morphix::{JsonAdapter, Observe, observe};
 ///
 /// #[derive(Serialize, Observe)]
 /// struct Point {
-///   x: f64,
-///   y: f64,
+///     x: f64,
+///     y: f64,
 /// }
 ///
 /// let mut point = Point { x: 1.0, y: 2.0 };
+/// 
 /// let change = observe!(JsonAdapter, |mut point| {
-///    point.x += 1.0;
-///    point.y += 1.0;
-/// })
-/// .unwrap();
+///     point.x += 1.0;
+///     point.y *= 2.0;
+/// }).unwrap();
+///
+/// assert_eq!(point.x, 2.0);
+/// assert_eq!(point.y, 4.0);
+/// ```
+///
+/// With type inference:
+///
+/// ```rust
+/// # use serde::Serialize;
+/// # use morphix::Observe;
+/// # #[derive(Serialize, Observe)]
+/// # struct Point {
+/// #     x: f64,
+/// #     y: f64,
+/// # }
+/// use morphix::{Change, JsonAdapter, observe};
+///
+/// let mut point = Point { x: 1.0, y: 2.0 };
+/// 
+/// let change: Option<Change<JsonAdapter>> = observe!(|mut point| {
+///     point.x += 1.0;
+///     point.y *= 2.0;
+/// }).unwrap();
 /// ```
 #[proc_macro]
 pub fn observe(input: TokenStream) -> TokenStream {

@@ -15,7 +15,7 @@ use crate::{Adapter, Change, ChangeError, Observe, Operation};
 /// ## Example
 ///
 /// ```rust
-/// use morphix::{JsonAdapter, observe};
+/// use morphix::{JsonAdapter, Observe, observe};
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize, Observe)]
@@ -26,8 +26,7 @@ use crate::{Adapter, Change, ChangeError, Observe, Operation};
 /// let mut data = Data { value: 42 };
 /// let change = observe!(JsonAdapter, |mut data| {
 ///     data.value += 1;
-/// })
-/// .unwrap();
+/// }).unwrap();
 /// ```
 pub struct JsonAdapter;
 

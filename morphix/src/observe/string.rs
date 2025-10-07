@@ -6,27 +6,44 @@ use serde::{Serialize, Serializer};
 use crate::observe::{Mutation, MutationObserver};
 use crate::{Adapter, Change, Observe, Observer, Operation};
 
-pub struct StringOb<'i> {
+/// An observer for [String] that tracks both replacements and appends.
+///
+/// `StringObserver` provides special handling for string append operations,
+/// distinguishing them from complete replacements for efficiency.
+///
+/// ## Supported Operations
+///
+/// The following mutations are tracked as `Append`:
+///
+/// - [String::add_assign] (using `+=`)
+/// - [String::push]
+/// - [String::push_str]
+///
+/// [`String`]: std::string::String
+/// [`String::add_assign`]: std::ops::AddAssign
+/// [`String::push`]: std::string::String::push
+/// [`String::push_str`]: std::string::String::push_str
+pub struct StringObserver<'i> {
     ptr: *mut String,
     mutation: Option<Mutation>,
     phantom: PhantomData<&'i mut String>,
 }
 
-impl<'i> Deref for StringOb<'i> {
+impl<'i> Deref for StringObserver<'i> {
     type Target = String;
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.ptr }
     }
 }
 
-impl<'i> DerefMut for StringOb<'i> {
+impl<'i> DerefMut for StringObserver<'i> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         Self::mark_replace(self);
         self.as_mut()
     }
 }
 
-impl<'i> Observer<'i, String> for StringOb<'i> {
+impl<'i> Observer<'i, String> for StringObserver<'i> {
     #[inline]
     fn observe(value: &'i mut String) -> Self {
         Self {
@@ -51,7 +68,7 @@ impl<'i> Observer<'i, String> for StringOb<'i> {
     }
 }
 
-impl<'i> MutationObserver<'i, String> for StringOb<'i> {
+impl<'i> MutationObserver<'i, String> for StringObserver<'i> {
     fn mutation(this: &mut Self) -> &mut Option<Mutation> {
         &mut this.mutation
     }
@@ -59,7 +76,7 @@ impl<'i> MutationObserver<'i, String> for StringOb<'i> {
 
 impl Observe for String {
     type Observer<'i>
-        = StringOb<'i>
+        = StringObserver<'i>
     where
         Self: 'i;
 
@@ -68,7 +85,7 @@ impl Observe for String {
     }
 }
 
-impl<'i> StringOb<'i> {
+impl<'i> StringObserver<'i> {
     #[inline]
     fn as_mut(&mut self) -> &mut String {
         unsafe { &mut *self.ptr }
@@ -88,7 +105,7 @@ impl<'i> StringOb<'i> {
     }
 }
 
-impl<'i> AddAssign<&str> for StringOb<'i> {
+impl<'i> AddAssign<&str> for StringObserver<'i> {
     fn add_assign(&mut self, rhs: &str) {
         self.push_str(rhs);
     }

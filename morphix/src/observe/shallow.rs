@@ -5,6 +5,50 @@ use serde::Serialize;
 
 use crate::{Adapter, Change, Observe, Observer, Operation};
 
+/// A generic observer that only tracks complete replacements.
+///
+/// `ShallowObserver` provides a basic observer implementation that treats any
+/// mutation through `DerefMut` as a complete replacement of the value. It does
+/// not track internal changes, making it suitable for:
+///
+/// 1. Primitive types (numbers, booleans, etc.) that cannot be partially modified
+/// 2. Types where internal change tracking is not needed
+/// 3. External types that do not implement `Observe`
+///
+/// ## Usage Scenarios
+///
+/// 1. Built-in implementation for primitive types:
+///
+/// ```rust
+/// use morphix::{Observe, Observer, JsonAdapter};
+///
+/// let mut value = 42i32;
+/// let mut observer = value.observe();  // ShallowObserver<i32>
+/// *observer = 43;  // Recorded as a complete replacement
+/// ```
+///
+/// 2. Explicit usage via `#[observe(shallow)]` attribute:
+///
+/// ```rust
+/// use morphix::Observe;
+/// use serde::Serialize;
+///
+/// // External type that doesn't implement Observe
+/// #[derive(Serialize)]
+/// struct External;
+///
+/// #[derive(Serialize, Observe)]
+/// struct MyStruct {
+///     #[observe(shallow)]
+///     external: External,  // use ShallowObserver<External>
+///     normal: String,      // use StringObserver
+/// }
+/// ```
+///
+/// ## Type Parameters
+///
+/// - `'i` - lifetime of the observed value
+/// - `T` - type being observed
 pub struct ShallowObserver<'i, T> {
     ptr: *mut T,
     replaced: bool,
@@ -33,6 +77,11 @@ impl<'i, T> Observer<'i, T> for ShallowObserver<'i, T> {
 }
 
 impl<'i, T> ShallowObserver<'i, T> {
+    /// Creates a new shallow observer for the given value.
+    ///
+    /// ## Arguments
+    ///
+    /// - `value` - value to observe
     pub fn new(value: &'i mut T) -> Self {
         Self {
             ptr: value as *mut T,

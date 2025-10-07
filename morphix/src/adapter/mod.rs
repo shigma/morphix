@@ -21,8 +21,11 @@ pub mod json;
 /// 
 /// ## Example
 /// 
-/// ```ignore
+/// ```
+/// # use std::borrow::Cow;
+/// # use morphix::{Change, ChangeError, Observe};
 /// use morphix::Adapter;
+/// use serde::Serialize;
 /// use serde_json::value::Serializer;
 /// use serde_json::{Error, Value};
 /// 
@@ -38,6 +41,25 @@ pub mod json;
 ///     }
 ///     
 ///     // ... other methods
+///     # fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Append, Self::Error> {
+///     #     unimplemented!()
+///     # }
+/// 
+///     # fn apply_change(
+///     #     old_value: &mut Self::Replace,
+///     #     change: Change<Self>,
+///     #     path_stack: &mut Vec<Cow<'static, str>>,
+///     # ) -> Result<(), ChangeError> {
+///     #     unimplemented!()
+///     # }
+///
+///     # fn merge_append(
+///     #     old_value: &mut Self::Append,
+///     #     new_value: Self::Append,
+///     #     path_stack: &mut Vec<Cow<'static, str>>,
+///     # ) -> Result<(), ChangeError> {
+///     #     unimplemented!()
+///     # }
 /// }
 /// ```
 pub trait Adapter: Sized {
