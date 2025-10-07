@@ -1,8 +1,32 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
+use syn::parse::Parse;
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 
-pub fn derive_observe(input: syn::DeriveInput) -> syn::Result<TokenStream> {
+struct ObserveArguments(Punctuated<syn::Ident, syn::Token![,]>);
+
+impl Parse for ObserveArguments {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let args = Punctuated::parse_terminated(input)?;
+        Ok(Self(args))
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Default)]
+enum ObserveMode {
+    #[default]
+    Default,
+    Ignore,
+    Shallow,
+}
+
+#[derive(Default)]
+struct ObserveMeta {
+    mode: ObserveMode,
+}
+
+pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
     let input_ident = &input.ident;
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
     let ob_ident = format_ident!("{}Ob", input_ident);
@@ -10,35 +34,93 @@ pub fn derive_observe(input: syn::DeriveInput) -> syn::Result<TokenStream> {
     let mut type_fields = vec![];
     let mut inst_fields = vec![];
     let mut collect_stmts = vec![];
+    let mut errors = vec![];
     match &input.data {
         syn::Data::Struct(syn::DataStruct {
             fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
             ..
         }) => {
-            for name in named {
-                let ident = name.ident.as_ref().unwrap();
-                let ty = &name.ty;
-                type_fields.push(quote! {
-                    pub #ident: <#ty as ::morphix::Observe>::Observer<'morphix>,
-                });
-                inst_fields.push(quote! {
-                    #ident: value.#ident.observe(),
-                });
-                collect_stmts.push(quote! {
-                    if let Some(mut change) = ::morphix::Observer::collect::<A>(&mut this.#ident)? {
-                        change.path_rev.push(stringify!(#ident).into());
-                        changes.push(change);
+            for field in named {
+                let mut meta = ObserveMeta::default();
+                for attr in &field.attrs {
+                    if !attr.path().is_ident("observe") {
+                        continue;
                     }
-                });
+                    let syn::Meta::List(meta_list) = &attr.meta else {
+                        errors.push(syn::Error::new(
+                            attr.span(),
+                            "the 'observe' attribute must be in the form of #[observe(...)]",
+                        ));
+                        continue;
+                    };
+                    let args: ObserveArguments = match syn::parse2(meta_list.tokens.clone()) {
+                        Ok(args) => args,
+                        Err(err) => {
+                            errors.push(err);
+                            continue;
+                        }
+                    };
+                    for ident in args.0 {
+                        if ident == "ignore" {
+                            meta.mode = ObserveMode::Ignore;
+                        } else if ident == "shallow" {
+                            meta.mode = ObserveMode::Shallow;
+                        } else {
+                            errors.push(syn::Error::new(
+                                ident.span(),
+                                "unknown argument, expected 'ignore' or 'shallow'",
+                            ));
+                        }
+                    }
+                }
+                let field_ident = field.ident.as_ref().unwrap();
+                let field_ty = &field.ty;
+                match meta.mode {
+                    ObserveMode::Default => {
+                        type_fields.push(quote! {
+                            pub #field_ident: <#field_ty as ::morphix::Observe>::Observer<'morphix>,
+                        });
+                        inst_fields.push(quote! {
+                            #field_ident: value.#field_ident.observe(),
+                        });
+                    }
+                    ObserveMode::Ignore => {
+                        type_fields.push(quote! {
+                            pub #field_ident: &'morphix mut #field_ty,
+                        });
+                        inst_fields.push(quote! {
+                            #field_ident: &mut value.#field_ident,
+                        });
+                    }
+                    ObserveMode::Shallow => {
+                        type_fields.push(quote! {
+                            pub #field_ident: ::morphix::ShallowObserver<'morphix, #field_ty>,
+                        });
+                        inst_fields.push(quote! {
+                            #field_ident: ::morphix::ShallowObserver::new(&mut value.#field_ident),
+                        });
+                    }
+                }
+                if meta.mode != ObserveMode::Ignore {
+                    collect_stmts.push(quote! {
+                        if let Some(mut change) = ::morphix::Observer::collect::<A>(&mut this.#field_ident)? {
+                            change.path_rev.push(stringify!(#field_ident).into());
+                            changes.push(change);
+                        }
+                    });
+                }
             }
         }
         _ => {
-            return Err(syn::Error::new(
+            return Err(vec![syn::Error::new(
                 input.span(),
                 "Observe can only be derived for named structs",
-            ));
+            )]);
         }
     };
+    if !errors.is_empty() {
+        return Err(errors);
+    }
     Ok(quote! {
         const _: () = {
             #input_vis struct #ob_ident<'morphix> {

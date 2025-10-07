@@ -1,13 +1,11 @@
 use std::borrow::Cow;
 use std::mem::take;
 
+use serde::Serialize;
 use serde_json::value::Serializer;
 use serde_json::{Error, Value};
 
-use crate::Observe;
-use crate::adapter::Adapter;
-use crate::change::{Change, Operation};
-use crate::error::ChangeError;
+use crate::{Adapter, Change, ChangeError, Observe, Operation};
 
 pub struct JsonAdapter;
 
@@ -16,7 +14,7 @@ impl Adapter for JsonAdapter {
     type Append = Value;
     type Error = Error;
 
-    fn new_replace<T: Observe + ?Sized>(value: &T) -> Result<Self::Replace, Self::Error> {
+    fn new_replace<T: Serialize + ?Sized>(value: &T) -> Result<Self::Replace, Self::Error> {
         value.serialize(Serializer)
     }
 

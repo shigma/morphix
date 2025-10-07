@@ -7,10 +7,11 @@ mod error;
 mod observe;
 
 pub use adapter::Adapter;
+#[cfg(feature = "json")]
 pub use adapter::json::JsonAdapter;
 pub use batch::Batch;
 pub use change::{Change, Operation};
 pub use error::ChangeError;
 #[cfg(feature = "derive")]
 pub use morphix_derive::{Observe, observe};
-pub use observe::{Mutation, MutationObserver, Observe, Observer, RawOb};
+pub use observe::{Mutation, MutationObserver, Observe, Observer, ShallowObserver};

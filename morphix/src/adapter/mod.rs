@@ -1,9 +1,10 @@
 use std::borrow::Cow;
 
-use crate::Observe;
-use crate::change::Change;
-use crate::error::ChangeError;
+use serde::Serialize;
 
+use crate::{Change, ChangeError, Observe};
+
+#[cfg(feature = "json")]
 pub mod json;
 
 pub trait Adapter: Sized {
@@ -11,7 +12,7 @@ pub trait Adapter: Sized {
     type Append;
     type Error;
 
-    fn new_replace<T: Observe + ?Sized>(value: &T) -> Result<Self::Replace, Self::Error>;
+    fn new_replace<T: Serialize + ?Sized>(value: &T) -> Result<Self::Replace, Self::Error>;
 
     fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Append, Self::Error>;
 

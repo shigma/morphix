@@ -5,11 +5,11 @@ use serde::{Serialize, Serializer};
 use crate::Change;
 use crate::adapter::Adapter;
 
-mod raw;
+mod shallow;
 mod string;
 mod vec;
 
-pub use raw::RawOb;
+pub use shallow::ShallowObserver;
 
 /// Trait for observing changes.
 pub trait Observe: Serialize {
@@ -34,7 +34,7 @@ pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
 
     fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Change<A>>, A::Error>
     where
-        T: Observe<Observer<'i> = Self> + 'i;
+        T: Serialize;
 }
 
 #[derive(Clone, Copy)]
