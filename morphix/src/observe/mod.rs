@@ -5,14 +5,16 @@ use serde::Serialize;
 use crate::{Adapter, Mutation};
 
 mod shallow;
+mod snapshot;
 mod string;
 mod vec;
 
 pub use shallow::ShallowObserver;
+pub use snapshot::SnapshotObserver;
 
 /// A trait for types that can be observed for mutations.
 ///
-/// Types implementing `Observe` can be wrapped in [Observers] that track mutations.
+/// Types implementing `Observe` can be wrapped in [`Observer`]s that track mutations.
 /// The trait is typically derived using the `#[derive(Observe)]` macro.
 ///
 /// ## Example
@@ -97,10 +99,10 @@ impl<'i, T> Observer<'i> for &'i mut T {
     }
 }
 
-/// State of mutations tracked by a StatefulObserver(crate::StatefulObserver).
+/// State of mutations tracked by a [`StatefulObserver`].
 ///
 /// This enum represents the specific type of mutation that has been detected by observers that
-/// implement StatefulObserver.
+/// implement [`StatefulObserver`].
 #[derive(Clone, Copy)]
 pub enum MutationState {
     /// Complete replacement of the value
@@ -109,19 +111,19 @@ pub enum MutationState {
     Append(usize),
 }
 
-/// An [Observer] that maintains internal state about mutations.
+/// An [`Observer`] that maintains internal state about mutations.
 ///
-/// Unlike [ShallowObserver] which only tracks whether a mutation occurred, StatefulObserver
+/// Unlike [`ShallowObserver`] which only tracks whether a mutation occurred, `StatefulObserver`
 /// implementations can distinguish between different types of mutations (replace vs. append) and
 /// optimize the resulting mutation representation accordingly.
 ///
 /// ## Implementation Notes
 ///
-/// Implementing StatefulObserver allows an observer to track its own mutation state (e.g., replace
-/// or append), but this doesn't preclude tracking additional mutations. Complex types like `Vec<T>`
-/// may need to track both:
+/// Implementing `StatefulObserver` allows an observer to track its own mutation state (e.g.,
+/// replace or append), but this doesn't preclude tracking additional mutations. Complex types like
+/// `Vec<T>` may need to track both:
 ///
-/// - Their own mutation state (via StatefulObserver)
+/// - Their own mutation state (via `StatefulObserver`)
 /// - Changes to their elements (via nested observers)
 ///
 /// These different sources of mutations are then combined into a final result:

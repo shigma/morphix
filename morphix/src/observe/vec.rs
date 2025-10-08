@@ -4,9 +4,10 @@ use std::marker::PhantomData;
 use std::mem::take;
 use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
 
-use crate::{Adapter, Batch, Mutation, MutationKind, MutationState, Observe, Observer, StatefulObserver};
+use crate::observe::{MutationState, StatefulObserver};
+use crate::{Adapter, Batch, Mutation, MutationKind, Observe, Observer};
 
-/// An observer for [Vec](std::vec::Vec) that tracks both replacements and appends.
+/// An observer for [`Vec`] that tracks both replacements and appends.
 ///
 /// `VecObserver` provides special handling for vector append operations, distinguishing them from
 /// complete replacements for efficiency.

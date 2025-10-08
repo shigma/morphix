@@ -13,12 +13,12 @@ impl Parse for ObserveArguments {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Clone, PartialEq, Eq, Default)]
 enum ObserveMode {
     #[default]
     Default,
     Ignore,
-    Shallow,
+    Builtin(syn::Ident),
 }
 
 #[derive(Default)]
@@ -64,18 +64,22 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                         if ident == "ignore" {
                             meta.mode = ObserveMode::Ignore;
                         } else if ident == "shallow" {
-                            meta.mode = ObserveMode::Shallow;
+                            let ob_ident = syn::Ident::new("ShallowObserver", ident.span());
+                            meta.mode = ObserveMode::Builtin(ob_ident);
+                        } else if ident == "snapshot" {
+                            let ob_ident = syn::Ident::new("SnapshotObserver", ident.span());
+                            meta.mode = ObserveMode::Builtin(ob_ident);
                         } else {
                             errors.push(syn::Error::new(
                                 ident.span(),
-                                "unknown argument, expected 'ignore' or 'shallow'",
+                                "unknown argument, expected 'ignore', 'shallow' or 'snapshot'",
                             ));
                         }
                     }
                 }
                 let field_ident = field.ident.as_ref().unwrap();
                 let field_ty = &field.ty;
-                match meta.mode {
+                match &meta.mode {
                     ObserveMode::Default => {
                         type_fields.push(quote! {
                             pub #field_ident: <#field_ty as ::morphix::Observe>::Observer<'morphix>,
@@ -92,12 +96,12 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                             #field_ident: &mut value.#field_ident,
                         });
                     }
-                    ObserveMode::Shallow => {
+                    ObserveMode::Builtin(ob_ident) => {
                         type_fields.push(quote! {
-                            pub #field_ident: ::morphix::ShallowObserver<'morphix, #field_ty>,
+                            pub #field_ident: ::morphix::observe::#ob_ident<'morphix, #field_ty>,
                         });
                         inst_fields.push(quote! {
-                            #field_ident: ::morphix::ShallowObserver::new(&mut value.#field_ident),
+                            #field_ident: ::morphix::observe::#ob_ident::observe(&mut value.#field_ident),
                         });
                     }
                 }

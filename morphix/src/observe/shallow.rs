@@ -3,13 +3,13 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 use serde::Serialize;
 
-use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
+use crate::{Adapter, Mutation, MutationKind, Observer};
 
 /// A generic observer that only tracks complete replacements.
 ///
 /// `ShallowObserver` provides a basic observer implementation that treats any mutation through
-/// `DerefMut` as a complete replacement of the value. It does not track internal mutations, making
-/// it suitable for:
+/// [`DerefMut`](std::ops::DerefMut) as a complete replacement of the value. It does not track
+/// internal mutations, making it suitable for:
 ///
 /// 1. Primitive types (numbers, booleans, etc.) that cannot be partially modified
 /// 2. Types where internal mutation tracking is not needed
@@ -58,7 +58,11 @@ pub struct ShallowObserver<'i, T> {
 impl<'i, T> Observer<'i> for ShallowObserver<'i, T> {
     #[inline]
     fn observe(value: &'i mut T) -> Self {
-        ShallowObserver::new(value)
+        Self {
+            ptr: value as *mut T,
+            replaced: false,
+            phantom: PhantomData,
+        }
     }
 
     fn collect<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
@@ -73,21 +77,6 @@ impl<'i, T> Observer<'i> for ShallowObserver<'i, T> {
         } else {
             None
         })
-    }
-}
-
-impl<'i, T> ShallowObserver<'i, T> {
-    /// Creates a new shallow observer for the given value.
-    ///
-    /// ## Arguments
-    ///
-    /// - `value` - value to observe
-    pub fn new(value: &'i mut T) -> Self {
-        Self {
-            ptr: value as *mut T,
-            replaced: false,
-            phantom: PhantomData,
-        }
     }
 }
 
@@ -179,20 +168,4 @@ impl_ops_copy! {
     BitXor => bitxor,
     Shl => shl,
     Shr => shr,
-}
-
-macro_rules! impl_observe {
-    ($($ty:ty $(=> $target:ty)?),* $(,)?) => {
-        $(
-            impl Observe for $ty {
-                type Observer<'i> = ShallowObserver<'i, $ty>
-                where
-                    Self: 'i;
-            }
-        )*
-    };
-}
-
-impl_observe! {
-    usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool,
 }

@@ -10,6 +10,7 @@ pub struct Foo {
 
 #[derive(Serialize, Debug, PartialEq, Observe)]
 struct Bar {
+    #[observe(shallow)]
     baz: i32,
 }
 

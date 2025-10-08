@@ -1,9 +1,10 @@
 use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
-use crate::{Adapter, Mutation, MutationKind, MutationState, Observe, Observer, StatefulObserver};
+use crate::observe::{MutationState, StatefulObserver};
+use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 
-/// An observer for [String](std::string::String) that tracks both replacements and appends.
+/// An observer for [`String`] that tracks both replacements and appends.
 ///
 /// `StringObserver` provides special handling for string append operations, distinguishing them
 /// from complete replacements for efficiency.

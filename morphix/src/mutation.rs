@@ -210,10 +210,10 @@ pub enum MutationKind<A: Adapter> {
     /// # }
     /// # let mut foo = Foo::default();
     /// # let iter = vec![2, 3].into_iter();
-    /// foo.a.b += "text";          // Append .a.b
-    /// foo.a.b.push_str("text");   // Append .a.b
-    /// foo.vec.push(1);            // Append .vec
-    /// foo.vec.extend(iter);       // Append .vec
+    /// foo.a.b += "text";          // Append to .a.b
+    /// foo.a.b.push_str("text");   // Append to .a.b
+    /// foo.vec.push(1);            // Append to .vec
+    /// foo.vec.extend(iter);       // Append to .vec
     /// ```
     Append(A::Value),
 

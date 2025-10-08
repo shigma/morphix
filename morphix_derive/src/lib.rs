@@ -21,7 +21,8 @@ mod observe;
 /// You can customize how individual fields are observed using the `#[observe(...)]` attribute:
 ///
 /// - `#[observe(ignore)]` - Field mutations will not be tracked
-/// - `#[observe(shallow)]` - Field will use `ShallowObserver` (only tracks complete replacement)
+/// - `#[observe(shallow)]` - Field will use [ShallowObserver](morphix::observe::ShallowObserver)
+/// - `#[observe(snapshot)]` - Field will use [SnapshotObserver](morphix::observe::SnapshotObserver)
 ///
 /// ## Example
 ///
@@ -32,7 +33,7 @@ mod observe;
 /// #[derive(Serialize, Observe)]
 /// struct User {
 ///     name: String,         // StringObserver
-///     age: i32,             // ShallowObserver<i32>
+///     age: i32,             // SnapshotObserver<i32>
 ///
 ///     #[observe(ignore)]
 ///     cache: String,        // Not tracked
