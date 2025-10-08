@@ -1,6 +1,6 @@
 use std::ops::DerefMut;
 
-use serde::{Serialize, Serializer};
+use serde::Serialize;
 
 use crate::{Adapter, Mutation};
 
@@ -35,7 +35,7 @@ pub use shallow::ShallowObserver;
 /// [`Observers`]: crate::Observer
 pub trait Observe: Serialize {
     /// Associated observer type.
-    type Observer<'i>: Observer<'i, Self>
+    type Observer<'i>: Observer<'i, Target = Self>
     where
         Self: 'i;
 
@@ -48,42 +48,19 @@ pub trait Observe: Serialize {
     fn observe<'i>(&'i mut self) -> Self::Observer<'i> {
         Self::Observer::observe(self)
     }
-
-    /// Serializes only the appended portion of the value.
-    ///
-    /// This method is used for optimizing append operations by only serializing the new data rather
-    /// than the entire value.
-    ///
-    /// ## Arguments
-    ///
-    /// - `serializer` - serializer to use
-    /// - `start_index` - index from which to start serialization
-    ///
-    /// ## Errors
-    ///
-    /// - Returns serialization errors from the underlying serializer.
-    ///
-    /// ## Panics
-    ///
-    /// - Panics if called on types that don't support append operations.
-    #[inline]
-    #[expect(unused_variables)]
-    fn serialize_append<S: Serializer>(&self, serializer: S, start_index: usize) -> Result<S::Ok, S::Error> {
-        unimplemented!()
-    }
 }
 
 /// A trait for observer types that wrap and track mutations to values.
 ///
 /// Observers provide transparent access to the underlying value while recording any mutations that
 /// occur.
-pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
+pub trait Observer<'i>: DerefMut {
     /// Creates a new observer for the given value.
     ///
     /// ## Arguments
     ///
     /// - `value` - value to observe
-    fn observe(value: &'i mut T) -> Self;
+    fn observe(value: &'i mut Self::Target) -> Self;
 
     /// Collects all recorded mutations using the specified adapter.
     ///
@@ -101,7 +78,23 @@ pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
     /// - Returns an error if serialization fails.
     fn collect<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
     where
-        T: Serialize;
+        Self::Target: Serialize;
+
+    /// Helper for autoref-based specialization.
+    #[doc(hidden)]
+    fn __morphix_deref_mut(&mut self) -> &mut Self::Target {
+        self.deref_mut()
+    }
+}
+
+impl<'i, T> Observer<'i> for &'i mut T {
+    fn observe(value: &'i mut Self::Target) -> Self {
+        value
+    }
+
+    fn collect<A: Adapter>(_: Self) -> Result<Option<Mutation<A>>, A::Error> {
+        Ok(None)
+    }
 }
 
 /// State of mutations tracked by a StatefulObserver(crate::StatefulObserver).
@@ -171,7 +164,7 @@ pub enum MutationState {
 /// Currently implemented for:
 /// - `String`
 /// - `Vec<T>`
-pub trait StatefulObserver<'i, T>: Observer<'i, T> {
+pub trait StatefulObserver<'i>: Observer<'i> {
     fn mutation_state(this: &mut Self) -> &mut Option<MutationState>;
 
     fn mark_replace(this: &mut Self) {

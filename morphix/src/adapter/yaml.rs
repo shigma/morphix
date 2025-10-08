@@ -14,7 +14,7 @@ use crate::{Adapter, Mutation, MutationError, MutationKind};
 ///
 /// ## Example
 ///
-/// ```ignore
+/// ```
 /// use morphix::{YamlAdapter, Observe, observe};
 /// use serde::Serialize;
 ///

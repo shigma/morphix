@@ -39,15 +39,24 @@ pub fn observe(input: TokenStream) -> Result<TokenStream, syn::Error> {
             "expect a closure with one argument",
         ));
     };
-    let body = &mut input.closure.body;
-    let mut body_shadow: syn::Expr = parse_quote! {
+    let body_original = &mut input.closure.body;
+    let mut body_actual = body_original.clone();
+
+    DerefAssign.visit_expr_mut(&mut body_actual);
+
+    // reset span to call site
+    let mut body_actual: syn::Expr = parse_quote! {
         {
+            #[allow(unused_imports)]
+            use ::morphix::Observer;
             let mut #ident = #ident.observe();
-            #body;
+            #[allow(clippy::needless_borrow)]
+            #body_actual;
             #ident
         }
     };
-    CallSite.visit_expr_mut(&mut body_shadow);
+    CallSite.visit_expr_mut(&mut body_actual);
+
     let turbofish = if let Some((ty, _)) = input.ty {
         quote! {::<#ty>}
     } else {
@@ -55,10 +64,22 @@ pub fn observe(input: TokenStream) -> Result<TokenStream, syn::Error> {
     };
     Ok(quote! {
         {
-            let _ = || #body;
-            ::morphix::Observer::collect #turbofish(#body_shadow)
+            let _ = || #body_original;
+            ::morphix::Observer::collect #turbofish(#body_actual)
         }
     })
+}
+
+struct DerefAssign;
+
+impl VisitMut for DerefAssign {
+    fn visit_expr_assign_mut(&mut self, expr_assign: &mut syn::ExprAssign) {
+        syn::visit_mut::visit_expr_assign_mut(self, expr_assign);
+        let left = &expr_assign.left;
+        expr_assign.left = parse_quote! {
+            *(&mut #left).__morphix_deref_mut()
+        };
+    }
 }
 
 struct CallSite;

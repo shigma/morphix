@@ -138,8 +138,9 @@ impl<A: Adapter> Eq for Mutation<A> where A::Value: Eq {}
 ///
 /// ## Example
 ///
-/// ```ignore
-/// use morphix::{Mutation, MutationKind, JsonAdapter, observe};
+/// ```
+/// use morphix::{JsonAdapter, Mutation, MutationKind, Observe, observe};
+/// use serde::Serialize;
 /// use serde_json::json;
 ///
 /// #[derive(Serialize, Observe)]

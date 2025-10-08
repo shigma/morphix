@@ -4,8 +4,6 @@ use std::marker::PhantomData;
 use std::mem::take;
 use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
 
-use serde::{Serialize, Serializer};
-
 use crate::{Adapter, Batch, Mutation, MutationKind, MutationState, Observe, Observer, StatefulObserver};
 
 /// An observer for [Vec](std::vec::Vec) that tracks both replacements and appends.
@@ -44,7 +42,7 @@ impl<'i, T: Observe> DerefMut for VecObserver<'i, T> {
     }
 }
 
-impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
+impl<'i, T: Observe> Observer<'i> for VecObserver<'i, T> {
     #[inline]
     fn observe(value: &'i mut Vec<T>) -> Self {
         Self {
@@ -87,7 +85,7 @@ impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
     }
 }
 
-impl<'i, T: Observe> StatefulObserver<'i, Vec<T>> for VecObserver<'i, T> {
+impl<'i, T: Observe> StatefulObserver<'i> for VecObserver<'i, T> {
     fn mutation_state(this: &mut Self) -> &mut Option<MutationState> {
         &mut this.mutation
     }
@@ -98,10 +96,6 @@ impl<T: Observe> Observe for Vec<T> {
         = VecObserver<'i, T>
     where
         Self: 'i;
-
-    fn serialize_append<S: Serializer>(&self, serializer: S, start_index: usize) -> Result<S::Ok, S::Error> {
-        self[start_index..].serialize(serializer)
-    }
 }
 
 impl<'i, T: Observe> VecObserver<'i, T> {

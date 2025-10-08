@@ -1,8 +1,6 @@
 use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
-use serde::{Serialize, Serializer};
-
 use crate::{Adapter, Mutation, MutationKind, MutationState, Observe, Observer, StatefulObserver};
 
 /// An observer for [String](std::string::String) that tracks both replacements and appends.
@@ -37,7 +35,7 @@ impl<'i> DerefMut for StringObserver<'i> {
     }
 }
 
-impl<'i> Observer<'i, String> for StringObserver<'i> {
+impl<'i> Observer<'i> for StringObserver<'i> {
     #[inline]
     fn observe(value: &'i mut String) -> Self {
         Self {
@@ -64,7 +62,7 @@ impl<'i> Observer<'i, String> for StringObserver<'i> {
     }
 }
 
-impl<'i> StatefulObserver<'i, String> for StringObserver<'i> {
+impl<'i> StatefulObserver<'i> for StringObserver<'i> {
     fn mutation_state(this: &mut Self) -> &mut Option<MutationState> {
         &mut this.mutation
     }
@@ -75,10 +73,6 @@ impl Observe for String {
         = StringObserver<'i>
     where
         Self: 'i;
-
-    fn serialize_append<S: Serializer>(&self, serializer: S, start_index: usize) -> Result<S::Ok, S::Error> {
-        self[start_index..].serialize(serializer)
-    }
 }
 
 impl<'i> StringObserver<'i> {

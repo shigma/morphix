@@ -55,7 +55,7 @@ pub struct ShallowObserver<'i, T> {
     phantom: PhantomData<&'i mut T>,
 }
 
-impl<'i, T> Observer<'i, T> for ShallowObserver<'i, T> {
+impl<'i, T> Observer<'i> for ShallowObserver<'i, T> {
     #[inline]
     fn observe(value: &'i mut T) -> Self {
         ShallowObserver::new(value)
@@ -89,22 +89,6 @@ impl<'i, T> ShallowObserver<'i, T> {
             phantom: PhantomData,
         }
     }
-}
-
-macro_rules! impl_observe {
-    ($($ty:ty $(=> $target:ty)?),* $(,)?) => {
-        $(
-            impl Observe for $ty {
-                type Observer<'i> = ShallowObserver<'i, $ty>
-                where
-                    Self: 'i;
-            }
-        )*
-    };
-}
-
-impl_observe! {
-    usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool,
 }
 
 impl<'i, T> Deref for ShallowObserver<'i, T> {
@@ -195,4 +179,20 @@ impl_ops_copy! {
     BitXor => bitxor,
     Shl => shl,
     Shr => shr,
+}
+
+macro_rules! impl_observe {
+    ($($ty:ty $(=> $target:ty)?),* $(,)?) => {
+        $(
+            impl Observe for $ty {
+                type Observer<'i> = ShallowObserver<'i, $ty>
+                where
+                    Self: 'i;
+            }
+        )*
+    };
+}
+
+impl_observe! {
+    usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool,
 }
