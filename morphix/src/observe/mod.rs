@@ -105,26 +105,86 @@ pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
         T: Serialize;
 }
 
-#[doc(hidden)]
+/// State of mutations tracked by a StatefulObserver(crate::StatefulObserver).
+///
+/// This enum represents the specific type of mutation that has been
+/// detected by observers that implement StatefulObserver.
 #[derive(Clone, Copy)]
-pub enum Mutation {
+pub enum MutationState {
+    /// Complete replacement of the value
     Replace,
+    /// Append operation starting from the given index
     Append(usize),
 }
 
-#[doc(hidden)]
-pub trait MutationObserver<'i, T>: Observer<'i, T> {
-    fn mutation(this: &mut Self) -> &mut Option<Mutation>;
+/// An [Observer] that maintains internal state about mutations.
+///
+/// Unlike [ShallowObserver] which only tracks whether a change occurred,
+/// StatefulObserver implementations can distinguish between different
+/// types of mutations (replace vs. append) and optimize the resulting
+/// change representation accordingly.
+/// 
+/// ## Implementation Notes
+///
+/// Implementing StatefulObserver allows an observer to track its own mutation
+/// state (e.g., replace or append), but this doesn't preclude tracking
+/// additional changes. Complex types like `Vec<T>` may need to track both:
+///
+/// - Their own mutation state (via StatefulObserver)
+/// - Changes to their elements (via nested observers)
+///
+/// These different sources of changes are then combined into a final result:
+///
+/// ```ignore
+/// // Example from VecObserver implementation
+/// impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
+///     fn collect<A: Adapter>(mut this: Self) -> Result<Option<Change<A>>, A::Error> {
+///         let mut changes = vec![];
+///         
+///         // 1. Collect own mutation state (replacement or append)
+///         if let Some(state) = Self::mutation_state(&mut this).take() {
+///             changes.push(Change {
+///                 operation: match state {
+///                     MutationState::Replace => Operation::Replace(..),
+///                     MutationState::Append(idx) => Operation::Append(..),
+///                 },
+///                 // ...
+///             });
+///         }
+///         
+///         // 2. Collect changes from nested element observers
+///         for (index, observer) in element_observers {
+///             if let Some(change) = observer.collect()? {
+///                 changes.push(change);
+///             }
+///         }
+///         
+///         // 3. Combine all changes (may result in a Batch)
+///         Ok(Batch::build(changes))
+///     }
+/// }
+/// ```
+///
+/// This design allows for sophisticated change tracking where:
+/// - Simple operations (like `vec.push()`) produce an `Append` change
+/// - Element modifications (like `vec[0].field = value`) produce element-specific changes
+/// - Multiple operations produce a `Batch` containing all changes
+///
+/// Currently implemented for:
+/// - `String`
+/// - `Vec<T>`
+pub trait StatefulObserver<'i, T>: Observer<'i, T> {
+    fn mutation_state(this: &mut Self) -> &mut Option<MutationState>;
 
     fn mark_replace(this: &mut Self) {
-        *Self::mutation(this) = Some(Mutation::Replace);
+        *Self::mutation_state(this) = Some(MutationState::Replace);
     }
 
     fn mark_append(this: &mut Self, start_index: usize) {
-        let mutation = Self::mutation(this);
+        let mutation = Self::mutation_state(this);
         if mutation.is_some() {
             return;
         }
-        *mutation = Some(Mutation::Append(start_index));
+        *mutation = Some(MutationState::Append(start_index));
     }
 }

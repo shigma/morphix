@@ -3,10 +3,10 @@ use std::ops::{AddAssign, Deref, DerefMut};
 
 use serde::{Serialize, Serializer};
 
-use crate::observe::{Mutation, MutationObserver};
+use crate::observe::{MutationState, StatefulObserver};
 use crate::{Adapter, Change, Observe, Observer, Operation};
 
-/// An observer for [String] that tracks both replacements and appends.
+/// An observer for [String](std::string::String) that tracks both replacements and appends.
 ///
 /// `StringObserver` provides special handling for string append operations,
 /// distinguishing them from complete replacements for efficiency.
@@ -15,17 +15,12 @@ use crate::{Adapter, Change, Observe, Observer, Operation};
 ///
 /// The following mutations are tracked as `Append`:
 ///
-/// - [String::add_assign] (using `+=`)
-/// - [String::push]
-/// - [String::push_str]
-///
-/// [`String`]: std::string::String
-/// [`String::add_assign`]: std::ops::AddAssign
-/// [`String::push`]: std::string::String::push
-/// [`String::push_str`]: std::string::String::push_str
+/// - [String::add_assign](std::ops::AddAssign) (`+=`)
+/// - [String::push](std::string::String::push)
+/// - [String::push_str](std::string::String::push_str)
 pub struct StringObserver<'i> {
     ptr: *mut String,
-    mutation: Option<Mutation>,
+    mutation: Option<MutationState>,
     phantom: PhantomData<&'i mut String>,
 }
 
@@ -54,12 +49,12 @@ impl<'i> Observer<'i, String> for StringObserver<'i> {
     }
 
     fn collect<A: Adapter>(mut this: Self) -> Result<Option<Change<A>>, A::Error> {
-        Ok(if let Some(mutation) = Self::mutation(&mut this).take() {
+        Ok(if let Some(mutation) = Self::mutation_state(&mut this).take() {
             Some(Change {
                 path_rev: vec![],
                 operation: match mutation {
-                    Mutation::Replace => Operation::Replace(A::new_replace(&*this)?),
-                    Mutation::Append(start_index) => Operation::Append(A::new_append(&*this, start_index)?),
+                    MutationState::Replace => Operation::Replace(A::new_replace(&*this)?),
+                    MutationState::Append(start_index) => Operation::Append(A::new_append(&*this, start_index)?),
                 },
             })
         } else {
@@ -68,8 +63,8 @@ impl<'i> Observer<'i, String> for StringObserver<'i> {
     }
 }
 
-impl<'i> MutationObserver<'i, String> for StringObserver<'i> {
-    fn mutation(this: &mut Self) -> &mut Option<Mutation> {
+impl<'i> StatefulObserver<'i, String> for StringObserver<'i> {
+    fn mutation_state(this: &mut Self) -> &mut Option<MutationState> {
         &mut this.mutation
     }
 }

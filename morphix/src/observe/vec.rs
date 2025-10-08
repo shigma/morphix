@@ -6,8 +6,8 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
 
 use serde::{Serialize, Serializer};
 
-use crate::observe::Mutation;
-use crate::{Adapter, Batch, Change, MutationObserver, Observe, Observer, Operation};
+use crate::observe::MutationState;
+use crate::{Adapter, Batch, Change, Observe, Observer, Operation, StatefulObserver};
 
 /// An observer for [Vec](std::vec::Vec) that tracks both replacements and appends.
 ///
@@ -25,7 +25,7 @@ use crate::{Adapter, Batch, Change, MutationObserver, Observe, Observer, Operati
 /// - [Vec::extend_from_within](std::vec::Vec::extend_from_within)
 pub struct VecObserver<'i, T: Observe> {
     ptr: *mut Vec<T>,
-    mutation: Option<Mutation>,
+    mutation: Option<MutationState>,
     obs: UnsafeCell<HashMap<usize, T::Observer<'i>>>,
     phantom: PhantomData<&'i mut T>,
 }
@@ -59,12 +59,12 @@ impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
     fn collect<A: Adapter>(mut this: Self) -> Result<Option<Change<A>>, A::Error> {
         let mut changes = vec![];
         let mut max_index = None;
-        if let Some(mutation) = Self::mutation(&mut this).take() {
+        if let Some(mutation) = Self::mutation_state(&mut this).take() {
             changes.push(Change {
                 path_rev: vec![],
                 operation: match mutation {
-                    Mutation::Replace => Operation::Replace(A::new_replace(&*this)?),
-                    Mutation::Append(start_index) => {
+                    MutationState::Replace => Operation::Replace(A::new_replace(&*this)?),
+                    MutationState::Append(start_index) => {
                         max_index = Some(start_index);
                         Operation::Append(A::new_append(&*this, start_index)?)
                     }
@@ -88,8 +88,8 @@ impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
     }
 }
 
-impl<'i, T: Observe> MutationObserver<'i, Vec<T>> for VecObserver<'i, T> {
-    fn mutation(this: &mut Self) -> &mut Option<Mutation> {
+impl<'i, T: Observe> StatefulObserver<'i, Vec<T>> for VecObserver<'i, T> {
+    fn mutation_state(this: &mut Self) -> &mut Option<MutationState> {
         &mut this.mutation
     }
 }
