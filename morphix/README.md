@@ -11,7 +11,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-morphix = { version = "0.1", features = ["json"] }
+morphix = { version = "0.3", features = ["json"] }
 ```
 
 ## Basic Usage
