@@ -1,25 +1,27 @@
 [package]
 name = "morphix"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license = "MIT"
 authors = [
     "Shigma <shigma10826@gmail.com>",
 ]
-description = "Mutate and observe Rust data structures"
+description = "Observing and serializing changes"
 repository = "https://github.com/shigma/morphix"
 documentation = "https://docs.rs/morphix"
 
 [features]
-default = ["derive", "json"]
+default = ["derive"]
 derive = ["dep:morphix_derive"]
-full = ["derive"]
+full = ["derive", "json", "yaml"]
 json = ["dep:serde_json"]
+yaml = ["dep:serde_yml"]
 
 [dependencies]
 morphix_derive = { version = "0.1.0", path = "../morphix_derive", optional = true }
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.145", optional = true }
+serde_yml = { version = "0.0.12", optional = true }
 
 [dev-dependencies]
 morphix = { path = ".", features = ["full"] }

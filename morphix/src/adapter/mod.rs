@@ -6,6 +6,8 @@ use crate::{Change, ChangeError, Observe};
 
 #[cfg(feature = "json")]
 pub mod json;
+#[cfg(feature = "yaml")]
+pub mod yaml;
 
 /// Trait for adapting changes to different serialization formats.
 /// 

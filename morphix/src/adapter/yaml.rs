@@ -2,35 +2,44 @@ use std::borrow::Cow;
 use std::mem::take;
 
 use serde::Serialize;
-use serde_json::value::Serializer;
-use serde_json::{Error, Value};
+use serde_yml::value::Serializer;
+use serde_yml::{Error, Value};
 
 use crate::{Adapter, Change, ChangeError, Observe, Operation};
 
-/// JSON adapter for morphix change serialization.
+/// YAML adapter for morphix change serialization.
 ///
-/// `JsonAdapter` implements the `Adapter` trait using `serde_json::Value` for both
-/// replacement and append operations.
+/// `YamlAdapter` implements the `Adapter` trait using `serde_yml::Value` for both
+/// replacement and append operations. This adapter is available when the `yaml`
+/// feature is enabled.
 ///
 /// ## Example
 ///
 /// ```rust
-/// use morphix::{JsonAdapter, Observe, observe};
+/// use morphix::{YamlAdapter, observe};
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize, Observe)]
-/// struct Data {
-///     value: i32,
+/// struct Config {
+///     host: String,
+///     port: u16,
+///     tags: Vec<String>,
 /// }
 ///
-/// let mut data = Data { value: 42 };
-/// let change = observe!(JsonAdapter, |mut data| {
-///     data.value += 1;
+/// let mut config = Config {
+///     host: "localhost".to_string(),
+///     port: 8080,
+///     tags: vec!["web".to_string()],
+/// };
+///
+/// let change = observe!(YamlAdapter, |mut config| {
+///     config.port = 8081;
+///     config.tags.push("api".to_string());
 /// }).unwrap();
 /// ```
-pub struct JsonAdapter;
+pub struct YamlAdapter;
 
-impl Adapter for JsonAdapter {
+impl Adapter for YamlAdapter {
     type Replace = Value;
     type Append = Value;
     type Error = Error;
@@ -52,11 +61,14 @@ impl Adapter for JsonAdapter {
 
         while let Some(key) = change.path_rev.pop() {
             let next_value = match curr_value {
-                Value::Array(vec) => key.parse::<usize>().ok().and_then(|index| vec.get_mut(index)),
-                Value::Object(map) => match is_replace && change.path_rev.is_empty() {
-                    true => Some(map.entry(&*key).or_insert(Value::Null)),
-                    false => map.get_mut(&*key),
-                },
+                Value::Sequence(seq) => key.parse::<usize>().ok().and_then(|index| seq.get_mut(index)),
+                Value::Mapping(map) => {
+                    let key_value = Value::String(key.to_string());
+                    match is_replace && change.path_rev.is_empty() {
+                        true => Some(map.entry(key_value).or_insert(Value::Null)),
+                        false => map.get_mut(&key_value),
+                    }
+                }
                 _ => None,
             };
             path_stack.push(key);
@@ -96,7 +108,7 @@ impl Adapter for JsonAdapter {
             (Value::String(lhs), Value::String(rhs)) => {
                 *lhs += &rhs;
             }
-            (Value::Array(lhs), Value::Array(rhs)) => {
+            (Value::Sequence(lhs), Value::Sequence(rhs)) => {
                 lhs.extend(rhs);
             }
             _ => return Err(ChangeError::OperationError { path: take(path_stack) }),

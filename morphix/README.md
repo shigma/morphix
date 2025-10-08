@@ -11,7 +11,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-morphix = { version = "0.1" }
+morphix = { version = "0.1", features = ["json"] }
 ```
 
 ## Basic Usage
@@ -43,8 +43,7 @@ let change = observe!(JsonAdapter, |mut foo| {
     foo.bar.baz += 1;
     foo.qux.push(' ');
     foo.qux += "world";
-})
-.unwrap();
+}).unwrap();
 
 // 3. Inspect the changes.
 assert_eq!(
@@ -83,8 +82,8 @@ morphix recognizes three types of changes:
 The most general change type, used for any mutation that replaces a value:
 
 ```rust ignore
-person.age = 35;                // Replace at path .age
-person.name = "Bob".into();     // Replace at path .name
+person.age = 35;                        // Replace at .age
+person.name = "Bob".into();             // Replace at .name
 ```
 
 ### Append
@@ -103,4 +102,5 @@ Multiple changes combined into a single operation.
 ## Features
 
 - `derive` (default): Enables the Observe derive macro
-- `json` (default): Includes JSON serialization support via serde_json
+- `json`: Includes JSON serialization support via `serde_json`
+- `yaml`: Includes YAML serialization support via `serde_yml`
