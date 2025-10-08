@@ -5,7 +5,7 @@ use serde::Serialize;
 use serde_yml::value::Serializer;
 use serde_yml::{Error, Value};
 
-use crate::{Adapter, Mutation, MutationError, MutationKind, Observe};
+use crate::{Adapter, Mutation, MutationError, MutationKind};
 
 /// YAML adapter for morphix mutation serialization.
 ///
@@ -15,7 +15,7 @@ use crate::{Adapter, Mutation, MutationError, MutationKind, Observe};
 ///
 /// ## Example
 ///
-/// ```
+/// ```ignore
 /// use morphix::{YamlAdapter, Observe, observe};
 /// use serde::Serialize;
 ///
@@ -43,15 +43,11 @@ impl Adapter for YamlAdapter {
     type Value = Value;
     type Error = Error;
 
-    fn new_replace<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error> {
+    fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error> {
         value.serialize(Serializer)
     }
 
-    fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Value, Self::Error> {
-        value.serialize_append(Serializer, start_index)
-    }
-
-    fn apply_change(
+    fn apply_mutation(
         mut curr_value: &mut Self::Value,
         mut mutation: Mutation<Self>,
         path_stack: &mut Vec<Cow<'static, str>>,
@@ -89,7 +85,7 @@ impl Adapter for YamlAdapter {
             MutationKind::Batch(mutations) => {
                 let len = path_stack.len();
                 for mutation in mutations {
-                    Self::apply_change(curr_value, mutation, path_stack)?;
+                    Self::apply_mutation(curr_value, mutation, path_stack)?;
                     path_stack.truncate(len);
                 }
             }

@@ -68,7 +68,7 @@ impl<'i, T> Observer<'i, T> for ShallowObserver<'i, T> {
         Ok(if this.replaced {
             Some(Mutation {
                 path_rev: vec![],
-                operation: MutationKind::Replace(A::new_replace(&*this)?),
+                operation: MutationKind::Replace(A::serialize_value(&*this)?),
             })
         } else {
             None

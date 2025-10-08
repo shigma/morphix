@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/morphix.svg)](https://crates.io/crates/morphix)
 [![Documentation](https://docs.rs/morphix/badge.svg)](https://docs.rs/morphix)
- 
+
 A Rust library for observing and serializing mutations.
 
 ## Installation
@@ -81,7 +81,7 @@ Morphix recognizes three types of mutations:
 
 The most general mutation type, used for any mutation that replaces a value:
 
-```rust ignore
+```rs
 person.age = 35;                        // Replace at .age
 person.name = "Bob".into();             // Replace at .name
 ```
@@ -90,7 +90,7 @@ person.name = "Bob".into();             // Replace at .name
 
 Optimized for appending to strings and vectors:
 
-```rust ignore
+```rs
 person.name.push_str(" Smith");         // Append to .name
 person.hobbies.push("gaming".into());   // Append to .hobbies
 ```

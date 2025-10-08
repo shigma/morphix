@@ -62,10 +62,10 @@ impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
             mutations.push(Mutation {
                 path_rev: vec![],
                 operation: match mutation {
-                    MutationState::Replace => MutationKind::Replace(A::new_replace(&*this)?),
+                    MutationState::Replace => MutationKind::Replace(A::serialize_value(&*this)?),
                     MutationState::Append(start_index) => {
                         max_index = Some(start_index);
-                        MutationKind::Append(A::new_append(&*this, start_index)?)
+                        MutationKind::Append(A::serialize_value(&(*this)[start_index..])?)
                     }
                 },
             });

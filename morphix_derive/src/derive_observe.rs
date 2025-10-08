@@ -153,7 +153,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                     if this.replaced {
                         mutations.push(::morphix::Mutation {
                             path_rev: vec![],
-                            operation: ::morphix::MutationKind::Replace(A::new_replace(&*this)?),
+                            operation: ::morphix::MutationKind::Replace(A::serialize_value(&*this)?),
                         });
                     };
                     #(#collect_stmts)*

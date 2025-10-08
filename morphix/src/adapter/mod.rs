@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use serde::Serialize;
 
-use crate::{Mutation, MutationError, Observe};
+use crate::{Mutation, MutationError};
 
 #[cfg(feature = "json")]
 pub mod json;
@@ -37,16 +37,12 @@ pub mod yaml;
 ///     type Value = Value;
 ///     type Error = Error;
 ///     
-///     fn new_replace<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error> {
+///     fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error> {
 ///         value.serialize(Serializer)
 ///     }
 ///     
 ///     // ... other methods
-///     # fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Value, Self::Error> {
-///     #     unimplemented!()
-///     # }
-/// 
-///     # fn apply_change(
+///     # fn apply_mutation(
 ///     #     old_value: &mut Self::Value,
 ///     #     mutation: Mutation<Self>,
 ///     #     path_stack: &mut Vec<Cow<'static, str>>,
@@ -70,20 +66,12 @@ pub trait Adapter: Sized {
     /// Error type for serialization / deserialization operations.
     type Error;
 
-    /// Creates a replacement value from a serializable type.
+    /// Serializes a value into the adapter's Value type.
     /// 
     /// ## Arguments
     /// 
-    /// - `value` - The value to be serialized as a replacement
-    fn new_replace<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error>;
-
-    /// Creates an append value from an observable type.
-    /// 
-    /// ## Arguments
-    /// 
-    /// - `value` - The value to be serialized for appending
-    /// - `start_index` - The starting index for serialization (used for partial serialization)
-    fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Value, Self::Error>;
+    /// - `value` - value to be serialized as a replacement
+    fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error>;
 
     /// Applies a [Mutation](crate::Mutation) to an existing value.
     /// 
@@ -97,7 +85,7 @@ pub trait Adapter: Sized {
     /// 
     /// - Returns `MutationError::IndexError` if the path doesn't exist.
     /// - Returns `MutationError::OperationError` if the operation cannot be performed.
-    fn apply_change(
+    fn apply_mutation(
         old_value: &mut Self::Value,
         mutation: Mutation<Self>,
         path_stack: &mut Vec<Cow<'static, str>>,

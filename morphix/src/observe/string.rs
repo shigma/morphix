@@ -52,8 +52,10 @@ impl<'i> Observer<'i, String> for StringObserver<'i> {
             Some(Mutation {
                 path_rev: vec![],
                 operation: match mutation {
-                    MutationState::Replace => MutationKind::Replace(A::new_replace(&*this)?),
-                    MutationState::Append(start_index) => MutationKind::Append(A::new_append(&*this, start_index)?),
+                    MutationState::Replace => MutationKind::Replace(A::serialize_value(&*this)?),
+                    MutationState::Append(start_index) => {
+                        MutationKind::Append(A::serialize_value(&this[start_index..])?)
+                    }
                 },
             })
         } else {

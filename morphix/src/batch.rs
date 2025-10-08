@@ -84,7 +84,7 @@ impl<A: Adapter> Batch<A> {
     ) -> Result<(), MutationError> {
         let mut batch = self;
         if let Some(MutationKind::Replace(value)) = &mut batch.operation {
-            A::apply_change(value, mutation, path_stack)?;
+            A::apply_mutation(value, mutation, path_stack)?;
             return Ok(());
         }
         while let Some(key) = mutation.path_rev.pop() {
@@ -92,7 +92,7 @@ impl<A: Adapter> Batch<A> {
             path_stack.push(key.clone());
             batch = batch.children.entry(key).or_default();
             if let Some(MutationKind::Replace(value)) = &mut batch.operation {
-                A::apply_change(value, mutation, path_stack)?;
+                A::apply_mutation(value, mutation, path_stack)?;
                 return Ok(());
             }
         }

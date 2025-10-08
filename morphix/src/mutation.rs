@@ -17,16 +17,76 @@ impl<'i> Display for Path<'i> {
     }
 }
 
-/// A mutation in JSON format.
+/// A mutation representing a change to a value at a specific path.
+///
+/// `Mutation` captures both the location where a change occurred (via `path_rev`) and the kind of
+/// change that was made (via `operation`). Mutations can be applied to values to reproduce the
+/// changes they represent.
+///
+/// ## Path Representation
+///
+/// The path is stored in reverse order for efficiency during collection.
+/// For example, a change at `foo.bar.baz` would have `path_rev = ["baz", "bar", "foo"]`.
+///
+/// ## Example
+///
+/// ```
+/// use morphix::{JsonAdapter, Mutation, MutationKind};
+/// use serde_json::json;
+///
+/// // A mutation that replaces the value at path "user.name"
+/// let mutation = Mutation::<JsonAdapter> {
+///     path_rev: vec!["name".into(), "user".into()],
+///     operation: MutationKind::Replace(json!("Alice")),
+/// };
+///
+/// // Apply the mutation to a JSON value
+/// let mut data = json!({"user": {"name": "Bob", "age": 30}});
+/// mutation.apply(&mut data).unwrap();
+/// assert_eq!(data, json!({"user": {"name": "Alice", "age": 30}}));
+/// ```
 pub struct Mutation<A: Adapter> {
+    /// The path to the mutated value, stored in reverse order.
+    ///
+    /// An empty vec indicates a mutation at the root level.
     pub path_rev: Vec<Cow<'static, str>>,
+
+    /// The kind of mutation that occurred.
     pub operation: MutationKind<A>,
 }
 
 impl<A: Adapter> Mutation<A> {
-    /// Apply the mutation to a JSON value.
+    /// Applies this mutation to a value.
+    ///
+    /// ## Arguments
+    ///
+    /// - `value` - value to mutate
+    ///
+    /// ## Errors
+    ///
+    /// - Returns [IndexError](MutationError::IndexError) if the path doesn't exist in the value.
+    /// - Returns [OperationError](MutationError::OperationError) if the mutation cannot be
+    ///   performed.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use morphix::{Mutation, MutationKind, JsonAdapter};
+    /// use serde_json::json;
+    ///
+    /// let mut value = json!({"count": 0});
+    ///
+    /// Mutation::<JsonAdapter> {
+    ///     path_rev: vec!["count".into()],
+    ///     operation: MutationKind::Replace(json!(42)),
+    /// }
+    /// .apply(&mut value)
+    /// .unwrap();
+    ///
+    /// assert_eq!(value, json!({"count": 42}));
+    /// ```
     pub fn apply(self, value: &mut A::Value) -> Result<(), MutationError> {
-        A::apply_change(value, self, &mut vec![])
+        A::apply_mutation(value, self, &mut vec![])
     }
 }
 
@@ -65,26 +125,91 @@ where
 
 impl<A: Adapter> Eq for Mutation<A> where A::Value: Eq {}
 
-/// A mutation in JSON format.
+/// The kind of mutation that occurred.
+///
+/// `MutationKind` represents the specific type of change made to a value.
+/// Different kinds enable optimizations and more precise change descriptions.
+///
+/// ## Variants
+///
+/// - [`Replace`](MutationKind::Replace): Complete replacement of a value
+/// - [`Append`](MutationKind::Append): Append operation for strings and vectors
+/// - [`Batch`](MutationKind::Batch): Multiple mutations combined
+///
+/// ## Example
+///
+/// ```ignore
+/// use morphix::{Mutation, MutationKind, JsonAdapter, observe};
+/// use serde_json::json;
+///
+/// #[derive(Serialize, Observe)]
+/// struct Document {
+///     title: String,
+///     content: String,
+///     tags: Vec<String>,
+/// }
+///
+/// let mut doc = Document {
+///     title: "Draft".to_string(),
+///     content: "Hello".to_string(),
+///     tags: vec!["todo".to_string()],
+/// };
+///
+/// let mutation = observe!(JsonAdapter, |mut doc| {
+///     doc.title = "Final".to_string();      // Replace
+///     doc.content.push_str(" World");       // Append
+///     doc.tags.push("done".to_string());    // Append
+/// }).unwrap().unwrap();
+///
+/// // The mutation contains a Batch with three operations
+/// matches!(mutation.operation, MutationKind::Batch(_));
+/// ```
 pub enum MutationKind<A: Adapter> {
     /// `Replace` is the default mutation for `DerefMut` operations.
     ///
-    /// ## Example
+    /// ## Examples
     ///
-    /// ```ignore
-    /// foo.a.b = 1;        // Replace .a.b
-    /// foo.num *= 2;       // Replace .num
-    /// foo.vec.clear();    // Replace .vec
+    /// ```
+    /// # #[derive(Default)]
+    /// # struct Foo {
+    /// #   a: FooA,
+    /// #   num: i32,
+    /// #   vec: Vec<i32>,
+    /// # }
+    /// # #[derive(Default)]
+    /// # struct FooA {
+    /// #   b: i32,
+    /// # }
+    /// # let mut foo = Foo::default();
+    /// foo.a.b = 1;        // Replace at .a.b
+    /// foo.num *= 2;       // Replace at .num
+    /// foo.vec.clear();    // Replace at .vec
     /// ```
     ///
-    /// If an operation triggers `Append`, no `Replace` mutation is emitted.
+    /// ## Note
+    ///
+    /// If an operation can be represented as `Append`, it will be preferred
+    /// over `Replace` for efficiency.
     Replace(A::Value),
 
-    /// `Append` represents a `String` or `Vec` append operation.
+    /// `Append` represents adding data to the end of a string or vector.
+    /// This is more efficient than `Replace` because only the appended
+    /// portion needs to be serialized and transmitted.
     ///
-    /// ## Example
+    /// ## Examples
     ///
-    /// ```ignore
+    /// ```
+    /// # #[derive(Default)]
+    /// # struct Foo {
+    /// #   a: FooA,
+    /// #   vec: Vec<i32>,
+    /// # }
+    /// # #[derive(Default)]
+    /// # struct FooA {
+    /// #   b: String,
+    /// # }
+    /// # let mut foo = Foo::default();
+    /// # let iter = vec![2, 3].into_iter();
     /// foo.a.b += "text";          // Append .a.b
     /// foo.a.b.push_str("text");   // Append .a.b
     /// foo.vec.push(1);            // Append .vec
@@ -92,7 +217,16 @@ pub enum MutationKind<A: Adapter> {
     /// ```
     Append(A::Value),
 
-    /// `Batch` represents a sequence of mutations.
+    /// `Batch` combines multiple mutations that occurred during a single
+    /// observation period. This is automatically created when multiple
+    /// independent changes are detected.
+    ///
+    /// ## Optimization
+    ///
+    /// The batch collector ([`Batch`]) automatically optimizes mutations:
+    /// - Consecutive appends are merged
+    /// - Redundant changes are eliminated
+    /// - Nested paths are consolidated when possible
     Batch(Vec<Mutation<A>>),
 }
 
