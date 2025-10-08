@@ -2,8 +2,8 @@
 
 mod adapter;
 mod batch;
-mod change;
 mod error;
+mod mutation;
 mod observe;
 
 pub use adapter::Adapter;
@@ -12,8 +12,8 @@ pub use adapter::json::JsonAdapter;
 #[cfg(feature = "yaml")]
 pub use adapter::yaml::YamlAdapter;
 pub use batch::Batch;
-pub use change::{Change, Operation};
-pub use error::ChangeError;
+pub use error::MutationError;
 #[cfg(feature = "derive")]
 pub use morphix_derive::{Observe, observe};
-pub use observe::{StatefulObserver, MutationState, Observe, Observer, ShallowObserver};
+pub use mutation::{Mutation, MutationKind};
+pub use observe::{MutationState, Observe, Observer, ShallowObserver, StatefulObserver};

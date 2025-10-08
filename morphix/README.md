@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/morphix.svg)](https://crates.io/crates/morphix)
 [![Documentation](https://docs.rs/morphix/badge.svg)](https://docs.rs/morphix)
  
-A Rust library for observing and serializing changes.
+A Rust library for observing and serializing mutations.
 
 ## Installation
 
@@ -19,7 +19,7 @@ morphix = { version = "0.1", features = ["json"] }
 ```rust
 use serde::Serialize;
 use serde_json::json;
-use morphix::{Change, JsonAdapter, Observe, Operation, observe};
+use morphix::{JsonAdapter, Mutation, MutationKind, Observe, observe};
 
 // 1. Define any data structure with `#[derive(Observe)]`.
 #[derive(Serialize, PartialEq, Debug, Observe)]
@@ -38,26 +38,26 @@ let mut foo = Foo {
     qux: "hello".to_string(),
 };
 
-// 2. Use `observe!` to mutate data and track changes.
-let change = observe!(JsonAdapter, |mut foo| {
+// 2. Use `observe!` to mutate data and track mutations.
+let mutation = observe!(JsonAdapter, |mut foo| {
     foo.bar.baz += 1;
     foo.qux.push(' ');
     foo.qux += "world";
 }).unwrap();
 
-// 3. Inspect the changes.
+// 3. Inspect the mutations.
 assert_eq!(
-    change,
-    Some(Change {
+    mutation,
+    Some(Mutation {
         path_rev: vec![],
-        operation: Operation::Batch(vec![
-            Change {
+        operation: MutationKind::Batch(vec![
+            Mutation {
                 path_rev: vec!["baz".into(), "bar".into()],
-                operation: Operation::Replace(json!(43)),
+                operation: MutationKind::Replace(json!(43)),
             },
-            Change {
+            Mutation {
                 path_rev: vec!["qux".into()],
-                operation: Operation::Append(json!(" world")),
+                operation: MutationKind::Append(json!(" world")),
             },
         ]),
     }),
@@ -73,13 +73,13 @@ assert_eq!(
 );
 ```
 
-## Change Types
+## Mutation Types
 
-morphix recognizes three types of changes:
+Morphix recognizes three types of mutations:
 
 ### Replace
 
-The most general change type, used for any mutation that replaces a value:
+The most general mutation type, used for any mutation that replaces a value:
 
 ```rust ignore
 person.age = 35;                        // Replace at .age
@@ -97,7 +97,7 @@ person.hobbies.push("gaming".into());   // Append to .hobbies
 
 ### Batch
 
-Multiple changes combined into a single operation.
+Multiple mutations combined into a single operation.
 
 ## Features
 

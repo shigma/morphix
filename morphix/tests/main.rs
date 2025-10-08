@@ -1,4 +1,4 @@
-use morphix::{Change, JsonAdapter, Observe, Operation, observe};
+use morphix::{JsonAdapter, Mutation, MutationKind, Observe, observe};
 use serde::Serialize;
 use serde_json::json;
 
@@ -20,7 +20,7 @@ fn main() {
         qux: "hello".to_string(),
     };
 
-    let change = observe!(JsonAdapter, |mut foo| {
+    let mutation = observe!(JsonAdapter, |mut foo| {
         foo.bar.baz += 1;
         foo.qux.push(' ');
         foo.qux += "world";
@@ -28,17 +28,17 @@ fn main() {
     .unwrap();
 
     assert_eq!(
-        change,
-        Some(Change {
+        mutation,
+        Some(Mutation {
             path_rev: vec![],
-            operation: Operation::Batch(vec![
-                Change {
+            operation: MutationKind::Batch(vec![
+                Mutation {
                     path_rev: vec!["baz".into(), "bar".into()],
-                    operation: Operation::Replace(json!(43)),
+                    operation: MutationKind::Replace(json!(43)),
                 },
-                Change {
+                Mutation {
                     path_rev: vec!["qux".into()],
-                    operation: Operation::Append(json!(" world")),
+                    operation: MutationKind::Append(json!(" world")),
                 },
             ]),
         }),

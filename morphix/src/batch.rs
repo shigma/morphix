@@ -3,15 +3,13 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::mem::take;
 
-use crate::adapter::Adapter;
-use crate::change::{Change, Operation};
-use crate::error::ChangeError;
+use crate::{Adapter, Mutation, MutationError, MutationKind};
 
-/// A batch collector for aggregating and optimizing multiple changes.
+/// A batch collector for aggregating and optimizing multiple mutations.
 ///
-/// `Batch` is used internally to collect multiple changes and optimize them
-/// before creating the final change representation. It can merge consecutive
-/// append operations and eliminate redundant changes.
+/// `Batch` is used internally to collect multiple mutations and optimize them
+/// before creating the final mutation. It can merge consecutive append
+/// operations and eliminate redundant mutations.
 ///
 /// ## Type Parameters
 ///
@@ -19,23 +17,23 @@ use crate::error::ChangeError;
 ///
 /// ## Example
 ///
-/// ```rust
-/// use morphix::{Batch, Change, JsonAdapter, Operation};
+/// ```
+/// use morphix::{Batch, JsonAdapter, Mutation, MutationKind};
 /// use serde_json::json;
 ///
 /// let mut batch = Batch::<JsonAdapter>::new();
 ///
-/// // Load multiple changes
-/// batch.load(Change {
+/// // Load multiple mutations
+/// batch.load(Mutation {
 ///     path_rev: vec!["field".into()],
-///     operation: Operation::Replace(json!(1)),
+///     operation: MutationKind::Replace(json!(1)),
 /// }).unwrap();
 ///
-/// // Dump optimized changes
+/// // Dump optimized mutations
 /// let optimized = batch.dump();
 /// ```
 pub struct Batch<A: Adapter> {
-    operation: Option<Operation<A>>,
+    operation: Option<MutationKind<A>>,
     children: BTreeMap<Cow<'static, str>, Self>,
 }
 
@@ -50,8 +48,7 @@ impl<A: Adapter> Default for Batch<A> {
 
 impl<A: Adapter> Debug for Batch<A>
 where
-    A::Replace: Debug,
-    A::Append: Debug,
+    A::Value: Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Batch")
@@ -67,57 +64,55 @@ impl<A: Adapter> Batch<A> {
         Default::default()
     }
 
-    /// Loads a change into the batch, potentially merging with existing changes.
+    /// Loads a [Mutation] into the batch, potentially merging with existing mutations.
     ///
     /// ## Arguments
     ///
-    /// - `change` - change to add to the batch
+    /// - `mutation` - mutation to add to the batch
     ///
     /// ## Errors
     ///
-    /// - Returns an [ChangeError] if the change cannot be applied.
-    ///
-    /// [`ChangeError`]: crate::error::ChangeError
-    pub fn load(&mut self, change: Change<A>) -> Result<(), ChangeError> {
-        self.load_with_stack(change, &mut vec![])
+    /// - Returns an [MutationError] if the mutation cannot be applied.
+    pub fn load(&mut self, mutation: Mutation<A>) -> Result<(), MutationError> {
+        self.load_with_stack(mutation, &mut vec![])
     }
 
     fn load_with_stack(
         &mut self,
-        mut change: Change<A>,
+        mut mutation: Mutation<A>,
         path_stack: &mut Vec<Cow<'static, str>>,
-    ) -> Result<(), ChangeError> {
+    ) -> Result<(), MutationError> {
         let mut batch = self;
-        if let Some(Operation::Replace(value)) = &mut batch.operation {
-            A::apply_change(value, change, path_stack)?;
+        if let Some(MutationKind::Replace(value)) = &mut batch.operation {
+            A::apply_change(value, mutation, path_stack)?;
             return Ok(());
         }
-        while let Some(key) = change.path_rev.pop() {
+        while let Some(key) = mutation.path_rev.pop() {
             // We cannot avoid allocation here because `BTreeMap::entry` requires owned key.
             path_stack.push(key.clone());
             batch = batch.children.entry(key).or_default();
-            if let Some(Operation::Replace(value)) = &mut batch.operation {
-                A::apply_change(value, change, path_stack)?;
+            if let Some(MutationKind::Replace(value)) = &mut batch.operation {
+                A::apply_change(value, mutation, path_stack)?;
                 return Ok(());
             }
         }
 
-        match change.operation {
-            Operation::Replace(_) => {
-                batch.operation = Some(change.operation);
+        match mutation.operation {
+            MutationKind::Replace(_) => {
+                batch.operation = Some(mutation.operation);
                 batch.children.clear();
             }
-            Operation::Append(new_value) => match &mut batch.operation {
-                Some(Operation::Append(old_value)) => {
+            MutationKind::Append(new_value) => match &mut batch.operation {
+                Some(MutationKind::Append(old_value)) => {
                     A::merge_append(old_value, new_value, path_stack)?;
                 }
                 Some(_) => unreachable!(),
-                None => batch.operation = Some(Operation::Append(new_value)),
+                None => batch.operation = Some(MutationKind::Append(new_value)),
             },
-            Operation::Batch(changes) => {
+            MutationKind::Batch(mutations) => {
                 let len = path_stack.len();
-                for change in changes {
-                    batch.load_with_stack(change, path_stack)?;
+                for mutation in mutations {
+                    batch.load_with_stack(mutation, path_stack)?;
                     path_stack.truncate(len);
                 }
             }
@@ -126,36 +121,36 @@ impl<A: Adapter> Batch<A> {
         Ok(())
     }
 
-    /// Dumps all accumulated changes as a single optimized change.
+    /// Dumps all accumulated mutations as a single optimized mutation.
     ///
-    /// - Returns `None` if no changes have been accumulated.
-    /// - Returns a single `Change` if only one change exists.
-    /// - Returns a `Batch` operation if multiple changes exist.
-    pub fn dump(&mut self) -> Option<Change<A>> {
-        let mut changes = vec![];
+    /// - Returns `None` if no mutations have been accumulated.
+    /// - Returns a single mutation if only one mutation exists.
+    /// - Returns a `Batch` mutation if multiple mutations exist.
+    pub fn dump(&mut self) -> Option<Mutation<A>> {
+        let mut mutations = vec![];
         if let Some(operation) = self.operation.take() {
-            changes.push(Change {
+            mutations.push(Mutation {
                 path_rev: vec![],
                 operation,
             });
         }
         for (key, mut batch) in take(&mut self.children) {
-            if let Some(mut change) = batch.dump() {
-                change.path_rev.push(key);
-                changes.push(change);
+            if let Some(mut mutation) = batch.dump() {
+                mutation.path_rev.push(key);
+                mutations.push(mutation);
             }
         }
-        Self::build(changes)
+        Self::build(mutations)
     }
 
     #[doc(hidden)]
-    pub fn build(mut changes: Vec<Change<A>>) -> Option<Change<A>> {
-        match changes.len() {
+    pub fn build(mut mutations: Vec<Mutation<A>>) -> Option<Mutation<A>> {
+        match mutations.len() {
             0 => None,
-            1 => Some(changes.swap_remove(0)),
-            _ => Some(Change {
+            1 => Some(mutations.swap_remove(0)),
+            _ => Some(Mutation {
                 path_rev: vec![],
-                operation: Operation::Batch(changes),
+                operation: MutationKind::Batch(mutations),
             }),
         }
     }
@@ -175,131 +170,131 @@ mod test {
 
         let mut batch = Batch::<JsonAdapter>::new();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["bar".into(), "foo".into()],
-                operation: Operation::Replace(json!(1)),
+                operation: MutationKind::Replace(json!(1)),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
-            Some(Change {
+            Some(Mutation {
                 path_rev: vec!["bar".into(), "foo".into()],
-                operation: Operation::Replace(json!(1))
+                operation: MutationKind::Replace(json!(1))
             }),
         );
 
         let mut batch = Batch::<JsonAdapter>::new();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["bar".into(), "foo".into()],
-                operation: Operation::Replace(json!(1)),
+                operation: MutationKind::Replace(json!(1)),
             })
             .unwrap();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["bar".into(), "foo".into()],
-                operation: Operation::Replace(json!(2)),
+                operation: MutationKind::Replace(json!(2)),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
-            Some(Change {
+            Some(Mutation {
                 path_rev: vec!["bar".into(), "foo".into()],
-                operation: Operation::Replace(json!(2)),
+                operation: MutationKind::Replace(json!(2)),
             }),
         );
 
         let mut batch = Batch::<JsonAdapter>::new();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["bar".into(), "foo".into()],
-                operation: Operation::Replace(json!({"qux": "1"})),
+                operation: MutationKind::Replace(json!({"qux": "1"})),
             })
             .unwrap();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["qux".into(), "bar".into(), "foo".into()],
-                operation: Operation::Append(json!("2")),
+                operation: MutationKind::Append(json!("2")),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
-            Some(Change {
+            Some(Mutation {
                 path_rev: vec!["bar".into(), "foo".into()],
-                operation: Operation::Replace(json!({"qux": "12"})),
+                operation: MutationKind::Replace(json!({"qux": "12"})),
             }),
         );
 
         let mut batch = Batch::<JsonAdapter>::new();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["qux".into(), "bar".into(), "foo".into()],
-                operation: Operation::Append(json!("2")),
+                operation: MutationKind::Append(json!("2")),
             })
             .unwrap();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["bar".into(), "foo".into()],
-                operation: Operation::Replace(json!({"qux": "1"})),
+                operation: MutationKind::Replace(json!({"qux": "1"})),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
-            Some(Change {
+            Some(Mutation {
                 path_rev: vec!["bar".into(), "foo".into()],
-                operation: Operation::Replace(json!({"qux": "1"})),
+                operation: MutationKind::Replace(json!({"qux": "1"})),
             }),
         );
 
         let mut batch = Batch::<JsonAdapter>::new();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["foo".into()],
-                operation: Operation::Batch(vec![
-                    Change {
+                operation: MutationKind::Batch(vec![
+                    Mutation {
                         path_rev: vec!["bar".into()],
-                        operation: Operation::Append(json!("1")),
+                        operation: MutationKind::Append(json!("1")),
                     },
-                    Change {
+                    Mutation {
                         path_rev: vec!["bar".into()],
-                        operation: Operation::Append(json!("2")),
+                        operation: MutationKind::Append(json!("2")),
                     },
                 ]),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
-            Some(Change {
+            Some(Mutation {
                 path_rev: vec!["bar".into(), "foo".into()],
-                operation: Operation::Append(json!("12")),
+                operation: MutationKind::Append(json!("12")),
             }),
         );
 
         let mut batch = Batch::<JsonAdapter>::new();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["bar".into()],
-                operation: Operation::Append(json!("2")),
+                operation: MutationKind::Append(json!("2")),
             })
             .unwrap();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["qux".into()],
-                operation: Operation::Append(json!("1")),
+                operation: MutationKind::Append(json!("1")),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
-            Some(Change {
+            Some(Mutation {
                 path_rev: vec![],
-                operation: Operation::Batch(vec![
-                    Change {
+                operation: MutationKind::Batch(vec![
+                    Mutation {
                         path_rev: vec!["bar".into()],
-                        operation: Operation::Append(json!("2")),
+                        operation: MutationKind::Append(json!("2")),
                     },
-                    Change {
+                    Mutation {
                         path_rev: vec!["qux".into()],
-                        operation: Operation::Append(json!("1")),
+                        operation: MutationKind::Append(json!("1")),
                     },
                 ]),
             }),
@@ -307,29 +302,29 @@ mod test {
 
         let mut batch = Batch::<JsonAdapter>::new();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["bar".into(), "foo".into()],
-                operation: Operation::Append(json!("2")),
+                operation: MutationKind::Append(json!("2")),
             })
             .unwrap();
         batch
-            .load(Change {
+            .load(Mutation {
                 path_rev: vec!["qux".into(), "foo".into()],
-                operation: Operation::Append(json!("1")),
+                operation: MutationKind::Append(json!("1")),
             })
             .unwrap();
         assert_eq!(
             batch.dump(),
-            Some(Change {
+            Some(Mutation {
                 path_rev: vec!["foo".into()],
-                operation: Operation::Batch(vec![
-                    Change {
+                operation: MutationKind::Batch(vec![
+                    Mutation {
                         path_rev: vec!["bar".into()],
-                        operation: Operation::Append(json!("2")),
+                        operation: MutationKind::Append(json!("2")),
                     },
-                    Change {
+                    Mutation {
                         path_rev: vec!["qux".into()],
-                        operation: Operation::Append(json!("1")),
+                        operation: MutationKind::Append(json!("1")),
                     },
                 ]),
             }),

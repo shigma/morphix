@@ -6,8 +6,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
 
 use serde::{Serialize, Serializer};
 
-use crate::observe::MutationState;
-use crate::{Adapter, Batch, Change, Observe, Observer, Operation, StatefulObserver};
+use crate::{Adapter, Batch, Mutation, MutationKind, MutationState, Observe, Observer, StatefulObserver};
 
 /// An observer for [Vec](std::vec::Vec) that tracks both replacements and appends.
 ///
@@ -56,17 +55,17 @@ impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
         }
     }
 
-    fn collect<A: Adapter>(mut this: Self) -> Result<Option<Change<A>>, A::Error> {
-        let mut changes = vec![];
+    fn collect<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
+        let mut mutations = vec![];
         let mut max_index = None;
         if let Some(mutation) = Self::mutation_state(&mut this).take() {
-            changes.push(Change {
+            mutations.push(Mutation {
                 path_rev: vec![],
                 operation: match mutation {
-                    MutationState::Replace => Operation::Replace(A::new_replace(&*this)?),
+                    MutationState::Replace => MutationKind::Replace(A::new_replace(&*this)?),
                     MutationState::Append(start_index) => {
                         max_index = Some(start_index);
-                        Operation::Append(A::new_append(&*this, start_index)?)
+                        MutationKind::Append(A::new_append(&*this, start_index)?)
                     }
                 },
             });
@@ -79,12 +78,12 @@ impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
                 // already included in append
                 continue;
             }
-            if let Some(mut change) = Observer::collect::<A>(observer)? {
-                change.path_rev.push(index.to_string().into());
-                changes.push(change);
+            if let Some(mut mutation) = Observer::collect::<A>(observer)? {
+                mutation.path_rev.push(index.to_string().into());
+                mutations.push(mutation);
             }
         }
-        Ok(Batch::build(changes))
+        Ok(Batch::build(mutations))
     }
 }
 

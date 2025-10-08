@@ -4,14 +4,14 @@ use std::fmt::Display;
 
 /// Error types for mutation operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ChangeError {
+pub enum MutationError {
     /// The specified path does not exist.
     IndexError { path: Vec<Cow<'static, str>> },
-    /// Operation could not be performed at the specified path.
+    /// Mutation could not be performed at the specified path.
     OperationError { path: Vec<Cow<'static, str>> },
 }
 
-impl Display for ChangeError {
+impl Display for MutationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::IndexError { path } => {
@@ -26,4 +26,4 @@ impl Display for ChangeError {
     }
 }
 
-impl Error for ChangeError {}
+impl Error for MutationError {}

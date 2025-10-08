@@ -3,23 +3,23 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 use serde::Serialize;
 
-use crate::{Adapter, Change, Observe, Observer, Operation};
+use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 
 /// A generic observer that only tracks complete replacements.
 ///
 /// `ShallowObserver` provides a basic observer implementation that treats any
 /// mutation through `DerefMut` as a complete replacement of the value. It does
-/// not track internal changes, making it suitable for:
+/// not track internal mutations, making it suitable for:
 ///
 /// 1. Primitive types (numbers, booleans, etc.) that cannot be partially modified
-/// 2. Types where internal change tracking is not needed
+/// 2. Types where internal mutation tracking is not needed
 /// 3. External types that do not implement `Observe`
 ///
-/// ## Usage Scenarios
+/// ## Examples
 ///
-/// 1. Built-in implementation for primitive types:
+/// Built-in implementation for primitive types:
 ///
-/// ```rust
+/// ```
 /// use morphix::{Observe, Observer, JsonAdapter};
 ///
 /// let mut value = 42i32;
@@ -27,9 +27,9 @@ use crate::{Adapter, Change, Observe, Observer, Operation};
 /// *observer = 43;  // Recorded as a complete replacement
 /// ```
 ///
-/// 2. Explicit usage via `#[observe(shallow)]` attribute:
+/// Explicit usage via `#[observe(shallow)]` attribute:
 ///
-/// ```rust
+/// ```
 /// use morphix::Observe;
 /// use serde::Serialize;
 ///
@@ -61,14 +61,14 @@ impl<'i, T> Observer<'i, T> for ShallowObserver<'i, T> {
         ShallowObserver::new(value)
     }
 
-    fn collect<A: Adapter>(this: Self) -> Result<Option<Change<A>>, A::Error>
+    fn collect<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
     where
         T: Serialize,
     {
         Ok(if this.replaced {
-            Some(Change {
+            Some(Mutation {
                 path_rev: vec![],
-                operation: Operation::Replace(A::new_replace(&*this)?),
+                operation: MutationKind::Replace(A::new_replace(&*this)?),
             })
         } else {
             None

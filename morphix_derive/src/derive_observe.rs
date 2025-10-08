@@ -103,9 +103,9 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                 }
                 if meta.mode != ObserveMode::Ignore {
                     collect_stmts.push(quote! {
-                        if let Some(mut change) = ::morphix::Observer::collect::<A>(this.#field_ident)? {
-                            change.path_rev.push(stringify!(#field_ident).into());
-                            changes.push(change);
+                        if let Some(mut mutation) = ::morphix::Observer::collect::<A>(this.#field_ident)? {
+                            mutation.path_rev.push(stringify!(#field_ident).into());
+                            mutations.push(mutation);
                         }
                     });
                 }
@@ -148,16 +148,16 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
 
                 fn collect<A: ::morphix::Adapter>(
                     this: Self,
-                ) -> ::std::result::Result<::std::option::Option<::morphix::Change<A>>, A::Error> {
-                    let mut changes = vec![];
+                ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A>>, A::Error> {
+                    let mut mutations = vec![];
                     if this.replaced {
-                        changes.push(::morphix::Change {
+                        mutations.push(::morphix::Mutation {
                             path_rev: vec![],
-                            operation: ::morphix::Operation::Replace(A::new_replace(&*this)?),
+                            operation: ::morphix::MutationKind::Replace(A::new_replace(&*this)?),
                         });
                     };
                     #(#collect_stmts)*
-                    Ok(::morphix::Batch::build(changes))
+                    Ok(::morphix::Batch::build(mutations))
                 }
             }
 

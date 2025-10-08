@@ -5,11 +5,11 @@ use proc_macro::TokenStream;
 mod derive_observe;
 mod observe;
 
-/// Derive the `Observe` trait for structs to enable change tracking.
+/// Derive the `Observe` trait for structs to enable mutation tracking.
 ///
 /// This macro generates an observer type that wraps your struct and tracks
 /// mutations to its fields. The generated observer provides field-level
-/// change detection with support for nested structures.
+/// mutation detection with support for nested structures.
 ///
 /// ## Requirements
 ///
@@ -25,7 +25,7 @@ mod observe;
 ///
 /// ## Example
 ///
-/// ```rust
+/// ```
 /// use serde::Serialize;
 /// use morphix::Observe;
 ///
@@ -58,11 +58,11 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
     .into()
 }
 
-/// Observe mutations within a closure and collect changes.
+/// Observe and collect mutations within a closure.
 ///
 /// This macro wraps a closure's operations to track all mutations that occur
 /// within it. The closure receives a mutable reference to the value, and any
-/// changes made are automatically collected and returned.
+/// mutations made are automatically collected and returned.
 ///
 /// ## Syntax
 ///
@@ -78,16 +78,16 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 ///
 /// ## Returns
 ///
-/// Returns `Result<Option<Change<A>>, A::Error>` where:
-/// - `Ok(None)` - No changes were made
-/// - `Ok(Some(change))` - Contains the collected changes
+/// Returns `Result<Option<Mutation<A>>, A::Error>` where:
+/// - `Ok(None)` - No mutations were made
+/// - `Ok(Some(mutation))` - Contains the collected mutations
 /// - `Err(error)` - Serialization failed
 ///
-/// ## Example
+/// ## Examples
 ///
 /// With explicit adapter type:
 ///
-/// ```rust
+/// ```
 /// use serde::Serialize;
 /// use morphix::{JsonAdapter, Observe, observe};
 ///
@@ -99,7 +99,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 ///
 /// let mut point = Point { x: 1.0, y: 2.0 };
 /// 
-/// let change = observe!(JsonAdapter, |mut point| {
+/// let mutation = observe!(JsonAdapter, |mut point| {
 ///     point.x += 1.0;
 ///     point.y *= 2.0;
 /// }).unwrap();
@@ -110,7 +110,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 ///
 /// With type inference:
 ///
-/// ```rust
+/// ```
 /// # use serde::Serialize;
 /// # use morphix::Observe;
 /// # #[derive(Serialize, Observe)]
@@ -118,11 +118,11 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 /// #     x: f64,
 /// #     y: f64,
 /// # }
-/// use morphix::{Change, JsonAdapter, observe};
+/// use morphix::{JsonAdapter, Mutation, observe};
 ///
 /// let mut point = Point { x: 1.0, y: 2.0 };
 /// 
-/// let change: Option<Change<JsonAdapter>> = observe!(|mut point| {
+/// let mutation: Option<Mutation<JsonAdapter>> = observe!(|mut point| {
 ///     point.x += 1.0;
 ///     point.y *= 2.0;
 /// }).unwrap();

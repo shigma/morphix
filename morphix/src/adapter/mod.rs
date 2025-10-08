@@ -2,16 +2,16 @@ use std::borrow::Cow;
 
 use serde::Serialize;
 
-use crate::{Change, ChangeError, Observe};
+use crate::{Mutation, MutationError, Observe};
 
 #[cfg(feature = "json")]
 pub mod json;
 #[cfg(feature = "yaml")]
 pub mod yaml;
 
-/// Trait for adapting changes to different serialization formats.
+/// Trait for adapting mutations to different serialization formats.
 /// 
-/// The `Adapter` trait provides an abstraction layer between the change detection
+/// The `Adapter` trait provides an abstraction layer between the mutation detection
 /// system and the serialization format. This allows morphix to support multiple
 /// output formats while maintaining type safety.
 /// 
@@ -25,7 +25,7 @@ pub mod yaml;
 /// 
 /// ```
 /// # use std::borrow::Cow;
-/// # use morphix::{Change, ChangeError, Observe};
+/// # use morphix::{Mutation, MutationError, Observe};
 /// use morphix::Adapter;
 /// use serde::Serialize;
 /// use serde_json::value::Serializer;
@@ -34,42 +34,38 @@ pub mod yaml;
 /// struct JsonAdapter;
 /// 
 /// impl Adapter for JsonAdapter {
-///     type Replace = Value;
-///     type Append = Value;
+///     type Value = Value;
 ///     type Error = Error;
 ///     
-///     fn new_replace<T: Serialize + ?Sized>(value: &T) -> Result<Self::Replace, Self::Error> {
+///     fn new_replace<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error> {
 ///         value.serialize(Serializer)
 ///     }
 ///     
 ///     // ... other methods
-///     # fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Append, Self::Error> {
+///     # fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Value, Self::Error> {
 ///     #     unimplemented!()
 ///     # }
 /// 
 ///     # fn apply_change(
-///     #     old_value: &mut Self::Replace,
-///     #     change: Change<Self>,
+///     #     old_value: &mut Self::Value,
+///     #     mutation: Mutation<Self>,
 ///     #     path_stack: &mut Vec<Cow<'static, str>>,
-///     # ) -> Result<(), ChangeError> {
+///     # ) -> Result<(), MutationError> {
 ///     #     unimplemented!()
 ///     # }
 ///
 ///     # fn merge_append(
-///     #     old_value: &mut Self::Append,
-///     #     new_value: Self::Append,
+///     #     old_value: &mut Self::Value,
+///     #     new_value: Self::Value,
 ///     #     path_stack: &mut Vec<Cow<'static, str>>,
-///     # ) -> Result<(), ChangeError> {
+///     # ) -> Result<(), MutationError> {
 ///     #     unimplemented!()
 ///     # }
 /// }
 /// ```
 pub trait Adapter: Sized {
-    /// Type used to represent `Replace` values.
-    type Replace;
-
-    /// Type used to represent `Append` values.
-    type Append;
+    /// Type used to represent `Replace` and `Append` values.
+    type Value;
 
     /// Error type for serialization / deserialization operations.
     type Error;
@@ -79,7 +75,7 @@ pub trait Adapter: Sized {
     /// ## Arguments
     /// 
     /// - `value` - The value to be serialized as a replacement
-    fn new_replace<T: Serialize + ?Sized>(value: &T) -> Result<Self::Replace, Self::Error>;
+    fn new_replace<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error>;
 
     /// Creates an append value from an observable type.
     /// 
@@ -87,27 +83,25 @@ pub trait Adapter: Sized {
     /// 
     /// - `value` - The value to be serialized for appending
     /// - `start_index` - The starting index for serialization (used for partial serialization)
-    fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Append, Self::Error>;
+    fn new_append<T: Observe + ?Sized>(value: &T, start_index: usize) -> Result<Self::Value, Self::Error>;
 
-    /// Applies a [Change] to an existing value.
+    /// Applies a [Mutation](crate::Mutation) to an existing value.
     /// 
     /// ## Arguments
     /// 
     /// - `old_value` - value to be modified
-    /// - `change` - change to apply
+    /// - `mutation` - mutation to apply
     /// - `path_stack` - stack for tracking the current path (used for error reporting)
     /// 
     /// ## Errors
     /// 
-    /// - Returns `ChangeError::IndexError` if the path doesn't exist.
-    /// - Returns `ChangeError::OperationError` if the operation cannot be performed.
-    /// 
-    /// [`Change`]: crate::Change
+    /// - Returns `MutationError::IndexError` if the path doesn't exist.
+    /// - Returns `MutationError::OperationError` if the operation cannot be performed.
     fn apply_change(
-        old_value: &mut Self::Replace,
-        change: Change<Self>,
+        old_value: &mut Self::Value,
+        mutation: Mutation<Self>,
         path_stack: &mut Vec<Cow<'static, str>>,
-    ) -> Result<(), ChangeError>;
+    ) -> Result<(), MutationError>;
 
     /// Merges one append value into another.
     /// 
@@ -119,10 +113,10 @@ pub trait Adapter: Sized {
     /// 
     /// ## Errors
     /// 
-    /// - Returns `ChangeError::OperationError` if the values cannot be merged.
+    /// - Returns `MutationError::OperationError` if the values cannot be merged.
     fn merge_append(
-        old_value: &mut Self::Append,
-        new_value: Self::Append,
+        old_value: &mut Self::Value,
+        new_value: Self::Value,
         path_stack: &mut Vec<Cow<'static, str>>,
-    ) -> Result<(), ChangeError>;
+    ) -> Result<(), MutationError>;
 }

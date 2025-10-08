@@ -3,8 +3,7 @@ use std::ops::{AddAssign, Deref, DerefMut};
 
 use serde::{Serialize, Serializer};
 
-use crate::observe::{MutationState, StatefulObserver};
-use crate::{Adapter, Change, Observe, Observer, Operation};
+use crate::{Adapter, Mutation, MutationKind, MutationState, Observe, Observer, StatefulObserver};
 
 /// An observer for [String](std::string::String) that tracks both replacements and appends.
 ///
@@ -48,13 +47,13 @@ impl<'i> Observer<'i, String> for StringObserver<'i> {
         }
     }
 
-    fn collect<A: Adapter>(mut this: Self) -> Result<Option<Change<A>>, A::Error> {
+    fn collect<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
         Ok(if let Some(mutation) = Self::mutation_state(&mut this).take() {
-            Some(Change {
+            Some(Mutation {
                 path_rev: vec![],
                 operation: match mutation {
-                    MutationState::Replace => Operation::Replace(A::new_replace(&*this)?),
-                    MutationState::Append(start_index) => Operation::Append(A::new_append(&*this, start_index)?),
+                    MutationState::Replace => MutationKind::Replace(A::new_replace(&*this)?),
+                    MutationState::Append(start_index) => MutationKind::Append(A::new_append(&*this, start_index)?),
                 },
             })
         } else {

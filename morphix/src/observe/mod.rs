@@ -2,8 +2,7 @@ use std::ops::DerefMut;
 
 use serde::{Serialize, Serializer};
 
-use crate::Change;
-use crate::adapter::Adapter;
+use crate::{Adapter, Mutation};
 
 mod shallow;
 mod string;
@@ -11,7 +10,7 @@ mod vec;
 
 pub use shallow::ShallowObserver;
 
-/// A trait for types that can be observed for changes.
+/// A trait for types that can be observed for mutations.
 ///
 /// Types implementing `Observe` can be wrapped in [Observers] that track mutations.
 /// The trait is typically derived using the `#[derive(Observe)]` macro.
@@ -86,7 +85,7 @@ pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
     /// - `value` - value to observe
     fn observe(value: &'i mut T) -> Self;
 
-    /// Collects all recorded changes using the specified adapter.
+    /// Collects all recorded mutations using the specified adapter.
     ///
     /// ## Type Parameters
     ///
@@ -94,13 +93,13 @@ pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
     ///
     /// ## Returns
     ///
-    /// - `None` if no changes were recorded,
-    /// - otherwise a `Change` containing all mutations that occurred.
+    /// - `None` if no mutations were recorded,
+    /// - otherwise a `Mutation` containing all mutations that occurred.
     ///
     /// ## Errors
     ///
     /// - Returns an error if serialization fails.
-    fn collect<A: Adapter>(this: Self) -> Result<Option<Change<A>>, A::Error>
+    fn collect<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
     where
         T: Serialize;
 }
@@ -119,56 +118,56 @@ pub enum MutationState {
 
 /// An [Observer] that maintains internal state about mutations.
 ///
-/// Unlike [ShallowObserver] which only tracks whether a change occurred,
+/// Unlike [ShallowObserver] which only tracks whether a mutation occurred,
 /// StatefulObserver implementations can distinguish between different
 /// types of mutations (replace vs. append) and optimize the resulting
-/// change representation accordingly.
+/// mutation representation accordingly.
 /// 
 /// ## Implementation Notes
 ///
 /// Implementing StatefulObserver allows an observer to track its own mutation
 /// state (e.g., replace or append), but this doesn't preclude tracking
-/// additional changes. Complex types like `Vec<T>` may need to track both:
+/// additional mutations. Complex types like `Vec<T>` may need to track both:
 ///
 /// - Their own mutation state (via StatefulObserver)
 /// - Changes to their elements (via nested observers)
 ///
-/// These different sources of changes are then combined into a final result:
+/// These different sources of mutations are then combined into a final result:
 ///
 /// ```ignore
 /// // Example from VecObserver implementation
 /// impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
-///     fn collect<A: Adapter>(mut this: Self) -> Result<Option<Change<A>>, A::Error> {
-///         let mut changes = vec![];
+///     fn collect<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
+///         let mut mutations = vec![];
 ///         
 ///         // 1. Collect own mutation state (replacement or append)
 ///         if let Some(state) = Self::mutation_state(&mut this).take() {
-///             changes.push(Change {
+///             mutations.push(Mutation {
 ///                 operation: match state {
-///                     MutationState::Replace => Operation::Replace(..),
-///                     MutationState::Append(idx) => Operation::Append(..),
+///                     MutationState::Replace => MutationKind::Replace(..),
+///                     MutationState::Append(idx) => MutationKind::Append(..),
 ///                 },
 ///                 // ...
 ///             });
 ///         }
 ///         
-///         // 2. Collect changes from nested element observers
+///         // 2. Collect mutations from nested element observers
 ///         for (index, observer) in element_observers {
-///             if let Some(change) = observer.collect()? {
-///                 changes.push(change);
+///             if let Some(mutation) = observer.collect()? {
+///                 mutations.push(mutation);
 ///             }
 ///         }
 ///         
-///         // 3. Combine all changes (may result in a Batch)
-///         Ok(Batch::build(changes))
+///         // 3. Combine all mutations (may result in a Batch)
+///         Ok(Batch::build(mutations))
 ///     }
 /// }
 /// ```
 ///
-/// This design allows for sophisticated change tracking where:
-/// - Simple operations (like `vec.push()`) produce an `Append` change
-/// - Element modifications (like `vec[0].field = value`) produce element-specific changes
-/// - Multiple operations produce a `Batch` containing all changes
+/// This design allows for sophisticated mutation tracking where:
+/// - Simple operations (like `vec.push()`) produce an `Append` mutation
+/// - Element modifications (like `vec[0].field = value`) produce element-specific mutations
+/// - Multiple operations produce a `Batch` containing all mutations
 ///
 /// Currently implemented for:
 /// - `String`
