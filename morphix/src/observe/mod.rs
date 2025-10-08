@@ -4,11 +4,13 @@ use serde::Serialize;
 
 use crate::{Adapter, Mutation};
 
+mod hash;
 mod shallow;
 mod snapshot;
 mod string;
 mod vec;
 
+pub use hash::HashObserver;
 pub use shallow::ShallowObserver;
 pub use snapshot::SnapshotObserver;
 

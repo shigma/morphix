@@ -63,6 +63,9 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                     for ident in args.0 {
                         if ident == "ignore" {
                             meta.mode = ObserveMode::Ignore;
+                        } else if ident == "hash" {
+                            let ob_ident = syn::Ident::new("HashObserver", ident.span());
+                            meta.mode = ObserveMode::Builtin(ob_ident);
                         } else if ident == "shallow" {
                             let ob_ident = syn::Ident::new("ShallowObserver", ident.span());
                             meta.mode = ObserveMode::Builtin(ob_ident);
@@ -72,7 +75,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                         } else {
                             errors.push(syn::Error::new(
                                 ident.span(),
-                                "unknown argument, expected 'ignore', 'shallow' or 'snapshot'",
+                                "unknown argument, expected 'hash', 'ignore', 'shallow' or 'snapshot'",
                             ));
                         }
                     }
