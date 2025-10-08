@@ -192,9 +192,8 @@ pub enum MutationKind<A: Adapter> {
     /// over `Replace` for efficiency.
     Replace(A::Value),
 
-    /// `Append` represents adding data to the end of a string or vector.
-    /// This is more efficient than `Replace` because only the appended
-    /// portion needs to be serialized and transmitted.
+    /// `Append` represents adding data to the end of a string or vector. This is more efficient
+    /// than `Replace` because only the appended portion needs to be serialized and transmitted.
     ///
     /// ## Examples
     ///
@@ -217,9 +216,8 @@ pub enum MutationKind<A: Adapter> {
     /// ```
     Append(A::Value),
 
-    /// `Batch` combines multiple mutations that occurred during a single
-    /// observation period. This is automatically created when multiple
-    /// independent changes are detected.
+    /// `Batch` combines multiple mutations that occurred during a single observation period. This
+    /// is automatically created when multiple independent changes are detected.
     ///
     /// ## Optimization
     ///

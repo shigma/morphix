@@ -33,10 +33,10 @@ mod observe;
 /// struct User {
 ///     name: String,         // StringObserver
 ///     age: i32,             // ShallowObserver<i32>
-///     
+///
 ///     #[observe(ignore)]
 ///     cache: String,        // Not tracked
-///     
+///
 ///     #[observe(shallow)]
 ///     metadata: Metadata,   // ShallowObserver<Metadata>
 /// }
@@ -98,7 +98,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 /// }
 ///
 /// let mut point = Point { x: 1.0, y: 2.0 };
-/// 
+///
 /// let mutation = observe!(JsonAdapter, |mut point| {
 ///     point.x += 1.0;
 ///     point.y *= 2.0;
@@ -121,7 +121,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 /// use morphix::{JsonAdapter, Mutation, observe};
 ///
 /// let mut point = Point { x: 1.0, y: 2.0 };
-/// 
+///
 /// let mutation: Option<Mutation<JsonAdapter>> = observe!(|mut point| {
 ///     point.x += 1.0;
 ///     point.y *= 2.0;

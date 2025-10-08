@@ -7,9 +7,8 @@ use crate::{Adapter, Mutation, MutationError, MutationKind};
 
 /// A batch collector for aggregating and optimizing multiple mutations.
 ///
-/// `Batch` is used internally to collect multiple mutations and optimize them
-/// before creating the final mutation. It can merge consecutive append
-/// operations and eliminate redundant mutations.
+/// `Batch` is used internally to collect multiple mutations and optimize them before creating the
+/// final mutation. It can merge consecutive append operations and eliminate redundant mutations.
 ///
 /// ## Type Parameters
 ///

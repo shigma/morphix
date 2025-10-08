@@ -7,8 +7,8 @@ use crate::{Adapter, Mutation, MutationKind, MutationState, Observe, Observer, S
 
 /// An observer for [String](std::string::String) that tracks both replacements and appends.
 ///
-/// `StringObserver` provides special handling for string append operations,
-/// distinguishing them from complete replacements for efficiency.
+/// `StringObserver` provides special handling for string append operations, distinguishing them
+/// from complete replacements for efficiency.
 ///
 /// ## Supported Operations
 ///

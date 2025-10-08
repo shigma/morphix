@@ -10,8 +10,8 @@ use crate::{Adapter, Batch, Mutation, MutationKind, MutationState, Observe, Obse
 
 /// An observer for [Vec](std::vec::Vec) that tracks both replacements and appends.
 ///
-/// `VecObserver` provides special handling for vector append operations,
-/// distinguishing them from complete replacements for efficiency.
+/// `VecObserver` provides special handling for vector append operations, distinguishing them from
+/// complete replacements for efficiency.
 ///
 /// ## Supported Operations
 ///

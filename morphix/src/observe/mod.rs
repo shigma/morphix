@@ -51,8 +51,8 @@ pub trait Observe: Serialize {
 
     /// Serializes only the appended portion of the value.
     ///
-    /// This method is used for optimizing append operations by only
-    /// serializing the new data rather than the entire value.
+    /// This method is used for optimizing append operations by only serializing the new data rather
+    /// than the entire value.
     ///
     /// ## Arguments
     ///
@@ -75,8 +75,8 @@ pub trait Observe: Serialize {
 
 /// A trait for observer types that wrap and track mutations to values.
 ///
-/// Observers provide transparent access to the underlying value while
-/// recording any mutations that occur.
+/// Observers provide transparent access to the underlying value while recording any mutations that
+/// occur.
 pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
     /// Creates a new observer for the given value.
     ///
@@ -106,8 +106,8 @@ pub trait Observer<'i, T: ?Sized>: DerefMut<Target = T> {
 
 /// State of mutations tracked by a StatefulObserver(crate::StatefulObserver).
 ///
-/// This enum represents the specific type of mutation that has been
-/// detected by observers that implement StatefulObserver.
+/// This enum represents the specific type of mutation that has been detected by observers that
+/// implement StatefulObserver.
 #[derive(Clone, Copy)]
 pub enum MutationState {
     /// Complete replacement of the value
@@ -118,16 +118,15 @@ pub enum MutationState {
 
 /// An [Observer] that maintains internal state about mutations.
 ///
-/// Unlike [ShallowObserver] which only tracks whether a mutation occurred,
-/// StatefulObserver implementations can distinguish between different
-/// types of mutations (replace vs. append) and optimize the resulting
-/// mutation representation accordingly.
-/// 
+/// Unlike [ShallowObserver] which only tracks whether a mutation occurred, StatefulObserver
+/// implementations can distinguish between different types of mutations (replace vs. append) and
+/// optimize the resulting mutation representation accordingly.
+///
 /// ## Implementation Notes
 ///
-/// Implementing StatefulObserver allows an observer to track its own mutation
-/// state (e.g., replace or append), but this doesn't preclude tracking
-/// additional mutations. Complex types like `Vec<T>` may need to track both:
+/// Implementing StatefulObserver allows an observer to track its own mutation state (e.g., replace
+/// or append), but this doesn't preclude tracking additional mutations. Complex types like `Vec<T>`
+/// may need to track both:
 ///
 /// - Their own mutation state (via StatefulObserver)
 /// - Changes to their elements (via nested observers)
@@ -139,7 +138,7 @@ pub enum MutationState {
 /// impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
 ///     fn collect<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
 ///         let mut mutations = vec![];
-///         
+///
 ///         // 1. Collect own mutation state (replacement or append)
 ///         if let Some(state) = Self::mutation_state(&mut this).take() {
 ///             mutations.push(Mutation {
@@ -150,14 +149,14 @@ pub enum MutationState {
 ///                 // ...
 ///             });
 ///         }
-///         
+///
 ///         // 2. Collect mutations from nested element observers
 ///         for (index, observer) in element_observers {
 ///             if let Some(mutation) = observer.collect()? {
 ///                 mutations.push(mutation);
 ///             }
 ///         }
-///         
+///
 ///         // 3. Combine all mutations (may result in a Batch)
 ///         Ok(Batch::build(mutations))
 ///     }

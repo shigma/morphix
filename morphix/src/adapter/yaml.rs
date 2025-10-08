@@ -9,9 +9,8 @@ use crate::{Adapter, Mutation, MutationError, MutationKind};
 
 /// YAML adapter for morphix mutation serialization.
 ///
-/// `YamlAdapter` implements the `Adapter` trait using `serde_yml::Value` for both
-/// replacement and append operations. This adapter is available when the `yaml`
-/// feature is enabled.
+/// `YamlAdapter` implements the `Adapter` trait using `serde_yml::Value` for both replacement and
+/// append operations. This adapter is available when the `yaml` feature is enabled.
 ///
 /// ## Example
 ///

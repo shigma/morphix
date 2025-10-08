@@ -7,9 +7,9 @@ use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 
 /// A generic observer that only tracks complete replacements.
 ///
-/// `ShallowObserver` provides a basic observer implementation that treats any
-/// mutation through `DerefMut` as a complete replacement of the value. It does
-/// not track internal mutations, making it suitable for:
+/// `ShallowObserver` provides a basic observer implementation that treats any mutation through
+/// `DerefMut` as a complete replacement of the value. It does not track internal mutations, making
+/// it suitable for:
 ///
 /// 1. Primitive types (numbers, booleans, etc.) that cannot be partially modified
 /// 2. Types where internal mutation tracking is not needed
