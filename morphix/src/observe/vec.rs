@@ -20,21 +20,21 @@ use crate::{Adapter, Batch, Mutation, MutationKind, MutationState, Observe, Obse
 /// - [Vec::extend](std::iter::Extend)
 /// - [Vec::extend_from_slice](std::vec::Vec::extend_from_slice)
 /// - [Vec::extend_from_within](std::vec::Vec::extend_from_within)
-pub struct VecObserver<'i, T: Observe> {
+pub struct VecObserver<'i, T: Observe, O: Observer<'i, Target = T> = <T as Observe>::Observer<'i>> {
     ptr: *mut Vec<T>,
     mutation: Option<MutationState>,
-    obs: UnsafeCell<HashMap<usize, T::Observer<'i>>>,
+    obs: UnsafeCell<HashMap<usize, O>>,
     phantom: PhantomData<&'i mut T>,
 }
 
-impl<'i, T: Observe> Deref for VecObserver<'i, T> {
+impl<'i, T: Observe, O: Observer<'i, Target = T>> Deref for VecObserver<'i, T, O> {
     type Target = Vec<T>;
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.ptr }
     }
 }
 
-impl<'i, T: Observe> DerefMut for VecObserver<'i, T> {
+impl<'i, T: Observe, O: Observer<'i, Target = T>> DerefMut for VecObserver<'i, T, O> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         Self::mark_replace(self);
         take(&mut self.obs);
@@ -42,7 +42,7 @@ impl<'i, T: Observe> DerefMut for VecObserver<'i, T> {
     }
 }
 
-impl<'i, T: Observe> Observer<'i> for VecObserver<'i, T> {
+impl<'i, T: Observe, O: Observer<'i, Target = T>> Observer<'i> for VecObserver<'i, T, O> {
     #[inline]
     fn observe(value: &'i mut Vec<T>) -> Self {
         Self {
@@ -85,7 +85,7 @@ impl<'i, T: Observe> Observer<'i> for VecObserver<'i, T> {
     }
 }
 
-impl<'i, T: Observe> StatefulObserver<'i> for VecObserver<'i, T> {
+impl<'i, T: Observe, O: Observer<'i, Target = T>> StatefulObserver<'i> for VecObserver<'i, T, O> {
     fn mutation_state(this: &mut Self) -> &mut Option<MutationState> {
         &mut this.mutation
     }
@@ -93,12 +93,12 @@ impl<'i, T: Observe> StatefulObserver<'i> for VecObserver<'i, T> {
 
 impl<T: Observe> Observe for Vec<T> {
     type Observer<'i>
-        = VecObserver<'i, T>
+        = VecObserver<'i, T, T::Observer<'i>>
     where
         Self: 'i;
 }
 
-impl<'i, T: Observe> VecObserver<'i, T> {
+impl<'i, T: Observe, O: Observer<'i, Target = T>> VecObserver<'i, T, O> {
     #[inline]
     fn as_mut(&mut self) -> &mut Vec<T> {
         unsafe { &mut *self.ptr }
@@ -142,7 +142,7 @@ impl<'i, T: Observe> VecObserver<'i, T> {
     }
 }
 
-impl<'i, T: Observe + Clone> VecObserver<'i, T> {
+impl<'i, T: Observe + Clone, O: Observer<'i, Target = T>> VecObserver<'i, T, O> {
     pub fn extend_from_slice(&mut self, other: &[T]) {
         if other.is_empty() {
             return;
@@ -157,14 +157,14 @@ impl<'i, T: Observe + Clone> VecObserver<'i, T> {
     }
 }
 
-impl<'i, T: Observe> Extend<T> for VecObserver<'i, T> {
+impl<'i, T: Observe, O: Observer<'i, Target = T>> Extend<T> for VecObserver<'i, T, O> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, other: I) {
         Self::mark_append(self, self.len());
         self.as_mut().extend(other);
     }
 }
 
-impl<'i, 'a, T: Observe + Copy + 'a> Extend<&'a T> for VecObserver<'i, T> {
+impl<'i, 'a, T: Observe + Copy + 'a, O: Observer<'i, Target = T>> Extend<&'a T> for VecObserver<'i, T, O> {
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, other: I) {
         Self::mark_append(self, self.len());
         self.as_mut().extend(other);
@@ -172,19 +172,19 @@ impl<'i, 'a, T: Observe + Copy + 'a> Extend<&'a T> for VecObserver<'i, T> {
 }
 
 // TODO: handle range
-impl<'i, T: Observe> Index<usize> for VecObserver<'i, T> {
-    type Output = T::Observer<'i>;
+impl<'i, T: Observe, O: Observer<'i, Target = T>> Index<usize> for VecObserver<'i, T, O> {
+    type Output = O;
     fn index(&self, index: usize) -> &Self::Output {
         let value = unsafe { &mut (&mut *self.ptr)[index] };
         let obs = unsafe { &mut *self.obs.get() };
-        obs.entry(index).or_insert_with(|| value.observe())
+        obs.entry(index).or_insert_with(|| O::observe(value))
     }
 }
 
-impl<'i, T: Observe> IndexMut<usize> for VecObserver<'i, T> {
+impl<'i, T: Observe, O: Observer<'i, Target = T>> IndexMut<usize> for VecObserver<'i, T, O> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         let value = unsafe { &mut (&mut *self.ptr)[index] };
         let obs = unsafe { &mut *self.obs.get() };
-        obs.entry(index).or_insert_with(|| value.observe())
+        obs.entry(index).or_insert_with(|| O::observe(value))
     }
 }
