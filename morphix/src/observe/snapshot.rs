@@ -20,16 +20,16 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 /// ```
 /// # use morphix::Observe;
 /// # use serde::Serialize;
-/// # #[derive(Clone, PartialEq)]
+/// # #[derive(Serialize, Clone, PartialEq)]
 /// # struct Uuid;
-/// # #[derive(Clone, PartialEq)]
+/// # #[derive(Serialize, Clone, PartialEq)]
 /// # struct BitFlags;
 /// #[derive(Serialize, Clone, PartialEq, Observe)]
 /// struct MyStruct {
 ///     #[observe(snapshot)]
-///     id: Uuid,  // Cheap to clone and compare
+///     id: Uuid,           // Cheap to clone and compare
 ///     #[observe(snapshot)]
-///     flags: BitFlags,  // Small Copy type
+///     flags: BitFlags,    // Small Copy type
 /// }
 /// ```
 ///

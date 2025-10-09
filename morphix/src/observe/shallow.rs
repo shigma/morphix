@@ -13,6 +13,7 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 /// ```
 /// # use morphix::Observe;
 /// # use serde::Serialize;
+/// # #[derive(Serialize)]
 /// # struct ExternalType;
 /// #[derive(Serialize, Observe)]
 /// struct MyStruct {

@@ -17,7 +17,6 @@ impl Parse for ObserveArguments {
 enum ObserveMode {
     #[default]
     Default,
-    Ignore,
     Builtin(syn::Ident),
 }
 
@@ -61,10 +60,11 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                         }
                     };
                     for ident in args.0 {
-                        if ident == "ignore" {
-                            meta.mode = ObserveMode::Ignore;
-                        } else if ident == "hash" {
+                        if ident == "hash" {
                             let ob_ident = syn::Ident::new("HashObserver", ident.span());
+                            meta.mode = ObserveMode::Builtin(ob_ident);
+                        } else if ident == "noop" {
+                            let ob_ident = syn::Ident::new("NoopObserver", ident.span());
                             meta.mode = ObserveMode::Builtin(ob_ident);
                         } else if ident == "shallow" {
                             let ob_ident = syn::Ident::new("ShallowObserver", ident.span());
@@ -91,14 +91,6 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                             #field_ident: ::morphix::Observe::observe(&mut value.#field_ident),
                         });
                     }
-                    ObserveMode::Ignore => {
-                        type_fields.push(quote! {
-                            pub #field_ident: &'morphix mut #field_ty,
-                        });
-                        inst_fields.push(quote! {
-                            #field_ident: &mut value.#field_ident,
-                        });
-                    }
                     ObserveMode::Builtin(ob_ident) => {
                         type_fields.push(quote! {
                             pub #field_ident: ::morphix::observe::#ob_ident<'morphix, #field_ty>,
@@ -108,14 +100,12 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                         });
                     }
                 }
-                if meta.mode != ObserveMode::Ignore {
-                    collect_stmts.push(quote! {
-                        if let Some(mut mutation) = ::morphix::Observer::collect::<A>(this.#field_ident)? {
-                            mutation.path_rev.push(stringify!(#field_ident).into());
-                            mutations.push(mutation);
-                        }
-                    });
-                }
+                collect_stmts.push(quote! {
+                    if let Some(mut mutation) = ::morphix::Observer::collect::<A>(this.#field_ident)? {
+                        mutation.path_rev.push(stringify!(#field_ident).into());
+                        mutations.push(mutation);
+                    }
+                });
             }
         }
         _ => {

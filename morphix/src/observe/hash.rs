@@ -17,10 +17,10 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 ///
 /// Can be used via the `#[observe(hash)]` attribute in derive macros:
 ///
-/// ```rust
+/// ```
 /// # use morphix::Observe;
 /// # use serde::Serialize;
-/// # #[derive(Hash)]
+/// # #[derive(Serialize, Hash)]
 /// # struct LargeConfig;
 /// #[derive(Serialize, Hash, Observe)]
 /// struct MyStruct {

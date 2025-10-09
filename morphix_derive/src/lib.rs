@@ -36,7 +36,7 @@ mod observe;
 ///     name: String,         // StringObserver
 ///     age: i32,             // SnapshotObserver<i32>
 ///
-///     #[observe(ignore)]
+///     #[observe(noop)]
 ///     cache: String,        // Not tracked
 ///
 ///     #[observe(shallow)]
