@@ -1,49 +1,38 @@
 use crate::observe::{GeneralHandler, GeneralObserver};
 
-/// A generic observer that only tracks complete replacements.
+/// An general observer that tracks any mutation access as a change.
 ///
-/// `ShallowObserver` provides a basic observer implementation that treats any mutation through
-/// [`DerefMut`](std::ops::DerefMut) as a complete replacement of the value. It does not track
-/// internal mutations, making it suitable for:
+/// `ShallowObserver` uses a simple boolean flag to track whether [`DerefMut`] has been called,
+/// treating any mutable access as a change. This makes it extremely efficient with minimal
+/// overhead.
 ///
-/// 1. Primitive types (numbers, booleans, etc.) that cannot be partially modified
-/// 2. Types where internal mutation tracking is not needed
-/// 3. External types that do not implement `Observe`
+/// ## Derive Usage
 ///
-/// ## Examples
-///
-/// Built-in implementation for primitive types:
+/// Can be used via the `#[observe(shallow)]` attribute in derive macros:
 ///
 /// ```
-/// use morphix::{Observe, Observer, JsonAdapter};
-///
-/// let mut value = 42i32;
-/// let mut observer = value.observe();  // ShallowObserver<i32>
-/// *observer = 43;  // Recorded as a complete replacement
-/// ```
-///
-/// Explicit usage via `#[observe(shallow)]` attribute:
-///
-/// ```
-/// use morphix::Observe;
-/// use serde::Serialize;
-///
-/// // External type that doesn't implement Observe
-/// #[derive(Serialize)]
-/// struct External;
-///
+/// # use morphix::Observe;
+/// # use serde::Serialize;
+/// # struct ExternalType;
 /// #[derive(Serialize, Observe)]
 /// struct MyStruct {
 ///     #[observe(shallow)]
-///     external: External,  // use ShallowObserver<External>
-///     normal: String,      // use StringObserver
+///     external_data: ExternalType,    // ExternalType doesn't implement Observe
 /// }
 /// ```
 ///
-/// ## Type Parameters
+/// ## When to Use
 ///
-/// - `'i` - lifetime of the observed value
-/// - `T` - type being observed
+/// Despite its limitations, `ShallowObserver` is usually the best choice for external types that
+/// don't implement the `Observe` trait, as the performance benefits typically outweigh
+/// the occasional false positive.
+///
+/// ## Limitations
+///
+/// 1. **False positives on round-trip changes**: If a value is modified and then restored to its
+///    original value, it's still reported as changes.
+/// 2. **False positives on non-semantic changes**: Operations that don't affect serialization (like
+///    [`Vec::reserve`]) are still reported as changes.
 pub type ShallowObserver<'i, T> = GeneralObserver<'i, T, ShallowHandler>;
 
 pub struct ShallowHandler {

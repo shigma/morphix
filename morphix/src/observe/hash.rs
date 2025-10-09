@@ -3,49 +3,45 @@ use std::marker::PhantomData;
 
 use crate::observe::{GeneralHandler, GeneralObserver};
 
-/// An observer that uses hashing for efficient change detection.
+/// A general observer that uses hash comparison to detect changes.
 ///
-/// `HashObserver` computes a hash of the initial value and compares it with the hash of the final
-/// value to detect changes. This is more efficient than full value comparison for large structures,
-/// though it cannot detect the specific nature of the change.
+/// `HashObserver` computes and stores a hash of the initial value, then compares it
+/// with the final value's hash to detect changes. This can be more efficient than
+/// full value comparison for large structures.
 ///
-/// ## Use Cases
+/// ## Requirements
 ///
-/// This observer is ideal for:
-/// - Large structures where full comparison is expensive
-/// - Types that implement `Hash` but not `Clone` or where cloning is expensive
-/// - Scenarios where you only need to know if something changed, not what changed
-/// - Configuration objects with many fields
+/// The observed type must implement [`Hash`].
+///
+/// ## Derive Usage
+///
+/// Can be used via the `#[observe(hash)]` attribute in derive macros:
+///
+/// ```rust
+/// # use morphix::Observe;
+/// # use serde::Serialize;
+/// # #[derive(Hash)]
+/// # struct LargeConfig;
+/// #[derive(Serialize, Hash, Observe)]
+/// struct MyStruct {
+///     #[observe(hash)]
+///     config: LargeConfig,    // Large struct where hashing is cheaper than cloning
+/// }
+/// ```
+///
+/// # When to Use
+///
+/// `HashObserver` is suitable when:
+/// 1. The type implements [`Hash`] and can be hashed efficiently
+/// 2. The value may change frequently (so that [`ShallowObserver`](super::ShallowObserver) would
+///    become less efficient or yield false positives)
+/// 3. Hash computation is cheaper than cloning and comparison
 ///
 /// ## Limitations
 ///
-/// - Only produces `Replace` mutations (cannot detect `Append` operations)
-/// - Hash collisions are theoretically possible (though extremely rare)
-/// - Requires recomputing the hash on collection
-///
-/// ## Example
-///
-/// ```
-/// use std::collections::HashMap;
-/// use morphix::{Observe, Observer, JsonAdapter};
-///
-/// #[derive(Serialize, Hash, Observe)]
-/// struct LargeConfig {
-///     #[observe(hash)]
-///     data: Vec<u8>,  // Large binary data
-/// }
-///
-/// let mut config = LargeConfig {
-///     data: vec![0; 1024],
-/// };
-///
-/// let mutation = observe!(JsonAdapter, |mut config| {
-///     config.data[0] = 1;  // Modify the data
-/// }).unwrap();
-///
-/// // Efficiently detected change without cloning the entire Vec
-/// assert!(mutation.is_some());
-/// ```
+/// 1. **Hash collisions**: Different values might have the same hash (though rare)
+/// 2. **Performance**: For small types, hashing might be slower than
+///    [`ShallowObserver`](super::ShallowObserver)
 pub type HashObserver<'i, T, H = DefaultHasher> = GeneralObserver<'i, T, HashHandler<H>>;
 
 pub struct HashHandler<H> {

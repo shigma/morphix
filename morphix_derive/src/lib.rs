@@ -21,7 +21,7 @@ mod observe;
 /// You can customize how individual fields are observed using the `#[observe(...)]` attribute:
 ///
 /// - `#[observe(hash)]` - Field will use [HashObserver](morphix::observe::HashObserver)
-/// - `#[observe(ignore)]` - Field mutations will not be tracked
+/// - `#[observe(noop)]` - Field will use [NoopObserver](morphix::observe::NoopObserver)
 /// - `#[observe(shallow)]` - Field will use [ShallowObserver](morphix::observe::ShallowObserver)
 /// - `#[observe(snapshot)]` - Field will use [SnapshotObserver](morphix::observe::SnapshotObserver)
 ///

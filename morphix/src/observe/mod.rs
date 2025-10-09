@@ -6,6 +6,7 @@ use crate::{Adapter, Mutation};
 
 mod general;
 mod hash;
+mod noop;
 mod shallow;
 mod snapshot;
 mod string;
@@ -13,6 +14,7 @@ mod vec;
 
 pub use general::{GeneralHandler, GeneralObserver};
 pub use hash::HashObserver;
+pub use noop::NoopObserver;
 pub use shallow::ShallowObserver;
 pub use snapshot::SnapshotObserver;
 

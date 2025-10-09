@@ -1,68 +1,49 @@
 use crate::Observe;
 use crate::observe::{GeneralHandler, GeneralObserver};
 
-/// An observer that detects changes by comparing snapshots.
+/// A general observer that uses snapshot comparison to detect actual value changes.
 ///
-/// Unlike [`ShallowObserver`](super::ShallowObserver) which tracks any
-/// [`DerefMut`](std::ops::DerefMut) access as a mutation, `SnapshotObserver` creates an initial
-/// snapshot of the value and only reports mutation if the final value actually differs from the
-/// snapshot.
-///
-/// This observer is ideal for:
-/// - Small, cheaply cloneable types (e.g., `Uuid`, `DateTime`, small enums)
-/// - Types where [`DerefMut`] might be called without actual modification
-/// - Cases where you only care about actual value changes, not access patterns
+/// `SnapshotObserver` creates a clone of the initial value and compares it with the
+/// final value using `PartialEq`. This provides accurate change detection by comparing
+/// actual values rather than tracking access patterns.
 ///
 /// ## Requirements
 ///
 /// The observed type must implement:
-/// - [`Clone`] - for creating the snapshot (should be cheap)
-/// - [`PartialEq`] - for comparing the final value with the snapshot
-/// - [`Serialize`] - for generating the mutation
+/// - [`Clone`] - for creating the snapshot
+/// - [`PartialEq`] - for comparing values
 ///
-/// ## Example
+/// ## Derive Usage
+///
+/// Can be used via the `#[observe(snapshot)]` attribute in derive macros:
 ///
 /// ```
-/// use morphix::{JsonAdapter, Observe, Observer, observe};
-/// use serde::Serialize;
-/// use uuid::Uuid;
-///
-/// #[derive(Clone, PartialEq, Serialize, Observe)]
-/// struct Config {
+/// # use morphix::Observe;
+/// # use serde::Serialize;
+/// # #[derive(Clone, PartialEq)]
+/// # struct Uuid;
+/// # #[derive(Clone, PartialEq)]
+/// # struct BitFlags;
+/// #[derive(Serialize, Clone, PartialEq, Observe)]
+/// struct MyStruct {
 ///     #[observe(snapshot)]
-///     id: Uuid,
+///     id: Uuid,  // Cheap to clone and compare
 ///     #[observe(snapshot)]
-///     status: Status,
+///     flags: BitFlags,  // Small Copy type
 /// }
-///
-/// #[derive(Clone, PartialEq, Serialize)]
-/// enum Status {
-///     Active,
-///     Inactive,
-/// }
-///
-/// let mut config = Config {
-///     id: Uuid::new_v4(),
-///     status: Status::Active,
-/// };
-///
-/// let mutation = observe!(JsonAdapter, |mut config| {
-///     // `DerefMut` is called but value doesn't change
-///     config.status = Status::Active;
-/// }).unwrap();
-///
-/// assert_eq!(mutation, None); // No mutation because value didn't change
 /// ```
 ///
-/// ## Performance Considerations
+/// ## When to Use
 ///
-/// SnapshotObserver is most efficient when:
-/// - The type is cheap to clone (e.g., [`Copy`] types, small structs)
-/// - The type is cheap to compare (e.g., simple equality checks)
-/// - Changes are relatively rare compared to access
+/// `SnapshotObserver` is ideal when:
+/// 1. The type implements [`Clone`] and [`PartialEq`] with low cost
+/// 2. Values may be modified and then restored to original (so that
+///    [`ShallowObserver`](super::ShallowObserver) would yield false positives)
 ///
-/// For large or expensive-to-clone types, consider using [ShallowObserver](super::ShallowObserver)
-/// or implementing a custom [Observe] trait.
+/// ## Built-in Usage
+///
+/// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use `SnapshotObserver` as their default
+/// implementation since they're cheap to clone and compare.
 pub type SnapshotObserver<'i, T> = GeneralObserver<'i, T, SnapshotHandler<T>>;
 
 pub struct SnapshotHandler<T> {

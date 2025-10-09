@@ -25,4 +25,3 @@ serde_yml = { version = "0.0.12", optional = true }
 
 [dev-dependencies]
 morphix = { path = ".", features = ["full"] }
-uuid = { version = "1.18.1", features = ["serde", "v4"] }
