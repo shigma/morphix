@@ -48,7 +48,7 @@ pub fn observe(input: TokenStream) -> Result<TokenStream, syn::Error> {
     let mut body_actual: syn::Expr = parse_quote! {
         {
             #[allow(unused_imports)]
-            use ::morphix::Observer;
+            use ::morphix::helper::Assignable;
             let mut #ident = #ident.observe();
             #[allow(clippy::needless_borrow)]
             #body_actual;
@@ -77,7 +77,7 @@ impl VisitMut for DerefAssign {
         syn::visit_mut::visit_expr_assign_mut(self, expr_assign);
         let left = &expr_assign.left;
         expr_assign.left = parse_quote! {
-            *(&mut #left).__morphix_deref_mut()
+            *(&mut #left).__deref_mut()
         };
     }
 }

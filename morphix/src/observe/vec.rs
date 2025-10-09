@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::mem::take;
 use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
 
+use crate::helper::Assignable;
 use crate::observe::{MutationState, StatefulObserver};
 use crate::{Adapter, Batch, Mutation, MutationKind, Observe, Observer};
 
@@ -42,6 +43,8 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> DerefMut for VecObserver<'i, T
         self.as_mut()
     }
 }
+
+impl<'i, T: Observe, O: Observer<'i, Target = T>> Assignable for VecObserver<'i, T, O> {}
 
 impl<'i, T: Observe, O: Observer<'i, Target = T>> Observer<'i> for VecObserver<'i, T, O> {
     #[inline]

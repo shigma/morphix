@@ -3,6 +3,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 use serde::Serialize;
 
+use crate::helper::Assignable;
 use crate::{Adapter, Mutation, MutationKind, Observer};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
@@ -91,6 +92,22 @@ pub struct GeneralObserver<'i, T, H> {
     phantom: PhantomData<&'i mut T>,
 }
 
+impl<'i, T, H> Deref for GeneralObserver<'i, T, H> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { &*self.ptr }
+    }
+}
+
+impl<'i, T, H: GeneralHandler<T>> DerefMut for GeneralObserver<'i, T, H> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.handler.on_deref_mut();
+        unsafe { &mut *self.ptr }
+    }
+}
+
+impl<'i, T, H: GeneralHandler<T>> Assignable for GeneralObserver<'i, T, H> {}
+
 impl<'i, T, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i, T, H> {
     fn observe(value: &'i mut T) -> Self {
         Self {
@@ -112,20 +129,6 @@ impl<'i, T, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i, T, H> {
         } else {
             None
         })
-    }
-}
-
-impl<'i, T, H> Deref for GeneralObserver<'i, T, H> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*self.ptr }
-    }
-}
-
-impl<'i, T, H: GeneralHandler<T>> DerefMut for GeneralObserver<'i, T, H> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.handler.on_deref_mut();
-        unsafe { &mut *self.ptr }
     }
 }
 

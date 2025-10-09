@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
+use crate::helper::Assignable;
 use crate::observe::{MutationState, StatefulObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 
@@ -35,6 +36,8 @@ impl<'i> DerefMut for StringObserver<'i> {
         self.as_mut()
     }
 }
+
+impl<'i> Assignable for StringObserver<'i> {}
 
 impl<'i> Observer<'i> for StringObserver<'i> {
     #[inline]

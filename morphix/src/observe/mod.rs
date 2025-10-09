@@ -119,22 +119,6 @@ pub trait Observer<'i>: DerefMut {
     fn collect<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
     where
         Self::Target: Serialize;
-
-    /// Helper for autoref-based specialization.
-    #[doc(hidden)]
-    fn __morphix_deref_mut(&mut self) -> &mut Self::Target {
-        self.deref_mut()
-    }
-}
-
-impl<'i, T> Observer<'i> for &'i mut T {
-    fn observe(value: &'i mut Self::Target) -> Self {
-        value
-    }
-
-    fn collect<A: Adapter>(_: Self) -> Result<Option<Mutation<A>>, A::Error> {
-        Ok(None)
-    }
 }
 
 /// State of mutations tracked by a [`StatefulObserver`].

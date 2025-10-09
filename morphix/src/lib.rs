@@ -3,6 +3,7 @@
 mod adapter;
 mod batch;
 mod error;
+pub mod helper;
 mod mutation;
 pub mod observe;
 
