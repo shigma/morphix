@@ -82,8 +82,9 @@ Morphix recognizes three types of mutations:
 The most general mutation type, used for any mutation that replaces a value:
 
 ```rs
-person.age = 35;                        // Replace at .age
-person.name = "Bob".into();             // Replace at .name
+foo.a.b = 1;        // Replace at .a.b
+foo.num *= 2;       // Replace at .num
+foo.vec.clear();    // Replace at .vec
 ```
 
 ### Append
@@ -91,8 +92,10 @@ person.name = "Bob".into();             // Replace at .name
 Optimized for appending to strings and vectors:
 
 ```rs
-person.name.push_str(" Smith");         // Append to .name
-person.hobbies.push("gaming".into());   // Append to .hobbies
+foo.a.b += "text";          // Append to .a.b
+foo.a.b.push_str("text");   // Append to .a.b
+foo.vec.push(1);            // Append to .vec
+foo.vec.extend(iter);       // Append to .vec
 ```
 
 ### Batch
