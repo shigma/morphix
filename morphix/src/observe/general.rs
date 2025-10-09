@@ -25,27 +25,28 @@ use crate::{Adapter, Mutation, MutationKind, Observer};
 ///
 /// ```
 /// # use morphix::observe::{GeneralHandler, GeneralObserver};
+/// #[derive(Default)]
 /// struct ShallowHandler {
-///     replaced: bool,
+///     mutated: bool,
 /// }
 ///
 /// impl<T> GeneralHandler<T> for ShallowHandler {
 ///     fn on_observe(_value: &mut T) -> Self {
-///         Self { replaced: false }
+///         Self { mutated: false }
 ///     }
 ///
 ///     fn on_deref_mut(&mut self) {
-///         self.replaced = true;
+///         self.mutated = true;
 ///     }
 ///
 ///     fn on_collect(&self, _value: &T) -> bool {
-///         self.replaced
+///         self.mutated
 ///     }
 /// }
 ///
 /// type ShallowObserver<'i, T> = GeneralObserver<'i, T, ShallowHandler>;
 /// ```
-pub trait GeneralHandler<T> {
+pub trait GeneralHandler<T>: Default {
     /// Called when observation begins.
     fn on_observe(value: &mut T) -> Self;
 
@@ -90,6 +91,16 @@ pub struct GeneralObserver<'i, T, H> {
     ptr: *mut T,
     handler: H,
     phantom: PhantomData<&'i mut T>,
+}
+
+impl<'i, T, H: Default> Default for GeneralObserver<'i, T, H> {
+    fn default() -> Self {
+        Self {
+            ptr: Default::default(),
+            handler: Default::default(),
+            phantom: PhantomData,
+        }
+    }
 }
 
 impl<'i, T, H> Deref for GeneralObserver<'i, T, H> {

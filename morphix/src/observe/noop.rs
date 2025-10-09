@@ -27,20 +27,17 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 /// - Should not trigger change notifications.
 pub type NoopObserver<'i, T> = GeneralObserver<'i, T, NoopHandler>;
 
-pub struct NoopHandler {
-    replaced: bool,
-}
+#[derive(Default)]
+pub struct NoopHandler;
 
 impl<T> GeneralHandler<T> for NoopHandler {
     fn on_observe(_value: &mut T) -> Self {
-        Self { replaced: false }
+        Self
     }
 
-    fn on_deref_mut(&mut self) {
-        self.replaced = true;
-    }
+    fn on_deref_mut(&mut self) {}
 
     fn on_collect(&self, _value: &T) -> bool {
-        self.replaced
+        false
     }
 }

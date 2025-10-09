@@ -22,6 +22,7 @@
         "morphix",
         "serde",
         "shigma",
-        "turbofish"
+        "turbofish",
+        "uninit",
     ]
 }

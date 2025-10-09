@@ -94,7 +94,7 @@ pub trait Observe: Serialize {
 ///
 /// Observers provide transparent access to the underlying value while recording any mutations that
 /// occur.
-pub trait Observer<'i>: DerefMut {
+pub trait Observer<'i>: Default + DerefMut {
     /// Creates a new observer for the given value.
     ///
     /// ## Arguments

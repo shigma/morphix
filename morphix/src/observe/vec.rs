@@ -29,6 +29,17 @@ pub struct VecObserver<'i, T: Observe, O: Observer<'i, Target = T> = <T as Obser
     phantom: PhantomData<&'i mut T>,
 }
 
+impl<'i, T: Observe, O: Observer<'i, Target = T>> Default for VecObserver<'i, T, O> {
+    fn default() -> Self {
+        Self {
+            ptr: Default::default(),
+            mutation: None,
+            obs: Default::default(),
+            phantom: PhantomData,
+        }
+    }
+}
+
 impl<'i, T: Observe, O: Observer<'i, Target = T>> Deref for VecObserver<'i, T, O> {
     type Target = Vec<T>;
     fn deref(&self) -> &Self::Target {

@@ -44,6 +44,7 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 ///    [`ShallowObserver`](super::ShallowObserver)
 pub type HashObserver<'i, T, H = DefaultHasher> = GeneralObserver<'i, T, HashHandler<H>>;
 
+#[derive(Default)]
 pub struct HashHandler<H> {
     initial_hash: u64,
     phantom: PhantomData<H>,

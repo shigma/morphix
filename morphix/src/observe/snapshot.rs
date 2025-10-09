@@ -47,20 +47,29 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 pub type SnapshotObserver<'i, T> = GeneralObserver<'i, T, SnapshotHandler<T>>;
 
 pub struct SnapshotHandler<T> {
-    snapshot: T,
+    snapshot: Option<T>,
+}
+
+impl<T> Default for SnapshotHandler<T> {
+    fn default() -> Self {
+        Self { snapshot: None }
+    }
 }
 
 impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
     fn on_observe(value: &mut T) -> Self {
         Self {
-            snapshot: value.clone(),
+            snapshot: Some(value.clone()),
         }
     }
 
     fn on_deref_mut(&mut self) {}
 
     fn on_collect(&self, value: &T) -> bool {
-        &self.snapshot != value
+        match &self.snapshot {
+            Some(snapshot) => snapshot != value,
+            None => false,
+        }
     }
 }
 

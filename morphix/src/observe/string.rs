@@ -17,6 +17,7 @@ use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 /// - [String::add_assign](std::ops::AddAssign) (`+=`)
 /// - [String::push](std::string::String::push)
 /// - [String::push_str](std::string::String::push_str)
+#[derive(Default)]
 pub struct StringObserver<'i> {
     ptr: *mut String,
     mutation: Option<MutationState>,

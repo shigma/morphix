@@ -36,20 +36,21 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 ///    [`Vec::reserve`]) are still reported as changes.
 pub type ShallowObserver<'i, T> = GeneralObserver<'i, T, ShallowHandler>;
 
+#[derive(Default)]
 pub struct ShallowHandler {
-    replaced: bool,
+    mutated: bool,
 }
 
 impl<T> GeneralHandler<T> for ShallowHandler {
     fn on_observe(_value: &mut T) -> Self {
-        Self { replaced: false }
+        Self { mutated: false }
     }
 
     fn on_deref_mut(&mut self) {
-        self.replaced = true;
+        self.mutated = true;
     }
 
     fn on_collect(&self, _value: &T) -> bool {
-        self.replaced
+        self.mutated
     }
 }

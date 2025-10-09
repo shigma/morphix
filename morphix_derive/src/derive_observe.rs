@@ -28,10 +28,11 @@ struct ObserveMeta {
 pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
     let input_ident = &input.ident;
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
-    let ob_ident = format_ident!("{}Ob", input_ident);
+    let ob_ident = format_ident!("{}Observer", input_ident);
     let input_vis = &input.vis;
     let mut type_fields = vec![];
     let mut inst_fields = vec![];
+    let mut default_fields = vec![];
     let mut collect_stmts = vec![];
     let mut errors = vec![];
     match &input.data {
@@ -75,7 +76,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                         } else {
                             errors.push(syn::Error::new(
                                 ident.span(),
-                                "unknown argument, expected 'hash', 'ignore', 'shallow' or 'snapshot'",
+                                "unknown argument, expected 'hash', 'noop', 'shallow' or 'snapshot'",
                             ));
                         }
                     }
@@ -100,6 +101,9 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                         });
                     }
                 }
+                default_fields.push(quote! {
+                    #field_ident: Default::default(),
+                });
                 collect_stmts.push(quote! {
                     if let Some(mut mutation) = ::morphix::Observer::collect::<A>(this.#field_ident)? {
                         mutation.path_rev.push(stringify!(#field_ident).into());
@@ -122,7 +126,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
         const _: () = {
             #input_vis struct #ob_ident<'morphix> {
                 ptr: *mut #input_ident,
-                replaced: bool,
+                mutated: bool,
                 phantom: ::std::marker::PhantomData<&'morphix mut #input_ident>,
                 #(#type_fields)*
             }
@@ -133,28 +137,14 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
             }
 
             #[automatically_derived]
-            impl<'morphix> ::morphix::Observer<'morphix> for #ob_ident<'morphix> {
-                fn observe(value: &'morphix mut #input_ident) -> Self {
+            impl<'morphix> Default for #ob_ident<'morphix> {
+                fn default() -> Self {
                     Self {
-                        ptr: value as *mut #input_ident,
-                        replaced: false,
+                        ptr: ::std::ptr::null_mut(),
+                        mutated: false,
                         phantom: ::std::marker::PhantomData,
-                        #(#inst_fields)*
+                        #(#default_fields)*
                     }
-                }
-
-                fn collect<A: ::morphix::Adapter>(
-                    this: Self,
-                ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A>>, A::Error> {
-                    let mut mutations = vec![];
-                    if this.replaced {
-                        mutations.push(::morphix::Mutation {
-                            path_rev: vec![],
-                            operation: ::morphix::MutationKind::Replace(A::serialize_value(&*this)?),
-                        });
-                    };
-                    #(#collect_stmts)*
-                    Ok(::morphix::Batch::build(mutations))
                 }
             }
 
@@ -169,8 +159,34 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
             #[automatically_derived]
             impl<'morphix> ::std::ops::DerefMut for #ob_ident<'morphix> {
                 fn deref_mut(&mut self) -> &mut Self::Target {
-                    self.replaced = true;
+                    self.mutated = true;
                     unsafe { &mut *self.ptr }
+                }
+            }
+
+            #[automatically_derived]
+            impl<'morphix> ::morphix::Observer<'morphix> for #ob_ident<'morphix> {
+                fn observe(value: &'morphix mut #input_ident) -> Self {
+                    Self {
+                        ptr: value as *mut #input_ident,
+                        mutated: false,
+                        phantom: ::std::marker::PhantomData,
+                        #(#inst_fields)*
+                    }
+                }
+
+                fn collect<A: ::morphix::Adapter>(
+                    this: Self,
+                ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A>>, A::Error> {
+                    let mut mutations = vec![];
+                    if this.mutated {
+                        mutations.push(::morphix::Mutation {
+                            path_rev: vec![],
+                            operation: ::morphix::MutationKind::Replace(A::serialize_value(&*this)?),
+                        });
+                    };
+                    #(#collect_stmts)*
+                    Ok(::morphix::Batch::build(mutations))
                 }
             }
         };
