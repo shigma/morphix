@@ -51,20 +51,24 @@ pub struct SnapshotHandler<T> {
 }
 
 impl<T> Default for SnapshotHandler<T> {
+    #[inline]
     fn default() -> Self {
         Self { snapshot: None }
     }
 }
 
 impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
+    #[inline]
     fn on_observe(value: &mut T) -> Self {
         Self {
             snapshot: Some(value.clone()),
         }
     }
 
+    #[inline]
     fn on_deref_mut(&mut self) {}
 
+    #[inline]
     fn on_collect(&self, value: &T) -> bool {
         match &self.snapshot {
             Some(snapshot) => snapshot != value,

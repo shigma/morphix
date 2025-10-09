@@ -31,12 +31,15 @@ pub type NoopObserver<'i, T> = GeneralObserver<'i, T, NoopHandler>;
 pub struct NoopHandler;
 
 impl<T> GeneralHandler<T> for NoopHandler {
+    #[inline]
     fn on_observe(_value: &mut T) -> Self {
         Self
     }
 
+    #[inline]
     fn on_deref_mut(&mut self) {}
 
+    #[inline]
     fn on_collect(&self, _value: &T) -> bool {
         false
     }

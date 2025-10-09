@@ -94,6 +94,7 @@ pub struct GeneralObserver<'i, T, H> {
 }
 
 impl<'i, T, H: Default> Default for GeneralObserver<'i, T, H> {
+    #[inline]
     fn default() -> Self {
         Self {
             ptr: Default::default(),
@@ -105,6 +106,8 @@ impl<'i, T, H: Default> Default for GeneralObserver<'i, T, H> {
 
 impl<'i, T, H> Deref for GeneralObserver<'i, T, H> {
     type Target = T;
+
+    #[inline]
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.ptr }
     }
@@ -120,6 +123,7 @@ impl<'i, T, H: GeneralHandler<T>> DerefMut for GeneralObserver<'i, T, H> {
 impl<'i, T, H: GeneralHandler<T>> Assignable for GeneralObserver<'i, T, H> {}
 
 impl<'i, T, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i, T, H> {
+    #[inline]
     fn observe(value: &'i mut T) -> Self {
         Self {
             ptr: value as *mut T,
@@ -145,24 +149,29 @@ impl<'i, T, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i, T, H> {
 
 impl<'i, T: Index<U>, H: GeneralHandler<T>, U> Index<U> for GeneralObserver<'i, T, H> {
     type Output = T::Output;
+
+    #[inline]
     fn index(&self, index: U) -> &Self::Output {
         (**self).index(index)
     }
 }
 
 impl<'i, T: IndexMut<U>, H: GeneralHandler<T>, U> IndexMut<U> for GeneralObserver<'i, T, H> {
+    #[inline]
     fn index_mut(&mut self, index: U) -> &mut Self::Output {
         (**self).index_mut(index)
     }
 }
 
 impl<'i, T: PartialEq<U>, H, U: ?Sized> PartialEq<U> for GeneralObserver<'i, T, H> {
+    #[inline]
     fn eq(&self, other: &U) -> bool {
         (**self).eq(other)
     }
 }
 
 impl<'i, T: PartialOrd<U>, H, U: ?Sized> PartialOrd<U> for GeneralObserver<'i, T, H> {
+    #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
         (**self).partial_cmp(other)
     }
@@ -172,6 +181,7 @@ macro_rules! impl_assign_ops {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
             impl<'i, T: ::std::ops::$trait<U>, H: GeneralHandler<T>, U> ::std::ops::$trait<U> for GeneralObserver<'i, T, H> {
+                #[inline]
                 fn $method(&mut self, rhs: U) {
                     (**self).$method(rhs);
                 }
@@ -198,6 +208,8 @@ macro_rules! impl_ops_copy {
         $(
             impl<'i, T: Copy + ::std::ops::$trait<U>, H, U> ::std::ops::$trait<U> for GeneralObserver<'i, T, H> {
                 type Output = T::Output;
+
+                #[inline]
                 fn $method(self, rhs: U) -> Self::Output {
                     (*self).$method(rhs)
                 }

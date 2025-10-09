@@ -59,6 +59,7 @@ impl<H: Hasher + Default> HashHandler<H> {
 }
 
 impl<T: Hash, H: Hasher + Default> GeneralHandler<T> for HashHandler<H> {
+    #[inline]
     fn on_observe(value: &mut T) -> Self {
         Self {
             initial_hash: Self::hash(value),
@@ -66,8 +67,10 @@ impl<T: Hash, H: Hasher + Default> GeneralHandler<T> for HashHandler<H> {
         }
     }
 
+    #[inline]
     fn on_deref_mut(&mut self) {}
 
+    #[inline]
     fn on_collect(&self, value: &T) -> bool {
         self.initial_hash != Self::hash(value)
     }

@@ -42,14 +42,17 @@ pub struct ShallowHandler {
 }
 
 impl<T> GeneralHandler<T> for ShallowHandler {
+    #[inline]
     fn on_observe(_value: &mut T) -> Self {
         Self { mutated: false }
     }
 
+    #[inline]
     fn on_deref_mut(&mut self) {
         self.mutated = true;
     }
 
+    #[inline]
     fn on_collect(&self, _value: &T) -> bool {
         self.mutated
     }

@@ -26,6 +26,8 @@ pub struct StringObserver<'i> {
 
 impl<'i> Deref for StringObserver<'i> {
     type Target = String;
+
+    #[inline]
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.ptr }
     }
@@ -68,6 +70,7 @@ impl<'i> Observer<'i> for StringObserver<'i> {
 }
 
 impl<'i> StatefulObserver<'i> for StringObserver<'i> {
+    #[inline]
     fn mutation_state(this: &mut Self) -> &mut Option<MutationState> {
         &mut this.mutation
     }

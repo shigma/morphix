@@ -30,6 +30,7 @@ pub struct VecObserver<'i, T: Observe, O: Observer<'i, Target = T> = <T as Obser
 }
 
 impl<'i, T: Observe, O: Observer<'i, Target = T>> Default for VecObserver<'i, T, O> {
+    #[inline]
     fn default() -> Self {
         Self {
             ptr: Default::default(),
@@ -42,6 +43,8 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> Default for VecObserver<'i, T,
 
 impl<'i, T: Observe, O: Observer<'i, Target = T>> Deref for VecObserver<'i, T, O> {
     type Target = Vec<T>;
+
+    #[inline]
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.ptr }
     }
@@ -101,6 +104,7 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> Observer<'i> for VecObserver<'
 }
 
 impl<'i, T: Observe, O: Observer<'i, Target = T>> StatefulObserver<'i> for VecObserver<'i, T, O> {
+    #[inline]
     fn mutation_state(this: &mut Self) -> &mut Option<MutationState> {
         &mut this.mutation
     }
@@ -119,26 +123,32 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> VecObserver<'i, T, O> {
         unsafe { &mut *self.ptr }
     }
 
+    #[inline]
     pub fn reserve(&mut self, additional: usize) {
         self.as_mut().reserve(additional);
     }
 
+    #[inline]
     pub fn reserve_exact(&mut self, additional: usize) {
         self.as_mut().reserve_exact(additional);
     }
 
+    #[inline]
     pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
         self.as_mut().try_reserve(additional)
     }
 
+    #[inline]
     pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
         self.as_mut().try_reserve_exact(additional)
     }
 
+    #[inline]
     pub fn shrink_to_fit(&mut self) {
         self.as_mut().shrink_to_fit();
     }
 
+    #[inline]
     pub fn shrink_to(&mut self, min_capacity: usize) {
         self.as_mut().shrink_to(min_capacity);
     }
@@ -189,6 +199,7 @@ impl<'i, 'a, T: Observe + Copy + 'a, O: Observer<'i, Target = T>> Extend<&'a T> 
 // TODO: handle range
 impl<'i, T: Observe, O: Observer<'i, Target = T>> Index<usize> for VecObserver<'i, T, O> {
     type Output = O;
+
     fn index(&self, index: usize) -> &Self::Output {
         let value = unsafe { &mut (&mut *self.ptr)[index] };
         let obs = unsafe { &mut *self.obs.get() };
