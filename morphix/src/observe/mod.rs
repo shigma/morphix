@@ -94,31 +94,132 @@ pub trait Observe: Serialize {
 ///
 /// Observers provide transparent access to the underlying value while recording any mutations that
 /// occur.
+///
+/// ## Construction
+///
+/// Observers can be constructed in two ways:
+/// 1. Via [`Observer::observe`] - creates an observer for an existing value
+/// 2. Via [`Default::default`] - creates an empty observer with a null pointer
 pub trait Observer<'i>: Default + DerefMut {
-    /// Creates a new observer for the given value.
+    /// Returns the raw pointer to the observed value.
     ///
-    /// ## Arguments
-    ///
-    /// - `value` - value to observe
-    fn observe(value: &'i mut Self::Target) -> Self;
-
-    /// Collects all recorded mutations using the specified adapter.
-    ///
-    /// ## Type Parameters
-    ///
-    /// - `A` - adapter to use for serialization
+    /// This method provides access to the underlying pointer that the observer is tracking. It's
+    /// primarily used internally for advanced operations that need direct pointer access.
     ///
     /// ## Returns
     ///
-    /// - `None` if no mutations were recorded,
-    /// - otherwise a [`Mutation`] containing all mutations that occurred.
+    /// - A valid pointer to the observed value if created via [`Observer::observe`]
+    /// - A null pointer if created via [`Default::default`]
+    ///
+    /// ## Safety Considerations
+    ///
+    /// - The returned pointer is only valid for the lifetime `'i`
+    /// - The pointer must not be used after the observer is dropped
+    /// - Mutations through this pointer bypass the observer's tracking mechanisms
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use morphix::Observer;
+    /// use morphix::observe::ShallowObserver;
+    ///
+    /// let mut value = 42i32;
+    /// let observer = ShallowObserver::observe(&mut value);
+    ///
+    /// // Get the raw pointer (same as &mut value)
+    /// let inner_ptr = Observer::inner(&observer);
+    /// assert!(!inner_ptr.is_null());
+    ///
+    /// // Default-constructed observer returns null
+    /// let observer: ShallowObserver<i32> = Default::default();
+    /// let null_ptr = Observer::inner(&observer);
+    /// assert!(null_ptr.is_null());
+    /// ```
+    fn inner(this: &Self) -> *mut Self::Target;
+
+    /// Creates a new observer for the given value.
+    ///
+    /// This is the primary way to create an observer. The observer will track all mutations to the
+    /// provided value.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use morphix::Observer;
+    /// use morphix::observe::ShallowObserver;
+    ///
+    /// let mut value = 42;
+    /// let observer = ShallowObserver::observe(&mut value);
+    /// ```
+    fn observe(value: &'i mut Self::Target) -> Self;
+
+    /// Collects all recorded mutations (unsafe version).
+    ///
+    /// ## Safety
+    ///
+    /// This method assumes the observer contains a valid (non-null) pointer. Calling this on a
+    /// default-constructed observer results in *undefined behavior*.
+    ///
+    /// Most users should call [`Observer::collect`] instead, which includes a null pointer check.
+    ///
+    /// ## Implementation Notes
+    ///
+    /// Implementations can safely use [`Deref`](std::ops::Deref) and [`DerefMut`] to access the
+    /// observed value, as this method is only called when the observer contains a valid pointer.
+    /// The observer's [`Deref`](std::ops::Deref) and [`DerefMut`] implementations are guaranteed to
+    /// be safe when `collect_unchecked` is called.
+    ///
+    /// ```ignore
+    /// unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error> {
+    ///     // Safe to dereference
+    ///     collect_mutation(&*this)
+    /// }
+    /// ```
+    unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
+    where
+        Self::Target: Serialize;
+
+    /// Collects all recorded mutations using the specified adapter.
+    ///
+    /// This is the safe version that checks for null pointers before collecting.
+    /// Default-constructed observers will return `Ok(None)`.
+    ///
+    /// ## Returns
+    ///
+    /// - `None` if no mutations were recorded or if the observer is empty (null pointer)
+    /// - otherwise a [`Mutation`] containing all mutations that occurred
     ///
     /// ## Errors
     ///
-    /// - Returns an error if serialization fails.
+    /// Returns an error if serialization fails.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use morphix::{Observer, JsonAdapter};
+    /// use morphix::observe::ShallowObserver;
+    ///
+    /// // Normal usage
+    /// let mut value = 42;
+    /// let mut observer = ShallowObserver::observe(&mut value);
+    /// observer += 1;
+    /// let mutation = Observer::collect::<JsonAdapter>(observer).unwrap();
+    /// assert!(mutation.is_some());
+    ///
+    /// // Safe handling of default-constructed observer
+    /// let empty: ShallowObserver<i32> = Default::default();
+    /// let result = Observer::collect::<JsonAdapter>(empty).unwrap();
+    /// assert_eq!(result, None);   // Returns None instead of panicking
+    /// ```
     fn collect<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
     where
-        Self::Target: Serialize;
+        Self::Target: Serialize,
+    {
+        if Self::inner(&this).is_null() {
+            return Ok(None);
+        }
+        unsafe { Self::collect_unchecked(this) }
+    }
 }
 
 /// State of mutations tracked by a [`StatefulObserver`].

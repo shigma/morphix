@@ -124,6 +124,10 @@ impl<'i, T, H: GeneralHandler<T>> DerefMut for GeneralObserver<'i, T, H> {
 impl<'i, T, H: GeneralHandler<T>> Assignable for GeneralObserver<'i, T, H> {}
 
 impl<'i, T, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i, T, H> {
+    fn inner(this: &Self) -> *mut Self::Target {
+        this.ptr
+    }
+
     #[inline]
     fn observe(value: &'i mut T) -> Self {
         Self {
@@ -133,7 +137,7 @@ impl<'i, T, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i, T, H> {
         }
     }
 
-    fn collect<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
+    unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
     where
         T: Serialize,
     {

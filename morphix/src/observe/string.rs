@@ -43,6 +43,10 @@ impl<'i> DerefMut for StringObserver<'i> {
 impl<'i> Assignable for StringObserver<'i> {}
 
 impl<'i> Observer<'i> for StringObserver<'i> {
+    fn inner(this: &Self) -> *mut Self::Target {
+        this.ptr
+    }
+
     #[inline]
     fn observe(value: &'i mut String) -> Self {
         Self {
@@ -52,7 +56,7 @@ impl<'i> Observer<'i> for StringObserver<'i> {
         }
     }
 
-    fn collect<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
+    unsafe fn collect_unchecked<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
         Ok(if let Some(mutation) = Self::mutation_state(&mut this).take() {
             Some(Mutation {
                 path_rev: vec![],

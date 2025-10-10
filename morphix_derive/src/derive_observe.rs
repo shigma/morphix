@@ -166,6 +166,10 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
 
             #[automatically_derived]
             impl<'morphix> ::morphix::Observer<'morphix> for #ob_ident<'morphix> {
+                fn inner(this: &Self) -> *mut #input_ident {
+                    this.__ptr
+                }
+
                 fn observe(value: &'morphix mut #input_ident) -> Self {
                     Self {
                         __ptr: value as *mut #input_ident,
@@ -175,7 +179,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                     }
                 }
 
-                fn collect<A: ::morphix::Adapter>(
+                unsafe fn collect_unchecked<A: ::morphix::Adapter>(
                     this: Self,
                 ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A>>, A::Error> {
                     let mut mutations = vec![];

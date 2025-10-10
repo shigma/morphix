@@ -61,6 +61,10 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> DerefMut for VecObserver<'i, T
 impl<'i, T: Observe, O: Observer<'i, Target = T>> Assignable for VecObserver<'i, T, O> {}
 
 impl<'i, T: Observe, O: Observer<'i, Target = T>> Observer<'i> for VecObserver<'i, T, O> {
+    fn inner(this: &Self) -> *mut Self::Target {
+        this.ptr
+    }
+
     #[inline]
     fn observe(value: &'i mut Vec<T>) -> Self {
         Self {
@@ -71,7 +75,7 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> Observer<'i> for VecObserver<'
         }
     }
 
-    fn collect<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
+    unsafe fn collect_unchecked<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
         let mut mutations = vec![];
         let mut max_index = None;
         if let Some(mutation) = Self::mutation_state(&mut this).take() {

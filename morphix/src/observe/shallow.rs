@@ -32,8 +32,8 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 ///
 /// 1. **False positives on round-trip changes**: If a value is modified and then restored to its
 ///    original value, it's still reported as changes.
-/// 2. **False positives on non-semantic changes**: Operations that don't affect serialization (like
-///    [`Vec::reserve`]) are still reported as changes.
+/// 2. **False positives on non-semantic changes**: Operations that don't affect serialization (such
+///    as [`Vec::reserve`]) are still reported as changes.
 pub type ShallowObserver<'i, T> = GeneralObserver<'i, T, ShallowHandler>;
 
 #[derive(Default)]
