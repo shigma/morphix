@@ -2,15 +2,16 @@ use std::borrow::Cow;
 use std::mem::take;
 
 use serde::Serialize;
-use serde_yml::value::Serializer;
-use serde_yml::{Error, Value};
+use serde_yaml_ng::value::Serializer;
+use serde_yaml_ng::{Error, Value};
 
 use crate::{Adapter, Mutation, MutationError, MutationKind};
 
 /// YAML adapter for morphix mutation serialization.
 ///
-/// `YamlAdapter` implements the `Adapter` trait using `serde_yml::Value` for both replacement and
-/// append operations. This adapter is available when the `yaml` feature is enabled.
+/// `YamlAdapter` implements the [`Adapter`] trait using [`serde_yaml_ng::Value`] for both
+/// [`Replace`](MutationKind::Replace) and [`Append`](MutationKind::Append) operations. This adapter
+/// is available when the `yaml` feature is enabled.
 ///
 /// ## Example
 ///

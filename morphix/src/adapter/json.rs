@@ -9,8 +9,9 @@ use crate::{Adapter, Mutation, MutationError, MutationKind};
 
 /// JSON adapter for morphix mutation serialization.
 ///
-/// `JsonAdapter` implements the `Adapter` trait using `serde_json::Value` for both replacement and
-/// append operations.
+/// `JsonAdapter` implements the [`Adapter`] trait using [`serde_json::Value`] for both
+/// [`Replace`](MutationKind::Replace) and [`Append`](MutationKind::Append) operations. This adapter
+/// is available when the `json` feature is enabled.
 ///
 /// ## Example
 ///
