@@ -12,7 +12,7 @@ use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 ///
 /// ## Supported Operations
 ///
-/// The following mutations are tracked as `Append`:
+/// The following mutations are tracked as [`Append`](MutationKind::Append):
 ///
 /// - [String::add_assign](std::ops::AddAssign) (`+=`)
 /// - [String::push](std::string::String::push)

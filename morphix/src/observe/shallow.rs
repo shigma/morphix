@@ -1,10 +1,10 @@
 use crate::observe::{GeneralHandler, GeneralObserver};
 
-/// An general observer that tracks any mutation access as a change.
+/// A general observer that tracks any mutation access as a change.
 ///
-/// `ShallowObserver` uses a simple boolean flag to track whether [`DerefMut`] has been called,
-/// treating any mutable access as a change. This makes it extremely efficient with minimal
-/// overhead.
+/// `ShallowObserver` uses a simple boolean flag to track whether [`DerefMut`](std::ops::DerefMut)
+/// has been called, treating any mutable access as a change. This makes it extremely efficient with
+/// minimal overhead.
 ///
 /// ## Derive Usage
 ///

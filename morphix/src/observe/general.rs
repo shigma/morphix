@@ -14,14 +14,15 @@ use crate::{Adapter, Mutation, MutationKind, Observer};
 ///
 /// ## Lifecycle
 ///
-/// - `on_observe` - Called once when observation begins
-/// - `on_deref_mut` - Called each time the value is accessed via [`DerefMut`]
-/// - `on_collect` - Called once to determine if a change occurred
+/// - [`on_observe`](GeneralHandler::on_observe) - Called once when observation begins
+/// - [`on_deref_mut`](GeneralHandler::on_deref_mut) - Called each time the value is accessed via
+///   [`DerefMut`]
+/// - [`on_collect`](GeneralHandler::on_collect) - Called once to determine if a change occurred
 ///
 /// ## Example
 ///
-/// A `ShallowHandler` implementation that treats any mutation through [`DerefMut`] as a complete
-/// replacement:
+/// A [`ShallowObserver`](super::ShallowObserver) implementation that treats any mutation through
+/// [`DerefMut`] as a complete replacement:
 ///
 /// ```
 /// # use morphix::observe::{GeneralHandler, GeneralObserver};
@@ -67,10 +68,10 @@ pub trait GeneralHandler<T>: Default {
 ///
 /// `GeneralObserver` can:
 /// - Detect whether a value has changed via [`DerefMut`]
-/// - Produce [`Replace`](crate::MutationKind::Replace) mutations when changes are detected
+/// - Produce [`Replace`](MutationKind::Replace) mutations when changes are detected
 ///
 /// `GeneralObserver` cannot:
-/// - Track [`Append`](crate::MutationKind::Append) mutations
+/// - Track [`Append`](MutationKind::Append) mutations
 /// - Track field-level changes
 /// - Add specialized implementations for common traits (e.g. [`PartialEq`], [`Index`], etc.)
 ///

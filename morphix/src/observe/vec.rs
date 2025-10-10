@@ -15,7 +15,7 @@ use crate::{Adapter, Batch, Mutation, MutationKind, Observe, Observer};
 ///
 /// ## Supported Operations
 ///
-/// The following mutations are tracked as `Append`:
+/// The following mutations are tracked as [`Append`](MutationKind::Append):
 ///
 /// - [Vec::push](std::vec::Vec::push)
 /// - [Vec::append](std::vec::Vec::append)

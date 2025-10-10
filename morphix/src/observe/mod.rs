@@ -58,7 +58,7 @@ pub use snapshot::SnapshotObserver;
 /// ## Example
 ///
 /// ```
-/// use morphix::Observe;
+/// use morphix::{JsonAdapter, Observe, observe};
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize, Observe)]
@@ -67,9 +67,10 @@ pub use snapshot::SnapshotObserver;
 /// }
 ///
 /// let mut data = MyStruct { field: "value".to_string() };
-/// let mut data_observer = data.observe();
-/// // Mutations through observer are tracked
-/// data_observer.field.push_str(" modified");
+/// observe!(JsonAdapter, |mut data| {
+///     // Mutations through observer are tracked
+///     data.field.push_str(" modified");
+/// });
 /// ```
 ///
 /// [`Observers`]: crate::Observer
@@ -110,7 +111,7 @@ pub trait Observer<'i>: Default + DerefMut {
     /// ## Returns
     ///
     /// - `None` if no mutations were recorded,
-    /// - otherwise a `Mutation` containing all mutations that occurred.
+    /// - otherwise a [`Mutation`] containing all mutations that occurred.
     ///
     /// ## Errors
     ///
@@ -142,7 +143,7 @@ pub enum MutationState {
 ///
 /// Implementing `StatefulObserver` allows an observer to track its own mutation state (e.g.,
 /// replace or append), but this doesn't preclude tracking additional mutations. Complex types like
-/// `Vec<T>` may need to track both:
+/// [`Vec`] may need to track both:
 ///
 /// - Their own mutation state (via `StatefulObserver`)
 /// - Changes to their elements (via nested observers)
@@ -185,8 +186,8 @@ pub enum MutationState {
 /// - Multiple operations produce a `Batch` containing all mutations
 ///
 /// Currently implemented for:
-/// - `String`
-/// - `Vec<T>`
+/// - [`String`]
+/// - [`Vec<T>`]
 pub trait StatefulObserver<'i>: Observer<'i> {
     fn mutation_state(this: &mut Self) -> &mut Option<MutationState>;
 
