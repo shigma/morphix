@@ -94,3 +94,12 @@ pub trait Assignable: DerefMut {
 }
 
 impl<T> Assignable for &mut T {}
+
+pub(crate) trait RangeLike<T>: std::ops::RangeBounds<T> {}
+
+impl<T> RangeLike<T> for std::ops::RangeFull {}
+impl<T> RangeLike<T> for std::ops::RangeTo<T> {}
+impl<T> RangeLike<T> for std::ops::RangeFrom<T> {}
+impl<T> RangeLike<T> for std::ops::Range<T> {}
+impl<T> RangeLike<T> for std::ops::RangeInclusive<T> {}
+impl<T> RangeLike<T> for std::ops::RangeToInclusive<T> {}

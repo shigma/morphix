@@ -1,10 +1,11 @@
 use std::cell::UnsafeCell;
-use std::collections::{HashMap, TryReserveError};
+use std::collections::TryReserveError;
 use std::marker::PhantomData;
 use std::mem::take;
-use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
+use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
+use std::slice::SliceIndex;
 
-use crate::helper::Assignable;
+use crate::helper::{Assignable, RangeLike};
 use crate::observe::{MutationState, StatefulObserver};
 use crate::{Adapter, Batch, Mutation, MutationKind, Observe, Observer};
 
@@ -25,7 +26,7 @@ use crate::{Adapter, Batch, Mutation, MutationKind, Observe, Observer};
 pub struct VecObserver<'i, T: Observe, O: Observer<'i, Target = T> = <T as Observe>::Observer<'i>> {
     ptr: *mut Vec<T>,
     mutation: Option<MutationState>,
-    obs: UnsafeCell<HashMap<usize, O>>,
+    obs: UnsafeCell<Vec<O>>,
     phantom: PhantomData<&'i mut T>,
 }
 
@@ -54,7 +55,7 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> DerefMut for VecObserver<'i, T
     fn deref_mut(&mut self) -> &mut Self::Target {
         Self::mark_replace(self);
         take(&mut self.obs);
-        self.as_mut()
+        self.__as_mut()
     }
 }
 
@@ -91,7 +92,7 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> Observer<'i> for VecObserver<'
             });
         };
         let obs = take(unsafe { &mut *this.obs.get() });
-        for (index, observer) in obs {
+        for (index, observer) in obs.into_iter().enumerate() {
             if let Some(max_index) = max_index
                 && index >= max_index
             {
@@ -123,43 +124,43 @@ impl<T: Observe> Observe for Vec<T> {
 
 impl<'i, T: Observe, O: Observer<'i, Target = T>> VecObserver<'i, T, O> {
     #[inline]
-    fn as_mut(&mut self) -> &mut Vec<T> {
+    fn __as_mut(&mut self) -> &mut Vec<T> {
         unsafe { &mut *self.ptr }
     }
 
     #[inline]
     pub fn reserve(&mut self, additional: usize) {
-        self.as_mut().reserve(additional);
+        self.__as_mut().reserve(additional);
     }
 
     #[inline]
     pub fn reserve_exact(&mut self, additional: usize) {
-        self.as_mut().reserve_exact(additional);
+        self.__as_mut().reserve_exact(additional);
     }
 
     #[inline]
     pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
-        self.as_mut().try_reserve(additional)
+        self.__as_mut().try_reserve(additional)
     }
 
     #[inline]
     pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
-        self.as_mut().try_reserve_exact(additional)
+        self.__as_mut().try_reserve_exact(additional)
     }
 
     #[inline]
     pub fn shrink_to_fit(&mut self) {
-        self.as_mut().shrink_to_fit();
+        self.__as_mut().shrink_to_fit();
     }
 
     #[inline]
     pub fn shrink_to(&mut self, min_capacity: usize) {
-        self.as_mut().shrink_to(min_capacity);
+        self.__as_mut().shrink_to(min_capacity);
     }
 
     pub fn push(&mut self, value: T) {
         Self::mark_append(self, self.len());
-        self.as_mut().push(value);
+        self.__as_mut().push(value);
     }
 
     pub fn append(&mut self, other: &mut Vec<T>) {
@@ -167,7 +168,7 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> VecObserver<'i, T, O> {
             return;
         }
         Self::mark_append(self, self.len());
-        self.as_mut().append(other);
+        self.__as_mut().append(other);
     }
 }
 
@@ -177,37 +178,40 @@ impl<'i, T: Observe + Clone, O: Observer<'i, Target = T>> VecObserver<'i, T, O> 
             return;
         }
         Self::mark_append(self, self.len());
-        self.as_mut().extend_from_slice(other);
+        self.__as_mut().extend_from_slice(other);
     }
 
     pub fn extend_from_within<R: RangeBounds<usize>>(&mut self, range: R) {
         Self::mark_append(self, self.len());
-        self.as_mut().extend_from_within(range);
+        self.__as_mut().extend_from_within(range);
     }
 }
 
 impl<'i, T: Observe, O: Observer<'i, Target = T>> Extend<T> for VecObserver<'i, T, O> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, other: I) {
         Self::mark_append(self, self.len());
-        self.as_mut().extend(other);
+        self.__as_mut().extend(other);
     }
 }
 
 impl<'i, 'a, T: Observe + Copy + 'a, O: Observer<'i, Target = T>> Extend<&'a T> for VecObserver<'i, T, O> {
     fn extend<I: IntoIterator<Item = &'a T>>(&mut self, other: I) {
         Self::mark_append(self, self.len());
-        self.as_mut().extend(other);
+        self.__as_mut().extend(other);
     }
 }
 
-// TODO: handle range
 impl<'i, T: Observe, O: Observer<'i, Target = T>> Index<usize> for VecObserver<'i, T, O> {
     type Output = O;
 
     fn index(&self, index: usize) -> &Self::Output {
         let value = unsafe { &mut (&mut *self.ptr)[index] };
         let obs = unsafe { &mut *self.obs.get() };
-        obs.entry(index).or_insert_with(|| O::observe(value))
+        if index >= obs.len() {
+            obs.resize_with(index + 1, Default::default);
+        }
+        obs[index] = O::observe(value);
+        &obs[index]
     }
 }
 
@@ -215,6 +219,66 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> IndexMut<usize> for VecObserve
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         let value = unsafe { &mut (&mut *self.ptr)[index] };
         let obs = unsafe { &mut *self.obs.get() };
-        obs.entry(index).or_insert_with(|| O::observe(value))
+        if index >= obs.len() {
+            obs.resize_with(index + 1, Default::default);
+        }
+        obs[index] = O::observe(value);
+        &mut obs[index]
+    }
+}
+
+impl<'i, T: Observe, O: Observer<'i, Target = T>, I> Index<I> for VecObserver<'i, T, O>
+where
+    I: RangeLike<usize> + SliceIndex<[O], Output = [O]>,
+{
+    type Output = [O];
+
+    fn index(&self, index: I) -> &Self::Output {
+        let obs = unsafe { &mut *self.obs.get() };
+        let start = match index.start_bound() {
+            Bound::Included(&start) => start,
+            Bound::Excluded(&start) => start + 1,
+            Bound::Unbounded => 0,
+        };
+        let end = match index.end_bound() {
+            Bound::Included(&end) => end + 1,
+            Bound::Excluded(&end) => end,
+            Bound::Unbounded => self.len(),
+        };
+        if end > obs.len() {
+            obs.resize_with(end, Default::default);
+        }
+        for (i, obs_item) in obs[start..end].iter_mut().enumerate() {
+            let value = unsafe { &mut (&mut *self.ptr)[start + i] };
+            *obs_item = O::observe(value);
+        }
+        &obs[index]
+    }
+}
+
+impl<'i, T: Observe, O: Observer<'i, Target = T>, I> IndexMut<I> for VecObserver<'i, T, O>
+where
+    I: RangeLike<usize> + SliceIndex<[O], Output = [O]>,
+{
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        let obs = unsafe { &mut *self.obs.get() };
+        let start = match index.start_bound() {
+            Bound::Included(&start) => start,
+            Bound::Excluded(&start) => start + 1,
+            Bound::Unbounded => 0,
+        };
+        let end = match index.end_bound() {
+            Bound::Included(&end) => end + 1,
+            Bound::Excluded(&end) => end,
+            Bound::Unbounded => self.len(),
+        };
+        if end > obs.len() {
+            obs.resize_with(end, Default::default);
+        }
+        for (i, obs_item) in obs[start..end].iter_mut().enumerate() {
+            let value = unsafe { &mut (&mut *self.ptr)[start + i] };
+            *obs_item = O::observe(value);
+        }
+        &mut obs[index]
     }
 }
