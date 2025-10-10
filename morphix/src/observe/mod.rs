@@ -79,13 +79,12 @@ pub trait Observe: Serialize {
     where
         Self: 'i;
 
-    /// Creates an observer for this value.
+    /// Helper method for `#[derive(Observe)]`.
     ///
-    /// ## Returns
-    ///
-    /// An observer that wraps this value and tracks mutations.
+    /// The default implementation simply calls `Self::Observer::observe(self)`.
+    #[doc(hidden)]
     #[inline]
-    fn observe<'i>(&'i mut self) -> Self::Observer<'i> {
+    fn __observe<'i>(&'i mut self) -> Self::Observer<'i> {
         Self::Observer::observe(self)
     }
 }

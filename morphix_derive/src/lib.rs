@@ -70,7 +70,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 ///
 /// ```ignore
 /// observe!(Adapter, |mut_binding| { /* mutations */ })
-/// observe!(|mut_binding| { /* mutations */ })  // Type inference
+/// observe!(|mut_binding| { /* mutations */ })     // Type inference
 /// ```
 ///
 /// ## Parameters

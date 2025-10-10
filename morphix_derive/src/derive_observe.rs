@@ -89,7 +89,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                             pub #field_ident: <#field_ty as ::morphix::Observe>::Observer<'morphix>,
                         });
                         inst_fields.push(quote! {
-                            #field_ident: ::morphix::Observe::observe(&mut value.#field_ident),
+                            #field_ident: ::morphix::Observe::__observe(&mut value.#field_ident),
                         });
                     }
                     ObserveMode::Builtin(ob_ident) => {
