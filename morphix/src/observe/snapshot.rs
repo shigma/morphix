@@ -4,12 +4,13 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 /// A general observer that uses snapshot comparison to detect actual value changes.
 ///
 /// `SnapshotObserver` creates a clone of the initial value and compares it with the
-/// final value using `PartialEq`. This provides accurate change detection by comparing
+/// final value using [`PartialEq`]. This provides accurate change detection by comparing
 /// actual values rather than tracking access patterns.
 ///
 /// ## Requirements
 ///
 /// The observed type must implement:
+/// - [`Default`] - for nullptr construction
 /// - [`Clone`] - for creating the snapshot
 /// - [`PartialEq`] - for comparing values
 ///
@@ -20,9 +21,9 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 /// ```
 /// # use morphix::Observe;
 /// # use serde::Serialize;
-/// # #[derive(Serialize, Clone, PartialEq)]
+/// # #[derive(Serialize, Default, Clone, PartialEq)]
 /// # struct Uuid;
-/// # #[derive(Serialize, Clone, PartialEq)]
+/// # #[derive(Serialize, Default, Clone, PartialEq)]
 /// # struct BitFlags;
 /// #[derive(Serialize, Clone, PartialEq, Observe)]
 /// struct MyStruct {
@@ -36,7 +37,7 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 /// ## When to Use
 ///
 /// `SnapshotObserver` is ideal when:
-/// 1. The type implements [`Clone`] and [`PartialEq`] with low cost
+/// 1. The type implements [`Default`], [`Clone`] and [`PartialEq`] with low cost
 /// 2. Values may be modified and then restored to original (so that
 ///    [`ShallowObserver`](super::ShallowObserver) would yield false positives)
 ///
@@ -46,22 +47,16 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 /// implementation since they're cheap to clone and compare.
 pub type SnapshotObserver<'i, T> = GeneralObserver<'i, T, SnapshotHandler<T>>;
 
+#[derive(Default)]
 pub struct SnapshotHandler<T> {
-    snapshot: Option<T>,
+    snapshot: T,
 }
 
-impl<T> Default for SnapshotHandler<T> {
-    #[inline]
-    fn default() -> Self {
-        Self { snapshot: None }
-    }
-}
-
-impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
+impl<T: Default + Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
     #[inline]
     fn on_observe(value: &mut T) -> Self {
         Self {
-            snapshot: Some(value.clone()),
+            snapshot: value.clone(),
         }
     }
 
@@ -70,10 +65,7 @@ impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
 
     #[inline]
     fn on_collect(&self, value: &T) -> bool {
-        match &self.snapshot {
-            Some(snapshot) => snapshot != value,
-            None => false,
-        }
+        &self.snapshot != value
     }
 }
 
