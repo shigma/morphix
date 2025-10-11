@@ -235,3 +235,21 @@ impl_ops_copy! {
     Shl => shl,
     Shr => shr,
 }
+
+impl<'i, T: Copy + ::std::ops::Neg, H> ::std::ops::Neg for GeneralObserver<'i, T, H> {
+    type Output = T::Output;
+
+    #[inline]
+    fn neg(self) -> Self::Output {
+        (*self).neg()
+    }
+}
+
+impl<'i, T: Copy + ::std::ops::Not, H> ::std::ops::Not for GeneralObserver<'i, T, H> {
+    type Output = T::Output;
+
+    #[inline]
+    fn not(self) -> Self::Output {
+        (*self).not()
+    }
+}
