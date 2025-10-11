@@ -98,7 +98,7 @@ pub trait Observe: Serialize {
 /// Observers can be constructed in two ways:
 /// 1. Via [`Observer::observe`] - creates an observer for an existing value
 /// 2. Via [`Default::default`] - creates an empty observer with a null pointer
-pub trait Observer<'i>: DerefMut + Sized {
+pub trait Observer<'i>: DerefMut<Target: Serialize> + Sized {
     /// Returns the raw pointer to the observed value.
     ///
     /// This method provides access to the underlying pointer that the observer is tracking. It's
@@ -173,9 +173,7 @@ pub trait Observer<'i>: DerefMut + Sized {
     ///     collect_mutation(&*this)
     /// }
     /// ```
-    unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
-    where
-        Self::Target: Serialize;
+    unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>;
 
     /// Collects all recorded mutations using the specified adapter.
     ///
@@ -209,10 +207,7 @@ pub trait Observer<'i>: DerefMut + Sized {
     /// let result = Observer::collect::<JsonAdapter>(empty).unwrap();
     /// assert_eq!(result, None);   // Returns None instead of panicking
     /// ```
-    fn collect<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
-    where
-        Self::Target: Serialize,
-    {
+    fn collect<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error> {
         if Self::inner(&this).is_null() {
             return Ok(None);
         }

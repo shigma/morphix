@@ -123,7 +123,7 @@ impl<'i, T, H: GeneralHandler<T>> DerefMut for GeneralObserver<'i, T, H> {
 
 impl<'i, T, H: GeneralHandler<T>> Assignable for GeneralObserver<'i, T, H> {}
 
-impl<'i, T, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i, T, H> {
+impl<'i, T: Serialize, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i, T, H> {
     fn inner(this: &Self) -> *mut Self::Target {
         this.ptr
     }
@@ -137,10 +137,7 @@ impl<'i, T, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i, T, H> {
         }
     }
 
-    unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>
-    where
-        T: Serialize,
-    {
+    unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error> {
         Ok(if this.handler.on_collect(&*this) {
             Some(Mutation {
                 path_rev: vec![],
