@@ -47,7 +47,7 @@ use crate::{Adapter, Mutation, MutationKind, Observer};
 ///
 /// type ShallowObserver<'i, T> = GeneralObserver<'i, T, ShallowHandler>;
 /// ```
-pub trait GeneralHandler<T>: Default {
+pub trait GeneralHandler<T> {
     /// Called when observation begins.
     fn on_observe(value: &mut T) -> Self;
 
@@ -98,8 +98,8 @@ impl<'i, T, H: Default> Default for GeneralObserver<'i, T, H> {
     #[inline]
     fn default() -> Self {
         Self {
-            ptr: Default::default(),
-            handler: Default::default(),
+            ptr: std::ptr::null_mut(),
+            handler: H::default(),
             phantom: PhantomData,
         }
     }

@@ -98,7 +98,7 @@ pub trait Observe: Serialize {
 /// Observers can be constructed in two ways:
 /// 1. Via [`Observer::observe`] - creates an observer for an existing value
 /// 2. Via [`Default::default`] - creates an empty observer with a null pointer
-pub trait Observer<'i>: Default + DerefMut {
+pub trait Observer<'i>: DerefMut + Sized {
     /// Returns the raw pointer to the observed value.
     ///
     /// This method provides access to the underlying pointer that the observer is tracking. It's

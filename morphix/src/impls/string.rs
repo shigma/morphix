@@ -50,7 +50,7 @@ impl<'i> Observer<'i> for StringObserver<'i> {
     #[inline]
     fn observe(value: &'i mut String) -> Self {
         Self {
-            ptr: value as *mut String,
+            ptr: value,
             mutation: None,
             phantom: PhantomData,
         }

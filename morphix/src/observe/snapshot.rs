@@ -52,7 +52,7 @@ pub struct SnapshotHandler<T> {
     snapshot: T,
 }
 
-impl<T: Default + Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
+impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
     #[inline]
     fn on_observe(value: &mut T) -> Self {
         Self {

@@ -34,7 +34,7 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> Default for VecObserver<'i, T,
     #[inline]
     fn default() -> Self {
         Self {
-            ptr: Default::default(),
+            ptr: std::ptr::null_mut(),
             mutation: None,
             obs: Default::default(),
             phantom: PhantomData,
@@ -69,7 +69,7 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> Observer<'i> for VecObserver<'
     #[inline]
     fn observe(value: &'i mut Vec<T>) -> Self {
         Self {
-            ptr: value as *mut Vec<T>,
+            ptr: value,
             mutation: None,
             obs: Default::default(),
             phantom: PhantomData,
@@ -201,7 +201,7 @@ impl<'i, 'a, T: Observe + Copy + 'a, O: Observer<'i, Target = T>> Extend<&'a T> 
     }
 }
 
-impl<'i, T: Observe, O: Observer<'i, Target = T>> Index<usize> for VecObserver<'i, T, O> {
+impl<'i, T: Observe, O: Observer<'i, Target = T> + Default> Index<usize> for VecObserver<'i, T, O> {
     type Output = O;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -215,7 +215,7 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> Index<usize> for VecObserver<'
     }
 }
 
-impl<'i, T: Observe, O: Observer<'i, Target = T>> IndexMut<usize> for VecObserver<'i, T, O> {
+impl<'i, T: Observe, O: Observer<'i, Target = T> + Default> IndexMut<usize> for VecObserver<'i, T, O> {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         let value = unsafe { &mut (&mut *self.ptr)[index] };
         let obs = unsafe { &mut *self.obs.get() };
@@ -227,7 +227,7 @@ impl<'i, T: Observe, O: Observer<'i, Target = T>> IndexMut<usize> for VecObserve
     }
 }
 
-impl<'i, T: Observe, O: Observer<'i, Target = T>, I> Index<I> for VecObserver<'i, T, O>
+impl<'i, T: Observe, O: Observer<'i, Target = T> + Default, I> Index<I> for VecObserver<'i, T, O>
 where
     I: RangeLike<usize> + SliceIndex<[O], Output = [O]>,
 {
@@ -256,7 +256,7 @@ where
     }
 }
 
-impl<'i, T: Observe, O: Observer<'i, Target = T>, I> IndexMut<I> for VecObserver<'i, T, O>
+impl<'i, T: Observe, O: Observer<'i, Target = T> + Default, I> IndexMut<I> for VecObserver<'i, T, O>
 where
     I: RangeLike<usize> + SliceIndex<[O], Output = [O]>,
 {
