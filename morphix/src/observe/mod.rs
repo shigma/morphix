@@ -41,8 +41,6 @@ mod hash;
 mod noop;
 mod shallow;
 mod snapshot;
-mod string;
-mod vec;
 
 pub use general::{GeneralHandler, GeneralObserver};
 pub use hash::HashObserver;

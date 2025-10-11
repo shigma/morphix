@@ -19,10 +19,11 @@
         "clippy",
         "cloneable",
         "deque",
+        "impls",
         "morphix",
         "serde",
         "shigma",
         "turbofish",
-        "uninit",
+        "uninit"
     ]
 }
