@@ -106,4 +106,4 @@ Multiple mutations combined into a single operation.
 
 - `derive` (default): Enables the Observe derive macro
 - `json`: Includes JSON serialization support via `serde_json`
-- `yaml`: Includes YAML serialization support via `serde_yml`
+- `yaml`: Includes YAML serialization support via `serde_yaml_ng`

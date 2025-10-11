@@ -1,5 +1,5 @@
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, quote_spanned};
 use syn::parse::Parse;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
@@ -82,29 +82,30 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                     }
                 }
                 let field_ident = field.ident.as_ref().unwrap();
+                let field_span = field.span();
                 let field_ty = &field.ty;
                 match &meta.mode {
                     ObserveMode::Default => {
-                        type_fields.push(quote! {
+                        type_fields.push(quote_spanned! { field_span =>
                             pub #field_ident: <#field_ty as ::morphix::Observe>::Observer<'morphix>,
                         });
-                        inst_fields.push(quote! {
+                        inst_fields.push(quote_spanned! { field_span =>
                             #field_ident: ::morphix::Observe::__observe(&mut value.#field_ident),
                         });
                     }
                     ObserveMode::Builtin(ob_ident) => {
-                        type_fields.push(quote! {
+                        type_fields.push(quote_spanned! { field_span =>
                             pub #field_ident: ::morphix::observe::#ob_ident<'morphix, #field_ty>,
                         });
-                        inst_fields.push(quote! {
+                        inst_fields.push(quote_spanned! { field_span =>
                             #field_ident: ::morphix::observe::#ob_ident::observe(&mut value.#field_ident),
                         });
                     }
                 }
-                default_fields.push(quote! {
+                default_fields.push(quote_spanned! { field_span =>
                     #field_ident: Default::default(),
                 });
-                collect_stmts.push(quote! {
+                collect_stmts.push(quote_spanned! { field_span =>
                     if let Some(mut mutation) = ::morphix::Observer::collect::<A>(this.#field_ident)? {
                         mutation.path_rev.push(stringify!(#field_ident).into());
                         mutations.push(mutation);
@@ -124,6 +125,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
     }
     Ok(quote! {
         const _: () = {
+            #[allow(private_interfaces)]
             #input_vis struct #ob_ident<'morphix> {
                 __ptr: *mut #input_ident,
                 __mutated: bool,
@@ -182,10 +184,10 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
                 unsafe fn collect_unchecked<A: ::morphix::Adapter>(
                     this: Self,
                 ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A>>, A::Error> {
-                    let mut mutations = vec![];
+                    let mut mutations = ::std::vec::Vec::new();
                     if this.__mutated {
                         mutations.push(::morphix::Mutation {
-                            path_rev: vec![],
+                            path_rev: ::std::vec::Vec::new(),
                             operation: ::morphix::MutationKind::Replace(A::serialize_value(&*this)?),
                         });
                     };
