@@ -1,6 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::parse::Parse;
+use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 
@@ -25,9 +26,8 @@ struct ObserveMeta {
     mode: ObserveMode,
 }
 
-pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
+pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
     let input_ident = &input.ident;
-    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
     let ob_ident = format_ident!("{}Observer", input_ident);
     let input_vis = &input.vis;
     let mut type_fields = vec![];
@@ -35,6 +35,29 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
     let mut default_fields = vec![];
     let mut collect_stmts = vec![];
     let mut errors = vec![];
+
+    for param in &mut input.generics.params {
+        if let syn::GenericParam::Type(type_param) = param {
+            type_param.bounds.push(syn::parse_quote! { ::morphix::Observe });
+        }
+    }
+    let mut ob_generics = input.generics.clone();
+    ob_generics.params.insert(0, syn::parse_quote! { 'morphix });
+    let (input_impl_generics, type_generics, input_where_clause) = input.generics.split_for_impl();
+    let (ob_impl_generics, ob_type_generics, ob_where_clause) = ob_generics.split_for_impl();
+    let mut ob_default_where_predicates = match ob_where_clause {
+        Some(where_clause) => where_clause.predicates.clone(),
+        None => Default::default(),
+    };
+    for param in &input.generics.params {
+        if let syn::GenericParam::Type(type_param) = param {
+            let ident = &type_param.ident;
+            ob_default_where_predicates.push(parse_quote! {
+                <#ident as ::morphix::Observe>::Observer<'morphix>: Default
+            });
+        }
+    }
+
     match &input.data {
         syn::Data::Struct(syn::DataStruct {
             fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
@@ -123,23 +146,32 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
     if !errors.is_empty() {
         return Err(errors);
     }
+
+    let mut lifetime_where_predicates = vec![];
+    for param in &input.generics.params {
+        if let syn::GenericParam::Type(type_param) = param {
+            let ident = &type_param.ident;
+            lifetime_where_predicates.push(quote! { #ident: 'morphix });
+        }
+    }
+
     Ok(quote! {
         const _: () = {
             #[allow(private_interfaces)]
-            #input_vis struct #ob_ident<'morphix> {
-                __ptr: *mut #input_ident,
+            #input_vis struct #ob_ident #ob_impl_generics #ob_where_clause {
+                __ptr: *mut #input_ident #type_generics,
                 __mutated: bool,
-                __phantom: ::std::marker::PhantomData<&'morphix mut #input_ident>,
+                __phantom: ::std::marker::PhantomData<&'morphix mut #input_ident #type_generics>,
                 #(#type_fields)*
             }
 
             #[automatically_derived]
-            impl #impl_generics Observe for #input_ident #type_generics #where_clause {
-                type Observer<'morphix> = #ob_ident<'morphix>;
+            impl #input_impl_generics Observe for #input_ident #type_generics #input_where_clause {
+                type Observer<'morphix> = #ob_ident #ob_type_generics where #(#lifetime_where_predicates,)*;
             }
 
             #[automatically_derived]
-            impl<'morphix> Default for #ob_ident<'morphix> {
+            impl #ob_impl_generics Default for #ob_ident #ob_type_generics where #ob_default_where_predicates {
                 fn default() -> Self {
                     Self {
                         __ptr: ::std::ptr::null_mut(),
@@ -151,15 +183,15 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
             }
 
             #[automatically_derived]
-            impl<'morphix> ::std::ops::Deref for #ob_ident<'morphix> {
-                type Target = #input_ident;
+            impl #ob_impl_generics ::std::ops::Deref for #ob_ident #ob_type_generics #ob_where_clause {
+                type Target = #input_ident #type_generics;
                 fn deref(&self) -> &Self::Target {
                     unsafe { &*self.__ptr }
                 }
             }
 
             #[automatically_derived]
-            impl<'morphix> ::std::ops::DerefMut for #ob_ident<'morphix> {
+            impl #ob_impl_generics ::std::ops::DerefMut for #ob_ident #ob_type_generics #ob_where_clause {
                 fn deref_mut(&mut self) -> &mut Self::Target {
                     self.__mutated = true;
                     unsafe { &mut *self.__ptr }
@@ -167,14 +199,14 @@ pub fn derive_observe(input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::E
             }
 
             #[automatically_derived]
-            impl<'morphix> ::morphix::Observer<'morphix> for #ob_ident<'morphix> {
-                fn inner(this: &Self) -> *mut #input_ident {
+            impl #ob_impl_generics ::morphix::Observer<'morphix> for #ob_ident #ob_type_generics #ob_where_clause {
+                fn inner(this: &Self) -> *mut #input_ident #type_generics {
                     this.__ptr
                 }
 
-                fn observe(value: &'morphix mut #input_ident) -> Self {
+                fn observe(value: &'morphix mut #input_ident #type_generics) -> Self {
                     Self {
-                        __ptr: value as *mut #input_ident,
+                        __ptr: value as *mut #input_ident #type_generics,
                         __mutated: false,
                         __phantom: ::std::marker::PhantomData,
                         #(#inst_fields)*

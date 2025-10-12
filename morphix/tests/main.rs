@@ -3,9 +3,9 @@ use serde::Serialize;
 use serde_json::json;
 
 #[derive(Serialize, Debug, PartialEq, Observe)]
-pub struct Foo {
+pub struct Foo<T> {
     bar: Bar,
-    qux: String,
+    qux: T,
 }
 
 #[derive(Serialize, Debug, PartialEq, Observe)]
