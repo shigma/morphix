@@ -1,7 +1,7 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::parse::Parse;
-use syn::parse_quote;
+use syn::parse_quote_spanned;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 
@@ -49,14 +49,6 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
         Some(where_clause) => where_clause.predicates.clone(),
         None => Default::default(),
     };
-    for param in &input.generics.params {
-        if let syn::GenericParam::Type(type_param) = param {
-            let ident = &type_param.ident;
-            ob_default_where_predicates.push(parse_quote! {
-                <#ident as ::morphix::Observe>::Observer<'morphix>: Default
-            });
-        }
-    }
 
     match &input.data {
         syn::Data::Struct(syn::DataStruct {
@@ -107,24 +99,30 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
                 let field_ident = field.ident.as_ref().unwrap();
                 let field_span = field.span();
                 let field_ty = &field.ty;
-                match &meta.mode {
+                let ob_field_ty = match &meta.mode {
                     ObserveMode::Default => {
-                        type_fields.push(quote_spanned! { field_span =>
-                            pub #field_ident: <#field_ty as ::morphix::Observe>::Observer<'morphix>,
-                        });
                         inst_fields.push(quote_spanned! { field_span =>
                             #field_ident: ::morphix::Observe::__observe(&mut value.#field_ident),
                         });
+                        quote_spanned! { field_span =>
+                            <#field_ty as ::morphix::Observe>::Observer<'morphix>
+                        }
                     }
                     ObserveMode::Builtin(ob_ident) => {
-                        type_fields.push(quote_spanned! { field_span =>
-                            pub #field_ident: ::morphix::observe::#ob_ident<'morphix, #field_ty>,
-                        });
                         inst_fields.push(quote_spanned! { field_span =>
                             #field_ident: ::morphix::observe::#ob_ident::observe(&mut value.#field_ident),
                         });
+                        quote_spanned! { field_span =>
+                            ::morphix::observe::#ob_ident<'morphix, #field_ty>
+                        }
                     }
-                }
+                };
+                type_fields.push(quote_spanned! { field_span =>
+                    pub #field_ident: #ob_field_ty,
+                });
+                ob_default_where_predicates.push(parse_quote_spanned! { field_span =>
+                    #ob_field_ty: Default
+                });
                 default_fields.push(quote_spanned! { field_span =>
                     #field_ident: Default::default(),
                 });
