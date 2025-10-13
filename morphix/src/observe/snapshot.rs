@@ -1,3 +1,5 @@
+use std::mem::MaybeUninit;
+
 use crate::Observe;
 use crate::observe::{GeneralHandler, GeneralObserver};
 
@@ -10,7 +12,6 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 /// ## Requirements
 ///
 /// The observed type must implement:
-/// - [`Default`] - for nullptr construction
 /// - [`Clone`] - for creating the snapshot
 /// - [`PartialEq`] - for comparing values
 ///
@@ -21,9 +22,9 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 /// ```
 /// # use morphix::Observe;
 /// # use serde::Serialize;
-/// # #[derive(Serialize, Default, Clone, PartialEq)]
+/// # #[derive(Serialize, Clone, PartialEq)]
 /// # struct Uuid;
-/// # #[derive(Serialize, Default, Clone, PartialEq)]
+/// # #[derive(Serialize, Clone, PartialEq)]
 /// # struct BitFlags;
 /// #[derive(Serialize, Clone, PartialEq, Observe)]
 /// struct MyStruct {
@@ -37,7 +38,7 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 /// ## When to Use
 ///
 /// `SnapshotObserver` is ideal when:
-/// 1. The type implements [`Default`], [`Clone`] and [`PartialEq`] with low cost
+/// 1. The type implements [`Clone`] and [`PartialEq`] with low cost
 /// 2. Values may be modified and then restored to original (so that
 ///    [`ShallowObserver`](super::ShallowObserver) would yield false positives)
 ///
@@ -47,16 +48,24 @@ use crate::observe::{GeneralHandler, GeneralObserver};
 /// implementation since they're cheap to clone and compare.
 pub type SnapshotObserver<'i, T> = GeneralObserver<'i, T, SnapshotHandler<T>>;
 
-#[derive(Default)]
 pub struct SnapshotHandler<T> {
-    snapshot: T,
+    snapshot: MaybeUninit<T>,
+}
+
+impl<T> Default for SnapshotHandler<T> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            snapshot: MaybeUninit::uninit(),
+        }
+    }
 }
 
 impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
     #[inline]
     fn on_observe(value: &mut T) -> Self {
         Self {
-            snapshot: value.clone(),
+            snapshot: MaybeUninit::new(value.clone()),
         }
     }
 
@@ -65,7 +74,9 @@ impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
 
     #[inline]
     fn on_collect(&self, value: &T) -> bool {
-        &self.snapshot != value
+        // SAFETY: `GeneralHandler::on_collect` is only called in `Observer::collect_unchecked`, where the
+        // observer is assumed to contain a valid pointer
+        value != unsafe { self.snapshot.assume_init_ref() }
     }
 }
 
