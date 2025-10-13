@@ -27,7 +27,8 @@ use std::ops::DerefMut;
 ///
 /// `Assignable` uses a technique called autoref-based specialization to solve this:
 ///
-/// 1. The trait provides a method `deref_mut` with a default implementation
+/// 1. The trait provides a method [`__deref_mut`](Assignable::__deref_mut) with a default
+///    implementation
 /// 2. We implement it for `&mut T` (all mutable references)
 /// 3. We also implement it for each [`Observer`](crate::Observer) type
 /// 4. The [`observe!`](crate::observe) macro automatically rewrites assignment expressions:

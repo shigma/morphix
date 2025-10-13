@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use serde::Serialize;
 
 use crate::helper::Assignable;
-use crate::{Mutation, Observe, Observer};
+use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 
 /// An general observer for [`Option`].
 pub struct OptionObserver<'i, O: Observer<'i, Target: Sized>> {
@@ -63,11 +63,11 @@ impl<'i, O: Observer<'i, Target: Serialize + Sized>> Observer<'i> for OptionObse
         }
     }
 
-    unsafe fn collect_unchecked<A: crate::Adapter>(mut this: Self) -> Result<Option<crate::Mutation<A>>, A::Error> {
+    unsafe fn collect_unchecked<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
         if this.is_mutated && this.is_initial_some != this.is_some() {
             Ok(Some(Mutation {
                 path_rev: vec![],
-                operation: crate::MutationKind::Replace(A::serialize_value(&*this)?),
+                operation: MutationKind::Replace(A::serialize_value(&*this)?),
             }))
         } else if let Some(ob) = this.ob.take() {
             Observer::collect(ob)

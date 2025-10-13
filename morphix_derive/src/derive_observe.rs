@@ -230,13 +230,13 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
                 unsafe fn collect_unchecked<A: ::morphix::Adapter>(
                     this: Self,
                 ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A>>, A::Error> {
-                    let mut mutations = ::std::vec::Vec::new();
                     if this.__mutated {
-                        mutations.push(::morphix::Mutation {
+                        return Ok(Some(::morphix::Mutation {
                             path_rev: ::std::vec::Vec::new(),
                             operation: ::morphix::MutationKind::Replace(A::serialize_value(&*this)?),
-                        });
+                        }));
                     };
+                    let mut mutations = ::std::vec::Vec::new();
                     #(#collect_stmts)*
                     Ok(::morphix::Batch::build(mutations))
                 }

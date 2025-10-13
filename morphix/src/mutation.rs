@@ -166,7 +166,7 @@ impl<A: Adapter> Eq for Mutation<A> where A::Value: Eq {}
 /// matches!(mutation.operation, MutationKind::Batch(_));
 /// ```
 pub enum MutationKind<A: Adapter> {
-    /// `Replace` is the default mutation for `DerefMut` operations.
+    /// `Replace` is the default mutation for [`DerefMut`](std::ops::DerefMut) operations.
     ///
     /// ## Examples
     ///
@@ -189,12 +189,13 @@ pub enum MutationKind<A: Adapter> {
     ///
     /// ## Note
     ///
-    /// If an operation can be represented as `Append`, it will be preferred
+    /// If an operation can be represented as [`Append`](MutationKind::Append), it will be preferred
     /// over `Replace` for efficiency.
     Replace(A::Value),
 
     /// `Append` represents adding data to the end of a string or vector. This is more efficient
-    /// than `Replace` because only the appended portion needs to be serialized and transmitted.
+    /// than [`Replace`](MutationKind::Replace) because only the appended portion needs to be
+    /// serialized and transmitted.
     ///
     /// ## Examples
     ///
@@ -222,7 +223,7 @@ pub enum MutationKind<A: Adapter> {
     ///
     /// ## Optimization
     ///
-    /// The batch collector ([`Batch`]) automatically optimizes mutations:
+    /// The batch collector ([`Batch`](crate::Batch)) automatically optimizes mutations:
     /// - Consecutive appends are merged
     /// - Redundant changes are eliminated
     /// - Nested paths are consolidated when possible
