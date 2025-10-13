@@ -1,7 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::parse::Parse;
-use syn::parse_quote_spanned;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 
@@ -14,27 +13,81 @@ impl Parse for ObserveArguments {
     }
 }
 
-#[derive(Clone, PartialEq, Eq, Default)]
-enum ObserveMode {
-    #[default]
-    Default,
-    Builtin(syn::Ident),
-}
-
 #[derive(Default)]
 struct ObserveMeta {
-    mode: ObserveMode,
+    ob_ident: Option<syn::Ident>,
+}
+
+impl ObserveMeta {
+    fn parse_attrs(attrs: &[syn::Attribute], errors: &mut Vec<syn::Error>) -> Self {
+        let mut meta = ObserveMeta::default();
+        for attr in attrs {
+            if !attr.path().is_ident("observe") {
+                continue;
+            }
+            let syn::Meta::List(meta_list) = &attr.meta else {
+                errors.push(syn::Error::new(
+                    attr.span(),
+                    "the 'observe' attribute must be in the form of #[observe(...)]",
+                ));
+                continue;
+            };
+            let args: ObserveArguments = match syn::parse2(meta_list.tokens.clone()) {
+                Ok(args) => args,
+                Err(err) => {
+                    errors.push(err);
+                    continue;
+                }
+            };
+            for ident in args.0 {
+                if ident == "hash" {
+                    meta.ob_ident = Some(syn::Ident::new("HashObserver", ident.span()));
+                } else if ident == "noop" {
+                    meta.ob_ident = Some(syn::Ident::new("NoopObserver", ident.span()));
+                } else if ident == "shallow" {
+                    meta.ob_ident = Some(syn::Ident::new("ShallowObserver", ident.span()));
+                } else if ident == "snapshot" {
+                    meta.ob_ident = Some(syn::Ident::new("SnapshotObserver", ident.span()));
+                } else {
+                    errors.push(syn::Error::new(
+                        ident.span(),
+                        "unknown argument, expected 'hash', 'noop', 'shallow' or 'snapshot'",
+                    ));
+                }
+            }
+        }
+        meta
+    }
 }
 
 pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<syn::Error>> {
     let input_ident = &input.ident;
+    let mut errors = vec![];
+    let input_meta = ObserveMeta::parse_attrs(&input.attrs, &mut errors);
+    if !errors.is_empty() {
+        return Err(errors);
+    }
+    if let Some(ob_ident) = input_meta.ob_ident {
+        let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
+        return Ok(quote! {
+            const _: () = {
+                #[automatically_derived]
+                impl #impl_generics ::morphix::Observe for #input_ident #type_generics #where_clause {
+                    type Observer<'morphix>
+                        = ::morphix::observe::#ob_ident<'morphix, Self>
+                    where
+                        Self: 'morphix;
+                }
+            };
+        });
+    }
+
     let ob_ident = format_ident!("{}Observer", input_ident);
     let input_vis = &input.vis;
     let mut type_fields = vec![];
     let mut inst_fields = vec![];
     let mut default_fields = vec![];
     let mut collect_stmts = vec![];
-    let mut errors = vec![];
 
     for param in &mut input.generics.params {
         if let syn::GenericParam::Type(type_param) = param {
@@ -56,51 +109,14 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
             ..
         }) => {
             for field in named {
-                let mut meta = ObserveMeta::default();
-                for attr in &field.attrs {
-                    if !attr.path().is_ident("observe") {
-                        continue;
-                    }
-                    let syn::Meta::List(meta_list) = &attr.meta else {
-                        errors.push(syn::Error::new(
-                            attr.span(),
-                            "the 'observe' attribute must be in the form of #[observe(...)]",
-                        ));
-                        continue;
-                    };
-                    let args: ObserveArguments = match syn::parse2(meta_list.tokens.clone()) {
-                        Ok(args) => args,
-                        Err(err) => {
-                            errors.push(err);
-                            continue;
-                        }
-                    };
-                    for ident in args.0 {
-                        if ident == "hash" {
-                            let ob_ident = syn::Ident::new("HashObserver", ident.span());
-                            meta.mode = ObserveMode::Builtin(ob_ident);
-                        } else if ident == "noop" {
-                            let ob_ident = syn::Ident::new("NoopObserver", ident.span());
-                            meta.mode = ObserveMode::Builtin(ob_ident);
-                        } else if ident == "shallow" {
-                            let ob_ident = syn::Ident::new("ShallowObserver", ident.span());
-                            meta.mode = ObserveMode::Builtin(ob_ident);
-                        } else if ident == "snapshot" {
-                            let ob_ident = syn::Ident::new("SnapshotObserver", ident.span());
-                            meta.mode = ObserveMode::Builtin(ob_ident);
-                        } else {
-                            errors.push(syn::Error::new(
-                                ident.span(),
-                                "unknown argument, expected 'hash', 'noop', 'shallow' or 'snapshot'",
-                            ));
-                        }
-                    }
-                }
+                let field_meta = ObserveMeta::parse_attrs(&field.attrs, &mut errors);
                 let field_ident = field.ident.as_ref().unwrap();
-                let field_span = field.span();
+                let mut field_cloned = field.clone();
+                field_cloned.attrs = vec![];
+                let field_span = field_cloned.span();
                 let field_ty = &field.ty;
-                let ob_field_ty = match &meta.mode {
-                    ObserveMode::Default => {
+                let ob_field_ty = match &field_meta.ob_ident {
+                    None => {
                         inst_fields.push(quote_spanned! { field_span =>
                             #field_ident: ::morphix::Observe::__observe(&mut value.#field_ident),
                         });
@@ -108,7 +124,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
                             <#field_ty as ::morphix::Observe>::Observer<'morphix>
                         }
                     }
-                    ObserveMode::Builtin(ob_ident) => {
+                    Some(ob_ident) => {
                         inst_fields.push(quote_spanned! { field_span =>
                             #field_ident: ::morphix::observe::#ob_ident::observe(&mut value.#field_ident),
                         });
@@ -120,7 +136,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
                 type_fields.push(quote_spanned! { field_span =>
                     pub #field_ident: #ob_field_ty,
                 });
-                ob_default_where_predicates.push(parse_quote_spanned! { field_span =>
+                ob_default_where_predicates.push(syn::parse_quote_spanned! { field_span =>
                     #ob_field_ty: Default
                 });
                 default_fields.push(quote_spanned! { field_span =>
