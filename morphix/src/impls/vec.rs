@@ -8,7 +8,7 @@ use std::slice::SliceIndex;
 use serde::Serialize;
 
 use crate::helper::{Assignable, RangeLike};
-use crate::observe::{MutationState, StatefulObserver};
+use crate::observe::{DefaultSpec, MutationState, StatefulObserver};
 use crate::{Adapter, Batch, Mutation, MutationKind, Observe, Observer};
 
 /// An observer for [`Vec`] that tracks both replacements and appends.
@@ -122,6 +122,8 @@ impl<T: Observe> Observe for Vec<T> {
         = VecObserver<'i, T::Observer<'i>>
     where
         Self: 'i;
+
+    type Spec = DefaultSpec;
 }
 
 impl<'i, O: Observer<'i, Target: Sized>> VecObserver<'i, O> {

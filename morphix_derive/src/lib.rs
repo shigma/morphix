@@ -5,25 +5,33 @@ use proc_macro::TokenStream;
 mod derive_observe;
 mod observe;
 
-/// Derive the `Observe` trait for structs to enable mutation tracking.
+/// Derive the [`Observe`](morphix::Observe) trait for structs to enable mutation tracking.
 ///
-/// This macro generates an observer type that wraps your struct and tracks
-/// mutations to its fields. The generated observer provides field-level
-/// mutation detection with support for nested structures.
+/// This macro automatically generates an [`Observe`](morphix::Observe) implementation for the
+/// struct, producing a default [`Observer`](morphix::Observer) type that wraps the struct and
+/// tracks mutations to each field according to that field's own [`Observe`](morphix::Observe)
+/// implementation.
 ///
 /// ## Requirements
 ///
-/// - The struct must also derive or implement `Serialize`
+/// - The struct must also derive or implement [`Serialize`](serde::Serialize)
 /// - Only named structs are supported (not tuple structs or enums)
 ///
-/// ## Field Attributes
+/// ## Customizing Behavior
 ///
-/// You can customize how individual fields are observed using the `#[observe(...)]` attribute:
+/// If a field type `T` does not implement `Observe`, or you need an alternative observer
+/// implementation, you can customize this via the `#[observe(...)]` field attribute inside a
+/// `#[derive(Observe)]` struct:
 ///
-/// - `#[observe(hash)]` - Field will use [HashObserver](morphix::observe::HashObserver)
-/// - `#[observe(noop)]` - Field will use [NoopObserver](morphix::observe::NoopObserver)
-/// - `#[observe(shallow)]` - Field will use [ShallowObserver](morphix::observe::ShallowObserver)
-/// - `#[observe(snapshot)]` - Field will use [SnapshotObserver](morphix::observe::SnapshotObserver)
+/// - `#[observe(hash)]` — use [`HashObserver`](morphix::observe::HashObserver) for this field
+/// - `#[observe(noop)]` — use [`NoopObserver`](morphix::observe::NoopObserver) for this field
+/// - `#[observe(shallow)]` — use [`ShallowObserver`](morphix::observe::ShallowObserver) for this
+///   field
+/// - `#[observe(snapshot)]` — use [`SnapshotObserver`](morphix::observe::SnapshotObserver) for this
+///   field
+///
+/// These attributes allow you to override the default `Observer` type that would otherwise come
+/// from the field's `Observe` implementation.
 ///
 /// ## Example
 ///
@@ -62,9 +70,9 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 
 /// Observe and collect mutations within a closure.
 ///
-/// This macro wraps a closure's operations to track all mutations that occur
-/// within it. The closure receives a mutable reference to the value, and any
-/// mutations made are automatically collected and returned.
+/// This macro wraps a closure's operations to track all mutations that occur within it. The closure
+/// receives a mutable reference to the value, and any mutations made are automatically collected
+/// and returned.
 ///
 /// ## Syntax
 ///
@@ -80,7 +88,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 ///
 /// ## Returns
 ///
-/// Returns `Result<Option<Mutation<A>>, A::Error>` where:
+/// Returns `Result<Option<Mutation<Adapter>>, Adapter::Error>` where:
 /// - `Ok(None)` - No mutations were made
 /// - `Ok(Some(mutation))` - Contains the collected mutations
 /// - `Err(error)` - Serialization failed

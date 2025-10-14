@@ -1,6 +1,8 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 
+use crate::Observe;
+use crate::impls::option::OptionObserve;
 use crate::observe::{GeneralHandler, GeneralObserver};
 
 /// A general observer that uses hash comparison to detect changes.
@@ -74,4 +76,20 @@ impl<T: Hash, H: Hasher + Default> GeneralHandler<T> for HashHandler<H> {
     fn on_collect(&self, value: &T) -> bool {
         self.initial_hash != Self::hash(value)
     }
+}
+
+/// Hash-based observation specification.
+///
+/// `HashSpec` marks a type as supporting change detection via hashing (requires [`Hash`]).  When
+/// used as the [`Spec`](crate::Observe::Spec) for a type `T`, it affects certain wrapper type
+/// observations, such as [`Option<T>`].
+pub struct HashSpec;
+
+impl<T: Hash + Observe<Spec = HashSpec>> OptionObserve<T, HashSpec> for T {
+    type Observer<'i>
+        = HashObserver<'i, Option<T>>
+    where
+        Self: 'i;
+
+    type Spec = HashSpec;
 }

@@ -1,6 +1,7 @@
 use std::mem::MaybeUninit;
 
 use crate::Observe;
+use crate::impls::option::OptionObserve;
 use crate::observe::{GeneralHandler, GeneralObserver};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
@@ -80,13 +81,31 @@ impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
     }
 }
 
+/// Snapshot-based observation specification.
+///
+/// `SnapshotSpec` marks a type as supporting efficient snapshot comparison (requires [`Clone`] +
+/// [`PartialEq`]). When used as the [`Spec`](crate::Observe::Spec) for a type `T`, it affects
+/// certain wrapper type observations, such as [`Option<T>`].
+pub struct SnapshotSpec;
+
+impl<T: Clone + PartialEq + Observe<Spec = SnapshotSpec>> OptionObserve<T, SnapshotSpec> for T {
+    type Observer<'i>
+        = SnapshotObserver<'i, Option<T>>
+    where
+        Self: 'i;
+
+    type Spec = SnapshotSpec;
+}
+
 macro_rules! impl_observe {
-    ($($ty:ty $(=> $target:ty)?),* $(,)?) => {
+    ($($ty:ty),* $(,)?) => {
         $(
             impl Observe for $ty {
                 type Observer<'i> = SnapshotObserver<'i, $ty>
                 where
                     Self: 'i;
+
+                type Spec = SnapshotSpec;
             }
         )*
     };
@@ -94,4 +113,7 @@ macro_rules! impl_observe {
 
 impl_observe! {
     usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
+    ::core::net::IpAddr, ::core::net::Ipv4Addr, ::core::net::Ipv6Addr,
+    ::core::net::SocketAddr, ::core::net::SocketAddrV4, ::core::net::SocketAddrV6,
+    ::core::time::Duration, ::std::time::SystemTime,
 }

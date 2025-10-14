@@ -6,7 +6,7 @@
 //! - **General-purpose observers**: [`GeneralObserver`], handler trait [`GeneralHandler`] for
 //!   implementing custom detection strategies, and pre-configured types: [`ShallowObserver`],
 //!   [`SnapshotObserver`], [`HashObserver`], [`NoopObserver`]
-//! - **Specialized observers**: Type-specific implementations for [`String`] and [`Vec`]
+//! - **Specialized observers**: Type-specific implementations for [`String`] and [`Vec<T>`]
 //! - **Internal types**: [`MutationState`] and [`StatefulObserver`] for advanced implementations
 //!
 //! ## Observer Hierarchy
@@ -43,15 +43,25 @@ mod shallow;
 mod snapshot;
 
 pub use general::{GeneralHandler, GeneralObserver};
-pub use hash::HashObserver;
+pub use hash::{HashObserver, HashSpec};
 pub use noop::NoopObserver;
 pub use shallow::ShallowObserver;
-pub use snapshot::SnapshotObserver;
+pub use snapshot::{SnapshotObserver, SnapshotSpec};
 
 /// A trait for types that can be observed for mutations.
 ///
-/// Types implementing `Observe` can be wrapped in [`Observer`]s that track mutations.
-/// The trait is typically derived using the `#[derive(Observe)]` macro.
+/// Types implementing `Observe` can be wrapped in [`Observer`]s that track mutations. The trait is
+/// typically derived using the `#[derive(Observe)]` macro and used in `observe!` macros.
+///
+/// A single type `T` may have many possible [`Observer<'i, Target = T>`] implementations in
+/// theory, each with different change-tracking strategies. The `Observe` trait selects one
+/// of these as the default observer to be used by `#[derive(Observe)]` and other generic code
+/// that needs an observer for `T`.
+///
+/// When you `#[derive(Observe)]` on a struct, the macro requires that each field type
+/// implements `Observe` so it can select an appropriate default observer for that field.
+/// The `Observer` associated type of each field's `Observe` implementation determines which
+/// observer will be instantiated in the generated code.
 ///
 /// ## Example
 ///
@@ -70,13 +80,33 @@ pub use snapshot::SnapshotObserver;
 ///     data.field.push_str(" modified");
 /// });
 /// ```
-///
-/// [`Observers`]: crate::Observer
 pub trait Observe: Serialize {
     /// Associated observer type.
+    ///
+    /// This associated type specifies the *default* observer implementation for the type,
+    /// when used in contexts where an [`Observe`] implementation is required.
     type Observer<'i>: Observer<'i, Target = Self>
     where
         Self: 'i;
+
+    /// Associated specification type for this observable.
+    ///
+    /// The `Spec` associated type is used as a marker to select specialized implementations of
+    /// observers in certain contexts. For most types, this will be [`DefaultSpec`], but types
+    /// can specify alternative specs to enable specialized observation strategies.
+    ///
+    /// ## Usage
+    ///
+    /// One important use of `Spec` is to select the appropriate observer implementation for wrapper
+    /// types like [`Option<T>`]:
+    ///
+    /// - [`DefaultSpec`] → use `OptionObserver` wrapping `T`'s observer
+    /// - [`SnapshotSpec`] → use [`SnapshotObserver<Option<T>>`] for snapshot-based change detection
+    /// - [`HashSpec`] → use [`HashObserver<Option<T>>`] for hash-based change detection
+    ///
+    /// This allows [`Option<T>`] to automatically inherit more accurate or efficient change
+    /// detection strategies based on its element type, without requiring manual implementation.
+    type Spec;
 
     /// Helper method for `#[derive(Observe)]`.
     ///
@@ -237,7 +267,7 @@ pub enum MutationState {
 ///
 /// Implementing `StatefulObserver` allows an observer to track its own mutation state (e.g.,
 /// replace or append), but this doesn't preclude tracking additional mutations. Complex types like
-/// [`Vec`] may need to track both:
+/// [`Vec<T>`] may need to track both:
 ///
 /// - Their own mutation state (via `StatefulObserver`)
 /// - Changes to their elements (via nested observers)
@@ -297,3 +327,14 @@ pub trait StatefulObserver<'i>: Observer<'i> {
         *mutation = Some(MutationState::Append(start_index));
     }
 }
+
+/// Default observation specification.
+///
+/// `DefaultSpec` indicates that no special observation behavior is required for the type. For most
+/// types, this means they use their standard `Observer` implementation. For example, if `T`
+/// implements [`Observe`] with `Spec = DefaultSpec`, then [`Option<T>`] will be observed using
+/// `OptionObserver` which wraps `T`'s observer.
+///
+/// All `#[derive(Observe)]` implementations use `DefaultSpec` unless overridden with field
+/// attributes.
+pub struct DefaultSpec;

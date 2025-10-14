@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
 use crate::helper::Assignable;
-use crate::observe::{MutationState, StatefulObserver};
+use crate::observe::{DefaultSpec, MutationState, StatefulObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 
 /// An observer for [`String`] that tracks both replacements and appends.
@@ -85,6 +85,8 @@ impl Observe for String {
         = StringObserver<'i>
     where
         Self: 'i;
+
+    type Spec = DefaultSpec;
 }
 
 impl<'i> StringObserver<'i> {
