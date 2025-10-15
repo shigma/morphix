@@ -197,8 +197,6 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
             #[automatically_derived]
             impl #input_impl_generics Observe for #input_ident #type_generics #input_where_clause {
                 type Observer<'morphix> = #ob_ident #ob_type_generics where #(#lifetime_where_predicates,)*;
-
-                type Spec = ::morphix::observe::DefaultSpec;
             }
 
             #[automatically_derived]
@@ -231,6 +229,8 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
 
             #[automatically_derived]
             impl #ob_impl_generics ::morphix::Observer<'morphix> for #ob_ident #ob_type_generics #ob_where_clause {
+                type Spec = ::morphix::observe::DefaultSpec;
+
                 fn inner(this: &Self) -> *mut #input_ident #type_generics {
                     this.__ptr
                 }

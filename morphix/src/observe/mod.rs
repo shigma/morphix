@@ -89,25 +89,6 @@ pub trait Observe: Serialize {
     where
         Self: 'i;
 
-    /// Associated specification type for this observable.
-    ///
-    /// The `Spec` associated type is used as a marker to select specialized implementations of
-    /// observers in certain contexts. For most types, this will be [`DefaultSpec`], but types
-    /// can specify alternative specs to enable specialized observation strategies.
-    ///
-    /// ## Usage
-    ///
-    /// One important use of `Spec` is to select the appropriate observer implementation for wrapper
-    /// types like [`Option<T>`]:
-    ///
-    /// - [`DefaultSpec`] → use `OptionObserver` wrapping `T`'s observer
-    /// - [`SnapshotSpec`] → use [`SnapshotObserver<Option<T>>`] for snapshot-based change detection
-    /// - [`HashSpec`] → use [`HashObserver<Option<T>>`] for hash-based change detection
-    ///
-    /// This allows [`Option<T>`] to automatically inherit more accurate or efficient change
-    /// detection strategies based on its element type, without requiring manual implementation.
-    type Spec;
-
     /// Helper method for `#[derive(Observe)]`.
     ///
     /// The default implementation simply calls `Self::Observer::observe(self)`.
@@ -129,6 +110,25 @@ pub trait Observe: Serialize {
 /// 1. Via [`Observer::observe`] - creates an observer for an existing value
 /// 2. Via [`Default::default`] - creates an empty observer with a null pointer
 pub trait Observer<'i>: DerefMut<Target: Serialize> + Sized {
+    /// Associated specification type for this observable.
+    ///
+    /// The `Spec` associated type is used as a marker to select specialized implementations of
+    /// observers in certain contexts. For most types, this will be [`DefaultSpec`], but types
+    /// can specify alternative specs to enable specialized observation strategies.
+    ///
+    /// ## Usage
+    ///
+    /// One important use of `Spec` is to select the appropriate observer implementation for wrapper
+    /// types like [`Option<T>`]:
+    ///
+    /// - [`DefaultSpec`] → use `OptionObserver` wrapping `T`'s observer
+    /// - [`SnapshotSpec`] → use [`SnapshotObserver<Option<T>>`] for snapshot-based change detection
+    /// - [`HashSpec`] → use [`HashObserver<Option<T>>`] for hash-based change detection
+    ///
+    /// This allows [`Option<T>`] to automatically inherit more accurate or efficient change
+    /// detection strategies based on its element type, without requiring manual implementation.
+    type Spec;
+
     /// Returns the raw pointer to the observed value.
     ///
     /// This method provides access to the underlying pointer that the observer is tracking. It's

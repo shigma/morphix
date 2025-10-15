@@ -25,13 +25,15 @@ use crate::{Adapter, Mutation, MutationKind, Observer};
 /// [`DerefMut`] as a complete replacement:
 ///
 /// ```
-/// # use morphix::observe::{GeneralHandler, GeneralObserver};
+/// # use morphix::observe::{DefaultSpec, GeneralHandler, GeneralObserver};
 /// #[derive(Default)]
 /// struct ShallowHandler {
 ///     mutated: bool,
 /// }
 ///
 /// impl<T> GeneralHandler<T> for ShallowHandler {
+///     type Spec = DefaultSpec;
+///
 ///     fn on_observe(_value: &mut T) -> Self {
 ///         Self { mutated: false }
 ///     }
@@ -48,6 +50,9 @@ use crate::{Adapter, Mutation, MutationKind, Observer};
 /// type ShallowObserver<'i, T> = GeneralObserver<'i, T, ShallowHandler>;
 /// ```
 pub trait GeneralHandler<T> {
+    /// Associated specification type for [`GeneralObserver`].
+    type Spec;
+
     /// Called when observation begins.
     fn on_observe(value: &mut T) -> Self;
 
@@ -124,6 +129,8 @@ impl<'i, T, H: GeneralHandler<T>> DerefMut for GeneralObserver<'i, T, H> {
 impl<'i, T, H: GeneralHandler<T>> Assignable for GeneralObserver<'i, T, H> {}
 
 impl<'i, T: Serialize, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i, T, H> {
+    type Spec = H::Spec;
+
     fn inner(this: &Self) -> *mut Self::Target {
         this.ptr
     }

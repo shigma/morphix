@@ -43,6 +43,8 @@ impl<'i> DerefMut for StringObserver<'i> {
 impl<'i> Assignable for StringObserver<'i> {}
 
 impl<'i> Observer<'i> for StringObserver<'i> {
+    type Spec = DefaultSpec;
+
     fn inner(this: &Self) -> *mut Self::Target {
         this.ptr
     }
@@ -85,8 +87,6 @@ impl Observe for String {
         = StringObserver<'i>
     where
         Self: 'i;
-
-    type Spec = DefaultSpec;
 }
 
 impl<'i> StringObserver<'i> {

@@ -64,6 +64,8 @@ impl<'i, O: Observer<'i, Target: Sized>> DerefMut for VecObserver<'i, O> {
 impl<'i, O: Observer<'i, Target: Sized>> Assignable for VecObserver<'i, O> {}
 
 impl<'i, O: Observer<'i, Target: Serialize + Sized>> Observer<'i> for VecObserver<'i, O> {
+    type Spec = DefaultSpec;
+
     fn inner(this: &Self) -> *mut Self::Target {
         this.ptr
     }
@@ -122,8 +124,6 @@ impl<T: Observe> Observe for Vec<T> {
         = VecObserver<'i, T::Observer<'i>>
     where
         Self: 'i;
-
-    type Spec = DefaultSpec;
 }
 
 impl<'i, O: Observer<'i, Target: Sized>> VecObserver<'i, O> {

@@ -1,9 +1,9 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 
-use crate::Observe;
 use crate::impls::option::OptionObserveImpl;
 use crate::observe::{GeneralHandler, GeneralObserver};
+use crate::{Observe, Observer};
 
 /// A general observer that uses hash comparison to detect changes.
 ///
@@ -61,6 +61,8 @@ impl<H: Hasher + Default> HashHandler<H> {
 }
 
 impl<T: Hash, H: Hasher + Default> GeneralHandler<T> for HashHandler<H> {
+    type Spec = HashSpec;
+
     #[inline]
     fn on_observe(value: &mut T) -> Self {
         Self {
@@ -81,15 +83,17 @@ impl<T: Hash, H: Hasher + Default> GeneralHandler<T> for HashHandler<H> {
 /// Hash-based observation specification.
 ///
 /// `HashSpec` marks a type as supporting change detection via hashing (requires [`Hash`]).  When
-/// used as the [`Spec`](crate::Observe::Spec) for a type `T`, it affects certain wrapper type
+/// used as the [`Spec`](crate::Observer::Spec) for a type `T`, it affects certain wrapper type
 /// observations, such as [`Option<T>`].
 pub struct HashSpec;
 
-impl<T: Hash + Observe<Spec = HashSpec>> OptionObserveImpl<T, HashSpec> for T {
+impl<T> OptionObserveImpl<T, HashSpec> for T
+where
+    T: Hash + Observe,
+    for<'i> <T as Observe>::Observer<'i>: Observer<'i, Spec = HashSpec>,
+{
     type Observer<'i>
         = HashObserver<'i, Option<T>>
     where
         Self: 'i;
-
-    type Spec = HashSpec;
 }

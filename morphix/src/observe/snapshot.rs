@@ -1,8 +1,8 @@
 use std::mem::MaybeUninit;
 
-use crate::Observe;
 use crate::impls::option::OptionObserveImpl;
 use crate::observe::{GeneralHandler, GeneralObserver};
+use crate::{Observe, Observer};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
 ///
@@ -63,6 +63,8 @@ impl<T> Default for SnapshotHandler<T> {
 }
 
 impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
+    type Spec = SnapshotSpec;
+
     #[inline]
     fn on_observe(value: &mut T) -> Self {
         Self {
@@ -84,17 +86,19 @@ impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
 /// Snapshot-based observation specification.
 ///
 /// `SnapshotSpec` marks a type as supporting efficient snapshot comparison (requires [`Clone`] +
-/// [`PartialEq`]). When used as the [`Spec`](crate::Observe::Spec) for a type `T`, it affects
+/// [`PartialEq`]). When used as the [`Spec`](crate::Observer::Spec) for a type `T`, it affects
 /// certain wrapper type observations, such as [`Option<T>`].
 pub struct SnapshotSpec;
 
-impl<T: Clone + PartialEq + Observe<Spec = SnapshotSpec>> OptionObserveImpl<T, SnapshotSpec> for T {
+impl<T> OptionObserveImpl<T, SnapshotSpec> for T
+where
+    T: Clone + PartialEq + Observe,
+    for<'i> <T as Observe>::Observer<'i>: Observer<'i, Spec = SnapshotSpec>,
+{
     type Observer<'i>
         = SnapshotObserver<'i, Option<T>>
     where
         Self: 'i;
-
-    type Spec = SnapshotSpec;
 }
 
 macro_rules! impl_observe {
@@ -104,8 +108,6 @@ macro_rules! impl_observe {
                 type Observer<'i> = SnapshotObserver<'i, $ty>
                 where
                     Self: 'i;
-
-                type Spec = SnapshotSpec;
             }
         )*
     };
