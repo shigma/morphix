@@ -14,7 +14,7 @@ pub use adapter::Adapter;
 pub use adapter::json::JsonAdapter;
 #[cfg(feature = "yaml")]
 pub use adapter::yaml::YamlAdapter;
-pub use batch::Batch;
+pub use batch::BatchTree;
 pub use error::MutationError;
 #[cfg(feature = "derive")]
 pub use morphix_derive::{Observe, observe};

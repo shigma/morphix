@@ -240,7 +240,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
                     };
                     let mut mutations = ::std::vec::Vec::new();
                     #(#collect_stmts)*
-                    Ok(::morphix::Batch::build(mutations))
+                    Ok(::morphix::BatchTree::build(mutations))
                 }
             }
         };

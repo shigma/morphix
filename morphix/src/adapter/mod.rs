@@ -55,6 +55,13 @@ pub mod yaml;
 ///     # ) -> Result<(), MutationError> {
 ///     #     unimplemented!()
 ///     # }
+///
+///     # fn get_len(
+///     #     value: &Self::Value,
+///     #     path_stack: &mut Path<false>,
+///     # ) -> Result<usize, MutationError> {
+///     #     unimplemented!()
+///     # }
 /// }
 /// ```
 pub trait Adapter: Sized {
@@ -102,7 +109,9 @@ pub trait Adapter: Sized {
     /// - Returns `MutationError::OperationError` if the values cannot be merged.
     fn merge_append(
         old_value: &mut Self::Value,
-        new_value: Self::Value,
+        append_value: Self::Value,
         path_stack: &mut Path<false>,
     ) -> Result<(), MutationError>;
+
+    fn get_len(value: &Self::Value, path_stack: &mut Path<false>) -> Result<usize, MutationError>;
 }

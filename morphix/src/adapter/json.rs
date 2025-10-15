@@ -107,4 +107,12 @@ impl Adapter for JsonAdapter {
         }
         Ok(())
     }
+
+    fn get_len(value: &Self::Value, path_stack: &mut Path<false>) -> Result<usize, MutationError> {
+        match value {
+            Value::String(str) => Ok(str.len()),
+            Value::Array(vec) => Ok(vec.len()),
+            _ => Err(MutationError::OperationError { path: take(path_stack) }),
+        }
+    }
 }

@@ -82,7 +82,7 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Mutation")
             .field("path", &self.path.to_string())
-            .field("operation", &self.kind)
+            .field("kind", &self.kind)
             .finish()
     }
 }
