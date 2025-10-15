@@ -1,7 +1,7 @@
 use std::mem::MaybeUninit;
 
 use crate::Observe;
-use crate::impls::option::OptionObserve;
+use crate::impls::option::OptionObserveImpl;
 use crate::observe::{GeneralHandler, GeneralObserver};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
@@ -88,7 +88,7 @@ impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
 /// certain wrapper type observations, such as [`Option<T>`].
 pub struct SnapshotSpec;
 
-impl<T: Clone + PartialEq + Observe<Spec = SnapshotSpec>> OptionObserve<T, SnapshotSpec> for T {
+impl<T: Clone + PartialEq + Observe<Spec = SnapshotSpec>> OptionObserveImpl<T, SnapshotSpec> for T {
     type Observer<'i>
         = SnapshotObserver<'i, Option<T>>
     where

@@ -122,18 +122,18 @@ impl<'i, O: Observer<'i, Target: Sized>> OptionObserver<'i, O> {
     }
 }
 
-impl<T: Observe + OptionObserve<T, <T as Observe>::Spec>> Observe for Option<T> {
+impl<T: Observe + OptionObserveImpl<T, <T as Observe>::Spec>> Observe for Option<T> {
     type Observer<'i>
-        = <T as OptionObserve<T, <T as Observe>::Spec>>::Observer<'i>
+        = <T as OptionObserveImpl<T, <T as Observe>::Spec>>::Observer<'i>
     where
         Self: 'i;
 
-    type Spec = <T as OptionObserve<T, <T as Observe>::Spec>>::Spec;
+    type Spec = <T as OptionObserveImpl<T, <T as Observe>::Spec>>::Spec;
 }
 
 /// Helper trait for selecting an appropriate observer for [`Option<T>`].
 #[doc(hidden)]
-pub trait OptionObserve<T: Observe, S> {
+pub trait OptionObserveImpl<T: Observe, S> {
     type Observer<'i>: Observer<'i, Target = Option<T>>
     where
         Self: 'i;
@@ -141,7 +141,7 @@ pub trait OptionObserve<T: Observe, S> {
     type Spec;
 }
 
-impl<T: Observe<Spec = DefaultSpec>> OptionObserve<T, DefaultSpec> for T {
+impl<T: Observe<Spec = DefaultSpec>> OptionObserveImpl<T, DefaultSpec> for T {
     type Observer<'i>
         = OptionObserver<'i, T::Observer<'i>>
     where
