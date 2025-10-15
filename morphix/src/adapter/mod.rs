@@ -1,8 +1,6 @@
-use std::borrow::Cow;
-
 use serde::Serialize;
 
-use crate::{Mutation, MutationError};
+use crate::{Mutation, MutationError, Path};
 
 #[cfg(feature = "json")]
 pub mod json;
@@ -25,7 +23,7 @@ pub mod yaml;
 ///
 /// ```
 /// # use std::borrow::Cow;
-/// # use morphix::{Mutation, MutationError, Observe};
+/// # use morphix::{Mutation, MutationError, Observe, Path};
 /// use morphix::Adapter;
 /// use serde::Serialize;
 /// use serde_json::value::Serializer;
@@ -45,7 +43,7 @@ pub mod yaml;
 ///     # fn apply_mutation(
 ///     #     old_value: &mut Self::Value,
 ///     #     mutation: Mutation<Self>,
-///     #     path_stack: &mut Vec<Cow<'static, str>>,
+///     #     path_stack: &mut Path<false>,
 ///     # ) -> Result<(), MutationError> {
 ///     #     unimplemented!()
 ///     # }
@@ -53,7 +51,7 @@ pub mod yaml;
 ///     # fn merge_append(
 ///     #     old_value: &mut Self::Value,
 ///     #     new_value: Self::Value,
-///     #     path_stack: &mut Vec<Cow<'static, str>>,
+///     #     path_stack: &mut Path<false>,
 ///     # ) -> Result<(), MutationError> {
 ///     #     unimplemented!()
 ///     # }
@@ -88,7 +86,7 @@ pub trait Adapter: Sized {
     fn apply_mutation(
         old_value: &mut Self::Value,
         mutation: Mutation<Self>,
-        path_stack: &mut Vec<Cow<'static, str>>,
+        path_stack: &mut Path<false>,
     ) -> Result<(), MutationError>;
 
     /// Merges one append value into another.
@@ -105,6 +103,6 @@ pub trait Adapter: Sized {
     fn merge_append(
         old_value: &mut Self::Value,
         new_value: Self::Value,
-        path_stack: &mut Vec<Cow<'static, str>>,
+        path_stack: &mut Path<false>,
     ) -> Result<(), MutationError>;
 }

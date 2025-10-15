@@ -61,8 +61,8 @@ impl<'i> Observer<'i> for StringObserver<'i> {
     unsafe fn collect_unchecked<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
         Ok(if let Some(mutation) = Self::mutation_state(&mut this).take() {
             Some(Mutation {
-                path_rev: vec![],
-                operation: match mutation {
+                path: Default::default(),
+                kind: match mutation {
                     MutationState::Replace => MutationKind::Replace(A::serialize_value(&*this)?),
                     MutationState::Append(start_index) => {
                         MutationKind::Append(A::serialize_value(&this[start_index..])?)

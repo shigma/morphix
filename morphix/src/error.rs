@@ -1,26 +1,25 @@
-use std::borrow::Cow;
 use std::error::Error;
 use std::fmt::Display;
+
+use crate::Path;
 
 /// Error types for mutation operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MutationError {
     /// The specified path does not exist.
-    IndexError { path: Vec<Cow<'static, str>> },
+    IndexError { path: Path<false> },
     /// Mutation could not be performed at the specified path.
-    OperationError { path: Vec<Cow<'static, str>> },
+    OperationError { path: Path<false> },
 }
 
 impl Display for MutationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::IndexError { path } => {
-                // use `Debug` for quotes around path
-                write!(f, "path {:?} does not exist", path.join("."))
+                write!(f, "path {path} does not exist")
             }
             Self::OperationError { path } => {
-                // use `Debug` for quotes around path
-                write!(f, "operation could not be performed at {:?}", path.join("."))
+                write!(f, "operation could not be performed at {path}")
             }
         }
     }

@@ -67,8 +67,8 @@ impl<'i, O: Observer<'i, Target: Serialize + Sized>> Observer<'i> for OptionObse
     unsafe fn collect_unchecked<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
         if this.is_mutated && this.is_initial_some != this.is_some() {
             Ok(Some(Mutation {
-                path_rev: vec![],
-                operation: MutationKind::Replace(A::serialize_value(&*this)?),
+                path: Default::default(),
+                kind: MutationKind::Replace(A::serialize_value(&*this)?),
             }))
         } else if let Some(ob) = this.ob.take() {
             Observer::collect(ob)

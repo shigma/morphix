@@ -1,7 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::parse::Parse;
-use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 
@@ -16,7 +15,7 @@ impl Parse for ObserveArguments {
 
 #[derive(Default)]
 struct ObserveMeta {
-    observer: Option<(syn::Ident, syn::Type)>,
+    ob_ident: Option<syn::Ident>,
 }
 
 impl ObserveMeta {
@@ -42,25 +41,13 @@ impl ObserveMeta {
             };
             for ident in args.0 {
                 if ident == "hash" {
-                    meta.observer = Some((
-                        syn::Ident::new("HashObserver", ident.span()),
-                        parse_quote! { ::morphix::observe::HashSpec },
-                    ));
+                    meta.ob_ident = Some(syn::Ident::new("HashObserver", ident.span()));
                 } else if ident == "noop" {
-                    meta.observer = Some((
-                        syn::Ident::new("NoopObserver", ident.span()),
-                        parse_quote! { ::morphix::observe::DefaultSpec },
-                    ));
+                    meta.ob_ident = Some(syn::Ident::new("NoopObserver", ident.span()));
                 } else if ident == "shallow" {
-                    meta.observer = Some((
-                        syn::Ident::new("ShallowObserver", ident.span()),
-                        parse_quote! { ::morphix::observe::DefaultSpec },
-                    ));
+                    meta.ob_ident = Some(syn::Ident::new("ShallowObserver", ident.span()));
                 } else if ident == "snapshot" {
-                    meta.observer = Some((
-                        syn::Ident::new("SnapshotObserver", ident.span()),
-                        parse_quote! { ::morphix::observe::SnapshotSpec },
-                    ));
+                    meta.ob_ident = Some(syn::Ident::new("SnapshotObserver", ident.span()));
                 } else {
                     errors.push(syn::Error::new(
                         ident.span(),
@@ -80,7 +67,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
     if !errors.is_empty() {
         return Err(errors);
     }
-    if let Some((ob_ident, ob_spec)) = input_meta.observer {
+    if let Some(ob_ident) = input_meta.ob_ident {
         let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
         return Ok(quote! {
             const _: () = {
@@ -90,8 +77,6 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
                         = ::morphix::observe::#ob_ident<'morphix, Self>
                     where
                         Self: 'morphix;
-
-                    type Spec = #ob_spec;
                 }
             };
         });
@@ -130,7 +115,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
                 field_cloned.attrs = vec![];
                 let field_span = field_cloned.span();
                 let field_ty = &field.ty;
-                let ob_field_ty = match &field_meta.observer {
+                let ob_field_ty = match &field_meta.ob_ident {
                     None => {
                         inst_fields.push(quote_spanned! { field_span =>
                             #field_ident: ::morphix::Observe::__observe(&mut value.#field_ident),
@@ -139,7 +124,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
                             <#field_ty as ::morphix::Observe>::Observer<'morphix>
                         }
                     }
-                    Some((ob_ident, _)) => {
+                    Some(ob_ident) => {
                         inst_fields.push(quote_spanned! { field_span =>
                             #field_ident: ::morphix::observe::#ob_ident::observe(&mut value.#field_ident),
                         });
@@ -159,7 +144,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
                 });
                 collect_stmts.push(quote_spanned! { field_span =>
                     if let Some(mut mutation) = ::morphix::Observer::collect::<A>(this.#field_ident)? {
-                        mutation.path_rev.push(stringify!(#field_ident).into());
+                        mutation.path.push(stringify!(#field_ident).into());
                         mutations.push(mutation);
                     }
                 });
@@ -249,8 +234,8 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
                 ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A>>, A::Error> {
                     if this.__mutated {
                         return Ok(Some(::morphix::Mutation {
-                            path_rev: ::std::vec::Vec::new(),
-                            operation: ::morphix::MutationKind::Replace(A::serialize_value(&*this)?),
+                            path: ::morphix::Path::new(),
+                            kind: ::morphix::MutationKind::Replace(A::serialize_value(&*this)?),
                         }));
                     };
                     let mut mutations = ::std::vec::Vec::new();

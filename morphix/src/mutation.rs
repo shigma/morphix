@@ -1,32 +1,17 @@
-use std::borrow::Cow;
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 
-use crate::{Adapter, MutationError};
-
-struct Path<'i>(&'i Vec<Cow<'static, str>>);
-
-impl<'i> Display for Path<'i> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for (index, value) in self.0.iter().enumerate().rev() {
-            f.write_str(value)?;
-            if index != 0 {
-                f.write_str(".")?;
-            }
-        }
-        Ok(())
-    }
-}
+use crate::{Adapter, MutationError, Path};
 
 /// A mutation representing a change to a value at a specific path.
 ///
-/// `Mutation` captures both the location where a change occurred (via `path_rev`) and the kind of
+/// `Mutation` captures both the location where a change occurred (via `path`) and the kind of
 /// change that was made (via `operation`). Mutations can be applied to values to reproduce the
 /// changes they represent.
 ///
 /// ## Path Representation
 ///
 /// The path is stored in reverse order for efficiency during collection.
-/// For example, a change at `foo.bar.baz` would have `path_rev = ["baz", "bar", "foo"]`.
+/// For example, a change at `foo.bar.baz` would have `path = ["baz", "bar", "foo"]`.
 ///
 /// ## Example
 ///
@@ -36,8 +21,8 @@ impl<'i> Display for Path<'i> {
 ///
 /// // A mutation that replaces the value at path "user.name"
 /// let mutation = Mutation::<JsonAdapter> {
-///     path_rev: vec!["name".into(), "user".into()],
-///     operation: MutationKind::Replace(json!("Alice")),
+///     path: vec!["user".into(), "name".into()].into(),
+///     kind: MutationKind::Replace(json!("Alice")),
 /// };
 ///
 /// // Apply the mutation to a JSON value
@@ -49,10 +34,10 @@ pub struct Mutation<A: Adapter> {
     /// The path to the mutated value, stored in reverse order.
     ///
     /// An empty vec indicates a mutation at the root level.
-    pub path_rev: Vec<Cow<'static, str>>,
+    pub path: Path<true>,
 
     /// The kind of mutation that occurred.
-    pub operation: MutationKind<A>,
+    pub kind: MutationKind<A>,
 }
 
 impl<A: Adapter> Mutation<A> {
@@ -77,8 +62,8 @@ impl<A: Adapter> Mutation<A> {
     /// let mut value = json!({"count": 0});
     ///
     /// Mutation::<JsonAdapter> {
-    ///     path_rev: vec!["count".into()],
-    ///     operation: MutationKind::Replace(json!(42)),
+    ///     path: vec!["count".into()].into(),
+    ///     kind: MutationKind::Replace(json!(42)),
     /// }
     /// .apply(&mut value)
     /// .unwrap();
@@ -86,7 +71,7 @@ impl<A: Adapter> Mutation<A> {
     /// assert_eq!(value, json!({"count": 42}));
     /// ```
     pub fn apply(self, value: &mut A::Value) -> Result<(), MutationError> {
-        A::apply_mutation(value, self, &mut vec![])
+        A::apply_mutation(value, self, &mut Default::default())
     }
 }
 
@@ -96,8 +81,8 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Mutation")
-            .field("path", &Path(&self.path_rev).to_string())
-            .field("operation", &self.operation)
+            .field("path", &self.path.to_string())
+            .field("operation", &self.kind)
             .finish()
     }
 }
@@ -108,8 +93,8 @@ where
 {
     fn clone(&self) -> Self {
         Self {
-            path_rev: self.path_rev.clone(),
-            operation: self.operation.clone(),
+            path: self.path.clone(),
+            kind: self.kind.clone(),
         }
     }
 }
@@ -119,7 +104,7 @@ where
     A::Value: PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
-        self.path_rev == other.path_rev && self.operation == other.operation
+        self.path == other.path && self.kind == other.kind
     }
 }
 
@@ -162,8 +147,8 @@ impl<A: Adapter> Eq for Mutation<A> where A::Value: Eq {}
 ///     doc.tags.push("done".to_string());    // Append
 /// }).unwrap().unwrap();
 ///
-/// // The mutation contains a Batch with three operations
-/// matches!(mutation.operation, MutationKind::Batch(_));
+/// // The mutation contains a Batch with three kinds
+/// assert!(matches!(mutation.kind, MutationKind::Batch(_)));
 /// ```
 pub enum MutationKind<A: Adapter> {
     /// `Replace` is the default mutation for [`DerefMut`](std::ops::DerefMut) operations.
@@ -283,8 +268,8 @@ mod test {
     fn apply_set() {
         let mut value = json!({"a": 1});
         Mutation::<JsonAdapter> {
-            path_rev: vec![],
-            operation: MutationKind::Replace(json!({})),
+            path: vec![].into(),
+            kind: MutationKind::Replace(json!({})),
         }
         .apply(&mut value)
         .unwrap();
@@ -292,8 +277,8 @@ mod test {
 
         let mut value = json!({});
         Mutation::<JsonAdapter> {
-            path_rev: vec!["a".into()],
-            operation: MutationKind::Replace(json!(1)),
+            path: vec!["a".into()].into(),
+            kind: MutationKind::Replace(json!(1)),
         }
         .apply(&mut value)
         .unwrap();
@@ -301,51 +286,56 @@ mod test {
 
         let mut value = json!({"a": 1});
         Mutation::<JsonAdapter> {
-            path_rev: vec!["a".into()],
-            operation: MutationKind::Replace(json!(2)),
+            path: vec!["a".into()].into(),
+            kind: MutationKind::Replace(json!(2)),
         }
         .apply(&mut value)
         .unwrap();
         assert_eq!(value, json!({"a": 2}));
 
         let error = Mutation::<JsonAdapter> {
-            path_rev: vec!["b".into(), "a".into()],
-            operation: MutationKind::Replace(json!(3)),
+            path: vec!["a".into(), "b".into()].into(),
+            kind: MutationKind::Replace(json!(3)),
         }
         .apply(&mut json!({}))
         .unwrap_err();
-        assert_eq!(error, MutationError::IndexError { path: vec!["a".into()] });
+        assert_eq!(
+            error,
+            MutationError::IndexError {
+                path: vec!["a".into()].into()
+            }
+        );
 
         let error = Mutation::<JsonAdapter> {
-            path_rev: vec!["b".into(), "a".into()],
-            operation: MutationKind::Replace(json!(3)),
+            path: vec!["a".into(), "b".into()].into(),
+            kind: MutationKind::Replace(json!(3)),
         }
         .apply(&mut json!({"a": 1}))
         .unwrap_err();
         assert_eq!(
             error,
             MutationError::IndexError {
-                path: vec!["a".into(), "b".into()],
+                path: vec!["a".into(), "b".into()].into(),
             }
         );
 
         let error = Mutation::<JsonAdapter> {
-            path_rev: vec!["b".into(), "a".into()],
-            operation: MutationKind::Replace(json!(3)),
+            path: vec!["a".into(), "b".into()].into(),
+            kind: MutationKind::Replace(json!(3)),
         }
         .apply(&mut json!({"a": []}))
         .unwrap_err();
         assert_eq!(
             error,
             MutationError::IndexError {
-                path: vec!["a".into(), "b".into()],
+                path: vec!["a".into(), "b".into()].into(),
             }
         );
 
         let mut value = json!({"a": {}});
         Mutation::<JsonAdapter> {
-            path_rev: vec!["b".into(), "a".into()],
-            operation: MutationKind::Replace(json!(3)),
+            path: vec!["a".into(), "b".into()].into(),
+            kind: MutationKind::Replace(json!(3)),
         }
         .apply(&mut value)
         .unwrap();
@@ -356,8 +346,8 @@ mod test {
     fn apply_append() {
         let mut value = json!("2");
         Mutation::<JsonAdapter> {
-            path_rev: vec![],
-            operation: MutationKind::Append(json!("34")),
+            path: vec![].into(),
+            kind: MutationKind::Append(json!("34")),
         }
         .apply(&mut value)
         .unwrap();
@@ -365,52 +355,57 @@ mod test {
 
         let mut value = json!([2]);
         Mutation::<JsonAdapter> {
-            path_rev: vec![],
-            operation: MutationKind::Append(json!(["3", "4"])),
+            path: vec![].into(),
+            kind: MutationKind::Append(json!(["3", "4"])),
         }
         .apply(&mut value)
         .unwrap();
         assert_eq!(value, json!([2, "3", "4"]));
 
         let error = Mutation::<JsonAdapter> {
-            path_rev: vec![],
-            operation: MutationKind::Append(json!(3)),
+            path: vec![].into(),
+            kind: MutationKind::Append(json!(3)),
         }
         .apply(&mut json!(""))
         .unwrap_err();
-        assert_eq!(error, MutationError::OperationError { path: vec![] });
+        assert_eq!(
+            error,
+            MutationError::OperationError {
+                path: Default::default()
+            }
+        );
 
         let error = Mutation::<JsonAdapter> {
-            path_rev: vec![],
-            operation: MutationKind::Append(json!("3")),
+            path: vec![].into(),
+            kind: MutationKind::Append(json!("3")),
         }
         .apply(&mut json!({}))
         .unwrap_err();
-        assert_eq!(error, MutationError::OperationError { path: vec![] });
+        assert_eq!(error, MutationError::OperationError { path: vec![].into() });
 
         let error = Mutation::<JsonAdapter> {
-            path_rev: vec![],
-            operation: MutationKind::Append(json!("3")),
+            path: vec![].into(),
+            kind: MutationKind::Append(json!("3")),
         }
         .apply(&mut json!([]))
         .unwrap_err();
-        assert_eq!(error, MutationError::OperationError { path: vec![] });
+        assert_eq!(error, MutationError::OperationError { path: vec![].into() });
 
         let error = Mutation::<JsonAdapter> {
-            path_rev: vec![],
-            operation: MutationKind::Append(json!([3])),
+            path: vec![].into(),
+            kind: MutationKind::Append(json!([3])),
         }
         .apply(&mut json!(""))
         .unwrap_err();
-        assert_eq!(error, MutationError::OperationError { path: vec![] });
+        assert_eq!(error, MutationError::OperationError { path: vec![].into() });
     }
 
     #[test]
     fn apply_batch() {
         let mut value = json!({"a": {"b": {"c": {}}}});
         Mutation::<JsonAdapter> {
-            path_rev: vec![],
-            operation: MutationKind::Batch(vec![]),
+            path: vec![].into(),
+            kind: MutationKind::Batch(vec![]),
         }
         .apply(&mut value)
         .unwrap();
@@ -418,29 +413,29 @@ mod test {
 
         let mut value = json!({"a": {"b": {"c": "1"}}});
         let error = Mutation::<JsonAdapter> {
-            path_rev: vec!["d".into(), "a".into()],
-            operation: MutationKind::Batch(vec![]),
+            path: vec!["a".into(), "d".into()].into(),
+            kind: MutationKind::Batch(vec![]),
         }
         .apply(&mut value)
         .unwrap_err();
         assert_eq!(
             error,
             MutationError::IndexError {
-                path: vec!["a".into(), "d".into()],
+                path: vec!["a".into(), "d".into()].into(),
             }
         );
 
         let mut value = json!({"a": {"b": {"c": "1"}}});
         Mutation::<JsonAdapter> {
-            path_rev: vec!["a".into()],
-            operation: MutationKind::Batch(vec![
+            path: vec!["a".into()].into(),
+            kind: MutationKind::Batch(vec![
                 Mutation::<JsonAdapter> {
-                    path_rev: vec!["c".into(), "b".into()],
-                    operation: MutationKind::Append(json!("2")),
+                    path: vec!["b".into(), "c".into()].into(),
+                    kind: MutationKind::Append(json!("2")),
                 },
                 Mutation::<JsonAdapter> {
-                    path_rev: vec!["d".into()],
-                    operation: MutationKind::Replace(json!(3)),
+                    path: vec!["d".into()].into(),
+                    kind: MutationKind::Replace(json!(3)),
                 },
             ]),
         }

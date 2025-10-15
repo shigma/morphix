@@ -1,11 +1,10 @@
-use std::borrow::Cow;
 use std::mem::take;
 
 use serde::Serialize;
 use serde_yaml_ng::value::Serializer;
 use serde_yaml_ng::{Error, Value};
 
-use crate::{Adapter, Mutation, MutationError, MutationKind};
+use crate::{Adapter, Mutation, MutationError, MutationKind, Path, PathSegment};
 
 /// YAML adapter for morphix mutation serialization.
 ///
@@ -50,18 +49,24 @@ impl Adapter for YamlAdapter {
     fn apply_mutation(
         mut curr_value: &mut Self::Value,
         mut mutation: Mutation<Self>,
-        path_stack: &mut Vec<Cow<'static, str>>,
+        path_stack: &mut Path<false>,
     ) -> Result<(), MutationError> {
-        let is_replace = matches!(mutation.operation, MutationKind::Replace { .. });
+        let is_replace = matches!(mutation.kind, MutationKind::Replace { .. });
 
-        while let Some(key) = mutation.path_rev.pop() {
-            let next_value = match curr_value {
-                Value::Sequence(seq) => key.parse::<usize>().ok().and_then(|index| seq.get_mut(index)),
-                Value::Mapping(map) => {
-                    let key_value = Value::String(key.to_string());
-                    match is_replace && mutation.path_rev.is_empty() {
-                        true => Some(map.entry(key_value).or_insert(Value::Null)),
-                        false => map.get_mut(&key_value),
+        while let Some(key) = mutation.path.pop() {
+            let next_value = match (curr_value, &key) {
+                (Value::Sequence(vec), PathSegment::Number(index)) => {
+                    if *index > 0 {
+                        vec.get_mut(*index as usize)
+                    } else {
+                        vec.len().checked_add_signed(*index).and_then(|i| vec.get_mut(i))
+                    }
+                }
+                (Value::Mapping(map), PathSegment::String(key)) => {
+                    if is_replace && mutation.path.is_empty() {
+                        Some(map.entry(Value::String(key.to_string())).or_insert(Value::Null))
+                    } else {
+                        map.get_mut(&**key)
                     }
                 }
                 _ => None,
@@ -75,7 +80,7 @@ impl Adapter for YamlAdapter {
             }
         }
 
-        match mutation.operation {
+        match mutation.kind {
             MutationKind::Replace(value) => {
                 *curr_value = value;
             }
@@ -97,7 +102,7 @@ impl Adapter for YamlAdapter {
     fn merge_append(
         old_value: &mut Self::Value,
         new_value: Self::Value,
-        path_stack: &mut Vec<Cow<'static, str>>,
+        path_stack: &mut Path<false>,
     ) -> Result<(), MutationError> {
         match (old_value, new_value) {
             (Value::String(lhs), Value::String(rhs)) => {

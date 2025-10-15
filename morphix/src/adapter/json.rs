@@ -1,11 +1,10 @@
-use std::borrow::Cow;
 use std::mem::take;
 
 use serde::Serialize;
 use serde_json::value::Serializer;
 use serde_json::{Error, Value};
 
-use crate::{Adapter, Mutation, MutationError, MutationKind};
+use crate::{Adapter, Mutation, MutationError, MutationKind, Path, PathSegment};
 
 /// JSON adapter for morphix mutation serialization.
 ///
@@ -42,21 +41,30 @@ impl Adapter for JsonAdapter {
     fn apply_mutation(
         mut curr_value: &mut Self::Value,
         mut mutation: Mutation<Self>,
-        path_stack: &mut Vec<Cow<'static, str>>,
+        path_stack: &mut Path<false>,
     ) -> Result<(), MutationError> {
-        let is_replace = matches!(mutation.operation, MutationKind::Replace { .. });
+        let is_replace = matches!(mutation.kind, MutationKind::Replace { .. });
 
-        while let Some(key) = mutation.path_rev.pop() {
-            let next_value = match curr_value {
-                Value::Array(vec) => key.parse::<usize>().ok().and_then(|index| vec.get_mut(index)),
-                Value::Object(map) => match is_replace && mutation.path_rev.is_empty() {
-                    true => Some(map.entry(&*key).or_insert(Value::Null)),
-                    false => map.get_mut(&*key),
-                },
+        while let Some(key) = mutation.path.pop() {
+            let new_value = match (curr_value, &key) {
+                (Value::Array(vec), PathSegment::Number(index)) => {
+                    if *index > 0 {
+                        vec.get_mut(*index as usize)
+                    } else {
+                        vec.len().checked_add_signed(*index).and_then(|i| vec.get_mut(i))
+                    }
+                }
+                (Value::Object(map), PathSegment::String(key)) => {
+                    if is_replace && mutation.path.is_empty() {
+                        Some(map.entry(&**key).or_insert(Value::Null))
+                    } else {
+                        map.get_mut(&**key)
+                    }
+                }
                 _ => None,
             };
             path_stack.push(key);
-            match next_value {
+            match new_value {
                 Some(value) => curr_value = value,
                 None => {
                     return Err(MutationError::IndexError { path: take(path_stack) });
@@ -64,7 +72,7 @@ impl Adapter for JsonAdapter {
             }
         }
 
-        match mutation.operation {
+        match mutation.kind {
             MutationKind::Replace(value) => {
                 *curr_value = value;
             }
@@ -86,7 +94,7 @@ impl Adapter for JsonAdapter {
     fn merge_append(
         old_value: &mut Self::Value,
         new_value: Self::Value,
-        path_stack: &mut Vec<Cow<'static, str>>,
+        path_stack: &mut Path<false>,
     ) -> Result<(), MutationError> {
         match (old_value, new_value) {
             (Value::String(lhs), Value::String(rhs)) => {

@@ -283,7 +283,7 @@ pub enum MutationState {
 ///         // 1. Collect own mutation state (replacement or append)
 ///         if let Some(state) = Self::mutation_state(&mut this).take() {
 ///             mutations.push(Mutation {
-///                 operation: match state {
+///                 kind: match state {
 ///                     MutationState::Replace => MutationKind::Replace(..),
 ///                     MutationState::Append(idx) => MutationKind::Append(..),
 ///                 },

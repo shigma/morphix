@@ -85,8 +85,8 @@ impl<'i, O: Observer<'i, Target: Serialize + Sized>> Observer<'i> for VecObserve
         let mut max_index = None;
         if let Some(mutation) = Self::mutation_state(&mut this).take() {
             mutations.push(Mutation {
-                path_rev: vec![],
-                operation: match mutation {
+                path: Default::default(),
+                kind: match mutation {
                     MutationState::Replace => MutationKind::Replace(A::serialize_value(&*this)?),
                     MutationState::Append(start_index) => {
                         max_index = Some(start_index);
@@ -104,7 +104,7 @@ impl<'i, O: Observer<'i, Target: Serialize + Sized>> Observer<'i> for VecObserve
                 continue;
             }
             if let Some(mut mutation) = Observer::collect::<A>(observer)? {
-                mutation.path_rev.push(index.to_string().into());
+                mutation.path.push((index as isize).into());
                 mutations.push(mutation);
             }
         }

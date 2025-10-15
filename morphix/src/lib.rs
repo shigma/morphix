@@ -7,6 +7,7 @@ pub mod helper;
 mod impls;
 mod mutation;
 pub mod observe;
+mod path;
 
 pub use adapter::Adapter;
 #[cfg(feature = "json")]
@@ -19,3 +20,4 @@ pub use error::MutationError;
 pub use morphix_derive::{Observe, observe};
 pub use mutation::{Mutation, MutationKind};
 pub use observe::{Observe, Observer};
+pub use path::{Path, PathSegment};

@@ -49,15 +49,15 @@ let mutation = observe!(JsonAdapter, |mut foo| {
 assert_eq!(
     mutation,
     Some(Mutation {
-        path_rev: vec![],
-        operation: MutationKind::Batch(vec![
+        path: vec![].into(),
+        kind: MutationKind::Batch(vec![
             Mutation {
-                path_rev: vec!["baz".into(), "bar".into()],
-                operation: MutationKind::Replace(json!(43)),
+                path: vec!["bar".into(), "baz".into()].into(),
+                kind: MutationKind::Replace(json!(43)),
             },
             Mutation {
-                path_rev: vec!["qux".into()],
-                operation: MutationKind::Append(json!(" world")),
+                path: vec!["qux".into()].into(),
+                kind: MutationKind::Append(json!(" world")),
             },
         ]),
     }),

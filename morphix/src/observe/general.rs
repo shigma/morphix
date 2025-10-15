@@ -147,8 +147,8 @@ impl<'i, T: Serialize, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i
     unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error> {
         Ok(if this.handler.on_collect(&*this) {
             Some(Mutation {
-                path_rev: vec![],
-                operation: MutationKind::Replace(A::serialize_value(&*this)?),
+                path: Default::default(),
+                kind: MutationKind::Replace(A::serialize_value(&*this)?),
             })
         } else {
             None
