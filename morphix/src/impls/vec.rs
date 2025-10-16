@@ -264,25 +264,65 @@ where
 }
 
 impl<'i, O: Observer<'i, Target: Debug + Sized>> Debug for VecObserver<'i, O> {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("VecObserver").field(&**self).finish()
     }
 }
 
-impl<'i, O: Observer<'i, Target: PartialEq<U> + Sized>, U> PartialEq<Vec<U>> for VecObserver<'i, O> {
+impl<'i, O, U> PartialEq<Vec<U>> for VecObserver<'i, O>
+where
+    O: Observer<'i, Target: PartialEq<U> + Sized>,
+{
+    #[inline]
     fn eq(&self, other: &Vec<U>) -> bool {
         (**self).eq(other)
     }
 }
 
+impl<'i, O, P, Q: ?Sized> PartialEq<P> for VecObserver<'i, O>
+where
+    O: Observer<'i, Target: Sized>,
+    P: Observer<'i, Target = Q>,
+    Vec<O::Target>: PartialEq<Q>,
+{
+    #[inline]
+    fn eq(&self, other: &P) -> bool {
+        (**self).eq(&**other)
+    }
+}
+
+impl<'i, O: Observer<'i, Target: Eq + Sized>> Eq for VecObserver<'i, O> {}
+
 impl<'i, O: Observer<'i, Target: PartialOrd + Sized>> PartialOrd<Vec<O::Target>> for VecObserver<'i, O> {
+    #[inline]
     fn partial_cmp(&self, other: &Vec<O::Target>) -> Option<std::cmp::Ordering> {
         (**self).partial_cmp(other)
     }
 }
 
-impl<'i, O: Observer<'i, Target: Sized> + Default, I> IndexMut<I> for VecObserver<'i, O>
+impl<'i, O, P, Q: ?Sized> PartialOrd<P> for VecObserver<'i, O>
 where
+    O: Observer<'i, Target: Sized>,
+    P: Observer<'i, Target = Q>,
+    Vec<O::Target>: PartialOrd<Q>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &P) -> Option<std::cmp::Ordering> {
+        (**self).partial_cmp(&**other)
+    }
+}
+
+impl<'i, O: Observer<'i, Target: Ord + Sized>> Ord for VecObserver<'i, O> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (**self).cmp(&**other)
+    }
+}
+
+impl<'i, O, I> IndexMut<I> for VecObserver<'i, O>
+where
+    O: Observer<'i, Target: Sized> + Default,
     I: RangeLike<usize> + SliceIndex<[O], Output = [O]>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {

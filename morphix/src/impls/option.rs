@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use serde::Serialize;
@@ -121,6 +122,60 @@ impl<'i, O: Observer<'i, Target: Sized>> OptionObserver<'i, O> {
             self.__insert(f());
         }
         self.ob.as_mut().unwrap()
+    }
+}
+
+impl<'i, O: Observer<'i, Target: Debug + Sized>> Debug for OptionObserver<'i, O> {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("OptionObserver").field(&**self).finish()
+    }
+}
+
+impl<'i, O: Observer<'i, Target: PartialEq + Sized>> PartialEq<Option<O::Target>> for OptionObserver<'i, O> {
+    #[inline]
+    fn eq(&self, other: &Option<O::Target>) -> bool {
+        (**self).eq(other)
+    }
+}
+
+impl<'i, O, P, Q: ?Sized> PartialEq<P> for OptionObserver<'i, O>
+where
+    O: Observer<'i, Target: Sized>,
+    P: Observer<'i, Target = Q>,
+    Option<O::Target>: PartialEq<Q>,
+{
+    #[inline]
+    fn eq(&self, other: &P) -> bool {
+        (**self).eq(&**other)
+    }
+}
+
+impl<'i, O: Observer<'i, Target: Eq + Sized>> Eq for OptionObserver<'i, O> {}
+
+impl<'i, O: Observer<'i, Target: PartialOrd + Sized>> PartialOrd<Option<O::Target>> for OptionObserver<'i, O> {
+    #[inline]
+    fn partial_cmp(&self, other: &Option<O::Target>) -> Option<std::cmp::Ordering> {
+        (**self).partial_cmp(other)
+    }
+}
+
+impl<'i, O, P, Q: ?Sized> PartialOrd<P> for OptionObserver<'i, O>
+where
+    O: Observer<'i, Target: Sized>,
+    P: Observer<'i, Target = Q>,
+    Option<O::Target>: PartialOrd<Q>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &P) -> Option<std::cmp::Ordering> {
+        (**self).partial_cmp(&**other)
+    }
+}
+
+impl<'i, O: Observer<'i, Target: Ord + Sized>> Ord for OptionObserver<'i, O> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (**self).cmp(&**other)
     }
 }
 

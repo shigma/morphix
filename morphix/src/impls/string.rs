@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
@@ -110,8 +111,61 @@ impl<'i> StringObserver<'i> {
 }
 
 impl<'i> AddAssign<&str> for StringObserver<'i> {
+    #[inline]
     fn add_assign(&mut self, rhs: &str) {
         self.push_str(rhs);
+    }
+}
+
+impl<'i> Debug for StringObserver<'i> {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("StringObserver").field(&**self).finish()
+    }
+}
+
+impl<'i> PartialEq<String> for StringObserver<'i> {
+    #[inline]
+    fn eq(&self, other: &String) -> bool {
+        (**self).eq(other)
+    }
+}
+
+impl<'i, O> PartialEq<O> for StringObserver<'i>
+where
+    O: Observer<'i>,
+    String: PartialEq<O::Target>,
+{
+    #[inline]
+    fn eq(&self, other: &O) -> bool {
+        (**self).eq(&**other)
+    }
+}
+
+impl<'i> Eq for StringObserver<'i> {}
+
+impl<'i> PartialOrd<String> for StringObserver<'i> {
+    #[inline]
+    fn partial_cmp(&self, other: &String) -> Option<std::cmp::Ordering> {
+        (**self).partial_cmp(other)
+    }
+}
+
+impl<'i, O> PartialOrd<O> for StringObserver<'i>
+where
+    O: Observer<'i>,
+    String: PartialOrd<O::Target>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &O) -> Option<std::cmp::Ordering> {
+        (**self).partial_cmp(&**other)
+    }
+}
+
+impl<'i> Ord for StringObserver<'i> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (**self).cmp(&**other)
     }
 }
 
