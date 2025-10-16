@@ -1,5 +1,6 @@
 use std::cell::UnsafeCell;
 use std::collections::TryReserveError;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem::take;
 use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
@@ -210,7 +211,9 @@ impl<'i, O: Observer<'i, Target: Sized> + Default> Index<usize> for VecObserver<
         if index >= obs.len() {
             obs.resize_with(index + 1, Default::default);
         }
-        obs[index] = O::observe(value);
+        if O::inner(&obs[index]) != value {
+            obs[index] = O::observe(value);
+        }
         &obs[index]
     }
 }
@@ -222,7 +225,9 @@ impl<'i, O: Observer<'i, Target: Sized> + Default> IndexMut<usize> for VecObserv
         if index >= obs.len() {
             obs.resize_with(index + 1, Default::default);
         }
-        obs[index] = O::observe(value);
+        if O::inner(&obs[index]) != value {
+            obs[index] = O::observe(value);
+        }
         &mut obs[index]
     }
 }
@@ -250,9 +255,29 @@ where
         }
         for (i, obs_item) in obs[start..end].iter_mut().enumerate() {
             let value = unsafe { &mut (&mut *self.ptr)[start + i] };
-            *obs_item = O::observe(value);
+            if O::inner(obs_item) != value {
+                *obs_item = O::observe(value);
+            }
         }
         &obs[index]
+    }
+}
+
+impl<'i, O: Observer<'i, Target: Debug + Sized>> Debug for VecObserver<'i, O> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("VecObserver").field(&**self).finish()
+    }
+}
+
+impl<'i, O: Observer<'i, Target: PartialEq<U> + Sized>, U> PartialEq<Vec<U>> for VecObserver<'i, O> {
+    fn eq(&self, other: &Vec<U>) -> bool {
+        (**self).eq(other)
+    }
+}
+
+impl<'i, O: Observer<'i, Target: PartialOrd + Sized>> PartialOrd<Vec<O::Target>> for VecObserver<'i, O> {
+    fn partial_cmp(&self, other: &Vec<O::Target>) -> Option<std::cmp::Ordering> {
+        (**self).partial_cmp(other)
     }
 }
 
@@ -277,8 +302,141 @@ where
         }
         for (i, obs_item) in obs[start..end].iter_mut().enumerate() {
             let value = unsafe { &mut (&mut *self.ptr)[start + i] };
-            *obs_item = O::observe(value);
+            if O::inner(obs_item) != value {
+                *obs_item = O::observe(value);
+            }
         }
         &mut obs[index]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::Serialize;
+    use serde_json::json;
+
+    use super::*;
+    use crate::helper::ObserveExt;
+    use crate::observe::ShallowObserver;
+    use crate::{JsonAdapter, Observer};
+
+    #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+    struct Number(i32);
+
+    impl Observe for Number {
+        type Observer<'i>
+            = ShallowObserver<'i, Self>
+        where
+            Self: 'i;
+    }
+
+    #[test]
+    fn no_change_returns_none() {
+        let mut vec: Vec<Number> = vec![];
+        let ob = vec.__observe();
+        assert!(Observer::collect::<JsonAdapter>(ob).unwrap().is_none());
+    }
+
+    #[test]
+    fn deref_mut_triggers_replace() {
+        let mut vec: Vec<Number> = vec![Number(1)];
+        let mut ob = vec.__observe();
+        ob.clear();
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.kind, MutationKind::Replace(json!([])));
+    }
+
+    #[test]
+    fn push_triggers_append() {
+        let mut vec: Vec<Number> = vec![Number(1)];
+        let mut ob = vec.__observe();
+        ob.push(Number(2));
+        ob.push(Number(3));
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.kind, MutationKind::Append(json!([2, 3])));
+    }
+
+    #[test]
+    fn append_vec() {
+        let mut vec: Vec<Number> = vec![Number(1)];
+        let mut ob = vec.__observe();
+        let mut extra = vec![Number(4), Number(5)];
+        ob.append(&mut extra);
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.kind, MutationKind::Append(json!([4, 5])));
+    }
+
+    #[test]
+    fn extend_from_slice() {
+        let mut vec: Vec<Number> = vec![Number(1)];
+        let mut ob = vec.__observe();
+        ob.extend_from_slice(&[Number(6), Number(7)]);
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.kind, MutationKind::Append(json!([6, 7])));
+    }
+
+    #[test]
+    fn index_by_usize() {
+        let mut vec: Vec<Number> = vec![Number(1), Number(2)];
+        let mut ob = vec.__observe();
+        assert_eq!(ob[0].0, 1);
+        ob.reserve(100); // force reallocation
+        ob[0].0 = 99;
+        ob.reserve(100); // force reallocation
+        assert_eq!(ob[0].0, 99);
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.path, vec![(-2).into()].into());
+        assert_eq!(mutation.kind, MutationKind::Replace(json!(99)));
+    }
+
+    #[test]
+    fn append_and_index() {
+        let mut vec: Vec<Number> = vec![Number(1)];
+        let mut ob = vec.__observe();
+        ob[0].0 = 11;
+        ob.push(Number(2));
+        ob[1].0 = 12;
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.path, vec![].into());
+        assert_eq!(
+            mutation.kind,
+            MutationKind::Batch(vec![
+                Mutation {
+                    path: vec![].into(),
+                    kind: MutationKind::Append(json!([12])),
+                },
+                Mutation {
+                    path: vec![(-2).into()].into(),
+                    kind: MutationKind::Replace(json!(11)),
+                },
+            ])
+        );
+    }
+
+    #[test]
+    fn index_by_range() {
+        let mut vec: Vec<Number> = vec![Number(1), Number(2), Number(3), Number(4)];
+        let mut ob = vec.__observe();
+        {
+            let slice = &mut ob[1..];
+            slice[0].0 = 222;
+            slice[1].0 = 333;
+        }
+        assert_eq!(ob, vec![Number(1), Number(222), Number(333), Number(4)]);
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.path, vec![].into());
+        assert_eq!(
+            mutation.kind,
+            MutationKind::Batch(vec![
+                Mutation {
+                    path: vec![(-3).into()].into(),
+                    kind: MutationKind::Replace(json!(222)),
+                },
+                Mutation {
+                    path: vec![(-2).into()].into(),
+                    kind: MutationKind::Replace(json!(333)),
+                }
+            ]),
+        )
     }
 }

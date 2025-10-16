@@ -164,7 +164,7 @@ mod tests {
     use crate::observe::{GeneralObserver, ShallowObserver};
     use crate::{JsonAdapter, Observer};
 
-    #[derive(Serialize, Default)]
+    #[derive(Debug, Serialize, Default)]
     struct Number(i32);
 
     impl Observe for Number {
