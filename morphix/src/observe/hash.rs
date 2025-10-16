@@ -2,6 +2,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 
 use crate::impls::option::OptionObserveImpl;
+use crate::observe::general::DebugHandler;
 use crate::observe::{GeneralHandler, GeneralObserver};
 use crate::{Observe, Observer};
 
@@ -63,8 +64,6 @@ impl<H: Hasher + Default> HashHandler<H> {
 impl<T: Hash, H: Hasher + Default> GeneralHandler<T> for HashHandler<H> {
     type Spec = HashSpec;
 
-    const NAME: &'static str = "HashObserver";
-
     #[inline]
     fn on_observe(value: &mut T) -> Self {
         Self {
@@ -80,6 +79,10 @@ impl<T: Hash, H: Hasher + Default> GeneralHandler<T> for HashHandler<H> {
     fn on_collect(&self, value: &T) -> bool {
         self.initial_hash != Self::hash(value)
     }
+}
+
+impl<T: Hash, H: Hasher + Default> DebugHandler<T> for HashHandler<H> {
+    const NAME: &'static str = "HashObserver";
 }
 
 /// Hash-based observation specification.

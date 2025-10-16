@@ -1,4 +1,4 @@
-use crate::observe::{DefaultSpec, GeneralHandler, GeneralObserver};
+use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver};
 
 /// A general observer that never reports changes.
 ///
@@ -33,8 +33,6 @@ pub struct NoopHandler;
 impl<T> GeneralHandler<T> for NoopHandler {
     type Spec = DefaultSpec;
 
-    const NAME: &'static str = "NoopObserver";
-
     #[inline]
     fn on_observe(_value: &mut T) -> Self {
         Self
@@ -47,4 +45,8 @@ impl<T> GeneralHandler<T> for NoopHandler {
     fn on_collect(&self, _value: &T) -> bool {
         false
     }
+}
+
+impl<T> DebugHandler<T> for NoopHandler {
+    const NAME: &'static str = "NoopObserver";
 }

@@ -1,7 +1,7 @@
 use std::mem::MaybeUninit;
 
 use crate::impls::option::OptionObserveImpl;
-use crate::observe::{GeneralHandler, GeneralObserver};
+use crate::observe::{DebugHandler, GeneralHandler, GeneralObserver};
 use crate::{Observe, Observer};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
@@ -65,8 +65,6 @@ impl<T> Default for SnapshotHandler<T> {
 impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
     type Spec = SnapshotSpec;
 
-    const NAME: &'static str = "SnapshotObserver";
-
     #[inline]
     fn on_observe(value: &mut T) -> Self {
         Self {
@@ -83,6 +81,10 @@ impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
         // observer is assumed to contain a valid pointer
         value != unsafe { self.snapshot.assume_init_ref() }
     }
+}
+
+impl<T: Clone + PartialEq> DebugHandler<T> for SnapshotHandler<T> {
+    const NAME: &'static str = "SnapshotObserver";
 }
 
 /// Snapshot-based observation specification.

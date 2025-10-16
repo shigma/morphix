@@ -54,8 +54,6 @@ pub trait GeneralHandler<T> {
     /// Associated specification type for [`GeneralObserver`].
     type Spec;
 
-    const NAME: &'static str;
-
     /// Called when observation begins.
     fn on_observe(value: &mut T) -> Self;
 
@@ -64,6 +62,41 @@ pub trait GeneralHandler<T> {
 
     /// Called when collecting changes, returns whether a change occurred.
     fn on_collect(&self, value: &T) -> bool;
+}
+
+/// A helper trait for providing a custom name when formatting [`GeneralObserver`] with [`Debug`].
+///
+/// `DebugHandler` extends [`GeneralHandler`] by adding a [`NAME`](DebugHandler::NAME) constant used
+/// as the type label in [`Debug`] output for [`GeneralObserver`].
+///
+/// ## Example
+///
+/// ```rust
+/// use morphix::observe::{DebugHandler, GeneralHandler, GeneralObserver};
+/// # use morphix::observe::DefaultSpec;
+/// use morphix::Observer;
+///
+/// pub struct MyHandler;
+///
+/// impl<T> GeneralHandler<T> for MyHandler {
+///     // omitted for brevity
+/// #   type Spec = DefaultSpec;
+/// #   fn on_observe(_value: &mut T) -> Self { MyHandler }
+/// #   fn on_deref_mut(&mut self) {}
+/// #   fn on_collect(&self, _value: &T) -> bool { true }
+/// }
+///
+/// impl<T> DebugHandler<T> for MyHandler {
+///     const NAME: &'static str = "MyObserver";
+/// }
+///
+/// let mut value = 123;
+/// let ob = GeneralObserver::<_, MyHandler>::observe(&mut value);
+/// println!("{:?}", ob); // prints: MyObserver(123)
+/// ```
+pub trait DebugHandler<T>: GeneralHandler<T> {
+    /// The name displayed when formatting the observer with [`Debug`].
+    const NAME: &'static str;
 }
 
 /// A general-purpose [`Observer`] implementation with extensible change detection strategies.
@@ -182,7 +215,7 @@ impl_fmt! {
     UpperExp,
 }
 
-impl<'i, T: Debug, H: GeneralHandler<T>> Debug for GeneralObserver<'i, T, H> {
+impl<'i, T: Debug, H: DebugHandler<T>> Debug for GeneralObserver<'i, T, H> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple(H::NAME).field(&**self).finish()
     }

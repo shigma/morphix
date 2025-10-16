@@ -1,4 +1,4 @@
-use crate::observe::{DefaultSpec, GeneralHandler, GeneralObserver};
+use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver};
 
 /// A general observer that tracks any mutation access as a change.
 ///
@@ -44,8 +44,6 @@ pub struct ShallowHandler {
 impl<T> GeneralHandler<T> for ShallowHandler {
     type Spec = DefaultSpec;
 
-    const NAME: &'static str = "ShallowObserver";
-
     #[inline]
     fn on_observe(_value: &mut T) -> Self {
         Self { mutated: false }
@@ -60,4 +58,8 @@ impl<T> GeneralHandler<T> for ShallowHandler {
     fn on_collect(&self, _value: &T) -> bool {
         self.mutated
     }
+}
+
+impl<T> DebugHandler<T> for ShallowHandler {
+    const NAME: &'static str = "ShallowObserver";
 }

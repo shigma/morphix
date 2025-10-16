@@ -42,7 +42,7 @@ mod noop;
 mod shallow;
 mod snapshot;
 
-pub use general::{GeneralHandler, GeneralObserver};
+pub use general::{DebugHandler, GeneralHandler, GeneralObserver};
 pub use hash::{HashObserver, HashSpec};
 pub use noop::NoopObserver;
 pub use shallow::ShallowObserver;
