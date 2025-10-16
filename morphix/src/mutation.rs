@@ -43,10 +43,6 @@ pub struct Mutation<A: Adapter> {
 impl<A: Adapter> Mutation<A> {
     /// Applies this mutation to a value.
     ///
-    /// ## Arguments
-    ///
-    /// - `value` - value to mutate
-    ///
     /// ## Errors
     ///
     /// - Returns [IndexError](MutationError::IndexError) if the path doesn't exist in the value.
@@ -72,6 +68,22 @@ impl<A: Adapter> Mutation<A> {
     /// ```
     pub fn apply(self, value: &mut A::Value) -> Result<(), MutationError> {
         A::apply_mutation(value, self, &mut Default::default())
+    }
+
+    /// Coalesce many mutations as a single mutation.
+    ///
+    /// - Returns [`None`] if no mutations exist.
+    /// - Returns a single mutation if only one mutation exists.
+    /// - Returns a [`Batch`](MutationKind::Batch) mutation if multiple mutations exist.
+    pub fn coalesce(mut mutations: Vec<Mutation<A>>) -> Option<Mutation<A>> {
+        match mutations.len() {
+            0 => None,
+            1 => Some(mutations.swap_remove(0)),
+            _ => Some(Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Batch(mutations),
+            }),
+        }
     }
 }
 
