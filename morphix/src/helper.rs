@@ -14,6 +14,8 @@
 
 use std::ops::DerefMut;
 
+use crate::{Observe, Observer};
+
 /// A trait enabling assignment to observers using autoref-based specialization.
 ///
 /// ## Background
@@ -104,3 +106,13 @@ impl<T> RangeLike<T> for std::ops::RangeFrom<T> {}
 impl<T> RangeLike<T> for std::ops::Range<T> {}
 impl<T> RangeLike<T> for std::ops::RangeInclusive<T> {}
 impl<T> RangeLike<T> for std::ops::RangeToInclusive<T> {}
+
+#[doc(hidden)]
+pub trait ObserveExt: Observe {
+    #[inline]
+    fn __observe<'i>(&'i mut self) -> Self::Observer<'i> {
+        Self::Observer::observe(self)
+    }
+}
+
+impl<T: Observe> ObserveExt for T {}

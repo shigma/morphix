@@ -49,7 +49,7 @@ pub fn observe(input: TokenStream) -> Result<TokenStream, syn::Error> {
         {
             #[allow(unused_imports)]
             use ::morphix::helper::Assignable;
-            let mut #ident = ::morphix::Observe::__observe(&mut #ident);
+            let mut #ident = ::morphix::helper::ObserveExt::__observe(&mut #ident);
             #[allow(clippy::needless_borrow)]
             #body_actual;
             #ident
