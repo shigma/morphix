@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use crate::helper::{Assignable, RangeLike};
 use crate::observe::{DefaultSpec, MutationState, StatefulObserver};
-use crate::{Adapter, BatchTree, Mutation, MutationKind, Observe, Observer};
+use crate::{Adapter, BatchTree, Mutation, MutationKind, Observe, Observer, PathSegment};
 
 /// An observer for [`Vec`] that tracks both replacements and appends.
 ///
@@ -104,7 +104,7 @@ impl<'i, O: Observer<'i, Target: Serialize + Sized>> Observer<'i> for VecObserve
                 continue;
             }
             if let Some(mut mutation) = Observer::collect::<A>(observer)? {
-                mutation.path.push((index as isize - this.len() as isize).into());
+                mutation.path.push(PathSegment::NegIndex(this.len() - index));
                 mutations.push(mutation);
             }
         }

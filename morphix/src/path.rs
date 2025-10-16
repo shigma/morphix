@@ -2,15 +2,20 @@ use std::borrow::Cow;
 use std::fmt::{Debug, Display};
 use std::ops::{Deref, DerefMut};
 
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PathSegment {
     String(Cow<'static, str>),
-    Number(isize),
+    PosIndex(usize),
+    NegIndex(usize),
 }
 
 impl From<isize> for PathSegment {
     fn from(n: isize) -> Self {
-        Self::Number(n)
+        if n >= 0 {
+            Self::PosIndex(n as usize)
+        } else {
+            Self::NegIndex(-n as usize)
+        }
     }
 }
 
@@ -36,7 +41,8 @@ impl Display for PathSegment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PathSegment::String(s) => write!(f, ".{s}"),
-            PathSegment::Number(n) => write!(f, "[{n}]"),
+            PathSegment::PosIndex(n) => write!(f, "[{n}]"),
+            PathSegment::NegIndex(n) => write!(f, "[-{n}]"),
         }
     }
 }

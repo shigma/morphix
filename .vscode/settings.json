@@ -20,6 +20,7 @@
         "cloneable",
         "deque",
         "impls",
+        "indexmap",
         "morphix",
         "serde",
         "shigma",

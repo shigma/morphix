@@ -1,5 +1,5 @@
+use std::borrow::Cow;
 use std::collections::BTreeMap;
-use std::fmt::Debug;
 use std::mem::take;
 
 use crate::{Adapter, Mutation, MutationError, MutationKind, Path, PathSegment};
@@ -9,18 +9,66 @@ enum BatchMutationKind<A: Adapter> {
     #[default]
     None,
     Replace(A::Value),
-    Append(A::Value, isize),
+    Append(A::Value, usize),
 }
 
-impl<A: Adapter> Debug for BatchMutationKind<A>
-where
-    A::Value: Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+#[derive(Default)]
+enum BatchChildren<A: Adapter> {
+    #[default]
+    None,
+    String(BTreeMap<Cow<'static, str>, BatchTree<A>>),
+    PosIndex(BTreeMap<usize, BatchTree<A>>),
+    NegIndex(BTreeMap<usize, BatchTree<A>>),
+}
+
+impl<A: Adapter> BatchChildren<A> {
+    fn try_entry_or_default(&mut self, segment: PathSegment) -> Option<&mut BatchTree<A>> {
+        if let Self::None = &self {
+            *self = match &segment {
+                PathSegment::String(_) => Self::String(Default::default()),
+                PathSegment::PosIndex(_) => Self::PosIndex(Default::default()),
+                PathSegment::NegIndex(_) => Self::NegIndex(Default::default()),
+            };
+        }
+        Some(match (self, segment) {
+            (Self::String(map), PathSegment::String(key)) => map.entry(key).or_default(),
+            (Self::PosIndex(map), PathSegment::PosIndex(key)) => map.entry(key).or_default(),
+            (Self::NegIndex(map), PathSegment::NegIndex(key)) => map.entry(key).or_default(),
+            _ => return None,
+        })
+    }
+}
+
+impl<A: Adapter> IntoIterator for BatchChildren<A> {
+    type Item = (PathSegment, BatchTree<A>);
+    type IntoIter = BatchChildrenIntoIter<A>;
+
+    fn into_iter(self) -> Self::IntoIter {
         match self {
-            Self::None => f.write_str("None"),
-            Self::Replace(value) => f.debug_tuple("Replace").field(value).finish(),
-            Self::Append(value, len) => f.debug_tuple("Append").field(value).field(len).finish(),
+            Self::None => BatchChildrenIntoIter::None,
+            Self::String(map) => BatchChildrenIntoIter::String(map.into_iter()),
+            Self::PosIndex(map) => BatchChildrenIntoIter::PosIndex(map.into_iter()),
+            Self::NegIndex(map) => BatchChildrenIntoIter::NegIndex(map.into_iter()),
+        }
+    }
+}
+
+enum BatchChildrenIntoIter<A: Adapter> {
+    None,
+    String(std::collections::btree_map::IntoIter<Cow<'static, str>, BatchTree<A>>),
+    PosIndex(std::collections::btree_map::IntoIter<usize, BatchTree<A>>),
+    NegIndex(std::collections::btree_map::IntoIter<usize, BatchTree<A>>),
+}
+
+impl<A: Adapter> Iterator for BatchChildrenIntoIter<A> {
+    type Item = (PathSegment, BatchTree<A>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::None => None,
+            Self::String(iter) => iter.next().map(|(k, v)| (PathSegment::String(k), v)),
+            Self::PosIndex(iter) => iter.next().map(|(k, v)| (PathSegment::PosIndex(k), v)),
+            Self::NegIndex(iter) => iter.next().map(|(k, v)| (PathSegment::NegIndex(k), v)),
         }
     }
 }
@@ -50,7 +98,7 @@ where
 /// ```
 pub struct BatchTree<A: Adapter> {
     kind: BatchMutationKind<A>,
-    children: BTreeMap<PathSegment, Self>,
+    children: BatchChildren<A>,
 }
 
 impl<A: Adapter> Default for BatchTree<A> {
@@ -59,18 +107,6 @@ impl<A: Adapter> Default for BatchTree<A> {
             kind: Default::default(),
             children: Default::default(),
         }
-    }
-}
-
-impl<A: Adapter> Debug for BatchTree<A>
-where
-    A::Value: Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Batch")
-            .field("kind", &self.kind)
-            .field("children", &self.children)
-            .finish()
     }
 }
 
@@ -106,19 +142,22 @@ impl<A: Adapter> BatchTree<A> {
         while let Some(mut segment) = mutation.path.pop() {
             // We cannot avoid clone here because `BTreeMap::entry` requires owned key.
             path_stack.push(segment.clone());
-            if let PathSegment::Number(index) = &mut segment
-                && *index < 0
+            if let PathSegment::NegIndex(index) = &mut segment
                 && let BatchMutationKind::Append(value, len) = &mut batch.kind
             {
-                if -*index <= *len {
+                if *index <= *len {
                     mutation.path.push(segment);
+                    path_stack.pop();
                     A::apply_mutation(value, mutation, path_stack)?;
                     return Ok(());
                 } else {
-                    *index += *len;
+                    *index -= *len;
                 }
             }
-            batch = batch.children.entry(segment).or_default();
+            batch = batch
+                .children
+                .try_entry_or_default(segment)
+                .ok_or_else(|| MutationError::IndexError { path: take(path_stack) })?;
             if let BatchMutationKind::Replace(value) = &mut batch.kind {
                 A::apply_mutation(value, mutation, path_stack)?;
                 return Ok(());
@@ -128,10 +167,10 @@ impl<A: Adapter> BatchTree<A> {
         match mutation.kind {
             MutationKind::Replace(value) => {
                 batch.kind = BatchMutationKind::Replace(value);
-                batch.children.clear();
+                take(&mut batch.children);
             }
             MutationKind::Append(append_value) => {
-                let append_len = A::get_len(&append_value, path_stack)? as isize;
+                let append_len = A::get_len(&append_value, path_stack)?;
                 match &mut batch.kind {
                     BatchMutationKind::Append(value, len) => {
                         *len += append_len;

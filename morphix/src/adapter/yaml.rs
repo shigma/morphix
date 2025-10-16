@@ -55,12 +55,9 @@ impl Adapter for YamlAdapter {
 
         while let Some(key) = mutation.path.pop() {
             let next_value = match (curr_value, &key) {
-                (Value::Sequence(vec), PathSegment::Number(index)) => {
-                    if *index > 0 {
-                        vec.get_mut(*index as usize)
-                    } else {
-                        vec.len().checked_add_signed(*index).and_then(|i| vec.get_mut(i))
-                    }
+                (Value::Sequence(vec), PathSegment::PosIndex(index)) => vec.get_mut(*index),
+                (Value::Sequence(vec), PathSegment::NegIndex(index)) => {
+                    vec.len().checked_sub(*index).and_then(|i| vec.get_mut(i))
                 }
                 (Value::Mapping(map), PathSegment::String(key)) => {
                     if is_replace && mutation.path.is_empty() {

@@ -47,12 +47,9 @@ impl Adapter for JsonAdapter {
 
         while let Some(key) = mutation.path.pop() {
             let new_value = match (curr_value, &key) {
-                (Value::Array(vec), PathSegment::Number(index)) => {
-                    if *index > 0 {
-                        vec.get_mut(*index as usize)
-                    } else {
-                        vec.len().checked_add_signed(*index).and_then(|i| vec.get_mut(i))
-                    }
+                (Value::Array(vec), PathSegment::PosIndex(index)) => vec.get_mut(*index),
+                (Value::Array(vec), PathSegment::NegIndex(index)) => {
+                    vec.len().checked_sub(*index).and_then(|i| vec.get_mut(i))
                 }
                 (Value::Object(map), PathSegment::String(key)) => {
                     if is_replace && mutation.path.is_empty() {
