@@ -33,6 +33,8 @@ pub struct NoopHandler;
 impl<T> GeneralHandler<T> for NoopHandler {
     type Spec = DefaultSpec;
 
+    const NAME: &'static str = "NoopObserver";
+
     #[inline]
     fn on_observe(_value: &mut T) -> Self {
         Self

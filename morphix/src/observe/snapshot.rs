@@ -65,6 +65,8 @@ impl<T> Default for SnapshotHandler<T> {
 impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
     type Spec = SnapshotSpec;
 
+    const NAME: &'static str = "SnapshotObserver";
+
     #[inline]
     fn on_observe(value: &mut T) -> Self {
         Self {

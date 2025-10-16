@@ -44,6 +44,8 @@ pub struct ShallowHandler {
 impl<T> GeneralHandler<T> for ShallowHandler {
     type Spec = DefaultSpec;
 
+    const NAME: &'static str = "ShallowObserver";
+
     #[inline]
     fn on_observe(_value: &mut T) -> Self {
         Self { mutated: false }

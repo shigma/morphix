@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
@@ -121,6 +121,12 @@ impl<'i> Debug for StringObserver<'i> {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("StringObserver").field(&**self).finish()
+    }
+}
+
+impl<'i> Display for StringObserver<'i> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&**self, f)
     }
 }
 

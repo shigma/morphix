@@ -63,6 +63,8 @@ impl<H: Hasher + Default> HashHandler<H> {
 impl<T: Hash, H: Hasher + Default> GeneralHandler<T> for HashHandler<H> {
     type Spec = HashSpec;
 
+    const NAME: &'static str = "HashObserver";
+
     #[inline]
     fn on_observe(value: &mut T) -> Self {
         Self {

@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
@@ -52,6 +53,8 @@ use crate::{Adapter, Mutation, MutationKind, Observer};
 pub trait GeneralHandler<T> {
     /// Associated specification type for [`GeneralObserver`].
     type Spec;
+
+    const NAME: &'static str;
 
     /// Called when observation begins.
     fn on_observe(value: &mut T) -> Self;
@@ -153,6 +156,35 @@ impl<'i, T: Serialize, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i
         } else {
             None
         })
+    }
+}
+
+macro_rules! impl_fmt {
+    ($($trait:ident),* $(,)?) => {
+        $(
+            impl<'i, T: ::std::fmt::$trait, H: GeneralHandler<T>> ::std::fmt::$trait for GeneralObserver<'i, T, H> {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    ::std::fmt::$trait::fmt(&**self, f)
+                }
+            }
+        )*
+    };
+}
+
+impl_fmt! {
+    Display,
+    Octal,
+    LowerHex,
+    UpperHex,
+    Pointer,
+    Binary,
+    LowerExp,
+    UpperExp,
+}
+
+impl<'i, T: Debug, H: GeneralHandler<T>> Debug for GeneralObserver<'i, T, H> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple(H::NAME).field(&**self).finish()
     }
 }
 
