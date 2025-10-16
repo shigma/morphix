@@ -114,3 +114,76 @@ impl<'i> AddAssign<&str> for StringObserver<'i> {
         self.push_str(rhs);
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::JsonAdapter;
+    use crate::helper::ObserveExt;
+
+    #[test]
+    fn no_mutation_returns_none() {
+        let mut s = String::from("hello");
+        let ob = s.__observe();
+        assert!(Observer::collect::<JsonAdapter>(ob).unwrap().is_none());
+    }
+
+    #[test]
+    fn replace_on_deref_mut() {
+        let mut s = String::from("hello");
+        let mut ob = s.__observe();
+        ob.clear();
+        ob.push_str("world"); // append after replace should have no effect
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.kind, MutationKind::Replace(json!("world")));
+    }
+
+    #[test]
+    fn append_with_push() {
+        let mut s = String::from("a");
+        let mut ob = s.__observe();
+        ob.push('b');
+        ob.push('c');
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.kind, MutationKind::Append(json!("bc")));
+    }
+
+    #[test]
+    fn append_with_push_str() {
+        let mut s = String::from("foo");
+        let mut ob = s.__observe();
+        ob.push_str("bar");
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.kind, MutationKind::Append(json!("bar")));
+    }
+
+    #[test]
+    fn append_with_add_assign() {
+        let mut s = String::from("foo");
+        let mut ob = s.__observe();
+        ob += "bar";
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.kind, MutationKind::Append(json!("bar")));
+    }
+
+    #[test]
+    fn append_empty_string() {
+        let mut s = String::from("foo");
+        let mut ob = s.__observe();
+        ob.push_str("");
+        ob += "";
+        assert!(Observer::collect::<JsonAdapter>(ob).unwrap().is_none());
+    }
+
+    #[test]
+    fn replace_after_append() {
+        let mut s = String::from("abc");
+        let mut ob = s.__observe();
+        ob.push_str("def");
+        *ob = String::from("xyz");
+        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        assert_eq!(mutation.kind, MutationKind::Replace(json!("xyz")));
+    }
+}
