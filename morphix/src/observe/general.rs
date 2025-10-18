@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::helper::Assignable;
-use crate::observe::{DerefMutInductive, Pointer, Unsigned, Zero};
+use crate::observe::{AsDerefMut, Pointer, Unsigned, Zero};
 use crate::{Adapter, Mutation, MutationKind, Observer};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
@@ -159,7 +159,7 @@ impl<'i, H, S: ?Sized, N> Deref for GeneralObserver<'i, H, S, N> {
 impl<'i, H, S: ?Sized, N> DerefMut for GeneralObserver<'i, H, S, N>
 where
     N: Unsigned,
-    S: DerefMutInductive<N>,
+    S: AsDerefMut<N>,
     H: GeneralHandler<S::Target>,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
@@ -171,7 +171,7 @@ where
 impl<'i, H, S: ?Sized, N> Assignable for GeneralObserver<'i, H, S, N>
 where
     N: Unsigned,
-    S: DerefMutInductive<N>,
+    S: AsDerefMut<N>,
     H: GeneralHandler<S::Target>,
 {
 }
@@ -179,7 +179,7 @@ where
 impl<'i, H, S: ?Sized, N> Observer for GeneralObserver<'i, H, S, N>
 where
     N: Unsigned,
-    S: DerefMutInductive<N, Target: Serialize>,
+    S: AsDerefMut<N, Target: Serialize>,
     H: GeneralHandler<S::Target>,
 {
     type UpperDepth = N;
@@ -189,20 +189,16 @@ where
     fn observe(value: &mut Self::Head) -> Self {
         Self {
             ptr: Pointer::new(value),
-            handler: H::on_observe(value.deref_mut_inductive()),
+            handler: H::on_observe(value.as_deref_mut()),
             phantom: PhantomData,
         }
     }
 
-    fn as_ptr(this: &Self) -> &Pointer<S> {
-        &this.ptr
-    }
-
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
-        Ok(if this.handler.on_collect(this.deref_inductive()) {
+        Ok(if this.handler.on_collect(this.as_deref()) {
             Some(Mutation {
                 path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value(this.deref_inductive())?),
+                kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
             })
         } else {
             None
@@ -215,11 +211,11 @@ macro_rules! impl_fmt {
         $(
             impl<'i, H, S, N: Unsigned> ::std::fmt::$trait for GeneralObserver<'i, H, S, N>
             where
-                S: DerefMutInductive<N, Target: ::std::fmt::$trait> + ?Sized,
+                S: AsDerefMut<N, Target: ::std::fmt::$trait> + ?Sized,
                 H: GeneralHandler<S::Target>
             {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    ::std::fmt::$trait::fmt(self.deref_inductive(), f)
+                    ::std::fmt::$trait::fmt(self.as_deref(), f)
                 }
             }
         )*
@@ -239,57 +235,57 @@ impl_fmt! {
 
 impl<'i, H, S, N: Unsigned> Debug for GeneralObserver<'i, H, S, N>
 where
-    S: DerefMutInductive<N, Target: Debug> + ?Sized,
+    S: AsDerefMut<N, Target: Debug> + ?Sized,
     H: DebugHandler<S::Target>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple(H::NAME).field(&self.deref_inductive()).finish()
+        f.debug_tuple(H::NAME).field(&self.as_deref()).finish()
     }
 }
 
 impl<'i, H, S, N: Unsigned, I> std::ops::Index<I> for GeneralObserver<'i, H, S, N>
 where
-    S: DerefMutInductive<N, Target: std::ops::Index<I>> + ?Sized,
+    S: AsDerefMut<N, Target: std::ops::Index<I>> + ?Sized,
     H: GeneralHandler<S::Target>,
 {
     type Output = <S::Target as std::ops::Index<I>>::Output;
 
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
-        self.deref_inductive().index(index)
+        self.as_deref().index(index)
     }
 }
 
 impl<'i, H, S, N: Unsigned, I> std::ops::IndexMut<I> for GeneralObserver<'i, H, S, N>
 where
-    S: DerefMutInductive<N, Target: std::ops::IndexMut<I>> + ?Sized,
+    S: AsDerefMut<N, Target: std::ops::IndexMut<I>> + ?Sized,
     H: GeneralHandler<S::Target>,
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        (***self).deref_mut_inductive().index_mut(index)
+        (***self).as_deref_mut().index_mut(index)
     }
 }
 
 impl<'i, H, S, N: Unsigned, U: ?Sized> PartialEq<U> for GeneralObserver<'i, H, S, N>
 where
-    S: DerefMutInductive<N, Target: PartialEq<U>> + ?Sized,
+    S: AsDerefMut<N, Target: PartialEq<U>> + ?Sized,
     H: GeneralHandler<S::Target>,
 {
     #[inline]
     fn eq(&self, other: &U) -> bool {
-        self.deref_inductive().eq(other)
+        self.as_deref().eq(other)
     }
 }
 
 impl<'i, H, S, N: Unsigned, U: ?Sized> PartialOrd<U> for GeneralObserver<'i, H, S, N>
 where
-    S: DerefMutInductive<N, Target: PartialOrd<U>> + ?Sized,
+    S: AsDerefMut<N, Target: PartialOrd<U>> + ?Sized,
     H: GeneralHandler<S::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        self.deref_inductive().partial_cmp(other)
+        self.as_deref().partial_cmp(other)
     }
 }
 
@@ -298,12 +294,12 @@ macro_rules! impl_assign_ops {
         $(
             impl<'i, H, S, N: Unsigned, U> ::std::ops::$trait<U> for GeneralObserver<'i, H, S, N>
             where
-                S: DerefMutInductive<N, Target: ::std::ops::$trait<U>> + ?Sized,
+                S: AsDerefMut<N, Target: ::std::ops::$trait<U>> + ?Sized,
                 H: GeneralHandler<S::Target>,
             {
                 #[inline]
                 fn $method(&mut self, rhs: U) {
-                    (***self).deref_mut_inductive().$method(rhs);
+                    (***self).as_deref_mut().$method(rhs);
                 }
             }
         )*
@@ -328,14 +324,14 @@ macro_rules! impl_ops_copy {
         $(
             impl<'i, H, S, N: Unsigned, U> ::std::ops::$trait<U> for GeneralObserver<'i, H, S, N>
             where
-                S: DerefMutInductive<N, Target: ::std::ops::$trait<U> + Copy> + ?Sized,
+                S: AsDerefMut<N, Target: ::std::ops::$trait<U> + Copy> + ?Sized,
                 H: GeneralHandler<S::Target>,
             {
                 type Output = <S::Target as ::std::ops::$trait<U>>::Output;
 
                 #[inline]
                 fn $method(self, rhs: U) -> Self::Output {
-                    self.deref_inductive().$method(rhs)
+                    self.as_deref().$method(rhs)
                 }
             }
         )*
@@ -357,26 +353,26 @@ impl_ops_copy! {
 
 impl<'i, H, S, N: Unsigned> ::std::ops::Neg for GeneralObserver<'i, H, S, N>
 where
-    S: DerefMutInductive<N, Target: ::std::ops::Neg + Copy> + ?Sized,
+    S: AsDerefMut<N, Target: ::std::ops::Neg + Copy> + ?Sized,
     H: GeneralHandler<S::Target>,
 {
     type Output = <S::Target as ::std::ops::Neg>::Output;
 
     #[inline]
     fn neg(self) -> Self::Output {
-        (*self.deref_inductive()).neg()
+        (*self.as_deref()).neg()
     }
 }
 
 impl<'i, H, S, N: Unsigned> ::std::ops::Not for GeneralObserver<'i, H, S, N>
 where
-    S: DerefMutInductive<N, Target: ::std::ops::Not + Copy> + ?Sized,
+    S: AsDerefMut<N, Target: ::std::ops::Not + Copy> + ?Sized,
     H: GeneralHandler<S::Target>,
 {
     type Output = <S::Target as ::std::ops::Not>::Output;
 
     #[inline]
     fn not(self) -> Self::Output {
-        (*self.deref_inductive()).not()
+        (*self.as_deref()).not()
     }
 }

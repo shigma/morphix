@@ -1,10 +1,10 @@
 use std::mem::MaybeUninit;
 
 use crate::Observe;
-use crate::helper::DerefInductive;
+use crate::helper::AsDeref;
 use crate::impls::boxed::BoxObserveImpl;
 use crate::impls::option::OptionObserveImpl;
-use crate::observe::{DebugHandler, DerefMutInductive, GeneralHandler, GeneralObserver, Unsigned};
+use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
 ///
@@ -49,7 +49,7 @@ use crate::observe::{DebugHandler, DerefMutInductive, GeneralHandler, GeneralObs
 ///
 /// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use `SnapshotObserver` as their default
 /// implementation since they're cheap to clone and compare.
-pub type SnapshotObserver<'i, S, N> = GeneralObserver<'i, SnapshotHandler<<S as DerefInductive<N>>::Target>, S, N>;
+pub type SnapshotObserver<'i, S, N> = GeneralObserver<'i, SnapshotHandler<<S as AsDeref<N>>::Target>, S, N>;
 
 pub struct SnapshotHandler<T> {
     snapshot: MaybeUninit<T>,
@@ -105,7 +105,7 @@ macro_rules! impl_observe {
                 where
                     Self: 'i,
                     N: Unsigned,
-                    S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
+                    S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
 
                 type Spec = SnapshotSpec;
             }
@@ -129,7 +129,7 @@ where
     where
         T: 'i,
         N: Unsigned,
-        S: DerefMutInductive<N, Target = Box<T>> + ?Sized + 'i;
+        S: AsDerefMut<N, Target = Box<T>> + ?Sized + 'i;
 }
 
 impl<T> OptionObserveImpl<T, SnapshotSpec> for T
@@ -141,5 +141,5 @@ where
     where
         T: 'i,
         N: Unsigned,
-        S: DerefMutInductive<N, Target = Option<T>> + ?Sized + 'i;
+        S: AsDerefMut<N, Target = Option<T>> + ?Sized + 'i;
 }

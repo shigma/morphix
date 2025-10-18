@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::helper::{Assignable, DerefInductive, DerefMutInductive, Pointer, Succ, Unsigned};
+use crate::helper::{AsDeref, AsDerefMut, Assignable, Succ, Unsigned};
 use crate::observe::DefaultSpec;
 use crate::{Observe, Observer};
 
@@ -30,7 +30,7 @@ impl<O, N> Observer for BoxObserver<O>
 where
     O: Observer<UpperDepth = Succ<N>>,
     N: Unsigned,
-    O::Head: DerefMutInductive<N, Target = Box<<O::Head as DerefInductive<O::UpperDepth>>::Target>>,
+    O::Head: AsDerefMut<N, Target = Box<<O::Head as AsDeref<O::UpperDepth>>::Target>>,
 {
     type LowerDepth = Succ<O::LowerDepth>;
     type UpperDepth = N;
@@ -41,11 +41,6 @@ where
         Self {
             inner: O::observe(value),
         }
-    }
-
-    #[inline]
-    fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
-        O::as_ptr(&this.inner)
     }
 
     #[inline]
@@ -63,7 +58,7 @@ where
     where
         Self: 'i,
         N: Unsigned,
-        S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
+        S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
 
     type Spec = T::Spec;
 }
@@ -74,7 +69,7 @@ pub trait BoxObserveImpl<T: Observe, Spec> {
     where
         T: 'i,
         N: Unsigned,
-        S: DerefMutInductive<N, Target = Box<T>> + ?Sized + 'i;
+        S: AsDerefMut<N, Target = Box<T>> + ?Sized + 'i;
 }
 
 impl<T> BoxObserveImpl<T, DefaultSpec> for T
@@ -86,5 +81,5 @@ where
     where
         T: 'i,
         N: Unsigned,
-        S: DerefMutInductive<N, Target = Box<T>> + ?Sized + 'i;
+        S: AsDerefMut<N, Target = Box<T>> + ?Sized + 'i;
 }

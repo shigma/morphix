@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 use serde::Serialize;
 
-use crate::helper::{Assignable, DerefMutInductive, Pointer, Unsigned, Zero};
+use crate::helper::{AsDerefMut, Assignable, Pointer, Unsigned, Zero};
 use crate::observe::DefaultSpec;
 use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 
@@ -51,7 +51,7 @@ impl<'i, O, S: ?Sized, N> Assignable for OptionObserver<'i, O, S, N> {}
 impl<'i, O, S: ?Sized, N, T> Observer for OptionObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: DerefMutInductive<N, Target = Option<T>>,
+    S: AsDerefMut<N, Target = Option<T>>,
     O: Observer<UpperDepth = Zero, Head = T>,
     T: Serialize + 'i,
 {
@@ -64,22 +64,17 @@ where
         Self {
             ptr: Pointer::new(value),
             is_mutated: false,
-            is_initial_some: (*value).deref_inductive().is_some(),
-            ob: value.deref_mut_inductive().as_mut().map(O::observe),
+            is_initial_some: (*value).as_deref().is_some(),
+            ob: value.as_deref_mut().as_mut().map(O::observe),
             phantom: PhantomData,
         }
     }
 
-    #[inline]
-    fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
-        &this.ptr
-    }
-
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
-        if this.is_mutated && (this.is_initial_some || (*this.ptr).deref_inductive().is_some()) {
+        if this.is_mutated && (this.is_initial_some || (*this.ptr).as_deref().is_some()) {
             Ok(Some(Mutation {
                 path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value((*this.ptr).deref_inductive())?),
+                kind: MutationKind::Replace(A::serialize_value((*this.ptr).as_deref())?),
             }))
         } else if let Some(mut ob) = this.ob.take() {
             Observer::collect(&mut ob)
@@ -92,19 +87,19 @@ where
 impl<'i, O, S: ?Sized, N, T> OptionObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: DerefMutInductive<N, Target = Option<T>>,
+    S: AsDerefMut<N, Target = Option<T>>,
     O: Observer<UpperDepth = Zero, Head = T>,
     T: 'i,
 {
     fn __insert(&mut self, value: T) {
         self.is_mutated = true;
-        let inserted = (*self.ptr).deref_mut_inductive().insert(value);
+        let inserted = (*self.ptr).as_deref_mut().insert(value);
         self.ob = Some(O::observe(inserted));
     }
 
     pub fn as_mut(&mut self) -> Option<&mut O> {
-        if self.deref_inductive().is_some() && self.ob.is_none() {
-            self.ob = (*self.ptr).deref_mut_inductive().as_mut().map(O::observe);
+        if self.as_deref().is_some() && self.ob.is_none() {
+            self.ob = (*self.ptr).as_deref_mut().as_mut().map(O::observe);
         }
         self.ob.as_mut()
     }
@@ -131,7 +126,7 @@ where
     where
         F: FnOnce() -> T,
     {
-        if self.deref_inductive().is_none() {
+        if self.as_deref().is_none() {
             self.__insert(f());
         }
         self.ob.as_mut().unwrap()
@@ -141,35 +136,33 @@ where
 impl<'i, O, S: ?Sized, N> Debug for OptionObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: DerefMutInductive<N, Target: Debug>,
+    S: AsDerefMut<N, Target: Debug>,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("OptionObserver")
-            .field(&(*self.ptr).deref_inductive())
-            .finish()
+        f.debug_tuple("OptionObserver").field(&(*self.ptr).as_deref()).finish()
     }
 }
 
 impl<'i, O, S: ?Sized, N, U: ?Sized> PartialEq<U> for OptionObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: DerefMutInductive<N, Target: PartialEq<U>>,
+    S: AsDerefMut<N, Target: PartialEq<U>>,
 {
     #[inline]
     fn eq(&self, other: &U) -> bool {
-        (*self.ptr).deref_inductive().eq(other)
+        (*self.ptr).as_deref().eq(other)
     }
 }
 
 impl<'i, O, S: ?Sized, N, U: ?Sized> PartialOrd<U> for OptionObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: DerefMutInductive<N, Target: PartialOrd<U>>,
+    S: AsDerefMut<N, Target: PartialOrd<U>>,
 {
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        (*self.ptr).deref_inductive().partial_cmp(other)
+        (*self.ptr).as_deref().partial_cmp(other)
     }
 }
 
@@ -182,7 +175,7 @@ where
     where
         Self: 'i,
         N: Unsigned,
-        S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
+        S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
 
     type Spec = T::Spec;
 }
@@ -194,7 +187,7 @@ pub trait OptionObserveImpl<T: Observe, Spec> {
     where
         T: 'i,
         N: Unsigned,
-        S: DerefMutInductive<N, Target = Option<T>> + ?Sized + 'i;
+        S: AsDerefMut<N, Target = Option<T>> + ?Sized + 'i;
 }
 
 impl<T> OptionObserveImpl<T, DefaultSpec> for T
@@ -206,7 +199,7 @@ where
     where
         T: 'i,
         N: Unsigned,
-        S: DerefMutInductive<N, Target = Option<T>> + ?Sized + 'i;
+        S: AsDerefMut<N, Target = Option<T>> + ?Sized + 'i;
 }
 
 #[cfg(test)]
@@ -229,7 +222,7 @@ mod tests {
         where
             Self: 'i,
             N: Unsigned,
-            S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
+            S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
 
         type Spec = DefaultSpec;
     }

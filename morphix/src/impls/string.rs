@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
-use crate::helper::{Assignable, DerefMutInductive, Pointer, Unsigned, Zero};
+use crate::helper::{AsDerefMut, Assignable, Pointer, Unsigned, Zero};
 use crate::observe::DefaultSpec;
 use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 
@@ -75,7 +75,7 @@ impl<'i, S: ?Sized, N> Assignable for StringObserver<'i, S, N> {}
 impl<'i, S: ?Sized, N> Observer for StringObserver<'i, S, N>
 where
     N: Unsigned,
-    S: DerefMutInductive<N, Target = String>,
+    S: AsDerefMut<N, Target = String>,
 {
     type UpperDepth = N;
     type LowerDepth = Zero;
@@ -89,18 +89,14 @@ where
         }
     }
 
-    fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
-        &this.ptr
-    }
-
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         Ok(if let Some(mutation) = this.mutation.take() {
             Some(Mutation {
                 path: Default::default(),
                 kind: match mutation {
-                    MutationState::Replace => MutationKind::Replace(A::serialize_value(this.deref_inductive())?),
+                    MutationState::Replace => MutationKind::Replace(A::serialize_value(this.as_deref())?),
                     MutationState::Append(start_index) => {
-                        MutationKind::Append(A::serialize_value(&this.deref_inductive()[start_index..])?)
+                        MutationKind::Append(A::serialize_value(&this.as_deref()[start_index..])?)
                     }
                 },
             })
@@ -112,25 +108,25 @@ where
 
 impl<'i, S: ?Sized, N: Unsigned> StringObserver<'i, S, N>
 where
-    S: DerefMutInductive<N, Target = String>,
+    S: AsDerefMut<N, Target = String>,
 {
     pub fn push(&mut self, c: char) {
-        Self::mark_append(self, (**self).deref_inductive().len());
-        (*self.ptr).deref_mut_inductive().push(c);
+        Self::mark_append(self, (**self).as_deref().len());
+        (*self.ptr).as_deref_mut().push(c);
     }
 
     pub fn push_str(&mut self, s: &str) {
         if s.is_empty() {
             return;
         }
-        Self::mark_append(self, (**self).deref_inductive().len());
-        (*self.ptr).deref_mut_inductive().push_str(s);
+        Self::mark_append(self, (**self).as_deref().len());
+        (*self.ptr).as_deref_mut().push_str(s);
     }
 }
 
 impl<'i, S: ?Sized, N: Unsigned> AddAssign<&str> for StringObserver<'i, S, N>
 where
-    S: DerefMutInductive<N, Target = String>,
+    S: AsDerefMut<N, Target = String>,
 {
     #[inline]
     fn add_assign(&mut self, rhs: &str) {
@@ -140,44 +136,42 @@ where
 
 impl<'i, S: ?Sized, N: Unsigned> Debug for StringObserver<'i, S, N>
 where
-    S: DerefMutInductive<N, Target = String>,
+    S: AsDerefMut<N, Target = String>,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("StringObserver")
-            .field((**self).deref_inductive())
-            .finish()
+        f.debug_tuple("StringObserver").field((**self).as_deref()).finish()
     }
 }
 
 impl<'i, S: ?Sized, N: Unsigned> Display for StringObserver<'i, S, N>
 where
-    S: DerefMutInductive<N, Target = String>,
+    S: AsDerefMut<N, Target = String>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt((**self).deref_inductive(), f)
+        Display::fmt((**self).as_deref(), f)
     }
 }
 
 impl<'i, S, N: Unsigned, U: ?Sized> PartialEq<U> for StringObserver<'i, S, N>
 where
-    S: DerefMutInductive<N, Target = String>,
+    S: AsDerefMut<N, Target = String>,
     String: PartialEq<U>,
 {
     #[inline]
     fn eq(&self, other: &U) -> bool {
-        (**self).deref_inductive().eq(other)
+        (**self).as_deref().eq(other)
     }
 }
 
 impl<'i, S, N: Unsigned, U: ?Sized> PartialOrd<U> for StringObserver<'i, S, N>
 where
-    S: DerefMutInductive<N, Target = String>,
+    S: AsDerefMut<N, Target = String>,
     String: PartialOrd<U>,
 {
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        (**self).deref_inductive().partial_cmp(other)
+        (**self).as_deref().partial_cmp(other)
     }
 }
 
@@ -187,7 +181,7 @@ impl Observe for String {
     where
         Self: 'i,
         N: Unsigned,
-        S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
+        S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
 
     type Spec = DefaultSpec;
 }

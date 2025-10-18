@@ -34,7 +34,7 @@ use std::ops::DerefMut;
 
 use serde::Serialize;
 
-use crate::helper::{DerefMutCoinductive, DerefMutInductive, Pointer, Unsigned, Zero};
+use crate::helper::{AsDerefCoinductive, AsDerefMut, Pointer, Unsigned, Zero};
 use crate::{Adapter, Mutation};
 
 mod general;
@@ -90,7 +90,7 @@ pub trait Observe: Serialize {
     where
         Self: 'i,
         N: Unsigned,
-        S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
+        S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
 
     /// Associated specification type for this observable.
     ///
@@ -124,11 +124,11 @@ pub trait Observe: Serialize {
 /// 2. Via [`Default::default`] - creates an empty observer with a null pointer
 pub trait Observer
 where
-    Self: DerefMut<Target: DerefMutCoinductive<Self::LowerDepth, Target = Pointer<Self::Head>>>,
+    Self: DerefMut<Target: AsDerefCoinductive<Self::LowerDepth, Target = Pointer<Self::Head>>>,
 {
     type UpperDepth: Unsigned;
     type LowerDepth: Unsigned;
-    type Head: DerefMutInductive<Self::UpperDepth> + ?Sized;
+    type Head: AsDerefMut<Self::UpperDepth> + ?Sized;
 
     /// Creates a new observer for the given value.
     ///
@@ -146,7 +146,9 @@ where
     /// ```
     fn observe(value: &mut Self::Head) -> Self;
 
-    fn as_ptr(this: &Self) -> &Pointer<Self::Head>;
+    fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
+        (**this).as_deref_coinductive()
+    }
 
     /// Collects all recorded mutations (unsafe version).
     ///
