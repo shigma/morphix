@@ -18,12 +18,14 @@
         "autoref",
         "clippy",
         "cloneable",
+        "coinductive",
         "deque",
         "impls",
         "indexmap",
         "morphix",
         "serde",
         "shigma",
+        "succ",
         "turbofish",
         "uninit"
     ]

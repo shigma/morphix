@@ -1,7 +1,7 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 
-use crate::impls::option::OptionObserveImpl;
+// use crate::impls::option::OptionObserveImpl;
 use crate::observe::general::DebugHandler;
 use crate::observe::{GeneralHandler, GeneralObserver};
 use crate::{Observe, Observer};
@@ -45,7 +45,7 @@ use crate::{Observe, Observer};
 /// 1. **Hash collisions**: Different values might have the same hash (though rare)
 /// 2. **Performance**: For small types, hashing might be slower than
 ///    [`ShallowObserver`](super::ShallowObserver)
-pub type HashObserver<'i, T, H = DefaultHasher> = GeneralObserver<'i, T, HashHandler<H>>;
+pub type HashObserver<S, D, H = DefaultHasher> = GeneralObserver<HashHandler<H>, S, D>;
 
 #[derive(Default)]
 pub struct HashHandler<H> {
@@ -92,13 +92,13 @@ impl<T: Hash, H: Hasher + Default> DebugHandler<T> for HashHandler<H> {
 /// observations, such as [`Option<T>`].
 pub struct HashSpec;
 
-impl<T> OptionObserveImpl<T, HashSpec> for T
-where
-    T: Hash + Observe,
-    for<'i> <T as Observe>::Observer<'i>: Observer<'i, Spec = HashSpec>,
-{
-    type Observer<'i>
-        = HashObserver<'i, Option<T>>
-    where
-        Self: 'i;
-}
+// impl<T> OptionObserveImpl<T, HashSpec> for T
+// where
+//     T: Hash + Observe,
+//     for<'i> <T as Observe>::Observer<'i>: Observer<'i, Spec = HashSpec>,
+// {
+//     type Observer<'i>
+//         = HashObserver<'i, Option<T>>
+//     where
+//         Self: 'i;
+// }

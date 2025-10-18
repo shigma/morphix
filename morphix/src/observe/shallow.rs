@@ -34,7 +34,7 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 ///    original value, it's still reported as changes.
 /// 2. **False positives on non-semantic changes**: Operations that don't affect serialization (such
 ///    as [`Vec::reserve`]) are still reported as changes.
-pub type ShallowObserver<'i, T> = GeneralObserver<'i, T, ShallowHandler>;
+pub type ShallowObserver<S, D> = GeneralObserver<ShallowHandler, S, D>;
 
 #[derive(Default)]
 pub struct ShallowHandler {

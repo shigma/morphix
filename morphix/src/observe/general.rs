@@ -1,10 +1,12 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
 use crate::helper::Assignable;
+use crate::observe::ops::DerefMutInductive;
+use crate::observe::{Pointer, Unsigned, Zero};
 use crate::{Adapter, Mutation, MutationKind, Observer};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
@@ -48,9 +50,9 @@ use crate::{Adapter, Mutation, MutationKind, Observer};
 ///     }
 /// }
 ///
-/// type ShallowObserver<'i, T> = GeneralObserver<'i, T, ShallowHandler>;
+/// type ShallowObserver<T> = GeneralObserver<T, ShallowHandler>;
 /// ```
-pub trait GeneralHandler<T> {
+pub trait GeneralHandler<T: ?Sized> {
     /// Associated specification type for [`GeneralObserver`].
     type Spec;
 
@@ -94,7 +96,7 @@ pub trait GeneralHandler<T> {
 /// let ob = GeneralObserver::<_, MyHandler>::observe(&mut value);
 /// println!("{:?}", ob); // prints: MyObserver(123)
 /// ```
-pub trait DebugHandler<T>: GeneralHandler<T> {
+pub trait DebugHandler<T: ?Sized>: GeneralHandler<T> {
     /// The name displayed when formatting the observer with [`Debug`].
     const NAME: &'static str;
 }
@@ -114,7 +116,7 @@ pub trait DebugHandler<T>: GeneralHandler<T> {
 /// `GeneralObserver` cannot:
 /// - Track [`Append`](MutationKind::Append) mutations
 /// - Track field-level changes
-/// - Add specialized implementations for common traits (e.g. [`PartialEq`], [`Index`], etc.)
+/// - Add specialized implementations for common traits (e.g. [`PartialEq`])
 ///
 /// For types that benefit from more sophisticated change tracking, morphix provides specialized
 /// observer implementations. These include built-in support for [`String`] and [`Vec`] (which can
@@ -129,62 +131,80 @@ pub trait DebugHandler<T>: GeneralHandler<T> {
 /// - [`NoopObserver`](super::NoopObserver) - Ignores all changes
 /// - [`HashObserver`](super::HashObserver) - Compares hash values to detect changes
 /// - [`SnapshotObserver`](super::SnapshotObserver) - Compares cloned snapshots to detect changes
-pub struct GeneralObserver<'i, T, H> {
-    ptr: *mut T,
+pub struct GeneralObserver<H, S: ?Sized, N> {
+    ptr: Pointer<S>,
     handler: H,
-    phantom: PhantomData<&'i mut T>,
+    phantom: PhantomData<N>,
 }
 
-impl<'i, T, H: Default> Default for GeneralObserver<'i, T, H> {
+impl<H: Default, S: ?Sized, N> Default for GeneralObserver<H, S, N> {
     #[inline]
     fn default() -> Self {
         Self {
-            ptr: std::ptr::null_mut(),
+            ptr: Pointer::default(),
             handler: H::default(),
             phantom: PhantomData,
         }
     }
 }
 
-impl<'i, T, H> Deref for GeneralObserver<'i, T, H> {
-    type Target = T;
+impl<H, S: ?Sized, N> Deref for GeneralObserver<H, S, N> {
+    type Target = Pointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.ptr }
+        &self.ptr
     }
 }
 
-impl<'i, T, H: GeneralHandler<T>> DerefMut for GeneralObserver<'i, T, H> {
+impl<H, S: ?Sized, N> DerefMut for GeneralObserver<H, S, N>
+where
+    N: Unsigned,
+    S: DerefMutInductive<N>,
+    H: GeneralHandler<S::Target>,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.handler.on_deref_mut();
-        unsafe { &mut *self.ptr }
+        &mut self.ptr
     }
 }
 
-impl<'i, T, H: GeneralHandler<T>> Assignable for GeneralObserver<'i, T, H> {}
+impl<H, S: ?Sized, N> Assignable for GeneralObserver<H, S, N>
+where
+    N: Unsigned,
+    S: DerefMutInductive<N>,
+    H: GeneralHandler<S::Target>,
+{
+}
 
-impl<'i, T: Serialize, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i, T, H> {
+impl<H, S: ?Sized, N> Observer for GeneralObserver<H, S, N>
+where
+    N: Unsigned,
+    S: DerefMutInductive<N, Target: Serialize>,
+    H: GeneralHandler<S::Target>,
+{
+    type UpperDepth = N;
+    type LowerDepth = Zero;
+    type Head = S;
     type Spec = H::Spec;
 
-    fn inner(this: &Self) -> *mut Self::Target {
-        this.ptr
-    }
-
-    #[inline]
-    fn observe(value: &'i mut T) -> Self {
+    fn observe(value: &mut Self::Head) -> Self {
         Self {
-            ptr: value as *mut T,
-            handler: H::on_observe(value),
+            ptr: Pointer::new(value),
+            handler: H::on_observe(value.deref_mut_inductive()),
             phantom: PhantomData,
         }
     }
 
-    unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error> {
-        Ok(if this.handler.on_collect(&*this) {
+    fn as_ptr(this: &Self) -> &Pointer<S> {
+        &this.ptr
+    }
+
+    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
+        Ok(if this.handler.on_collect(this.deref_inductive()) {
             Some(Mutation {
                 path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value(&*this)?),
+                kind: MutationKind::Replace(A::serialize_value(this.deref_inductive())?),
             })
         } else {
             None
@@ -195,9 +215,13 @@ impl<'i, T: Serialize, H: GeneralHandler<T>> Observer<'i> for GeneralObserver<'i
 macro_rules! impl_fmt {
     ($($trait:ident),* $(,)?) => {
         $(
-            impl<'i, T: ::std::fmt::$trait, H: GeneralHandler<T>> ::std::fmt::$trait for GeneralObserver<'i, T, H> {
+            impl<H, S, N: Unsigned> ::std::fmt::$trait for GeneralObserver<H, S, N>
+            where
+                S: DerefMutInductive<N, Target: ::std::fmt::$trait> + ?Sized,
+                H: GeneralHandler<S::Target>
+            {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    ::std::fmt::$trait::fmt(&**self, f)
+                    ::std::fmt::$trait::fmt(self.deref_inductive(), f)
                 }
             }
         )*
@@ -215,49 +239,73 @@ impl_fmt! {
     UpperExp,
 }
 
-impl<'i, T: Debug, H: DebugHandler<T>> Debug for GeneralObserver<'i, T, H> {
+impl<H, S, N: Unsigned> Debug for GeneralObserver<H, S, N>
+where
+    S: DerefMutInductive<N, Target: Debug> + ?Sized,
+    H: DebugHandler<S::Target>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple(H::NAME).field(&**self).finish()
+        f.debug_tuple(H::NAME).field(&self.deref_inductive()).finish()
     }
 }
 
-impl<'i, T: Index<U>, H: GeneralHandler<T>, U> Index<U> for GeneralObserver<'i, T, H> {
-    type Output = T::Output;
+impl<H, S, N: Unsigned, I> std::ops::Index<I> for GeneralObserver<H, S, N>
+where
+    S: DerefMutInductive<N, Target: std::ops::Index<I>> + ?Sized,
+    H: GeneralHandler<S::Target>,
+{
+    type Output = <S::Target as std::ops::Index<I>>::Output;
 
     #[inline]
-    fn index(&self, index: U) -> &Self::Output {
-        (**self).index(index)
+    fn index(&self, index: I) -> &Self::Output {
+        self.deref_inductive().index(index)
     }
 }
 
-impl<'i, T: IndexMut<U>, H: GeneralHandler<T>, U> IndexMut<U> for GeneralObserver<'i, T, H> {
+impl<H, S, N: Unsigned, I> std::ops::IndexMut<I> for GeneralObserver<H, S, N>
+where
+    S: DerefMutInductive<N, Target: std::ops::IndexMut<I>> + ?Sized,
+    H: GeneralHandler<S::Target>,
+{
     #[inline]
-    fn index_mut(&mut self, index: U) -> &mut Self::Output {
-        (**self).index_mut(index)
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        (***self).deref_mut_inductive().index_mut(index)
     }
 }
 
-impl<'i, T: PartialEq<U>, H, U: ?Sized> PartialEq<U> for GeneralObserver<'i, T, H> {
+impl<H, S, N: Unsigned, U: ?Sized> PartialEq<U> for GeneralObserver<H, S, N>
+where
+    S: DerefMutInductive<N, Target: PartialEq<U>> + ?Sized,
+    H: GeneralHandler<S::Target>,
+{
     #[inline]
     fn eq(&self, other: &U) -> bool {
-        (**self).eq(other)
+        self.deref_inductive().eq(other)
     }
 }
 
-impl<'i, T: PartialOrd<U>, H, U: ?Sized> PartialOrd<U> for GeneralObserver<'i, T, H> {
+impl<H, S, N: Unsigned, U: ?Sized> PartialOrd<U> for GeneralObserver<H, S, N>
+where
+    S: DerefMutInductive<N, Target: PartialOrd<U>> + ?Sized,
+    H: GeneralHandler<S::Target>,
+{
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        (**self).partial_cmp(other)
+        self.deref_inductive().partial_cmp(other)
     }
 }
 
 macro_rules! impl_assign_ops {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
-            impl<'i, T: ::std::ops::$trait<U>, H: GeneralHandler<T>, U> ::std::ops::$trait<U> for GeneralObserver<'i, T, H> {
+            impl<H, S, N: Unsigned, U> ::std::ops::$trait<U> for GeneralObserver<H, S, N>
+            where
+                S: DerefMutInductive<N, Target: ::std::ops::$trait<U>> + ?Sized,
+                H: GeneralHandler<S::Target>,
+            {
                 #[inline]
                 fn $method(&mut self, rhs: U) {
-                    (**self).$method(rhs);
+                    (***self).deref_mut_inductive().$method(rhs);
                 }
             }
         )*
@@ -280,12 +328,16 @@ impl_assign_ops! {
 macro_rules! impl_ops_copy {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
-            impl<'i, T: Copy + ::std::ops::$trait<U>, H, U> ::std::ops::$trait<U> for GeneralObserver<'i, T, H> {
-                type Output = T::Output;
+            impl<H, S, N: Unsigned, U> ::std::ops::$trait<U> for GeneralObserver<H, S, N>
+            where
+                S: DerefMutInductive<N, Target: ::std::ops::$trait<U> + Copy> + ?Sized,
+                H: GeneralHandler<S::Target>,
+            {
+                type Output = <S::Target as ::std::ops::$trait<U>>::Output;
 
                 #[inline]
                 fn $method(self, rhs: U) -> Self::Output {
-                    (*self).$method(rhs)
+                    self.deref_inductive().$method(rhs)
                 }
             }
         )*
@@ -305,20 +357,28 @@ impl_ops_copy! {
     Shr => shr,
 }
 
-impl<'i, T: Copy + ::std::ops::Neg, H> ::std::ops::Neg for GeneralObserver<'i, T, H> {
-    type Output = T::Output;
+impl<H, S, N: Unsigned> ::std::ops::Neg for GeneralObserver<H, S, N>
+where
+    S: DerefMutInductive<N, Target: ::std::ops::Neg + Copy> + ?Sized,
+    H: GeneralHandler<S::Target>,
+{
+    type Output = <S::Target as ::std::ops::Neg>::Output;
 
     #[inline]
     fn neg(self) -> Self::Output {
-        (*self).neg()
+        (*self.deref_inductive()).neg()
     }
 }
 
-impl<'i, T: Copy + ::std::ops::Not, H> ::std::ops::Not for GeneralObserver<'i, T, H> {
-    type Output = T::Output;
+impl<H, S, N: Unsigned> ::std::ops::Not for GeneralObserver<H, S, N>
+where
+    S: DerefMutInductive<N, Target: ::std::ops::Not + Copy> + ?Sized,
+    H: GeneralHandler<S::Target>,
+{
+    type Output = <S::Target as ::std::ops::Not>::Output;
 
     #[inline]
     fn not(self) -> Self::Output {
-        (*self).not()
+        (*self.deref_inductive()).not()
     }
 }

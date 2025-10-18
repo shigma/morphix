@@ -39,12 +39,16 @@ use crate::{Adapter, Mutation};
 mod general;
 mod hash;
 mod noop;
+mod ops;
 mod shallow;
 mod snapshot;
 
 pub use general::{DebugHandler, GeneralHandler, GeneralObserver};
 pub use hash::{HashObserver, HashSpec};
 pub use noop::NoopObserver;
+pub use ops::{
+    DerefCoinductive, DerefInductive, DerefMutCoinductive, DerefMutInductive, Pointer, Succ, Unsigned, Zero,
+};
 pub use shallow::ShallowObserver;
 pub use snapshot::{SnapshotObserver, SnapshotSpec};
 
@@ -83,11 +87,13 @@ pub use snapshot::{SnapshotObserver, SnapshotSpec};
 pub trait Observe: Serialize {
     /// Associated observer type.
     ///
-    /// This associated type specifies the *default* observer implementation for the type,
-    /// when used in contexts where an [`Observe`] implementation is required.
-    type Observer<'i>: Observer<'i, Target = Self>
+    /// This associated type specifies the *default* observer implementation for the type, when used
+    /// in contexts where an [`Observe`] implementation is required.
+    type Observer<'i, S, N>: Observer<Head = S, UpperDepth = N>
     where
-        Self: 'i;
+        Self: 'i,
+        N: Unsigned,
+        S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
 }
 
 /// A trait for observer types that wrap and track mutations to values.
@@ -100,7 +106,29 @@ pub trait Observe: Serialize {
 /// Observers can be constructed in two ways:
 /// 1. Via [`Observer::observe`] - creates an observer for an existing value
 /// 2. Via [`Default::default`] - creates an empty observer with a null pointer
-pub trait Observer<'i>: DerefMut<Target: Serialize> + Sized {
+pub trait Observer: DerefMut<Target: DerefMutCoinductive<Self::LowerDepth, Target = Pointer<Self::Head>>> {
+    type UpperDepth: Unsigned;
+    type LowerDepth: Unsigned;
+    type Head: DerefMutInductive<Self::UpperDepth> + ?Sized;
+
+    /// Creates a new observer for the given value.
+    ///
+    /// This is the primary way to create an observer. The observer will track all mutations to the
+    /// provided value.
+    ///
+    /// ## Example
+    ///
+    /// ```rust
+    /// use morphix::Observer;
+    /// use morphix::observe::ShallowObserver;
+    ///
+    /// let mut value = 42;
+    /// let observer = ShallowObserver::observe(&mut value);
+    /// ```
+    fn observe(value: &mut Self::Head) -> Self;
+
+    // fn as_target(value: &mut Self::Head) ->
+
     /// Associated specification type for this observable.
     ///
     /// The `Spec` associated type is used as a marker to select specialized implementations of
@@ -120,57 +148,7 @@ pub trait Observer<'i>: DerefMut<Target: Serialize> + Sized {
     /// detection strategies based on its element type, without requiring manual implementation.
     type Spec;
 
-    /// Returns the raw pointer to the observed value.
-    ///
-    /// This method provides access to the underlying pointer that the observer is tracking. It's
-    /// primarily used internally for advanced operations that need direct pointer access.
-    ///
-    /// ## Returns
-    ///
-    /// - A valid pointer to the observed value if created via [`Observer::observe`]
-    /// - A null pointer if created via [`Default::default`]
-    ///
-    /// ## Safety Considerations
-    ///
-    /// - The returned pointer is only valid for the lifetime `'i`
-    /// - The pointer must not be used after the observer is dropped
-    /// - Mutations through this pointer bypass the observer's tracking mechanisms
-    ///
-    /// ## Example
-    ///
-    /// ```rust
-    /// use morphix::Observer;
-    /// use morphix::observe::ShallowObserver;
-    ///
-    /// let mut value = 42i32;
-    /// let observer = ShallowObserver::observe(&mut value);
-    ///
-    /// // Get the raw pointer (same as &mut value)
-    /// let inner_ptr = Observer::inner(&observer);
-    /// assert!(!inner_ptr.is_null());
-    ///
-    /// // Default-constructed observer returns null
-    /// let observer: ShallowObserver<i32> = Default::default();
-    /// let null_ptr = Observer::inner(&observer);
-    /// assert!(null_ptr.is_null());
-    /// ```
-    fn inner(this: &Self) -> *mut Self::Target;
-
-    /// Creates a new observer for the given value.
-    ///
-    /// This is the primary way to create an observer. The observer will track all mutations to the
-    /// provided value.
-    ///
-    /// ## Example
-    ///
-    /// ```rust
-    /// use morphix::Observer;
-    /// use morphix::observe::ShallowObserver;
-    ///
-    /// let mut value = 42;
-    /// let observer = ShallowObserver::observe(&mut value);
-    /// ```
-    fn observe(value: &'i mut Self::Target) -> Self;
+    fn as_ptr(this: &Self) -> &Pointer<Self::Head>;
 
     /// Collects all recorded mutations (unsafe version).
     ///
@@ -194,7 +172,7 @@ pub trait Observer<'i>: DerefMut<Target: Serialize> + Sized {
     ///     collect_mutation(&*this)
     /// }
     /// ```
-    unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error>;
+    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error>;
 
     /// Collects all recorded mutations using the specified adapter.
     ///
@@ -228,94 +206,11 @@ pub trait Observer<'i>: DerefMut<Target: Serialize> + Sized {
     /// let result = Observer::collect::<JsonAdapter>(empty).unwrap();
     /// assert_eq!(result, None);   // Returns None instead of panicking
     /// ```
-    fn collect<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error> {
-        if Self::inner(&this).is_null() {
+    fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
+        if Self::as_ptr(this).is_null() {
             return Ok(None);
         }
         unsafe { Self::collect_unchecked(this) }
-    }
-}
-
-/// State of mutations tracked by a [`StatefulObserver`].
-///
-/// This enum represents the specific type of mutation that has been detected by observers that
-/// implement [`StatefulObserver`].
-#[derive(Clone, Copy)]
-pub enum MutationState {
-    /// Complete replacement of the value
-    Replace,
-    /// Append operation starting from the given index
-    Append(usize),
-}
-
-/// An [`Observer`] that maintains internal state about mutations.
-///
-/// Unlike [`ShallowObserver`] which only tracks whether a mutation occurred, `StatefulObserver`
-/// implementations can distinguish between different types of mutations (replace vs. append) and
-/// optimize the resulting mutation representation accordingly.
-///
-/// ## Implementation Notes
-///
-/// Implementing `StatefulObserver` allows an observer to track its own mutation state (e.g.,
-/// replace or append), but this doesn't preclude tracking additional mutations. Complex types like
-/// [`Vec<T>`] may need to track both:
-///
-/// - Their own mutation state (via `StatefulObserver`)
-/// - Changes to their elements (via nested observers)
-///
-/// These different sources of mutations are then combined into a final result:
-///
-/// ```ignore
-/// // Example from VecObserver implementation
-/// impl<'i, T: Observe> Observer<'i, Vec<T>> for VecObserver<'i, T> {
-///     fn collect<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
-///         let mut mutations = vec![];
-///
-///         // 1. Collect own mutation state (replacement or append)
-///         if let Some(state) = Self::mutation_state(&mut this).take() {
-///             mutations.push(Mutation {
-///                 kind: match state {
-///                     MutationState::Replace => MutationKind::Replace(..),
-///                     MutationState::Append(idx) => MutationKind::Append(..),
-///                 },
-///                 // ...
-///             });
-///         }
-///
-///         // 2. Collect mutations from nested element observers
-///         for (index, observer) in element_observers {
-///             if let Some(mutation) = observer.collect()? {
-///                 mutations.push(mutation);
-///             }
-///         }
-///
-///         // 3. Combine all mutations (may result in a Batch)
-///         Ok(Batch::build(mutations))
-///     }
-/// }
-/// ```
-///
-/// This design allows for sophisticated mutation tracking where:
-/// - Simple operations (like `vec.push()`) produce an `Append` mutation
-/// - Element modifications (like `vec[0].field = value`) produce element-specific mutations
-/// - Multiple operations produce a `Batch` containing all mutations
-///
-/// Currently implemented for:
-/// - [`String`]
-/// - [`Vec<T>`]
-pub trait StatefulObserver<'i>: Observer<'i> {
-    fn mutation_state(this: &mut Self) -> &mut Option<MutationState>;
-
-    fn mark_replace(this: &mut Self) {
-        *Self::mutation_state(this) = Some(MutationState::Replace);
-    }
-
-    fn mark_append(this: &mut Self, start_index: usize) {
-        let mutation = Self::mutation_state(this);
-        if mutation.is_some() {
-            return;
-        }
-        *mutation = Some(MutationState::Append(start_index));
     }
 }
 
