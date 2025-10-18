@@ -223,14 +223,14 @@ macro_rules! impl_fmt {
 }
 
 impl_fmt! {
-    Display,
-    Octal,
-    LowerHex,
-    UpperHex,
-    Pointer,
     Binary,
+    Display,
     LowerExp,
+    LowerHex,
+    Octal,
+    Pointer,
     UpperExp,
+    UpperHex,
 }
 
 impl<'i, H, S, N: Unsigned> Debug for GeneralObserver<'i, H, S, N>

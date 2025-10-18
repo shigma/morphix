@@ -8,7 +8,7 @@ use std::slice::SliceIndex;
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, Assignable, Pointer, RangeLike, Unsigned, Zero};
+use crate::helper::{AsDerefMut, Assignable, Pointer, Unsigned, Zero};
 use crate::observe::DefaultSpec;
 use crate::{Adapter, Mutation, MutationKind, Observe, Observer, PathSegment};
 
@@ -137,17 +137,6 @@ where
     }
 }
 
-impl<T: Observe> Observe for Vec<T> {
-    type Observer<'i, S, N>
-        = VecObserver<'i, T::Observer<'i, T, Zero>, S, N>
-    where
-        Self: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
-
-    type Spec = DefaultSpec;
-}
-
 impl<'i, O, S: ?Sized, N, T> VecObserver<'i, O, S, N>
 where
     N: Unsigned,
@@ -232,112 +221,6 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, T> Index<usize> for VecObserver<'i, O, S, N>
-where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
-    O: Observer<UpperDepth = Zero, Head = T> + Default,
-{
-    type Output = O;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        let value = &mut self.ptr.as_mut().as_deref_mut()[index];
-        let obs: &mut Vec<O> = unsafe { &mut *self.obs.get() };
-        if index >= obs.len() {
-            obs.resize_with(index + 1, Default::default);
-        }
-        if *O::as_ptr(&obs[index]) != Pointer::new(value) {
-            obs[index] = O::observe(value);
-        }
-        &obs[index]
-    }
-}
-
-impl<'i, O, S: ?Sized, N, T> IndexMut<usize> for VecObserver<'i, O, S, N>
-where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
-    O: Observer<UpperDepth = Zero, Head = T> + Default,
-{
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        let value = &mut (*self.ptr).as_deref_mut()[index];
-        let obs: &mut Vec<O> = unsafe { &mut *self.obs.get() };
-        if index >= obs.len() {
-            obs.resize_with(index + 1, Default::default);
-        }
-        if *O::as_ptr(&obs[index]) != Pointer::new(value) {
-            obs[index] = O::observe(value);
-        }
-        &mut obs[index]
-    }
-}
-
-impl<'i, O, S: ?Sized, N, T, I> Index<I> for VecObserver<'i, O, S, N>
-where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
-    O: Observer<UpperDepth = Zero, Head = T> + Default,
-    I: RangeLike<usize> + SliceIndex<[O], Output = [O]>,
-{
-    type Output = [O];
-
-    fn index(&self, index: I) -> &Self::Output {
-        let obs = unsafe { &mut *self.obs.get() };
-        let start = match index.start_bound() {
-            Bound::Included(&start) => start,
-            Bound::Excluded(&start) => start + 1,
-            Bound::Unbounded => 0,
-        };
-        let end = match index.end_bound() {
-            Bound::Included(&end) => end + 1,
-            Bound::Excluded(&end) => end,
-            Bound::Unbounded => (***self).as_deref().len(),
-        };
-        if end > obs.len() {
-            obs.resize_with(end, Default::default);
-        }
-        for (i, obs_item) in obs[start..end].iter_mut().enumerate() {
-            let value = &mut self.ptr.as_mut().as_deref_mut()[start + i];
-            if *O::as_ptr(obs_item) != Pointer::new(value) {
-                *obs_item = O::observe(value);
-            }
-        }
-        &obs[index]
-    }
-}
-
-impl<'i, O, S: ?Sized, N, T, I> IndexMut<I> for VecObserver<'i, O, S, N>
-where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
-    O: Observer<UpperDepth = Zero, Head = T> + Default,
-    I: RangeLike<usize> + SliceIndex<[O], Output = [O]>,
-{
-    fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        let obs = unsafe { &mut *self.obs.get() };
-        let start = match index.start_bound() {
-            Bound::Included(&start) => start,
-            Bound::Excluded(&start) => start + 1,
-            Bound::Unbounded => 0,
-        };
-        let end = match index.end_bound() {
-            Bound::Included(&end) => end + 1,
-            Bound::Excluded(&end) => end,
-            Bound::Unbounded => (*self.ptr).as_deref().len(),
-        };
-        if end > obs.len() {
-            obs.resize_with(end, Default::default);
-        }
-        for (i, obs_item) in obs[start..end].iter_mut().enumerate() {
-            let value = &mut self.ptr.as_mut().as_deref_mut()[start + i];
-            if *O::as_ptr(obs_item) != Pointer::new(value) {
-                *obs_item = O::observe(value);
-            }
-        }
-        &mut obs[index]
-    }
-}
-
 impl<'i, O, S: ?Sized, N, T> Debug for VecObserver<'i, O, S, N>
 where
     N: Unsigned,
@@ -375,6 +258,107 @@ where
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
         (***self).as_deref().partial_cmp(other)
     }
+}
+
+trait IndexImpl<T, O, Output: ?Sized> {
+    #[track_caller]
+    #[allow(clippy::mut_from_ref)]
+    fn index_impl<'i, 'j, S, N>(this: &'j VecObserver<'i, O, S, N>, index: Self) -> &'j mut Output
+    where
+        N: Unsigned,
+        S: AsDerefMut<N, Target = Vec<T>> + ?Sized;
+}
+
+impl<'i, O, S: ?Sized, N, T, I, Output: ?Sized> Index<I> for VecObserver<'i, O, S, N>
+where
+    N: Unsigned,
+    S: AsDerefMut<N, Target = Vec<T>>,
+    O: Observer<UpperDepth = Zero, Head = T> + Default,
+    I: IndexImpl<T, O, Output> + SliceIndex<[O], Output = Output>,
+{
+    type Output = Output;
+
+    fn index(&self, index: I) -> &Self::Output {
+        IndexImpl::index_impl(self, index)
+    }
+}
+
+impl<'i, O, S: ?Sized, N, T, I, Output: ?Sized> IndexMut<I> for VecObserver<'i, O, S, N>
+where
+    N: Unsigned,
+    S: AsDerefMut<N, Target = Vec<T>>,
+    O: Observer<UpperDepth = Zero, Head = T> + Default,
+    I: IndexImpl<T, O, Output> + SliceIndex<[O], Output = Output>,
+{
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        IndexImpl::index_impl(self, index)
+    }
+}
+
+impl<O, T> IndexImpl<T, O, O> for usize
+where
+    O: Observer<UpperDepth = Zero, Head = T> + Default,
+{
+    fn index_impl<'i, 'j, S, N>(this: &'j VecObserver<'i, O, S, N>, index: Self) -> &'j mut O
+    where
+        N: Unsigned,
+        S: AsDerefMut<N, Target = Vec<T>> + ?Sized,
+    {
+        let value = &mut this.ptr.as_mut().as_deref_mut()[index];
+        let obs = unsafe { &mut *this.obs.get() };
+        if index >= obs.len() {
+            obs.resize_with(index + 1, Default::default);
+        }
+        if *O::as_ptr(&obs[index]) != Pointer::new(value) {
+            obs[index] = O::observe(value);
+        }
+        &mut obs[index]
+    }
+}
+
+impl<O, T, I> IndexImpl<T, O, [O]> for I
+where
+    O: Observer<UpperDepth = Zero, Head = T> + Default,
+    I: RangeBounds<usize> + SliceIndex<[O], Output = [O]>,
+{
+    fn index_impl<'i, 'j, S, N>(this: &'j VecObserver<'i, O, S, N>, index: Self) -> &'j mut [O]
+    where
+        N: Unsigned,
+        S: AsDerefMut<N, Target = Vec<T>> + ?Sized,
+    {
+        let obs = unsafe { &mut *this.obs.get() };
+        let start = match index.start_bound() {
+            Bound::Included(&start) => start,
+            Bound::Excluded(&start) => start + 1,
+            Bound::Unbounded => 0,
+        };
+        let end = match index.end_bound() {
+            Bound::Included(&end) => end + 1,
+            Bound::Excluded(&end) => end,
+            Bound::Unbounded => (***this).as_deref().len(),
+        };
+        if end > obs.len() {
+            obs.resize_with(end, Default::default);
+        }
+        for (i, obs_item) in obs[start..end].iter_mut().enumerate() {
+            let value = &mut this.ptr.as_mut().as_deref_mut()[start + i];
+            if *O::as_ptr(obs_item) != Pointer::new(value) {
+                *obs_item = O::observe(value);
+            }
+        }
+        &mut obs[index]
+    }
+}
+
+impl<T: Observe> Observe for Vec<T> {
+    type Observer<'i, S, N>
+        = VecObserver<'i, T::Observer<'i, T, Zero>, S, N>
+    where
+        Self: 'i,
+        N: Unsigned,
+        S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
+
+    type Spec = DefaultSpec;
 }
 
 #[cfg(test)]
