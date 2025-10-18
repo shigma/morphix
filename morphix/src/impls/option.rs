@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
@@ -29,7 +30,7 @@ impl<'i, O, S: ?Sized, N> Default for OptionObserver<'i, O, S, N> {
     }
 }
 
-impl<'i, O, S: ?Sized, N> std::ops::Deref for OptionObserver<'i, O, S, N> {
+impl<'i, O, S: ?Sized, N> Deref for OptionObserver<'i, O, S, N> {
     type Target = Pointer<S>;
 
     #[inline]
@@ -38,7 +39,7 @@ impl<'i, O, S: ?Sized, N> std::ops::Deref for OptionObserver<'i, O, S, N> {
     }
 }
 
-impl<'i, O, S: ?Sized, N> std::ops::DerefMut for OptionObserver<'i, O, S, N> {
+impl<'i, O, S: ?Sized, N> DerefMut for OptionObserver<'i, O, S, N> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.is_mutated = true;
         self.ob = None;
@@ -53,7 +54,7 @@ where
     N: Unsigned,
     S: AsDerefMut<N, Target = Option<T>>,
     O: Observer<UpperDepth = Zero, Head = T>,
-    T: Serialize + 'i,
+    T: Serialize,
 {
     type UpperDepth = N;
     type LowerDepth = Zero;
@@ -71,10 +72,10 @@ where
     }
 
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
-        if this.is_mutated && (this.is_initial_some || (*this.ptr).as_deref().is_some()) {
+        if this.is_mutated && (this.is_initial_some || (***this).as_deref().is_some()) {
             Ok(Some(Mutation {
                 path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value((*this.ptr).as_deref())?),
+                kind: MutationKind::Replace(A::serialize_value((***this).as_deref())?),
             }))
         } else if let Some(mut ob) = this.ob.take() {
             Observer::collect(&mut ob)
@@ -89,7 +90,6 @@ where
     N: Unsigned,
     S: AsDerefMut<N, Target = Option<T>>,
     O: Observer<UpperDepth = Zero, Head = T>,
-    T: 'i,
 {
     fn __insert(&mut self, value: T) {
         self.is_mutated = true;

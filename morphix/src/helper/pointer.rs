@@ -1,6 +1,5 @@
 use std::ops::{Deref, DerefMut};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Pointer<S: ?Sized>(Option<*mut S>);
 
 impl<S: ?Sized> Pointer<S> {
@@ -13,6 +12,19 @@ impl<S: ?Sized> Pointer<S> {
     pub fn is_null(&self) -> bool {
         self.0.is_none()
     }
+
+    #[inline]
+    fn as_ref(&self) -> &S {
+        let ptr = self.0.expect("Observed pointer should not be null");
+        unsafe { &*ptr }
+    }
+
+    #[inline]
+    #[allow(clippy::mut_from_ref)]
+    pub fn as_mut(&self) -> &mut S {
+        let ptr = self.0.expect("Observed pointer should not be null");
+        unsafe { &mut *ptr }
+    }
 }
 
 impl<S: ?Sized> Default for Pointer<S> {
@@ -22,20 +34,27 @@ impl<S: ?Sized> Default for Pointer<S> {
     }
 }
 
+impl<S: ?Sized> PartialEq for Pointer<S> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<S: ?Sized> Eq for Pointer<S> {}
+
 impl<S: ?Sized> Deref for Pointer<S> {
     type Target = S;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        let ptr = self.0.expect("Observed pointer should not be null");
-        unsafe { &*ptr }
+        self.as_ref()
     }
 }
 
 impl<S: ?Sized> DerefMut for Pointer<S> {
     #[inline]
     fn deref_mut(&mut self) -> &mut S {
-        let ptr = self.0.expect("Observed pointer should not be null");
-        unsafe { &mut *ptr }
+        self.as_mut()
     }
 }

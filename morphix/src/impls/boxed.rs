@@ -1,9 +1,10 @@
 use std::ops::{Deref, DerefMut};
 
-use crate::helper::{AsDeref, AsDerefMut, Assignable, Succ, Unsigned};
+use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned};
 use crate::observe::DefaultSpec;
-use crate::{Observe, Observer};
+use crate::{Adapter, Mutation, Observe, Observer};
 
+#[derive(Default)]
 pub struct BoxObserver<O> {
     inner: O,
 }
@@ -26,11 +27,11 @@ impl<O> DerefMut for BoxObserver<O> {
 
 impl<O> Assignable for BoxObserver<O> {}
 
-impl<O, N> Observer for BoxObserver<O>
+impl<O, N, T: ?Sized> Observer for BoxObserver<O>
 where
     O: Observer<UpperDepth = Succ<N>>,
+    O::Head: AsDerefMut<N, Target = Box<T>>,
     N: Unsigned,
-    O::Head: AsDerefMut<N, Target = Box<<O::Head as AsDeref<O::UpperDepth>>::Target>>,
 {
     type LowerDepth = Succ<O::LowerDepth>;
     type UpperDepth = N;
@@ -44,7 +45,7 @@ where
     }
 
     #[inline]
-    unsafe fn collect_unchecked<A: crate::Adapter>(this: &mut Self) -> Result<Option<crate::Mutation<A>>, A::Error> {
+    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         unsafe { O::collect_unchecked(&mut this.inner) }
     }
 }
