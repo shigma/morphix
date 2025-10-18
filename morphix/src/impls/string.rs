@@ -2,8 +2,8 @@ use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
-use crate::helper::Assignable;
-use crate::observe::{DefaultSpec, DerefMutInductive, Pointer, Unsigned, Zero};
+use crate::helper::{Assignable, DerefMutInductive, Pointer, Unsigned, Zero};
+use crate::observe::DefaultSpec;
 use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 
 enum MutationState {
@@ -23,13 +23,13 @@ enum MutationState {
 /// - [String::add_assign](std::ops::AddAssign) (`+=`)
 /// - [String::push](std::string::String::push)
 /// - [String::push_str](std::string::String::push_str)
-pub struct StringObserver<S: ?Sized, N> {
-    ptr: Pointer<S>,
+pub struct StringObserver<'i, S: ?Sized, N> {
+    ptr: Pointer<'i, S>,
     mutation: Option<MutationState>,
     phantom: PhantomData<N>,
 }
 
-impl<S: ?Sized, N> StringObserver<S, N> {
+impl<'i, S: ?Sized, N> StringObserver<'i, S, N> {
     fn mark_replace(&mut self) {
         self.mutation = Some(MutationState::Replace);
     }
@@ -42,7 +42,7 @@ impl<S: ?Sized, N> StringObserver<S, N> {
     }
 }
 
-impl<S, N> Default for StringObserver<S, N> {
+impl<'i, S, N> Default for StringObserver<'i, S, N> {
     #[inline]
     fn default() -> Self {
         Self {
@@ -53,8 +53,8 @@ impl<S, N> Default for StringObserver<S, N> {
     }
 }
 
-impl<S: ?Sized, N> Deref for StringObserver<S, N> {
-    type Target = Pointer<S>;
+impl<'i, S: ?Sized, N> Deref for StringObserver<'i, S, N> {
+    type Target = Pointer<'i, S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -62,7 +62,7 @@ impl<S: ?Sized, N> Deref for StringObserver<S, N> {
     }
 }
 
-impl<S: ?Sized, N> DerefMut for StringObserver<S, N> {
+impl<'i, S: ?Sized, N> DerefMut for StringObserver<'i, S, N> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.mark_replace();
@@ -70,9 +70,9 @@ impl<S: ?Sized, N> DerefMut for StringObserver<S, N> {
     }
 }
 
-impl<S: ?Sized, N> Assignable for StringObserver<S, N> {}
+impl<'i, S: ?Sized, N> Assignable for StringObserver<'i, S, N> {}
 
-impl<S: ?Sized, N> Observer for StringObserver<S, N>
+impl<'i, S: ?Sized, N> Observer<'i> for StringObserver<'i, S, N>
 where
     N: Unsigned,
     S: DerefMutInductive<N, Target = String>,
@@ -89,7 +89,7 @@ where
         }
     }
 
-    fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
+    fn as_ptr(this: &Self) -> &Pointer<'i, Self::Head> {
         &this.ptr
     }
 
@@ -110,7 +110,7 @@ where
     }
 }
 
-impl<S: ?Sized, N: Unsigned> StringObserver<S, N>
+impl<'i, S: ?Sized, N: Unsigned> StringObserver<'i, S, N>
 where
     S: DerefMutInductive<N, Target = String>,
 {
@@ -128,7 +128,7 @@ where
     }
 }
 
-impl<S: ?Sized, N: Unsigned> AddAssign<&str> for StringObserver<S, N>
+impl<'i, S: ?Sized, N: Unsigned> AddAssign<&str> for StringObserver<'i, S, N>
 where
     S: DerefMutInductive<N, Target = String>,
 {
@@ -138,7 +138,7 @@ where
     }
 }
 
-impl<S: ?Sized, N: Unsigned> Debug for StringObserver<S, N>
+impl<'i, S: ?Sized, N: Unsigned> Debug for StringObserver<'i, S, N>
 where
     S: DerefMutInductive<N, Target = String>,
 {
@@ -150,7 +150,7 @@ where
     }
 }
 
-impl<S: ?Sized, N: Unsigned> Display for StringObserver<S, N>
+impl<'i, S: ?Sized, N: Unsigned> Display for StringObserver<'i, S, N>
 where
     S: DerefMutInductive<N, Target = String>,
 {
@@ -159,7 +159,7 @@ where
     }
 }
 
-impl<S, N: Unsigned, U: ?Sized> PartialEq<U> for StringObserver<S, N>
+impl<'i, S, N: Unsigned, U: ?Sized> PartialEq<U> for StringObserver<'i, S, N>
 where
     S: DerefMutInductive<N, Target = String>,
     String: PartialEq<U>,
@@ -170,7 +170,7 @@ where
     }
 }
 
-impl<S, N: Unsigned, U: ?Sized> PartialOrd<U> for StringObserver<S, N>
+impl<'i, S, N: Unsigned, U: ?Sized> PartialOrd<U> for StringObserver<'i, S, N>
 where
     S: DerefMutInductive<N, Target = String>,
     String: PartialOrd<U>,
@@ -183,7 +183,7 @@ where
 
 impl Observe for String {
     type Observer<'i, S, N>
-        = StringObserver<S, N>
+        = StringObserver<'i, S, N>
     where
         Self: 'i,
         N: Unsigned,

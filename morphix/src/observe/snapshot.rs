@@ -1,9 +1,10 @@
 use std::mem::MaybeUninit;
 
 use crate::Observe;
+use crate::helper::DerefInductive;
 use crate::impls::boxed::BoxObserveImpl;
 // use crate::impls::option::OptionObserveImpl;
-use crate::observe::{DebugHandler, DerefInductive, DerefMutInductive, GeneralHandler, GeneralObserver, Unsigned};
+use crate::observe::{DebugHandler, DerefMutInductive, GeneralHandler, GeneralObserver, Unsigned};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
 ///
@@ -48,7 +49,7 @@ use crate::observe::{DebugHandler, DerefInductive, DerefMutInductive, GeneralHan
 ///
 /// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use `SnapshotObserver` as their default
 /// implementation since they're cheap to clone and compare.
-pub type SnapshotObserver<'i, S, D> = GeneralObserver<'i, SnapshotHandler<<S as DerefInductive<D>>::Target>, S, D>;
+pub type SnapshotObserver<'i, S, N> = GeneralObserver<'i, SnapshotHandler<<S as DerefInductive<N>>::Target>, S, N>;
 
 pub struct SnapshotHandler<T> {
     snapshot: MaybeUninit<T>,

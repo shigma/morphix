@@ -14,8 +14,15 @@
 
 use std::ops::DerefMut;
 
-use crate::observe::Zero;
 use crate::{Observe, Observer};
+
+pub mod deref;
+pub mod pointer;
+pub mod unsigned;
+
+pub use deref::{DerefCoinductive, DerefInductive, DerefMutCoinductive, DerefMutInductive};
+pub use pointer::Pointer;
+pub use unsigned::{Succ, Unsigned, Zero};
 
 /// A trait enabling assignment to observers using autoref-based specialization.
 ///

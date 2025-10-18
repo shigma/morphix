@@ -34,21 +34,18 @@ use std::ops::DerefMut;
 
 use serde::Serialize;
 
+use crate::helper::{DerefMutCoinductive, DerefMutInductive, Pointer, Unsigned, Zero};
 use crate::{Adapter, Mutation};
 
 mod general;
 mod hash;
 mod noop;
-mod ops;
 mod shallow;
 mod snapshot;
 
 pub use general::{DebugHandler, GeneralHandler, GeneralObserver};
 pub use hash::{HashObserver, HashSpec};
 pub use noop::NoopObserver;
-pub use ops::{
-    DerefCoinductive, DerefInductive, DerefMutCoinductive, DerefMutInductive, Pointer, Succ, Unsigned, Zero,
-};
 pub use shallow::ShallowObserver;
 pub use snapshot::{SnapshotObserver, SnapshotSpec};
 
@@ -89,7 +86,7 @@ pub trait Observe: Serialize {
     ///
     /// This associated type specifies the *default* observer implementation for the type, when used
     /// in contexts where an [`Observe`] implementation is required.
-    type Observer<'i, S, N>: Observer<Head = S, UpperDepth = N>
+    type Observer<'i, S, N>: Observer<'i, Head = S, UpperDepth = N>
     where
         Self: 'i,
         N: Unsigned,
@@ -125,10 +122,13 @@ pub trait Observe: Serialize {
 /// Observers can be constructed in two ways:
 /// 1. Via [`Observer::observe`] - creates an observer for an existing value
 /// 2. Via [`Default::default`] - creates an empty observer with a null pointer
-pub trait Observer: DerefMut<Target: DerefMutCoinductive<Self::LowerDepth, Target = Pointer<Self::Head>>> {
+pub trait Observer<'i>
+where
+    Self: DerefMut<Target: DerefMutCoinductive<Self::LowerDepth, Target = Pointer<'i, Self::Head>>>,
+{
     type UpperDepth: Unsigned;
     type LowerDepth: Unsigned;
-    type Head: DerefMutInductive<Self::UpperDepth> + ?Sized;
+    type Head: DerefMutInductive<Self::UpperDepth> + ?Sized + 'i;
 
     /// Creates a new observer for the given value.
     ///
@@ -146,7 +146,7 @@ pub trait Observer: DerefMut<Target: DerefMutCoinductive<Self::LowerDepth, Targe
     /// ```
     fn observe(value: &mut Self::Head) -> Self;
 
-    fn as_ptr(this: &Self) -> &Pointer<Self::Head>;
+    fn as_ptr(this: &Self) -> &Pointer<'i, Self::Head>;
 
     /// Collects all recorded mutations (unsafe version).
     ///
