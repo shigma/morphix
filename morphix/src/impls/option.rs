@@ -49,33 +49,33 @@ impl<'i, O, S: ?Sized, N> DerefMut for OptionObserver<'i, O, S, N> {
 
 impl<'i, O, S: ?Sized, N> Assignable for OptionObserver<'i, O, S, N> {}
 
-impl<'i, O, S: ?Sized, N, T> Observer for OptionObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, N, T> Observer<'i> for OptionObserver<'i, O, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Option<T>>,
-    O: Observer<UpperDepth = Zero, Head = T>,
-    T: Serialize,
+    O: Observer<'i, UpperDepth = Zero, Head = T>,
+    T: Serialize + 'i,
 {
     type UpperDepth = N;
     type LowerDepth = Zero;
     type Head = S;
 
     #[inline]
-    fn observe(value: &mut Self::Head) -> Self {
+    fn observe(value: &'i mut Self::Head) -> Self {
         Self {
             ptr: Pointer::new(value),
             is_mutated: false,
-            is_initial_some: (*value).as_deref().is_some(),
+            is_initial_some: value.as_deref().is_some(),
             ob: value.as_deref_mut().as_mut().map(O::observe),
             phantom: PhantomData,
         }
     }
 
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
-        if this.is_mutated && (this.is_initial_some || (***this).as_deref().is_some()) {
+        if this.is_mutated && (this.is_initial_some || this.as_deref().is_some()) {
             Ok(Some(Mutation {
                 path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value((***this).as_deref())?),
+                kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
             }))
         } else if let Some(mut ob) = this.ob.take() {
             Observer::collect(&mut ob)
@@ -88,18 +88,19 @@ where
 impl<'i, O, S: ?Sized, N, T> OptionObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target = Option<T>>,
-    O: Observer<UpperDepth = Zero, Head = T>,
+    S: AsDerefMut<N, Target = Option<T>> + 'i,
+    O: Observer<'i, UpperDepth = Zero, Head = T>,
+    T: 'i,
 {
     fn __insert(&mut self, value: T) {
         self.is_mutated = true;
-        let inserted = (*self.ptr).as_deref_mut().insert(value);
+        let inserted = self.ptr.as_mut().as_deref_mut().insert(value);
         self.ob = Some(O::observe(inserted));
     }
 
     pub fn as_mut(&mut self) -> Option<&mut O> {
         if self.as_deref().is_some() && self.ob.is_none() {
-            self.ob = (*self.ptr).as_deref_mut().as_mut().map(O::observe);
+            self.ob = self.ptr.as_mut().as_deref_mut().as_mut().map(O::observe);
         }
         self.ob.as_mut()
     }
@@ -140,7 +141,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("OptionObserver").field(&(*self.ptr).as_deref()).finish()
+        f.debug_tuple("OptionObserver").field(&self.as_deref()).finish()
     }
 }
 
@@ -151,7 +152,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &U) -> bool {
-        (*self.ptr).as_deref().eq(other)
+        self.as_deref().eq(other)
     }
 }
 
@@ -162,7 +163,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        (*self.ptr).as_deref().partial_cmp(other)
+        self.as_deref().partial_cmp(other)
     }
 }
 
@@ -183,7 +184,7 @@ where
 /// Helper trait for selecting an appropriate observer for [`Option<T>`].
 #[doc(hidden)]
 pub trait OptionObserveImpl<T: Observe, Spec> {
-    type Observer<'i, S, N>: Observer<Head = S, UpperDepth = N>
+    type Observer<'i, S, N>: Observer<'i, Head = S, UpperDepth = N>
     where
         T: 'i,
         N: Unsigned,

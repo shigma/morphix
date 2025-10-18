@@ -176,7 +176,7 @@ where
 {
 }
 
-impl<'i, H, S: ?Sized, N> Observer for GeneralObserver<'i, H, S, N>
+impl<'i, H, S: ?Sized, N> Observer<'i> for GeneralObserver<'i, H, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target: Serialize>,
@@ -186,7 +186,7 @@ where
     type LowerDepth = Zero;
     type Head = S;
 
-    fn observe(value: &mut Self::Head) -> Self {
+    fn observe(value: &'i mut Self::Head) -> Self {
         Self {
             ptr: Pointer::new(value),
             handler: H::on_observe(value.as_deref_mut()),
@@ -263,7 +263,7 @@ where
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        (***self).as_deref_mut().index_mut(index)
+        (*self.ptr).as_deref_mut().index_mut(index)
     }
 }
 
@@ -299,7 +299,7 @@ macro_rules! impl_assign_ops {
             {
                 #[inline]
                 fn $method(&mut self, rhs: U) {
-                    (***self).as_deref_mut().$method(rhs);
+                    (*self.ptr).as_deref_mut().$method(rhs);
                 }
             }
         )*

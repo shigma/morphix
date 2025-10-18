@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use crate::Observe;
 use crate::impls::boxed::BoxObserveImpl;
 use crate::impls::option::OptionObserveImpl;
-use crate::observe::{DebugHandler, AsDerefMut, GeneralHandler, GeneralObserver, Unsigned};
+use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
 
 /// A general observer that uses hash comparison to detect changes.
 ///

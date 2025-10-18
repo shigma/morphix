@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use crate::helper::{AsDeref, AsDerefMut, Assignable, Succ, Unsigned};
@@ -6,11 +7,12 @@ use crate::observe::DefaultSpec;
 use crate::{Adapter, Mutation, Observe, Observer};
 
 #[derive(Default)]
-pub struct BoxObserver<O> {
+pub struct BoxObserver<'i, O> {
     inner: O,
+    phantom: PhantomData<&'i mut ()>,
 }
 
-impl<O> Deref for BoxObserver<O> {
+impl<'i, O> Deref for BoxObserver<'i, O> {
     type Target = O;
 
     #[inline]
@@ -19,18 +21,18 @@ impl<O> Deref for BoxObserver<O> {
     }
 }
 
-impl<O> DerefMut for BoxObserver<O> {
+impl<'i, O> DerefMut for BoxObserver<'i, O> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<O> Assignable for BoxObserver<O> {}
+impl<'i, O> Assignable for BoxObserver<'i, O> {}
 
-impl<O, N, T: ?Sized> Observer for BoxObserver<O>
+impl<'i, O, N, T: ?Sized> Observer<'i> for BoxObserver<'i, O>
 where
-    O: Observer<UpperDepth = Succ<N>>,
+    O: Observer<'i, UpperDepth = Succ<N>>,
     O::Head: AsDerefMut<N, Target = Box<T>>,
     N: Unsigned,
 {
@@ -39,9 +41,10 @@ where
     type Head = O::Head;
 
     #[inline]
-    fn observe(value: &mut Self::Head) -> Self {
+    fn observe(value: &'i mut Self::Head) -> Self {
         Self {
             inner: O::observe(value),
+            phantom: PhantomData,
         }
     }
 
@@ -54,7 +57,7 @@ where
 macro_rules! impl_fmt {
     ($($trait:ident),* $(,)?) => {
         $(
-            impl<O: std::fmt::$trait> std::fmt::$trait for BoxObserver<O> {
+            impl<'i, O: std::fmt::$trait> std::fmt::$trait for BoxObserver<'i, O> {
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     std::fmt::$trait::fmt(&self.inner, f)
                 }
@@ -74,33 +77,33 @@ impl_fmt! {
     UpperHex,
 }
 
-impl<O: Debug> Debug for BoxObserver<O> {
+impl<'i, O: Debug> Debug for BoxObserver<'i, O> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("BoxObserver").field(&self.inner).finish()
     }
 }
 
-impl<O, N, T: ?Sized, U: ?Sized> PartialEq<U> for BoxObserver<O>
+impl<'i, O, N, T: ?Sized, U: ?Sized> PartialEq<U> for BoxObserver<'i, O>
 where
-    O: Observer<UpperDepth = Succ<N>>,
+    O: Observer<'i, UpperDepth = Succ<N>>,
     O::Head: AsDerefMut<N, Target = Box<T>>,
     N: Unsigned,
     Box<T>: PartialEq<U>,
 {
     fn eq(&self, other: &U) -> bool {
-        (**O::as_ptr(self)).as_deref().eq(other)
+        <O::Head as AsDeref<N>>::as_deref(O::as_ptr(self)).eq(other)
     }
 }
 
-impl<O, N, T: ?Sized, U: ?Sized> PartialOrd<U> for BoxObserver<O>
+impl<'i, O, N, T: ?Sized, U: ?Sized> PartialOrd<U> for BoxObserver<'i, O>
 where
-    O: Observer<UpperDepth = Succ<N>>,
+    O: Observer<'i, UpperDepth = Succ<N>>,
     O::Head: AsDerefMut<N, Target = Box<T>>,
     N: Unsigned,
     Box<T>: PartialOrd<U>,
 {
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        (**O::as_ptr(self)).as_deref().partial_cmp(other)
+        <O::Head as AsDeref<N>>::as_deref(O::as_ptr(self)).partial_cmp(other)
     }
 }
 
@@ -120,7 +123,7 @@ where
 
 #[doc(hidden)]
 pub trait BoxObserveImpl<T: Observe, Spec> {
-    type Observer<'i, S, N>: Observer<Head = S, UpperDepth = N>
+    type Observer<'i, S, N>: Observer<'i, Head = S, UpperDepth = N>
     where
         T: 'i,
         N: Unsigned,
@@ -132,7 +135,7 @@ where
     T: Observe<Spec = DefaultSpec>,
 {
     type Observer<'i, S, N>
-        = BoxObserver<T::Observer<'i, S, Succ<N>>>
+        = BoxObserver<'i, T::Observer<'i, S, Succ<N>>>
     where
         T: 'i,
         N: Unsigned,

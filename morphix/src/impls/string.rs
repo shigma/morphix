@@ -42,7 +42,7 @@ impl<'i, S: ?Sized, N> StringObserver<'i, S, N> {
     }
 }
 
-impl<'i, S, N> Default for StringObserver<'i, S, N> {
+impl<'i, S: ?Sized, N> Default for StringObserver<'i, S, N> {
     #[inline]
     fn default() -> Self {
         Self {
@@ -72,7 +72,7 @@ impl<'i, S: ?Sized, N> DerefMut for StringObserver<'i, S, N> {
 
 impl<'i, S: ?Sized, N> Assignable for StringObserver<'i, S, N> {}
 
-impl<'i, S: ?Sized, N> Observer for StringObserver<'i, S, N>
+impl<'i, S: ?Sized, N> Observer<'i> for StringObserver<'i, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = String>,
@@ -106,12 +106,13 @@ where
     }
 }
 
-impl<'i, S: ?Sized, N: Unsigned> StringObserver<'i, S, N>
+impl<'i, S: ?Sized, N> StringObserver<'i, S, N>
 where
+    N: Unsigned,
     S: AsDerefMut<N, Target = String>,
 {
     pub fn push(&mut self, c: char) {
-        Self::mark_append(self, (**self).as_deref().len());
+        Self::mark_append(self, self.as_deref().len());
         (*self.ptr).as_deref_mut().push(c);
     }
 
@@ -119,13 +120,14 @@ where
         if s.is_empty() {
             return;
         }
-        Self::mark_append(self, (**self).as_deref().len());
+        Self::mark_append(self, self.as_deref().len());
         (*self.ptr).as_deref_mut().push_str(s);
     }
 }
 
-impl<'i, S: ?Sized, N: Unsigned> AddAssign<&str> for StringObserver<'i, S, N>
+impl<'i, S: ?Sized, N> AddAssign<&str> for StringObserver<'i, S, N>
 where
+    N: Unsigned,
     S: AsDerefMut<N, Target = String>,
 {
     #[inline]
@@ -134,44 +136,48 @@ where
     }
 }
 
-impl<'i, S: ?Sized, N: Unsigned> Debug for StringObserver<'i, S, N>
+impl<'i, S: ?Sized, N> Debug for StringObserver<'i, S, N>
 where
+    N: Unsigned,
     S: AsDerefMut<N, Target = String>,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("StringObserver").field((**self).as_deref()).finish()
+        f.debug_tuple("StringObserver").field(self.as_deref()).finish()
     }
 }
 
-impl<'i, S: ?Sized, N: Unsigned> Display for StringObserver<'i, S, N>
+impl<'i, S: ?Sized, N> Display for StringObserver<'i, S, N>
 where
+    N: Unsigned,
     S: AsDerefMut<N, Target = String>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt((**self).as_deref(), f)
+        Display::fmt(self.as_deref(), f)
     }
 }
 
-impl<'i, S, N: Unsigned, U: ?Sized> PartialEq<U> for StringObserver<'i, S, N>
+impl<'i, S, N, U: ?Sized> PartialEq<U> for StringObserver<'i, S, N>
 where
+    N: Unsigned,
     S: AsDerefMut<N, Target = String>,
     String: PartialEq<U>,
 {
     #[inline]
     fn eq(&self, other: &U) -> bool {
-        (**self).as_deref().eq(other)
+        self.as_deref().eq(other)
     }
 }
 
-impl<'i, S, N: Unsigned, U: ?Sized> PartialOrd<U> for StringObserver<'i, S, N>
+impl<'i, S, N, U: ?Sized> PartialOrd<U> for StringObserver<'i, S, N>
 where
+    N: Unsigned,
     S: AsDerefMut<N, Target = String>,
     String: PartialOrd<U>,
 {
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        (**self).as_deref().partial_cmp(other)
+        self.as_deref().partial_cmp(other)
     }
 }
 
