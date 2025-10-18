@@ -1,10 +1,10 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 
+use crate::Observe;
 // use crate::impls::option::OptionObserveImpl;
-use crate::observe::general::DebugHandler;
-use crate::observe::{GeneralHandler, GeneralObserver};
-use crate::{Observe, Observer};
+use crate::impls::boxed::BoxObserveImpl;
+use crate::observe::{DebugHandler, DerefMutInductive, GeneralHandler, GeneralObserver, Unsigned};
 
 /// A general observer that uses hash comparison to detect changes.
 ///
@@ -45,7 +45,7 @@ use crate::{Observe, Observer};
 /// 1. **Hash collisions**: Different values might have the same hash (though rare)
 /// 2. **Performance**: For small types, hashing might be slower than
 ///    [`ShallowObserver`](super::ShallowObserver)
-pub type HashObserver<S, D, H = DefaultHasher> = GeneralObserver<HashHandler<H>, S, D>;
+pub type HashObserver<'i, S, D, H = DefaultHasher> = GeneralObserver<'i, HashHandler<H>, S, D>;
 
 #[derive(Default)]
 pub struct HashHandler<H> {
@@ -91,6 +91,18 @@ impl<T: Hash, H: Hasher + Default> DebugHandler<T> for HashHandler<H> {
 /// used as the [`Spec`](crate::Observer::Spec) for a type `T`, it affects certain wrapper type
 /// observations, such as [`Option<T>`].
 pub struct HashSpec;
+
+impl<T> BoxObserveImpl<T, HashSpec> for T
+where
+    T: Hash + Observe<Spec = HashSpec>,
+{
+    type Observer<'i, S, N>
+        = HashObserver<'i, S, N>
+    where
+        T: 'i,
+        N: Unsigned,
+        S: DerefMutInductive<N, Target = Box<T>> + ?Sized + 'i;
+}
 
 // impl<T> OptionObserveImpl<T, HashSpec> for T
 // where

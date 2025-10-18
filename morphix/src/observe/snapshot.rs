@@ -1,10 +1,9 @@
 use std::mem::MaybeUninit;
 
+use crate::Observe;
+use crate::impls::boxed::BoxObserveImpl;
 // use crate::impls::option::OptionObserveImpl;
-use crate::observe::{
-    DerefInductive, DerefMutInductive, DerefCoinductive, DebugHandler, GeneralHandler, GeneralObserver, Unsigned,
-};
-use crate::{Observe, Observer};
+use crate::observe::{DebugHandler, DerefInductive, DerefMutInductive, GeneralHandler, GeneralObserver, Unsigned};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
 ///
@@ -49,7 +48,7 @@ use crate::{Observe, Observer};
 ///
 /// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use `SnapshotObserver` as their default
 /// implementation since they're cheap to clone and compare.
-pub type SnapshotObserver<S, D> = GeneralObserver<SnapshotHandler<<S as DerefInductive<D>>::Target>, S, D>;
+pub type SnapshotObserver<'i, S, D> = GeneralObserver<'i, SnapshotHandler<<S as DerefInductive<D>>::Target>, S, D>;
 
 pub struct SnapshotHandler<T> {
     snapshot: MaybeUninit<T>,
@@ -96,6 +95,42 @@ impl<T: Clone + PartialEq> DebugHandler<T> for SnapshotHandler<T> {
 /// certain wrapper type observations, such as [`Option<T>`].
 pub struct SnapshotSpec;
 
+macro_rules! impl_observe {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl Observe for $ty {
+                type Observer<'i, S, N>
+                    = SnapshotObserver<'i, S, N>
+                where
+                    Self: 'i,
+                    N: Unsigned,
+                    S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
+
+                type Spec = SnapshotSpec;
+            }
+        )*
+    };
+}
+
+impl_observe! {
+    usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
+    ::core::net::IpAddr, ::core::net::Ipv4Addr, ::core::net::Ipv6Addr,
+    ::core::net::SocketAddr, ::core::net::SocketAddrV4, ::core::net::SocketAddrV6,
+    ::core::time::Duration, ::std::time::SystemTime,
+}
+
+impl<T> BoxObserveImpl<T, SnapshotSpec> for T
+where
+    T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
+{
+    type Observer<'i, S, N>
+        = SnapshotObserver<'i, S, N>
+    where
+        T: 'i,
+        N: Unsigned,
+        S: DerefMutInductive<N, Target = Box<T>> + ?Sized + 'i;
+}
+
 // impl<T> OptionObserveImpl<T, SnapshotSpec> for T
 // where
 //     T: Clone + PartialEq + Observe,
@@ -106,33 +141,3 @@ pub struct SnapshotSpec;
 //     where
 //         Self: 'i;
 // }
-
-macro_rules! impl_observe {
-    ($($ty:ty),* $(,)?) => {
-        $(
-            impl Observe for $ty {
-                type Observer<'i, S, N>
-                    = SnapshotObserver<S, N>
-                where
-                    Self: 'i,
-                    N: Unsigned,
-                    S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
-            }
-        )*
-    };
-}
-
-// impl_observe! {
-//     usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
-//     ::core::net::IpAddr, ::core::net::Ipv4Addr, ::core::net::Ipv6Addr,
-//     ::core::net::SocketAddr, ::core::net::SocketAddrV4, ::core::net::SocketAddrV6,
-//     ::core::time::Duration, ::std::time::SystemTime,
-// }
-impl Observe for u8 {
-    type Observer<'i, S, N>
-        = SnapshotObserver<S, N>
-    where
-        Self: 'i,
-        N: Unsigned,
-        S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
-}

@@ -25,7 +25,7 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 /// Use `NoopObserver` for fields that:
 /// - Are only used internally and not part of the public state
 /// - Should not trigger change notifications.
-pub type NoopObserver<S, D> = GeneralObserver<NoopHandler, S, D>;
+pub type NoopObserver<'i, S, D> = GeneralObserver<'i, NoopHandler, S, D>;
 
 #[derive(Default)]
 pub struct NoopHandler;

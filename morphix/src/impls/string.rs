@@ -3,8 +3,13 @@ use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
 use crate::helper::Assignable;
-use crate::observe::{DefaultSpec, MutationState, StatefulObserver};
+use crate::observe::{DefaultSpec, DerefMutInductive, Pointer, Unsigned, Zero};
 use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
+
+enum MutationState {
+    Replace,
+    Append(usize),
+}
 
 /// An observer for [`String`] that tracks both replacements and appends.
 ///
@@ -18,55 +23,84 @@ use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 /// - [String::add_assign](std::ops::AddAssign) (`+=`)
 /// - [String::push](std::string::String::push)
 /// - [String::push_str](std::string::String::push_str)
-#[derive(Default)]
-pub struct StringObserver<'i> {
-    ptr: *mut String,
+pub struct StringObserver<S: ?Sized, N> {
+    ptr: Pointer<S>,
     mutation: Option<MutationState>,
-    phantom: PhantomData<&'i mut String>,
+    phantom: PhantomData<N>,
 }
 
-impl<'i> Deref for StringObserver<'i> {
-    type Target = String;
+impl<S: ?Sized, N> StringObserver<S, N> {
+    fn mark_replace(&mut self) {
+        self.mutation = Some(MutationState::Replace);
+    }
+
+    fn mark_append(&mut self, start_index: usize) {
+        if self.mutation.is_some() {
+            return;
+        }
+        self.mutation = Some(MutationState::Append(start_index));
+    }
+}
+
+impl<S, N> Default for StringObserver<S, N> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            ptr: Pointer::default(),
+            mutation: None,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<S: ?Sized, N> Deref for StringObserver<S, N> {
+    type Target = Pointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.ptr }
+        &self.ptr
     }
 }
 
-impl<'i> DerefMut for StringObserver<'i> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        Self::mark_replace(self);
-        self.__as_mut()
-    }
-}
-
-impl<'i> Assignable for StringObserver<'i> {}
-
-impl<'i> Observer<'i> for StringObserver<'i> {
-    type Spec = DefaultSpec;
-
-    fn inner(this: &Self) -> *mut Self::Target {
-        this.ptr
-    }
-
+impl<S: ?Sized, N> DerefMut for StringObserver<S, N> {
     #[inline]
-    fn observe(value: &'i mut String) -> Self {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.mark_replace();
+        &mut self.ptr
+    }
+}
+
+impl<S: ?Sized, N> Assignable for StringObserver<S, N> {}
+
+impl<S: ?Sized, N> Observer for StringObserver<S, N>
+where
+    N: Unsigned,
+    S: DerefMutInductive<N, Target = String>,
+{
+    type UpperDepth = N;
+    type LowerDepth = Zero;
+    type Head = S;
+
+    fn observe(value: &mut Self::Head) -> Self {
         Self {
-            ptr: value,
+            ptr: Pointer::new(value),
             mutation: None,
             phantom: PhantomData,
         }
     }
 
-    unsafe fn collect_unchecked<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
-        Ok(if let Some(mutation) = Self::mutation_state(&mut this).take() {
+    fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
+        &this.ptr
+    }
+
+    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
+        Ok(if let Some(mutation) = this.mutation.take() {
             Some(Mutation {
                 path: Default::default(),
                 kind: match mutation {
-                    MutationState::Replace => MutationKind::Replace(A::serialize_value(&*this)?),
+                    MutationState::Replace => MutationKind::Replace(A::serialize_value(this.deref_inductive())?),
                     MutationState::Append(start_index) => {
-                        MutationKind::Append(A::serialize_value(&this[start_index..])?)
+                        MutationKind::Append(A::serialize_value(&this.deref_inductive()[start_index..])?)
                     }
                 },
             })
@@ -76,103 +110,86 @@ impl<'i> Observer<'i> for StringObserver<'i> {
     }
 }
 
-impl<'i> StatefulObserver<'i> for StringObserver<'i> {
-    #[inline]
-    fn mutation_state(this: &mut Self) -> &mut Option<MutationState> {
-        &mut this.mutation
-    }
-}
-
-impl Observe for String {
-    type Observer<'i>
-        = StringObserver<'i>
-    where
-        Self: 'i;
-}
-
-impl<'i> StringObserver<'i> {
-    #[inline]
-    fn __as_mut(&mut self) -> &mut String {
-        unsafe { &mut *self.ptr }
-    }
-
+impl<S: ?Sized, N: Unsigned> StringObserver<S, N>
+where
+    S: DerefMutInductive<N, Target = String>,
+{
     pub fn push(&mut self, c: char) {
-        Self::mark_append(self, self.len());
-        self.__as_mut().push(c);
+        Self::mark_append(self, (**self).deref_inductive().len());
+        (*self.ptr).deref_mut_inductive().push(c);
     }
 
     pub fn push_str(&mut self, s: &str) {
         if s.is_empty() {
             return;
         }
-        Self::mark_append(self, self.len());
-        self.__as_mut().push_str(s);
+        Self::mark_append(self, (**self).deref_inductive().len());
+        (*self.ptr).deref_mut_inductive().push_str(s);
     }
 }
 
-impl<'i> AddAssign<&str> for StringObserver<'i> {
+impl<S: ?Sized, N: Unsigned> AddAssign<&str> for StringObserver<S, N>
+where
+    S: DerefMutInductive<N, Target = String>,
+{
     #[inline]
     fn add_assign(&mut self, rhs: &str) {
         self.push_str(rhs);
     }
 }
 
-impl<'i> Debug for StringObserver<'i> {
-    #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("StringObserver").field(&**self).finish()
-    }
-}
-
-impl<'i> Display for StringObserver<'i> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(&**self, f)
-    }
-}
-
-impl<'i> PartialEq<String> for StringObserver<'i> {
-    #[inline]
-    fn eq(&self, other: &String) -> bool {
-        (**self).eq(other)
-    }
-}
-
-impl<'i, O> PartialEq<O> for StringObserver<'i>
+impl<S: ?Sized, N: Unsigned> Debug for StringObserver<S, N>
 where
-    O: Observer<'i>,
-    String: PartialEq<O::Target>,
+    S: DerefMutInductive<N, Target = String>,
 {
     #[inline]
-    fn eq(&self, other: &O) -> bool {
-        (**self).eq(&**other)
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("StringObserver")
+            .field((**self).deref_inductive())
+            .finish()
     }
 }
 
-impl<'i> Eq for StringObserver<'i> {}
-
-impl<'i> PartialOrd<String> for StringObserver<'i> {
-    #[inline]
-    fn partial_cmp(&self, other: &String) -> Option<std::cmp::Ordering> {
-        (**self).partial_cmp(other)
-    }
-}
-
-impl<'i, O> PartialOrd<O> for StringObserver<'i>
+impl<S: ?Sized, N: Unsigned> Display for StringObserver<S, N>
 where
-    O: Observer<'i>,
-    String: PartialOrd<O::Target>,
+    S: DerefMutInductive<N, Target = String>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt((**self).deref_inductive(), f)
+    }
+}
+
+impl<S, N: Unsigned, U: ?Sized> PartialEq<U> for StringObserver<S, N>
+where
+    S: DerefMutInductive<N, Target = String>,
+    String: PartialEq<U>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &O) -> Option<std::cmp::Ordering> {
-        (**self).partial_cmp(&**other)
+    fn eq(&self, other: &U) -> bool {
+        (**self).deref_inductive().eq(other)
     }
 }
 
-impl<'i> Ord for StringObserver<'i> {
+impl<S, N: Unsigned, U: ?Sized> PartialOrd<U> for StringObserver<S, N>
+where
+    S: DerefMutInductive<N, Target = String>,
+    String: PartialOrd<U>,
+{
     #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (**self).cmp(&**other)
+    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
+        (**self).deref_inductive().partial_cmp(other)
     }
+}
+
+impl Observe for String {
+    type Observer<'i, S, N>
+        = StringObserver<S, N>
+    where
+        Self: 'i,
+        N: Unsigned,
+        S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
+
+    type Spec = DefaultSpec;
 }
 
 #[cfg(test)]
@@ -186,8 +203,8 @@ mod tests {
     #[test]
     fn no_mutation_returns_none() {
         let mut s = String::from("hello");
-        let ob = s.__observe();
-        assert!(Observer::collect::<JsonAdapter>(ob).unwrap().is_none());
+        let mut ob = s.__observe();
+        assert!(Observer::collect::<JsonAdapter>(&mut ob).unwrap().is_none());
     }
 
     #[test]
@@ -196,7 +213,7 @@ mod tests {
         let mut ob = s.__observe();
         ob.clear();
         ob.push_str("world"); // append after replace should have no effect
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!("world")));
     }
 
@@ -206,7 +223,7 @@ mod tests {
         let mut ob = s.__observe();
         ob.push('b');
         ob.push('c');
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!("bc")));
     }
 
@@ -215,7 +232,7 @@ mod tests {
         let mut s = String::from("foo");
         let mut ob = s.__observe();
         ob.push_str("bar");
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!("bar")));
     }
 
@@ -224,7 +241,7 @@ mod tests {
         let mut s = String::from("foo");
         let mut ob = s.__observe();
         ob += "bar";
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!("bar")));
     }
 
@@ -234,7 +251,7 @@ mod tests {
         let mut ob = s.__observe();
         ob.push_str("");
         ob += "";
-        assert!(Observer::collect::<JsonAdapter>(ob).unwrap().is_none());
+        assert!(Observer::collect::<JsonAdapter>(&mut ob).unwrap().is_none());
     }
 
     #[test]
@@ -242,8 +259,8 @@ mod tests {
         let mut s = String::from("abc");
         let mut ob = s.__observe();
         ob.push_str("def");
-        *ob = String::from("xyz");
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        **ob = String::from("xyz");
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!("xyz")));
     }
 }
