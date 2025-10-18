@@ -26,9 +26,9 @@ impl<O> DerefMut for BoxObserver<O> {
 
 impl<O> Assignable for BoxObserver<O> {}
 
-impl<'i, O, N> Observer<'i> for BoxObserver<O>
+impl<O, N> Observer for BoxObserver<O>
 where
-    O: Observer<'i, UpperDepth = Succ<N>>,
+    O: Observer<UpperDepth = Succ<N>>,
     N: Unsigned,
     O::Head: DerefMutInductive<N, Target = Box<<O::Head as DerefInductive<O::UpperDepth>>::Target>>,
 {
@@ -44,7 +44,7 @@ where
     }
 
     #[inline]
-    fn as_ptr(this: &Self) -> &Pointer<'i, Self::Head> {
+    fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
         O::as_ptr(&this.inner)
     }
 
@@ -70,7 +70,7 @@ where
 
 #[doc(hidden)]
 pub trait BoxObserveImpl<T: Observe, Spec> {
-    type Observer<'i, S, N>: Observer<'i, Head = S, UpperDepth = N>
+    type Observer<'i, S, N>: Observer<Head = S, UpperDepth = N>
     where
         T: 'i,
         N: Unsigned,

@@ -3,268 +3,273 @@ use std::marker::PhantomData;
 
 use serde::Serialize;
 
-use crate::helper::Assignable;
+use crate::helper::{Assignable, DerefMutInductive, Pointer, Unsigned, Zero};
 use crate::observe::DefaultSpec;
 use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
 
 /// An general observer for [`Option`].
-pub struct OptionObserver<'i, O: Observer<'i, Target: Sized>> {
-    ptr: *mut Option<O::Target>,
-    is_initial_some: bool,
+pub struct OptionObserver<'i, O, S: ?Sized, N> {
+    ptr: Pointer<S>,
     is_mutated: bool,
+    is_initial_some: bool,
     ob: Option<O>,
-    phantom: PhantomData<&'i mut O::Target>,
+    phantom: PhantomData<&'i mut N>,
 }
 
-impl<'i, O: Observer<'i, Target: Sized>> Default for OptionObserver<'i, O> {
+impl<'i, O, S: ?Sized, N> Default for OptionObserver<'i, O, S, N> {
     #[inline]
     fn default() -> Self {
         Self {
-            ptr: std::ptr::null_mut(),
-            is_initial_some: false,
+            ptr: Pointer::default(),
             is_mutated: false,
+            is_initial_some: false,
             ob: None,
             phantom: PhantomData,
         }
     }
 }
 
-impl<'i, O: Observer<'i, Target: Sized>> std::ops::Deref for OptionObserver<'i, O> {
-    type Target = Option<O::Target>;
+impl<'i, O, S: ?Sized, N> std::ops::Deref for OptionObserver<'i, O, S, N> {
+    type Target = Pointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.ptr }
+        &self.ptr
     }
 }
 
-impl<'i, O: Observer<'i, Target: Sized>> std::ops::DerefMut for OptionObserver<'i, O> {
+impl<'i, O, S: ?Sized, N> std::ops::DerefMut for OptionObserver<'i, O, S, N> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.is_mutated = true;
         self.ob = None;
-        unsafe { &mut *self.ptr }
+        &mut self.ptr
     }
 }
 
-impl<'i, O: Observer<'i, Target: Sized>> Assignable for OptionObserver<'i, O> {}
+impl<'i, O, S: ?Sized, N> Assignable for OptionObserver<'i, O, S, N> {}
 
-impl<'i, O: Observer<'i, Target: Serialize + Sized>> Observer<'i> for OptionObserver<'i, O> {
-    #[inline]
-    fn inner(this: &Self) -> *mut Self::Target {
-        this.ptr
-    }
+impl<'i, O, S: ?Sized, N, T> Observer for OptionObserver<'i, O, S, N>
+where
+    N: Unsigned,
+    S: DerefMutInductive<N, Target = Option<T>>,
+    O: Observer<UpperDepth = Zero, Head = T>,
+    T: Serialize + 'i,
+{
+    type UpperDepth = N;
+    type LowerDepth = Zero;
+    type Head = S;
 
     #[inline]
-    fn observe(value: &'i mut Option<O::Target>) -> Self {
+    fn observe(value: &mut Self::Head) -> Self {
         Self {
-            ptr: value,
-            is_initial_some: value.is_some(),
+            ptr: Pointer::new(value),
             is_mutated: false,
-            ob: value.as_mut().map(O::observe),
+            is_initial_some: (*value).deref_inductive().is_some(),
+            ob: value.deref_mut_inductive().as_mut().map(O::observe),
             phantom: PhantomData,
         }
     }
 
-    unsafe fn collect_unchecked<A: Adapter>(mut this: Self) -> Result<Option<Mutation<A>>, A::Error> {
-        if this.is_mutated && (this.is_initial_some || this.is_some()) {
+    #[inline]
+    fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
+        &this.ptr
+    }
+
+    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
+        if this.is_mutated && (this.is_initial_some || (*this.ptr).deref_inductive().is_some()) {
             Ok(Some(Mutation {
                 path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value(&*this)?),
+                kind: MutationKind::Replace(A::serialize_value((*this.ptr).deref_inductive())?),
             }))
-        } else if let Some(ob) = this.ob.take() {
-            Observer::collect(ob)
+        } else if let Some(mut ob) = this.ob.take() {
+            Observer::collect(&mut ob)
         } else {
             Ok(None)
         }
     }
-
-    type Spec = DefaultSpec;
 }
 
-impl<'i, O: Observer<'i, Target: Sized>> OptionObserver<'i, O> {
-    fn __insert(&mut self, value: O::Target) {
+impl<'i, O, S: ?Sized, N, T> OptionObserver<'i, O, S, N>
+where
+    N: Unsigned,
+    S: DerefMutInductive<N, Target = Option<T>>,
+    O: Observer<UpperDepth = Zero, Head = T>,
+    T: 'i,
+{
+    fn __insert(&mut self, value: T) {
         self.is_mutated = true;
-        let inner = unsafe { &mut *self.ptr };
-        self.ob = Some(O::observe(inner.insert(value)));
+        let inserted = (*self.ptr).deref_mut_inductive().insert(value);
+        self.ob = Some(O::observe(inserted));
     }
 
     pub fn as_mut(&mut self) -> Option<&mut O> {
-        if self.is_some() && self.ob.is_none() {
-            let inner = unsafe { &mut *self.ptr };
-            self.ob = inner.as_mut().map(O::observe);
+        if self.deref_inductive().is_some() && self.ob.is_none() {
+            self.ob = (*self.ptr).deref_mut_inductive().as_mut().map(O::observe);
         }
         self.ob.as_mut()
     }
 
-    pub fn insert(&mut self, value: O::Target) -> &mut O {
+    pub fn insert(&mut self, value: T) -> &mut O {
         self.__insert(value);
         self.ob.as_mut().unwrap()
     }
 
     #[inline]
-    pub fn get_or_insert(&mut self, value: O::Target) -> &mut O {
+    pub fn get_or_insert(&mut self, value: T) -> &mut O {
         self.get_or_insert_with(|| value)
     }
 
     #[inline]
     pub fn get_or_insert_default(&mut self) -> &mut O
     where
-        O::Target: Default,
+        T: Default,
     {
         self.get_or_insert_with(Default::default)
     }
 
     pub fn get_or_insert_with<F>(&mut self, f: F) -> &mut O
     where
-        F: FnOnce() -> O::Target,
+        F: FnOnce() -> T,
     {
-        if self.is_none() {
+        if self.deref_inductive().is_none() {
             self.__insert(f());
         }
         self.ob.as_mut().unwrap()
     }
 }
 
-impl<'i, O: Observer<'i, Target: Debug + Sized>> Debug for OptionObserver<'i, O> {
+impl<'i, O, S: ?Sized, N> Debug for OptionObserver<'i, O, S, N>
+where
+    N: Unsigned,
+    S: DerefMutInductive<N, Target: Debug>,
+{
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("OptionObserver").field(&**self).finish()
+        f.debug_tuple("OptionObserver")
+            .field(&(*self.ptr).deref_inductive())
+            .finish()
     }
 }
 
-impl<'i, O: Observer<'i, Target: PartialEq + Sized>> PartialEq<Option<O::Target>> for OptionObserver<'i, O> {
-    #[inline]
-    fn eq(&self, other: &Option<O::Target>) -> bool {
-        (**self).eq(other)
-    }
-}
-
-impl<'i, O, P, Q: ?Sized> PartialEq<P> for OptionObserver<'i, O>
+impl<'i, O, S: ?Sized, N, U: ?Sized> PartialEq<U> for OptionObserver<'i, O, S, N>
 where
-    O: Observer<'i, Target: Sized>,
-    P: Observer<'i, Target = Q>,
-    Option<O::Target>: PartialEq<Q>,
+    N: Unsigned,
+    S: DerefMutInductive<N, Target: PartialEq<U>>,
 {
     #[inline]
-    fn eq(&self, other: &P) -> bool {
-        (**self).eq(&**other)
+    fn eq(&self, other: &U) -> bool {
+        (*self.ptr).deref_inductive().eq(other)
     }
 }
 
-impl<'i, O: Observer<'i, Target: Eq + Sized>> Eq for OptionObserver<'i, O> {}
-
-impl<'i, O: Observer<'i, Target: PartialOrd + Sized>> PartialOrd<Option<O::Target>> for OptionObserver<'i, O> {
-    #[inline]
-    fn partial_cmp(&self, other: &Option<O::Target>) -> Option<std::cmp::Ordering> {
-        (**self).partial_cmp(other)
-    }
-}
-
-impl<'i, O, P, Q: ?Sized> PartialOrd<P> for OptionObserver<'i, O>
+impl<'i, O, S: ?Sized, N, U: ?Sized> PartialOrd<U> for OptionObserver<'i, O, S, N>
 where
-    O: Observer<'i, Target: Sized>,
-    P: Observer<'i, Target = Q>,
-    Option<O::Target>: PartialOrd<Q>,
+    N: Unsigned,
+    S: DerefMutInductive<N, Target: PartialOrd<U>>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &P) -> Option<std::cmp::Ordering> {
-        (**self).partial_cmp(&**other)
+    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
+        (*self.ptr).deref_inductive().partial_cmp(other)
     }
 }
 
-impl<'i, O: Observer<'i, Target: Ord + Sized>> Ord for OptionObserver<'i, O> {
-    #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (**self).cmp(&**other)
-    }
-}
-
-impl<T, S> Observe for Option<T>
+impl<T> Observe for Option<T>
 where
-    T: Observe + OptionObserveImpl<T, S>,
-    for<'i> <T as Observe>::Observer<'i>: Observer<'i, Spec = S>,
+    T: Observe + OptionObserveImpl<T, T::Spec>,
 {
-    type Observer<'i>
-        = <T as OptionObserveImpl<T, S>>::Observer<'i>
+    type Observer<'i, S, N>
+        = <T as OptionObserveImpl<T, T::Spec>>::Observer<'i, S, N>
     where
-        Self: 'i;
+        Self: 'i,
+        N: Unsigned,
+        S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
+
+    type Spec = T::Spec;
 }
 
 /// Helper trait for selecting an appropriate observer for [`Option<T>`].
 #[doc(hidden)]
-pub trait OptionObserveImpl<T: Observe, S> {
-    type Observer<'i>: Observer<'i, Target = Option<T>>
+pub trait OptionObserveImpl<T: Observe, Spec> {
+    type Observer<'i, S, N>: Observer<Head = S, UpperDepth = N>
     where
-        Self: 'i;
+        T: 'i,
+        N: Unsigned,
+        S: DerefMutInductive<N, Target = Option<T>> + ?Sized + 'i;
 }
 
 impl<T> OptionObserveImpl<T, DefaultSpec> for T
 where
-    T: Observe,
-    for<'i> <T as Observe>::Observer<'i>: Observer<'i, Spec = DefaultSpec>,
+    T: Observe<Spec = DefaultSpec>,
 {
-    type Observer<'i>
-        = OptionObserver<'i, T::Observer<'i>>
+    type Observer<'i, S, N>
+        = OptionObserver<'i, T::Observer<'i, T, Zero>, S, N>
     where
-        Self: 'i;
+        T: 'i,
+        N: Unsigned,
+        S: DerefMutInductive<N, Target = Option<T>> + ?Sized + 'i;
 }
 
 #[cfg(test)]
 mod tests {
+    use serde::Serialize;
     use serde_json::json;
 
     use super::*;
     use crate::helper::ObserveExt;
     use crate::impls::string::StringObserver;
-    use crate::observe::{GeneralObserver, ShallowObserver};
+    use crate::observe::{DefaultSpec, GeneralObserver, ShallowObserver};
     use crate::{JsonAdapter, Observer};
 
     #[derive(Debug, Serialize, Default)]
     struct Number(i32);
 
     impl Observe for Number {
-        type Observer<'i>
-            = ShallowObserver<'i, Self>
+        type Observer<'i, S, N>
+            = ShallowObserver<'i, S, N>
         where
-            Self: 'i;
+            Self: 'i,
+            N: Unsigned,
+            S: DerefMutInductive<N, Target = Self> + ?Sized + 'i;
+
+        type Spec = DefaultSpec;
     }
 
     #[test]
     fn no_change_returns_none() {
         let mut opt: Option<Number> = None;
-        let ob = opt.__observe();
-        assert!(Observer::collect::<JsonAdapter>(ob).unwrap().is_none());
+        let mut ob = opt.__observe();
+        assert!(Observer::collect::<JsonAdapter>(&mut ob).unwrap().is_none());
 
         let mut opt = Some(Number(1));
-        let ob = opt.__observe();
-        assert!(Observer::collect::<JsonAdapter>(ob).unwrap().is_none());
+        let mut ob = opt.__observe();
+        assert!(Observer::collect::<JsonAdapter>(&mut ob).unwrap().is_none());
     }
 
     #[test]
     fn deref_triggers_replace() {
         let mut opt = Some(Number(42));
         let mut ob = opt.__observe();
-        *ob = None;
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        **ob = None;
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!(null)));
 
         let mut opt: Option<Number> = None;
         let mut ob = opt.__observe();
-        *ob = Some(Number(42));
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        **ob = Some(Number(42));
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!(42)));
 
         let mut opt: Option<Number> = None;
         let mut ob = opt.__observe();
-        *ob = Some(Number(42));
-        *ob = None;
-        assert!(Observer::collect::<JsonAdapter>(ob).unwrap().is_none());
+        **ob = Some(Number(42));
+        **ob = None;
+        assert!(Observer::collect::<JsonAdapter>(&mut ob).unwrap().is_none());
 
         let mut opt = Some(Number(42));
         let mut ob = opt.__observe();
-        *ob = None;
-        *ob = Some(Number(42));
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        **ob = None;
+        **ob = Some(Number(42));
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!(42)));
     }
 
@@ -272,9 +277,9 @@ mod tests {
     fn insert_returns_observer() {
         let mut opt: Option<String> = None;
         let mut ob = opt.__observe();
-        let s: &mut StringObserver<'_> = ob.insert(String::from("99")); // assert type
+        let s: &mut StringObserver<'_, _, _> = ob.insert(String::from("99")); // assert type
         *s += "9";
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!("999")));
     }
 
@@ -283,7 +288,7 @@ mod tests {
         let mut opt = Some(String::from("foo"));
         let mut ob = opt.__observe();
         *ob.as_mut().unwrap() += "bar";
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!("bar")));
     }
 
@@ -293,30 +298,30 @@ mod tests {
         let mut opt: Option<Number> = None;
         let mut ob = opt.__observe();
         ob.get_or_insert(Number(5)).0 = 6;
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!(6)));
 
         // get_or_insert_default
         let mut opt: Option<Number> = None;
         let mut ob = opt.__observe();
         ob.get_or_insert_default().0 = 77;
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!(77)));
 
         // get_or_insert_with
         let mut opt: Option<Number> = None;
         let mut ob = opt.__observe();
         ob.get_or_insert_with(|| Number(88)).0 = 99;
-        let mutation = Observer::collect::<JsonAdapter>(ob).unwrap().unwrap();
+        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!(99)));
     }
 
     #[test]
     fn specialization() {
         let mut opt = Some(0i32);
-        let _ob: GeneralObserver<'_, _, _> = opt.__observe(); // assert type
+        let _ob: GeneralObserver<'_, _, _, _> = opt.__observe(); // assert type
 
         let mut opt = Some(Number(0));
-        let _ob: OptionObserver<'_, _> = opt.__observe(); // assert type
+        let _ob: OptionObserver<'_, _, _, _> = opt.__observe(); // assert type
     }
 }

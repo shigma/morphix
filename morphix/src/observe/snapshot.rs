@@ -3,7 +3,7 @@ use std::mem::MaybeUninit;
 use crate::Observe;
 use crate::helper::DerefInductive;
 use crate::impls::boxed::BoxObserveImpl;
-// use crate::impls::option::OptionObserveImpl;
+use crate::impls::option::OptionObserveImpl;
 use crate::observe::{DebugHandler, DerefMutInductive, GeneralHandler, GeneralObserver, Unsigned};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
@@ -132,13 +132,14 @@ where
         S: DerefMutInductive<N, Target = Box<T>> + ?Sized + 'i;
 }
 
-// impl<T> OptionObserveImpl<T, SnapshotSpec> for T
-// where
-//     T: Clone + PartialEq + Observe,
-//     for<'i> <T as Observe>::Observer<'i>: Observer<'i, Spec = SnapshotSpec>,
-// {
-//     type Observer<'i>
-//         = SnapshotObserver<'i, Option<T>>
-//     where
-//         Self: 'i;
-// }
+impl<T> OptionObserveImpl<T, SnapshotSpec> for T
+where
+    T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
+{
+    type Observer<'i, S, N>
+        = SnapshotObserver<'i, S, N>
+    where
+        T: 'i,
+        N: Unsigned,
+        S: DerefMutInductive<N, Target = Option<T>> + ?Sized + 'i;
+}

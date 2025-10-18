@@ -1,13 +1,12 @@
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Pointer<'i, S: ?Sized>(Option<*mut S>, PhantomData<&'i mut S>);
+pub struct Pointer<S: ?Sized>(Option<*mut S>);
 
-impl<'i, S: ?Sized> Pointer<'i, S> {
+impl<S: ?Sized> Pointer<S> {
     #[inline]
     pub fn new(value: &mut S) -> Self {
-        Self(Some(value), PhantomData)
+        Self(Some(value))
     }
 
     #[inline]
@@ -16,14 +15,14 @@ impl<'i, S: ?Sized> Pointer<'i, S> {
     }
 }
 
-impl<'i, S: ?Sized> Default for Pointer<'i, S> {
+impl<S: ?Sized> Default for Pointer<S> {
     #[inline]
     fn default() -> Self {
-        Self(None, PhantomData)
+        Self(None)
     }
 }
 
-impl<'i, S: ?Sized> Deref for Pointer<'i, S> {
+impl<S: ?Sized> Deref for Pointer<S> {
     type Target = S;
 
     #[inline]
@@ -33,7 +32,7 @@ impl<'i, S: ?Sized> Deref for Pointer<'i, S> {
     }
 }
 
-impl<'i, S: ?Sized> DerefMut for Pointer<'i, S> {
+impl<S: ?Sized> DerefMut for Pointer<S> {
     #[inline]
     fn deref_mut(&mut self) -> &mut S {
         let ptr = self.0.expect("Observed pointer should not be null");

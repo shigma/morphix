@@ -131,9 +131,9 @@ pub trait DebugHandler<T: ?Sized>: GeneralHandler<T> {
 /// - [`HashObserver`](super::HashObserver) - Compares hash values to detect changes
 /// - [`SnapshotObserver`](super::SnapshotObserver) - Compares cloned snapshots to detect changes
 pub struct GeneralObserver<'i, H, S: ?Sized, N> {
-    ptr: Pointer<'i, S>,
+    ptr: Pointer<S>,
     handler: H,
-    phantom: PhantomData<N>,
+    phantom: PhantomData<&'i mut N>,
 }
 
 impl<'i, H: Default, S: ?Sized, N> Default for GeneralObserver<'i, H, S, N> {
@@ -148,7 +148,7 @@ impl<'i, H: Default, S: ?Sized, N> Default for GeneralObserver<'i, H, S, N> {
 }
 
 impl<'i, H, S: ?Sized, N> Deref for GeneralObserver<'i, H, S, N> {
-    type Target = Pointer<'i, S>;
+    type Target = Pointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -176,7 +176,7 @@ where
 {
 }
 
-impl<'i, H, S: ?Sized, N> Observer<'i> for GeneralObserver<'i, H, S, N>
+impl<'i, H, S: ?Sized, N> Observer for GeneralObserver<'i, H, S, N>
 where
     N: Unsigned,
     S: DerefMutInductive<N, Target: Serialize>,
@@ -194,7 +194,7 @@ where
         }
     }
 
-    fn as_ptr(this: &Self) -> &Pointer<'i, S> {
+    fn as_ptr(this: &Self) -> &Pointer<S> {
         &this.ptr
     }
 

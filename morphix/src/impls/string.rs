@@ -24,9 +24,9 @@ enum MutationState {
 /// - [String::push](std::string::String::push)
 /// - [String::push_str](std::string::String::push_str)
 pub struct StringObserver<'i, S: ?Sized, N> {
-    ptr: Pointer<'i, S>,
+    ptr: Pointer<S>,
     mutation: Option<MutationState>,
-    phantom: PhantomData<N>,
+    phantom: PhantomData<&'i mut N>,
 }
 
 impl<'i, S: ?Sized, N> StringObserver<'i, S, N> {
@@ -54,7 +54,7 @@ impl<'i, S, N> Default for StringObserver<'i, S, N> {
 }
 
 impl<'i, S: ?Sized, N> Deref for StringObserver<'i, S, N> {
-    type Target = Pointer<'i, S>;
+    type Target = Pointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -72,7 +72,7 @@ impl<'i, S: ?Sized, N> DerefMut for StringObserver<'i, S, N> {
 
 impl<'i, S: ?Sized, N> Assignable for StringObserver<'i, S, N> {}
 
-impl<'i, S: ?Sized, N> Observer<'i> for StringObserver<'i, S, N>
+impl<'i, S: ?Sized, N> Observer for StringObserver<'i, S, N>
 where
     N: Unsigned,
     S: DerefMutInductive<N, Target = String>,
@@ -89,7 +89,7 @@ where
         }
     }
 
-    fn as_ptr(this: &Self) -> &Pointer<'i, Self::Head> {
+    fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
         &this.ptr
     }
 

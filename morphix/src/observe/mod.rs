@@ -86,7 +86,7 @@ pub trait Observe: Serialize {
     ///
     /// This associated type specifies the *default* observer implementation for the type, when used
     /// in contexts where an [`Observe`] implementation is required.
-    type Observer<'i, S, N>: Observer<'i, Head = S, UpperDepth = N>
+    type Observer<'i, S, N>: Observer<Head = S, UpperDepth = N>
     where
         Self: 'i,
         N: Unsigned,
@@ -122,13 +122,13 @@ pub trait Observe: Serialize {
 /// Observers can be constructed in two ways:
 /// 1. Via [`Observer::observe`] - creates an observer for an existing value
 /// 2. Via [`Default::default`] - creates an empty observer with a null pointer
-pub trait Observer<'i>
+pub trait Observer
 where
-    Self: DerefMut<Target: DerefMutCoinductive<Self::LowerDepth, Target = Pointer<'i, Self::Head>>>,
+    Self: DerefMut<Target: DerefMutCoinductive<Self::LowerDepth, Target = Pointer<Self::Head>>>,
 {
     type UpperDepth: Unsigned;
     type LowerDepth: Unsigned;
-    type Head: DerefMutInductive<Self::UpperDepth> + ?Sized + 'i;
+    type Head: DerefMutInductive<Self::UpperDepth> + ?Sized;
 
     /// Creates a new observer for the given value.
     ///
@@ -146,7 +146,7 @@ where
     /// ```
     fn observe(value: &mut Self::Head) -> Self;
 
-    fn as_ptr(this: &Self) -> &Pointer<'i, Self::Head>;
+    fn as_ptr(this: &Self) -> &Pointer<Self::Head>;
 
     /// Collects all recorded mutations (unsafe version).
     ///

@@ -2,8 +2,8 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 
 use crate::Observe;
-// use crate::impls::option::OptionObserveImpl;
 use crate::impls::boxed::BoxObserveImpl;
+use crate::impls::option::OptionObserveImpl;
 use crate::observe::{DebugHandler, DerefMutInductive, GeneralHandler, GeneralObserver, Unsigned};
 
 /// A general observer that uses hash comparison to detect changes.
@@ -104,13 +104,14 @@ where
         S: DerefMutInductive<N, Target = Box<T>> + ?Sized + 'i;
 }
 
-// impl<T> OptionObserveImpl<T, HashSpec> for T
-// where
-//     T: Hash + Observe,
-//     for<'i> <T as Observe>::Observer<'i>: Observer<'i, Spec = HashSpec>,
-// {
-//     type Observer<'i>
-//         = HashObserver<'i, Option<T>>
-//     where
-//         Self: 'i;
-// }
+impl<T> OptionObserveImpl<T, HashSpec> for T
+where
+    T: Hash + Observe<Spec = HashSpec>,
+{
+    type Observer<'i, S, N>
+        = HashObserver<'i, S, N>
+    where
+        T: 'i,
+        N: Unsigned,
+        S: DerefMutInductive<N, Target = Option<T>> + ?Sized + 'i;
+}
