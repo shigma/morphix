@@ -1,7 +1,7 @@
 use std::mem::MaybeUninit;
 
 use crate::Observe;
-use crate::helper::AsDeref;
+use crate::helper::{AsDeref, Zero};
 use crate::impls::boxed::BoxObserveImpl;
 use crate::impls::option::OptionObserveImpl;
 use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
@@ -49,7 +49,7 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 ///
 /// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use `SnapshotObserver` as their default
 /// implementation since they're cheap to clone and compare.
-pub type SnapshotObserver<'i, S, N> = GeneralObserver<'i, SnapshotHandler<<S as AsDeref<N>>::Target>, S, N>;
+pub type SnapshotObserver<'i, S, N = Zero> = GeneralObserver<'i, SnapshotHandler<<S as AsDeref<N>>::Target>, S, N>;
 
 pub struct SnapshotHandler<T> {
     snapshot: MaybeUninit<T>,

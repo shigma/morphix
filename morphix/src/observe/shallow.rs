@@ -1,3 +1,4 @@
+use crate::helper::Zero;
 use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver};
 
 /// A general observer that tracks any mutation access as a change.
@@ -34,7 +35,7 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 ///    original value, it's still reported as changes.
 /// 2. **False positives on non-semantic changes**: Operations that don't affect serialization (such
 ///    as [`Vec::reserve`]) are still reported as changes.
-pub type ShallowObserver<'i, S, N> = GeneralObserver<'i, ShallowHandler, S, N>;
+pub type ShallowObserver<'i, S, N = Zero> = GeneralObserver<'i, ShallowHandler, S, N>;
 
 #[derive(Default)]
 pub struct ShallowHandler {

@@ -136,6 +136,18 @@ where
     }
 }
 
+impl<'i, S: ?Sized, N, U> Extend<U> for StringObserver<'i, S, N>
+where
+    N: Unsigned,
+    S: AsDerefMut<N, Target = String>,
+    String: Extend<U>,
+{
+    fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
+        Self::mark_append(self, self.as_deref().len());
+        (*self.ptr).as_deref_mut().extend(other);
+    }
+}
+
 impl<'i, S: ?Sized, N> Debug for StringObserver<'i, S, N>
 where
     N: Unsigned,

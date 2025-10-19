@@ -2,6 +2,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 
 use crate::Observe;
+use crate::helper::Zero;
 use crate::impls::boxed::BoxObserveImpl;
 use crate::impls::option::OptionObserveImpl;
 use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
@@ -45,7 +46,7 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 /// 1. **Hash collisions**: Different values might have the same hash (though rare)
 /// 2. **Performance**: For small types, hashing might be slower than
 ///    [`ShallowObserver`](super::ShallowObserver)
-pub type HashObserver<'i, S, N, H = DefaultHasher> = GeneralObserver<'i, HashHandler<H>, S, N>;
+pub type HashObserver<'i, S, N = Zero, H = DefaultHasher> = GeneralObserver<'i, HashHandler<H>, S, N>;
 
 #[derive(Default)]
 pub struct HashHandler<H> {
