@@ -152,7 +152,9 @@ where
     fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
         (**this).as_deref_coinductive()
     }
+}
 
+pub trait SerializeObserver<'i>: Observer<'i> {
     /// Collects all recorded mutations (unsafe version).
     ///
     /// ## Safety
@@ -216,6 +218,17 @@ where
         unsafe { Self::collect_unchecked(this) }
     }
 }
+
+#[cfg(test)]
+pub trait SerializeObserverExt<'i>: SerializeObserver<'i> {
+    #[inline]
+    fn collect<A: Adapter>(&mut self) -> Result<Option<Mutation<A>>, <A>::Error> {
+        SerializeObserver::collect(self)
+    }
+}
+
+#[cfg(test)]
+impl<'i, T: SerializeObserver<'i>> SerializeObserverExt<'i> for T {}
 
 /// Default observation specification.
 ///

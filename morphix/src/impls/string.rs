@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
 use crate::helper::{AsDerefMut, Assignable, Pointer, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
 enum MutationState {
@@ -88,7 +88,13 @@ where
             phantom: PhantomData,
         }
     }
+}
 
+impl<'i, S: ?Sized, N> SerializeObserver<'i> for StringObserver<'i, S, N>
+where
+    N: Unsigned,
+    S: AsDerefMut<N, Target = String>,
+{
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         Ok(if let Some(mutation) = this.mutation.take() {
             Some(Mutation {
@@ -210,13 +216,13 @@ mod tests {
 
     use super::*;
     use crate::JsonAdapter;
-    use crate::observe::ObserveExt;
+    use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
     fn no_mutation_returns_none() {
         let mut s = String::from("hello");
         let mut ob = s.observe();
-        assert!(Observer::collect::<JsonAdapter>(&mut ob).unwrap().is_none());
+        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
     }
 
     #[test]
@@ -225,7 +231,7 @@ mod tests {
         let mut ob = s.observe();
         ob.clear();
         ob.push_str("world"); // append after replace should have no effect
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!("world")));
     }
 
@@ -235,7 +241,7 @@ mod tests {
         let mut ob = s.observe();
         ob.push('b');
         ob.push('c');
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!("bc")));
     }
 
@@ -244,7 +250,7 @@ mod tests {
         let mut s = String::from("foo");
         let mut ob = s.observe();
         ob.push_str("bar");
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!("bar")));
     }
 
@@ -253,7 +259,7 @@ mod tests {
         let mut s = String::from("foo");
         let mut ob = s.observe();
         ob += "bar";
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!("bar")));
     }
 
@@ -263,7 +269,7 @@ mod tests {
         let mut ob = s.observe();
         ob.push_str("");
         ob += "";
-        assert!(Observer::collect::<JsonAdapter>(&mut ob).unwrap().is_none());
+        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
     }
 
     #[test]
@@ -272,7 +278,7 @@ mod tests {
         let mut ob = s.observe();
         ob.push_str("def");
         **ob = String::from("xyz");
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!("xyz")));
     }
 }

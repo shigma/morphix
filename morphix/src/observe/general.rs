@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::helper::Assignable;
-use crate::observe::{AsDerefMut, Observer, Pointer, Unsigned, Zero};
+use crate::observe::{AsDerefMut, Observer, Pointer, SerializeObserver, Unsigned, Zero};
 use crate::{Adapter, Mutation, MutationKind};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
@@ -179,7 +179,7 @@ where
 impl<'i, H, S: ?Sized, N> Observer<'i> for GeneralObserver<'i, H, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target: Serialize>,
+    S: AsDerefMut<N>,
     H: GeneralHandler<S::Target>,
 {
     type UpperDepth = N;
@@ -193,7 +193,14 @@ where
             phantom: PhantomData,
         }
     }
+}
 
+impl<'i, H, S: ?Sized, N> SerializeObserver<'i> for GeneralObserver<'i, H, S, N>
+where
+    N: Unsigned,
+    S: AsDerefMut<N, Target: Serialize>,
+    H: GeneralHandler<S::Target>,
+{
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         Ok(if this.handler.on_collect(this.as_deref()) {
             Some(Mutation {

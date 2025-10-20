@@ -9,7 +9,7 @@ use std::slice::SliceIndex;
 use serde::Serialize;
 
 use crate::helper::{AsDerefMut, Assignable, Pointer, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe, PathSegment};
 
 enum MutationState {
@@ -87,7 +87,6 @@ where
     N: Unsigned,
     S: AsDerefMut<N, Target = Vec<T>>,
     O: Observer<'i, UpperDepth = Zero, Head = T>,
-    T: Serialize,
 {
     type UpperDepth = N;
     type LowerDepth = Zero;
@@ -102,7 +101,15 @@ where
             phantom: PhantomData,
         }
     }
+}
 
+impl<'i, O, S: ?Sized, N, T> SerializeObserver<'i> for VecObserver<'i, O, S, N>
+where
+    N: Unsigned,
+    S: AsDerefMut<N, Target = Vec<T>>,
+    O: SerializeObserver<'i, UpperDepth = Zero, Head = T>,
+    T: Serialize,
+{
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         let mut mutations = vec![];
         let mut max_index = None;
@@ -126,7 +133,7 @@ where
                 // already included in append
                 continue;
             }
-            if let Some(mut mutation) = Observer::collect::<A>(&mut observer)? {
+            if let Some(mut mutation) = SerializeObserver::collect::<A>(&mut observer)? {
                 mutation.path.push(PathSegment::NegIndex(this.as_deref().len() - index));
                 mutations.push(mutation);
             }
@@ -368,7 +375,7 @@ mod tests {
 
     use super::*;
     use crate::JsonAdapter;
-    use crate::observe::{ObserveExt, Observer, ShallowObserver};
+    use crate::observe::{ObserveExt, SerializeObserverExt, ShallowObserver};
 
     #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
     struct Number(i32);
@@ -388,7 +395,7 @@ mod tests {
     fn no_change_returns_none() {
         let mut vec: Vec<Number> = vec![];
         let mut ob = vec.observe();
-        assert!(Observer::collect::<JsonAdapter>(&mut ob).unwrap().is_none());
+        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
     }
 
     #[test]
@@ -396,7 +403,7 @@ mod tests {
         let mut vec: Vec<Number> = vec![Number(1)];
         let mut ob = vec.observe();
         ob.clear();
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!([])));
     }
 
@@ -406,7 +413,7 @@ mod tests {
         let mut ob = vec.observe();
         ob.push(Number(2));
         ob.push(Number(3));
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!([2, 3])));
     }
 
@@ -416,7 +423,7 @@ mod tests {
         let mut ob = vec.observe();
         let mut extra = vec![Number(4), Number(5)];
         ob.append(&mut extra);
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!([4, 5])));
     }
 
@@ -425,7 +432,7 @@ mod tests {
         let mut vec: Vec<Number> = vec![Number(1)];
         let mut ob = vec.observe();
         ob.extend_from_slice(&[Number(6), Number(7)]);
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!([6, 7])));
     }
 
@@ -438,7 +445,7 @@ mod tests {
         ob[0].0 = 99;
         ob.reserve(100); // force reallocation
         assert_eq!(ob[0].0, 99);
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.path, vec![(-2).into()].into());
         assert_eq!(mutation.kind, MutationKind::Replace(json!(99)));
     }
@@ -450,7 +457,7 @@ mod tests {
         ob[0].0 = 11;
         ob.push(Number(2));
         ob[1].0 = 12;
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.path, vec![].into());
         assert_eq!(
             mutation.kind,
@@ -477,7 +484,7 @@ mod tests {
             slice[1].0 = 333;
         }
         assert_eq!(ob, vec![Number(1), Number(222), Number(333), Number(4)]);
-        let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.path, vec![].into());
         assert_eq!(
             mutation.kind,

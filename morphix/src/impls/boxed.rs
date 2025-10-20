@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use crate::helper::{AsDeref, AsDerefMut, Assignable, Succ, Unsigned};
-use crate::observe::{DefaultSpec, Observer};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
 #[derive(Default)]
@@ -47,7 +47,14 @@ where
             phantom: PhantomData,
         }
     }
+}
 
+impl<'i, O, N, T: ?Sized> SerializeObserver<'i> for BoxObserver<'i, O>
+where
+    O: SerializeObserver<'i, UpperDepth = Succ<N>>,
+    O::Head: AsDerefMut<N, Target = Box<T>>,
+    N: Unsigned,
+{
     #[inline]
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         unsafe { O::collect_unchecked(&mut this.inner) }
