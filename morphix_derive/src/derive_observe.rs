@@ -118,7 +118,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> Result<TokenStream, Vec<sy
                 let ob_field_ty = match &field_meta.ob_ident {
                     None => {
                         inst_fields.push(quote_spanned! { field_span =>
-                            #field_ident: ::morphix::helper::ObserveExt::__observe(&mut value.#field_ident),
+                            #field_ident: ::morphix::observe::ObserveExt::observe(&mut __value.#field_ident),
                         });
                         quote_spanned! { field_span =>
                             <#field_ty as ::morphix::Observe>::Observer<'morphix>

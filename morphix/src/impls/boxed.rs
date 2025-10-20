@@ -3,8 +3,8 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use crate::helper::{AsDeref, AsDerefMut, Assignable, Succ, Unsigned};
-use crate::observe::DefaultSpec;
-use crate::{Adapter, Mutation, Observe, Observer};
+use crate::observe::{DefaultSpec, Observer};
+use crate::{Adapter, Mutation, Observe};
 
 #[derive(Default)]
 pub struct BoxObserver<'i, O> {

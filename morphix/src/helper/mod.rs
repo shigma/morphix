@@ -14,7 +14,7 @@
 
 use std::ops::DerefMut;
 
-use crate::{Observe, Observer};
+use crate::Observe;
 
 pub mod deref;
 pub mod pointer;
@@ -108,13 +108,3 @@ impl<T> Assignable for &mut T {}
 
 #[doc(hidden)]
 pub type DefaultObserver<'i, T> = <T as Observe>::Observer<'i, T, Zero>;
-
-#[doc(hidden)]
-pub trait ObserveExt: Observe {
-    #[inline]
-    fn __observe<'i>(&'i mut self) -> Self::Observer<'i, Self, Zero> {
-        Self::Observer::<'i, Self, Zero>::observe(self)
-    }
-}
-
-impl<T: Observe> ObserveExt for T {}

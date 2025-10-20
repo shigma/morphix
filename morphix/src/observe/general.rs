@@ -5,8 +5,8 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::helper::Assignable;
-use crate::observe::{AsDerefMut, Pointer, Unsigned, Zero};
-use crate::{Adapter, Mutation, MutationKind, Observer};
+use crate::observe::{AsDerefMut, Observer, Pointer, Unsigned, Zero};
+use crate::{Adapter, Mutation, MutationKind};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
 ///

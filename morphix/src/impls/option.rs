@@ -5,8 +5,8 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::helper::{AsDerefMut, Assignable, Pointer, Unsigned, Zero};
-use crate::observe::DefaultSpec;
-use crate::{Adapter, Mutation, MutationKind, Observe, Observer};
+use crate::observe::{DefaultSpec, Observer};
+use crate::{Adapter, Mutation, MutationKind, Observe};
 
 /// An general observer for [`Option`].
 pub struct OptionObserver<'i, O, S: ?Sized, N> {
@@ -209,10 +209,9 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::helper::ObserveExt;
+    use crate::JsonAdapter;
     use crate::impls::string::StringObserver;
-    use crate::observe::{DefaultSpec, GeneralObserver, ShallowObserver};
-    use crate::{JsonAdapter, Observer};
+    use crate::observe::{DefaultSpec, GeneralObserver, ObserveExt, Observer, ShallowObserver};
 
     #[derive(Debug, Serialize, Default)]
     struct Number(i32);
@@ -231,36 +230,36 @@ mod tests {
     #[test]
     fn no_change_returns_none() {
         let mut opt: Option<Number> = None;
-        let mut ob = opt.__observe();
+        let mut ob = opt.observe();
         assert!(Observer::collect::<JsonAdapter>(&mut ob).unwrap().is_none());
 
         let mut opt = Some(Number(1));
-        let mut ob = opt.__observe();
+        let mut ob = opt.observe();
         assert!(Observer::collect::<JsonAdapter>(&mut ob).unwrap().is_none());
     }
 
     #[test]
     fn deref_triggers_replace() {
         let mut opt = Some(Number(42));
-        let mut ob = opt.__observe();
+        let mut ob = opt.observe();
         **ob = None;
         let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!(null)));
 
         let mut opt: Option<Number> = None;
-        let mut ob = opt.__observe();
+        let mut ob = opt.observe();
         **ob = Some(Number(42));
         let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!(42)));
 
         let mut opt: Option<Number> = None;
-        let mut ob = opt.__observe();
+        let mut ob = opt.observe();
         **ob = Some(Number(42));
         **ob = None;
         assert!(Observer::collect::<JsonAdapter>(&mut ob).unwrap().is_none());
 
         let mut opt = Some(Number(42));
-        let mut ob = opt.__observe();
+        let mut ob = opt.observe();
         **ob = None;
         **ob = Some(Number(42));
         let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
@@ -270,7 +269,7 @@ mod tests {
     #[test]
     fn insert_returns_observer() {
         let mut opt: Option<String> = None;
-        let mut ob = opt.__observe();
+        let mut ob = opt.observe();
         let s: &mut StringObserver<'_, _, _> = ob.insert(String::from("99")); // assert type
         *s += "9";
         let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
@@ -280,7 +279,7 @@ mod tests {
     #[test]
     fn as_mut_tracks_inner() {
         let mut opt = Some(String::from("foo"));
-        let mut ob = opt.__observe();
+        let mut ob = opt.observe();
         *ob.as_mut().unwrap() += "bar";
         let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!("bar")));
@@ -290,21 +289,21 @@ mod tests {
     fn get_or_insert() {
         // get_or_insert
         let mut opt: Option<Number> = None;
-        let mut ob = opt.__observe();
+        let mut ob = opt.observe();
         ob.get_or_insert(Number(5)).0 = 6;
         let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!(6)));
 
         // get_or_insert_default
         let mut opt: Option<Number> = None;
-        let mut ob = opt.__observe();
+        let mut ob = opt.observe();
         ob.get_or_insert_default().0 = 77;
         let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!(77)));
 
         // get_or_insert_with
         let mut opt: Option<Number> = None;
-        let mut ob = opt.__observe();
+        let mut ob = opt.observe();
         ob.get_or_insert_with(|| Number(88)).0 = 99;
         let mutation = Observer::collect::<JsonAdapter>(&mut ob).unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!(99)));
@@ -313,9 +312,9 @@ mod tests {
     #[test]
     fn specialization() {
         let mut opt = Some(0i32);
-        let _ob: GeneralObserver<'_, _, _, _> = opt.__observe(); // assert type
+        let _ob: GeneralObserver<'_, _, _, _> = opt.observe(); // assert type
 
         let mut opt = Some(Number(0));
-        let _ob: OptionObserver<'_, _, _, _> = opt.__observe(); // assert type
+        let _ob: OptionObserver<'_, _, _, _> = opt.observe(); // assert type
     }
 }

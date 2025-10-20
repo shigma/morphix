@@ -19,5 +19,5 @@ pub use error::MutationError;
 #[cfg(feature = "derive")]
 pub use morphix_derive::{Observe, observe};
 pub use mutation::{Mutation, MutationKind};
-pub use observe::{Observe, Observer};
+pub use observe::Observe;
 pub use path::{Path, PathSegment};
