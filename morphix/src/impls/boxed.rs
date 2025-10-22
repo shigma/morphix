@@ -98,7 +98,7 @@ where
     Box<T>: PartialEq<U>,
 {
     fn eq(&self, other: &U) -> bool {
-        <O::Head as AsDeref<N>>::as_deref(O::as_ptr(self)).eq(other)
+        AsDeref::<N>::as_deref(&**O::as_ptr(self)).eq(other)
     }
 }
 
@@ -110,7 +110,7 @@ where
     Box<T>: PartialOrd<U>,
 {
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        <O::Head as AsDeref<N>>::as_deref(O::as_ptr(self)).partial_cmp(other)
+        AsDeref::<N>::as_deref(&**O::as_ptr(self)).partial_cmp(other)
     }
 }
 

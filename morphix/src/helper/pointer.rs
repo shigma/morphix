@@ -9,19 +9,19 @@ impl<S: ?Sized> Pointer<S> {
     }
 
     #[inline]
-    pub fn is_null(&self) -> bool {
+    pub(crate) fn is_null(&self) -> bool {
         self.0.is_none()
     }
 
     #[inline]
-    fn as_ref<'i>(&self) -> &'i S {
+    pub(crate) fn as_ref<'i>(&self) -> &'i S {
         let ptr = self.0.expect("Observed pointer should not be null");
         unsafe { &*ptr }
     }
 
     #[inline]
     #[allow(clippy::mut_from_ref)]
-    pub fn as_mut<'i>(&self) -> &'i mut S {
+    pub(crate) fn as_mut<'i>(&self) -> &'i mut S {
         let ptr = self.0.expect("Observed pointer should not be null");
         unsafe { &mut *ptr }
     }

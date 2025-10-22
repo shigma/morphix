@@ -30,11 +30,9 @@
 //! field-level control. Direct use of types from this module is typically only needed for advanced
 //! use cases.
 
-use std::ops::Deref;
-
 use serde::Serialize;
 
-use crate::helper::{AsDerefCoinductive, AsDerefMut, Pointer, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefCoinductive, AsDerefMut, Pointer, Succ, Unsigned, Zero};
 use crate::{Adapter, Mutation};
 
 mod general;
@@ -127,11 +125,11 @@ impl<T: Observe> ObserveExt for T {}
 /// occur.
 pub trait Observer<'i>
 where
-    Self: Deref<Target: AsDerefCoinductive<Self::LowerDepth, Target = Pointer<Self::Head>>>,
+    Self: AsDerefCoinductive<Succ<Self::LowerDepth>, Target = Pointer<Self::Head>>,
 {
     type UpperDepth: Unsigned;
     type LowerDepth: Unsigned;
-    type Head: AsDerefMut<Self::UpperDepth> + ?Sized;
+    type Head: AsDerefMut<Self::UpperDepth> + ?Sized + 'i;
 
     /// Creates a new observer for the given value.
     ///
@@ -150,7 +148,14 @@ where
     fn observe(value: &'i mut Self::Head) -> Self;
 
     fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
-        (**this).as_deref_coinductive()
+        this.as_deref_coinductive()
+    }
+
+    fn as_inner<'j>(this: &Self) -> &'j mut <Self::Head as AsDeref<Self::UpperDepth>>::Target
+    where
+        'i: 'j,
+    {
+        AsDerefMut::<Self::UpperDepth>::as_deref_mut(Self::as_ptr(this).as_mut())
     }
 }
 

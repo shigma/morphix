@@ -9,7 +9,7 @@ use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
 /// An general observer for [`Option`].
-pub struct OptionObserver<'i, O, S: ?Sized, N> {
+pub struct OptionObserver<'i, O, S: ?Sized, N = Zero> {
     ptr: Pointer<S>,
     is_mutated: bool,
     is_initial_some: bool,
@@ -52,7 +52,7 @@ impl<'i, O, S: ?Sized, N> Assignable for OptionObserver<'i, O, S, N> {}
 impl<'i, O, S: ?Sized, N, T> Observer<'i> for OptionObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target = Option<T>>,
+    S: AsDerefMut<N, Target = Option<T>> + 'i,
     O: Observer<'i, UpperDepth = Zero, Head = T>,
     T: 'i,
 {
@@ -75,7 +75,7 @@ where
 impl<'i, O, S: ?Sized, N, T> SerializeObserver<'i> for OptionObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target = Option<T>>,
+    S: AsDerefMut<N, Target = Option<T>> + 'i,
     O: SerializeObserver<'i, UpperDepth = Zero, Head = T>,
     T: Serialize + 'i,
 {
@@ -102,13 +102,13 @@ where
 {
     fn __insert(&mut self, value: T) {
         self.is_mutated = true;
-        let inserted = self.ptr.as_mut().as_deref_mut().insert(value);
+        let inserted = Observer::as_inner(self).insert(value);
         self.ob = Some(O::observe(inserted));
     }
 
     pub fn as_mut(&mut self) -> Option<&mut O> {
         if self.as_deref().is_some() && self.ob.is_none() {
-            self.ob = self.ptr.as_mut().as_deref_mut().as_mut().map(O::observe);
+            self.ob = Observer::as_inner(self).as_mut().map(O::observe);
         }
         self.ob.as_mut()
     }

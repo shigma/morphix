@@ -31,7 +31,7 @@ enum MutationState {
 /// - [Vec::extend](std::iter::Extend)
 /// - [Vec::extend_from_slice](std::vec::Vec::extend_from_slice)
 /// - [Vec::extend_from_within](std::vec::Vec::extend_from_within)
-pub struct VecObserver<'i, O, S: ?Sized, N> {
+pub struct VecObserver<'i, O, S: ?Sized, N = Zero> {
     ptr: Pointer<S>,
     mutation: Option<MutationState>,
     obs: UnsafeCell<Vec<O>>,
@@ -85,7 +85,7 @@ impl<'i, O, S: ?Sized, N> Assignable for VecObserver<'i, O, S, N> {}
 impl<'i, O, S: ?Sized, N, T> Observer<'i> for VecObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
+    S: AsDerefMut<N, Target = Vec<T>> + 'i,
     O: Observer<'i, UpperDepth = Zero, Head = T>,
 {
     type UpperDepth = N;
@@ -106,7 +106,7 @@ where
 impl<'i, O, S: ?Sized, N, T> SerializeObserver<'i> for VecObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
+    S: AsDerefMut<N, Target = Vec<T>> + 'i,
     O: SerializeObserver<'i, UpperDepth = Zero, Head = T>,
     T: Serialize,
 {
@@ -145,42 +145,42 @@ where
 impl<'i, O, S: ?Sized, N, T> VecObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
+    S: AsDerefMut<N, Target = Vec<T>> + 'i,
     O: Observer<'i, UpperDepth = Zero, Head = T>,
 {
     #[inline]
     pub fn reserve(&mut self, additional: usize) {
-        (*self.ptr).as_deref_mut().reserve(additional);
+        Observer::as_inner(self).reserve(additional);
     }
 
     #[inline]
     pub fn reserve_exact(&mut self, additional: usize) {
-        (*self.ptr).as_deref_mut().reserve_exact(additional);
+        Observer::as_inner(self).reserve_exact(additional);
     }
 
     #[inline]
     pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
-        (*self.ptr).as_deref_mut().try_reserve(additional)
+        Observer::as_inner(self).try_reserve(additional)
     }
 
     #[inline]
     pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
-        (*self.ptr).as_deref_mut().try_reserve_exact(additional)
+        Observer::as_inner(self).try_reserve_exact(additional)
     }
 
     #[inline]
     pub fn shrink_to_fit(&mut self) {
-        (*self.ptr).as_deref_mut().shrink_to_fit();
+        Observer::as_inner(self).shrink_to_fit();
     }
 
     #[inline]
     pub fn shrink_to(&mut self, min_capacity: usize) {
-        (*self.ptr).as_deref_mut().shrink_to(min_capacity);
+        Observer::as_inner(self).shrink_to(min_capacity);
     }
 
     pub fn push(&mut self, value: T) {
         Self::mark_append(self, self.as_deref().len());
-        (*self.ptr).as_deref_mut().push(value);
+        Observer::as_inner(self).push(value);
     }
 
     pub fn append(&mut self, other: &mut Vec<T>) {
@@ -188,14 +188,14 @@ where
             return;
         }
         Self::mark_append(self, self.as_deref().len());
-        (*self.ptr).as_deref_mut().append(other);
+        Observer::as_inner(self).append(other);
     }
 }
 
 impl<'i, O, S: ?Sized, N, T> VecObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
+    S: AsDerefMut<N, Target = Vec<T>> + 'i,
     O: Observer<'i, UpperDepth = Zero, Head = T>,
     T: Clone,
 {
@@ -204,25 +204,25 @@ where
             return;
         }
         Self::mark_append(self, self.as_deref().len());
-        (*self.ptr).as_deref_mut().extend_from_slice(other);
+        Observer::as_inner(self).extend_from_slice(other);
     }
 
     pub fn extend_from_within<R: RangeBounds<usize>>(&mut self, range: R) {
         Self::mark_append(self, self.as_deref().len());
-        (*self.ptr).as_deref_mut().extend_from_within(range);
+        Observer::as_inner(self).extend_from_within(range);
     }
 }
 
 impl<'i, O, S: ?Sized, N, T, U> Extend<U> for VecObserver<'i, O, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
+    S: AsDerefMut<N, Target = Vec<T>> + 'i,
     O: Observer<'i, UpperDepth = Zero, Head = T>,
     Vec<T>: Extend<U>,
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
         Self::mark_append(self, self.as_deref().len());
-        (*self.ptr).as_deref_mut().extend(other);
+        Observer::as_inner(self).extend(other);
     }
 }
 
@@ -310,7 +310,7 @@ where
         N: Unsigned,
         S: AsDerefMut<N, Target = Vec<T>> + ?Sized + 'i,
     {
-        let value = &mut this.ptr.as_mut().as_deref_mut()[index];
+        let value = &mut Observer::as_inner(this)[index];
         let obs = unsafe { &mut *this.obs.get() };
         if index >= obs.len() {
             obs.resize_with(index + 1, Default::default);
@@ -348,7 +348,7 @@ where
             obs.resize_with(end, Default::default);
         }
         for (i, obs_item) in obs[start..end].iter_mut().enumerate() {
-            let value = &mut this.ptr.as_mut().as_deref_mut()[start + i];
+            let value = &mut Observer::as_inner(this)[start + i];
             if *O::as_ptr(obs_item) != Pointer::new(value) {
                 *obs_item = O::observe(value);
             }

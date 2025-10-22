@@ -23,7 +23,7 @@ enum MutationState {
 /// - [String::add_assign](std::ops::AddAssign) (`+=`)
 /// - [String::push](std::string::String::push)
 /// - [String::push_str](std::string::String::push_str)
-pub struct StringObserver<'i, S: ?Sized, N> {
+pub struct StringObserver<'i, S: ?Sized, N = Zero> {
     ptr: Pointer<S>,
     mutation: Option<MutationState>,
     phantom: PhantomData<&'i mut N>,
@@ -75,7 +75,7 @@ impl<'i, S: ?Sized, N> Assignable for StringObserver<'i, S, N> {}
 impl<'i, S: ?Sized, N> Observer<'i> for StringObserver<'i, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target = String>,
+    S: AsDerefMut<N, Target = String> + 'i,
 {
     type UpperDepth = N;
     type LowerDepth = Zero;
@@ -93,7 +93,7 @@ where
 impl<'i, S: ?Sized, N> SerializeObserver<'i> for StringObserver<'i, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target = String>,
+    S: AsDerefMut<N, Target = String> + 'i,
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         Ok(if let Some(mutation) = this.mutation.take() {
@@ -119,7 +119,7 @@ where
 {
     pub fn push(&mut self, c: char) {
         Self::mark_append(self, self.as_deref().len());
-        (*self.ptr).as_deref_mut().push(c);
+        Observer::as_inner(self).push(c);
     }
 
     pub fn push_str(&mut self, s: &str) {
@@ -127,7 +127,7 @@ where
             return;
         }
         Self::mark_append(self, self.as_deref().len());
-        (*self.ptr).as_deref_mut().push_str(s);
+        Observer::as_inner(self).push_str(s);
     }
 }
 
@@ -150,7 +150,7 @@ where
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
         Self::mark_append(self, self.as_deref().len());
-        (*self.ptr).as_deref_mut().extend(other);
+        Observer::as_inner(self).extend(other);
     }
 }
 
