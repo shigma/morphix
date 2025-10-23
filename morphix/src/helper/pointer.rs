@@ -9,20 +9,20 @@ impl<S: ?Sized> Pointer<S> {
     }
 
     #[inline]
-    pub(crate) fn is_null(&self) -> bool {
-        self.0.is_none()
+    pub fn is_null(this: &Self) -> bool {
+        this.0.is_none()
     }
 
     #[inline]
-    pub(crate) fn as_ref<'i>(&self) -> &'i S {
-        let ptr = self.0.expect("Observed pointer should not be null");
+    #[expect(clippy::should_implement_trait)]
+    pub fn as_ref<'i>(this: &Self) -> &'i S {
+        let ptr = this.0.expect("Observed pointer should not be null");
         unsafe { &*ptr }
     }
 
     #[inline]
-    #[allow(clippy::mut_from_ref)]
-    pub(crate) fn as_mut<'i>(&self) -> &'i mut S {
-        let ptr = self.0.expect("Observed pointer should not be null");
+    pub fn as_mut<'i>(this: &Self) -> &'i mut S {
+        let ptr = this.0.expect("Observed pointer should not be null");
         unsafe { &mut *ptr }
     }
 }
@@ -48,13 +48,13 @@ impl<S: ?Sized> Deref for Pointer<S> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        self.as_ref()
+        Self::as_ref(self)
     }
 }
 
 impl<S: ?Sized> DerefMut for Pointer<S> {
     #[inline]
     fn deref_mut(&mut self) -> &mut S {
-        self.as_mut()
+        Self::as_mut(self)
     }
 }

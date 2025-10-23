@@ -267,7 +267,7 @@ where
 
 trait IndexImpl<'i, T, O, Output: ?Sized> {
     #[track_caller]
-    #[allow(clippy::mut_from_ref)]
+    #[expect(clippy::mut_from_ref)]
     fn index_impl<'j, S, N>(this: &'j VecObserver<'i, O, S, N>, index: Self) -> &'j mut Output
     where
         N: Unsigned,

@@ -155,7 +155,7 @@ where
     where
         'i: 'j,
     {
-        AsDerefMut::<Self::UpperDepth>::as_deref_mut(Self::as_ptr(this).as_mut())
+        AsDerefMut::<Self::UpperDepth>::as_deref_mut(Pointer::as_mut(Self::as_ptr(this)))
     }
 }
 
@@ -217,7 +217,7 @@ pub trait SerializeObserver<'i>: Observer<'i> {
     /// assert_eq!(result, None);   // Returns None instead of panicking
     /// ```
     fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
-        if Self::as_ptr(this).is_null() {
+        if Pointer::is_null(Self::as_ptr(this)) {
             return Ok(None);
         }
         unsafe { Self::collect_unchecked(this) }
