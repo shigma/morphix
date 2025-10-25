@@ -1,9 +1,11 @@
 use morphix_derive::Observe;
 use serde::Serialize;
+#[rustfmt::skip]
 #[derive(Serialize)]
 struct Foo {
     a: i32,
 }
+#[rustfmt::skip]
 const _: () = {
     #[allow(private_interfaces)]
     struct FooObserver<'morphix, __S: ?Sized, __N> {
@@ -56,7 +58,7 @@ const _: () = {
     for FooObserver<'morphix, __S, __N>
     where
         __N: ::morphix::helper::Unsigned,
-        __S: ::morphix::helper::AsDerefMut<__N, Target = Foo>,
+        __S: ::morphix::helper::AsDerefMut<__N, Target = Foo> + 'morphix,
     {
         type Head = __S;
         type UpperDepth = __N;
@@ -71,6 +73,14 @@ const _: () = {
                 a: ::morphix::observe::ObserveExt::observe(&mut __value.a),
             }
         }
+    }
+    #[automatically_derived]
+    impl<'morphix, __S: ?Sized, __N> ::morphix::observe::SerializeObserver<'morphix>
+    for FooObserver<'morphix, __S, __N>
+    where
+        __N: ::morphix::helper::Unsigned,
+        __S: ::morphix::helper::AsDerefMut<__N, Target = Foo> + 'morphix,
+    {
         unsafe fn collect_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<
@@ -88,7 +98,7 @@ const _: () = {
                 );
             }
             let mut mutations = ::std::vec::Vec::new();
-            if let Some(mut mutation) = ::morphix::observe::Observer::collect::<
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
                 A,
             >(&mut this.a)? {
                 mutation.path.push(stringify!(a).into());

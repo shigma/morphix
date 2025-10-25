@@ -65,7 +65,7 @@ pub fn observe(input: TokenStream) -> Result<TokenStream, syn::Error> {
     Ok(quote! {
         {
             let _ = || #body_original;
-            ::morphix::Observer::collect #turbofish(#body_actual)
+            ::morphix::observe::Observer::collect #turbofish(#body_actual)
         }
     })
 }
