@@ -60,12 +60,7 @@ mod observe;
 #[proc_macro_derive(Observe, attributes(observe))]
 pub fn derive_observe(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = syn::parse_macro_input!(input);
-
-    match crate::derive_observe::derive_observe(input) {
-        Ok(ts) => ts,
-        Err(errors) => errors.into_iter().map(|error| error.to_compile_error()).collect(),
-    }
-    .into()
+    derive_observe::derive_observe(input).into()
 }
 
 /// Observe and collect mutations within a closure.
@@ -139,9 +134,76 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro]
 pub fn observe(input: TokenStream) -> TokenStream {
-    match crate::observe::observe(input.into()) {
+    match observe::observe(input.into()) {
         Ok(ts) => ts,
         Err(errors) => errors.into_iter().map(|error| error.to_compile_error()).collect(),
     }
     .into()
+}
+
+#[cfg(test)]
+mod test {
+    use std::env::var;
+    use std::fs::{create_dir_all, read_to_string, write};
+    use std::path::{Path, PathBuf};
+
+    use macro_expand::Context;
+    use pretty_assertions::StrComparison;
+    use prettyplease::unparse;
+    use walkdir::WalkDir;
+
+    struct TestDiff {
+        path: PathBuf,
+        expect: String,
+        actual: String,
+    }
+
+    #[test]
+    fn fixtures() {
+        let input_dir = "fixtures/input";
+        let output_dir = "fixtures/output";
+        let mut diffs = vec![];
+        let will_emit = var("EMIT").is_ok_and(|v| !v.is_empty());
+        for entry in WalkDir::new(input_dir).into_iter().filter_map(Result::ok) {
+            let input_path = entry.path();
+            if !input_path.is_file() || input_path.extension() != Some("rs".as_ref()) {
+                continue;
+            }
+            let path = input_path.strip_prefix(input_dir).unwrap();
+            let output_path = Path::new(output_dir).join(path);
+            let input = read_to_string(input_path).unwrap().parse().unwrap();
+            let mut ctx = Context::new();
+            ctx.register_proc_macro_derive(
+                "Observe".into(),
+                crate::derive_observe::derive_observe,
+                vec!["observe".into()],
+            );
+            let actual = unparse(&syn::parse2(ctx.transform(input)).unwrap());
+            let expect_result = read_to_string(&output_path);
+            if let Ok(expect) = &expect_result
+                && expect == &actual
+            {
+                continue;
+            }
+            if will_emit {
+                create_dir_all(output_path.parent().unwrap()).unwrap();
+                write(output_path, &actual).unwrap();
+            }
+            if let Ok(expect) = expect_result {
+                diffs.push(TestDiff {
+                    path: path.to_path_buf(),
+                    expect,
+                    actual,
+                });
+            }
+        }
+        let len = diffs.len();
+        for diff in diffs {
+            eprintln!("diff {}", diff.path.display());
+            eprintln!("{}", StrComparison::new(&diff.expect, &diff.actual));
+        }
+        if len > 0 && !will_emit {
+            panic!("Some tests failed");
+        }
+    }
 }

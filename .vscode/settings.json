@@ -23,10 +23,14 @@
         "impls",
         "indexmap",
         "morphix",
+        "prettyplease",
         "serde",
         "shigma",
         "succ",
+        "trybuild",
         "turbofish",
-        "uninit"
+        "uninit",
+        "unparse",
+        "walkdir"
     ]
 }
