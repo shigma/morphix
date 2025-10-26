@@ -21,14 +21,14 @@ enum MutationState {
 ///
 /// `VecObserver` provides special handling for vector append operations, distinguishing them from
 /// complete replacements for efficiency.
-pub struct VecObserver<'i, O, S: ?Sized, N = Zero> {
+pub struct VecObserver<'i, O, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
     mutation: Option<MutationState>,
     obs: UnsafeCell<Vec<O>>,
-    phantom: PhantomData<&'i mut N>,
+    phantom: PhantomData<&'i mut D>,
 }
 
-impl<'i, O, S: ?Sized, N> VecObserver<'i, O, S, N> {
+impl<'i, O, S: ?Sized, D> VecObserver<'i, O, S, D> {
     fn mark_replace(&mut self) {
         self.mutation = Some(MutationState::Replace);
     }
@@ -41,7 +41,7 @@ impl<'i, O, S: ?Sized, N> VecObserver<'i, O, S, N> {
     }
 }
 
-impl<'i, O, S: ?Sized, N> Default for VecObserver<'i, O, S, N> {
+impl<'i, O, S: ?Sized, D> Default for VecObserver<'i, O, S, D> {
     #[inline]
     fn default() -> Self {
         Self {
@@ -53,7 +53,7 @@ impl<'i, O, S: ?Sized, N> Default for VecObserver<'i, O, S, N> {
     }
 }
 
-impl<'i, O, S: ?Sized, N> Deref for VecObserver<'i, O, S, N> {
+impl<'i, O, S: ?Sized, D> Deref for VecObserver<'i, O, S, D> {
     type Target = ObserverPointer<S>;
 
     #[inline]
@@ -62,7 +62,7 @@ impl<'i, O, S: ?Sized, N> Deref for VecObserver<'i, O, S, N> {
     }
 }
 
-impl<'i, O, S: ?Sized, N> DerefMut for VecObserver<'i, O, S, N> {
+impl<'i, O, S: ?Sized, D> DerefMut for VecObserver<'i, O, S, D> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         Self::mark_replace(self);
         take(&mut self.obs);
@@ -74,13 +74,13 @@ impl<'i, O, S> Assignable for VecObserver<'i, O, S> {
     type Depth = Succ<Zero>;
 }
 
-impl<'i, O, S: ?Sized, N, T> Observer<'i> for VecObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T> Observer<'i> for VecObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>> + 'i,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>> + 'i,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
 {
-    type InnerDepth = N;
+    type InnerDepth = D;
     type OuterDepth = Zero;
     type Head = S;
 
@@ -95,10 +95,10 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, T> SerializeObserver<'i> for VecObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T> SerializeObserver<'i> for VecObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>> + 'i,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>> + 'i,
     O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
@@ -134,10 +134,10 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, T> VecObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T> VecObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>> + 'i,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>> + 'i,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
 {
     #[inline]
@@ -184,10 +184,10 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, T> VecObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T> VecObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>> + 'i,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>> + 'i,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: Clone,
 {
@@ -205,10 +205,10 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, T, U> Extend<U> for VecObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T, U> Extend<U> for VecObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>> + 'i,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>> + 'i,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
     Vec<T>: Extend<U>,
 {
@@ -218,11 +218,11 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, T> Debug for VecObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T> Debug for VecObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
-    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: Debug,
 {
     #[inline]
@@ -231,11 +231,11 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, T, U> PartialEq<U> for VecObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T, U> PartialEq<U> for VecObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
-    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
     Vec<T>: PartialEq<U>,
 {
     #[inline]
@@ -244,11 +244,11 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, T, U> PartialOrd<U> for VecObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T, U> PartialOrd<U> for VecObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>>,
-    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
     Vec<T>: PartialOrd<U>,
 {
     #[inline]
@@ -260,17 +260,17 @@ where
 trait IndexImpl<'i, T, O, Output: ?Sized> {
     #[track_caller]
     #[expect(clippy::mut_from_ref)]
-    fn index_impl<'j, S, N>(this: &'j VecObserver<'i, O, S, N>, index: Self) -> &'j mut Output
+    fn index_impl<'j, S, D>(this: &'j VecObserver<'i, O, S, D>, index: Self) -> &'j mut Output
     where
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Vec<T>> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Vec<T>> + ?Sized + 'i;
 }
 
-impl<'i, O, S: ?Sized, N, T, I, Output: ?Sized> Index<I> for VecObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T, I, Output: ?Sized> Index<I> for VecObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
     I: IndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
 {
     type Output = Output;
@@ -280,11 +280,11 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, T, I, Output: ?Sized> IndexMut<I> for VecObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T, I, Output: ?Sized> IndexMut<I> for VecObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
     I: IndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
@@ -294,13 +294,13 @@ where
 
 impl<'i, O, T> IndexImpl<'i, T, O, O> for usize
 where
-    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: 'i,
 {
-    fn index_impl<'j, S, N>(this: &'j VecObserver<'i, O, S, N>, index: Self) -> &'j mut O
+    fn index_impl<'j, S, D>(this: &'j VecObserver<'i, O, S, D>, index: Self) -> &'j mut O
     where
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Vec<T>> + ?Sized + 'i,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Vec<T>> + ?Sized + 'i,
     {
         let value = &mut Observer::as_inner(this)[index];
         let obs = unsafe { &mut *this.obs.get() };
@@ -316,14 +316,14 @@ where
 
 impl<'i, O, T, I> IndexImpl<'i, T, O, [O]> for I
 where
-    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: 'i,
     I: RangeBounds<usize> + SliceIndex<[O], Output = [O]>,
 {
-    fn index_impl<'j, S, N>(this: &'j VecObserver<'i, O, S, N>, index: Self) -> &'j mut [O]
+    fn index_impl<'j, S, D>(this: &'j VecObserver<'i, O, S, D>, index: Self) -> &'j mut [O]
     where
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Vec<T>> + ?Sized + 'i,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Vec<T>> + ?Sized + 'i,
     {
         let obs = unsafe { &mut *this.obs.get() };
         let start = match index.start_bound() {
@@ -350,12 +350,12 @@ where
 }
 
 impl<T: Observe> Observe for Vec<T> {
-    type Observer<'i, S, N>
-        = VecObserver<'i, T::Observer<'i, T, Zero>, S, N>
+    type Observer<'i, S, D>
+        = VecObserver<'i, T::Observer<'i, T, Zero>, S, D>
     where
         Self: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
 
     type Spec = DefaultSpec;
 }
@@ -373,12 +373,12 @@ mod tests {
     struct Number(i32);
 
     impl Observe for Number {
-        type Observer<'i, S, N>
-            = ShallowObserver<'i, S, N>
+        type Observer<'i, S, D>
+            = ShallowObserver<'i, S, D>
         where
             Self: 'i,
-            N: Unsigned,
-            S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
+            D: Unsigned,
+            S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
 
         type Spec = DefaultSpec;
     }

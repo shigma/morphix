@@ -51,7 +51,7 @@ use crate::{Adapter, Mutation, MutationKind};
 ///
 /// type ShallowObserver<'i, T> = GeneralObserver<'i, T, ShallowHandler>;
 /// ```
-pub trait GeneralHandler<T: ?Sized> {
+pub trait GeneralHandler<T: ?Sized>: Default {
     /// Associated specification type for [`GeneralObserver`].
     type Spec;
 

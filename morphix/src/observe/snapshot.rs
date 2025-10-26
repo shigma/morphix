@@ -2,6 +2,7 @@ use std::mem::MaybeUninit;
 
 use crate::Observe;
 use crate::helper::{AsDeref, Zero};
+use crate::impls::array::ArrayObserveImpl;
 use crate::impls::boxed::BoxObserveImpl;
 use crate::impls::option::OptionObserveImpl;
 use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
@@ -49,7 +50,7 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 ///
 /// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use `SnapshotObserver` as their default
 /// implementation since they're cheap to clone and compare.
-pub type SnapshotObserver<'i, S, N = Zero> = GeneralObserver<'i, SnapshotHandler<<S as AsDeref<N>>::Target>, S, N>;
+pub type SnapshotObserver<'i, S, D = Zero> = GeneralObserver<'i, SnapshotHandler<<S as AsDeref<D>>::Target>, S, D>;
 
 pub struct SnapshotHandler<T> {
     snapshot: MaybeUninit<T>,
@@ -100,12 +101,12 @@ macro_rules! impl_observe {
     ($($ty:ty),* $(,)?) => {
         $(
             impl Observe for $ty {
-                type Observer<'i, S, N>
-                    = SnapshotObserver<'i, S, N>
+                type Observer<'i, S, D>
+                    = SnapshotObserver<'i, S, D>
                 where
                     Self: 'i,
-                    N: Unsigned,
-                    S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
+                    D: Unsigned,
+                    S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
 
                 type Spec = SnapshotSpec;
             }
@@ -120,26 +121,38 @@ impl_observe! {
     ::core::time::Duration, ::std::time::SystemTime,
 }
 
+impl<T, const N: usize> ArrayObserveImpl<T, N, SnapshotSpec> for T
+where
+    T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
+{
+    type Observer<'i, S, D>
+        = SnapshotObserver<'i, S, D>
+    where
+        T: 'i,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = [T; N]> + ?Sized + 'i;
+}
+
 impl<T> BoxObserveImpl<T, SnapshotSpec> for T
 where
     T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
 {
-    type Observer<'i, S, N>
-        = SnapshotObserver<'i, S, N>
+    type Observer<'i, S, D>
+        = SnapshotObserver<'i, S, D>
     where
         T: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Box<T>> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Box<T>> + ?Sized + 'i;
 }
 
 impl<T> OptionObserveImpl<T, SnapshotSpec> for T
 where
     T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
 {
-    type Observer<'i, S, N>
-        = SnapshotObserver<'i, S, N>
+    type Observer<'i, S, D>
+        = SnapshotObserver<'i, S, D>
     where
         T: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Option<T>> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'i;
 }

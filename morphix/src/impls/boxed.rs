@@ -39,14 +39,14 @@ where
     type Depth = Succ<O::OuterDepth>;
 }
 
-impl<'i, O, N, T: ?Sized> Observer<'i> for BoxObserver<'i, O>
+impl<'i, O, D, T: ?Sized> Observer<'i> for BoxObserver<'i, O>
 where
-    O: Observer<'i, InnerDepth = Succ<N>>,
-    O::Head: AsDerefMut<N, Target = Box<T>>,
-    N: Unsigned,
+    O: Observer<'i, InnerDepth = Succ<D>>,
+    O::Head: AsDerefMut<D, Target = Box<T>>,
+    D: Unsigned,
 {
     type OuterDepth = Succ<O::OuterDepth>;
-    type InnerDepth = N;
+    type InnerDepth = D;
     type Head = O::Head;
 
     #[inline]
@@ -58,11 +58,11 @@ where
     }
 }
 
-impl<'i, O, N, T: ?Sized> SerializeObserver<'i> for BoxObserver<'i, O>
+impl<'i, O, D, T: ?Sized> SerializeObserver<'i> for BoxObserver<'i, O>
 where
-    O: SerializeObserver<'i, InnerDepth = Succ<N>>,
-    O::Head: AsDerefMut<N, Target = Box<T>>,
-    N: Unsigned,
+    O: SerializeObserver<'i, InnerDepth = Succ<D>>,
+    O::Head: AsDerefMut<D, Target = Box<T>>,
+    D: Unsigned,
 {
     #[inline]
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
@@ -99,27 +99,27 @@ impl<'i, O: Debug> Debug for BoxObserver<'i, O> {
     }
 }
 
-impl<'i, O, N, T: ?Sized, U: ?Sized> PartialEq<U> for BoxObserver<'i, O>
+impl<'i, O, D, T: ?Sized, U: ?Sized> PartialEq<U> for BoxObserver<'i, O>
 where
-    O: Observer<'i, InnerDepth = Succ<N>>,
-    O::Head: AsDerefMut<N, Target = Box<T>>,
-    N: Unsigned,
+    O: Observer<'i, InnerDepth = Succ<D>>,
+    O::Head: AsDerefMut<D, Target = Box<T>>,
+    D: Unsigned,
     Box<T>: PartialEq<U>,
 {
     fn eq(&self, other: &U) -> bool {
-        AsDeref::<N>::as_deref(&**O::as_ptr(self)).eq(other)
+        AsDeref::<D>::as_deref(&**O::as_ptr(self)).eq(other)
     }
 }
 
-impl<'i, O, N, T: ?Sized, U: ?Sized> PartialOrd<U> for BoxObserver<'i, O>
+impl<'i, O, D, T: ?Sized, U: ?Sized> PartialOrd<U> for BoxObserver<'i, O>
 where
-    O: Observer<'i, InnerDepth = Succ<N>>,
-    O::Head: AsDerefMut<N, Target = Box<T>>,
-    N: Unsigned,
+    O: Observer<'i, InnerDepth = Succ<D>>,
+    O::Head: AsDerefMut<D, Target = Box<T>>,
+    D: Unsigned,
     Box<T>: PartialOrd<U>,
 {
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        AsDeref::<N>::as_deref(&**O::as_ptr(self)).partial_cmp(other)
+        AsDeref::<D>::as_deref(&**O::as_ptr(self)).partial_cmp(other)
     }
 }
 
@@ -127,40 +127,35 @@ impl<T> Observe for Box<T>
 where
     T: Observe + BoxObserveImpl<T, T::Spec>,
 {
-    type Observer<'i, S, N>
-        = <T as BoxObserveImpl<T, T::Spec>>::Observer<'i, S, N>
+    type Observer<'i, S, D>
+        = <T as BoxObserveImpl<T, T::Spec>>::Observer<'i, S, D>
     where
         Self: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
 
     type Spec = T::Spec;
 }
 
 /// Helper trait for selecting appropriate observer implementations for [`Box<T>`].
-///
-/// This trait allows specialized observation strategies to be selected based on the specification
-/// type of `T`. Different specs (like [`SnapshotSpec`](crate::observe::SnapshotSpec),
-/// [`HashSpec`](crate::observe::HashSpec)) can provide different observer implementations for
-/// [`Box<T>`].
 #[doc(hidden)]
 pub trait BoxObserveImpl<T: Observe, Spec> {
     /// The observer type for [`Box<T>`] with the given specification.
-    type Observer<'i, S, N>: Observer<'i, Head = S, InnerDepth = N>
+    type Observer<'i, S, D>: Observer<'i, Head = S, InnerDepth = D>
     where
         T: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Box<T>> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Box<T>> + ?Sized + 'i;
 }
 
 impl<T> BoxObserveImpl<T, DefaultSpec> for T
 where
     T: Observe<Spec = DefaultSpec>,
 {
-    type Observer<'i, S, N>
-        = BoxObserver<'i, T::Observer<'i, S, Succ<N>>>
+    type Observer<'i, S, D>
+        = BoxObserver<'i, T::Observer<'i, S, Succ<D>>>
     where
         T: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Box<T>> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Box<T>> + ?Sized + 'i;
 }

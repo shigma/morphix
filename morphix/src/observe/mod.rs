@@ -104,11 +104,11 @@ pub trait Observe {
     ///
     /// This associated type specifies the *default* observer implementation for the type, when used
     /// in contexts where an [`Observe`] implementation is required.
-    type Observer<'i, S, N>: Observer<'i, Head = S, InnerDepth = N>
+    type Observer<'i, S, D>: Observer<'i, Head = S, InnerDepth = D>
     where
         Self: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
 
     /// Associated specification type for this observable.
     ///
@@ -175,6 +175,7 @@ impl<T: Observe> ObserveExt for T {}
 /// chains.
 pub trait Observer<'i>
 where
+    Self: Default,
     Self: AsDerefMutCoinductive<Succ<Self::OuterDepth>, Target = ObserverPointer<Self::Head>>,
 {
     /// Type-level number of dereferences from `Head` to the observed type.

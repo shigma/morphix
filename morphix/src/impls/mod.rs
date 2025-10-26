@@ -1,3 +1,4 @@
+pub mod array;
 pub mod boxed;
 pub mod option;
 pub mod string;

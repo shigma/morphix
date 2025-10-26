@@ -15,13 +15,13 @@ enum MutationState {
 ///
 /// `StringObserver` provides special handling for string append operations, distinguishing them
 /// from complete replacements for efficiency.
-pub struct StringObserver<'i, S: ?Sized, N = Zero> {
+pub struct StringObserver<'i, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
     mutation: Option<MutationState>,
-    phantom: PhantomData<&'i mut N>,
+    phantom: PhantomData<&'i mut D>,
 }
 
-impl<'i, S: ?Sized, N> StringObserver<'i, S, N> {
+impl<'i, S: ?Sized, D> StringObserver<'i, S, D> {
     fn mark_replace(&mut self) {
         self.mutation = Some(MutationState::Replace);
     }
@@ -34,7 +34,7 @@ impl<'i, S: ?Sized, N> StringObserver<'i, S, N> {
     }
 }
 
-impl<'i, S: ?Sized, N> Default for StringObserver<'i, S, N> {
+impl<'i, S: ?Sized, D> Default for StringObserver<'i, S, D> {
     #[inline]
     fn default() -> Self {
         Self {
@@ -45,7 +45,7 @@ impl<'i, S: ?Sized, N> Default for StringObserver<'i, S, N> {
     }
 }
 
-impl<'i, S: ?Sized, N> Deref for StringObserver<'i, S, N> {
+impl<'i, S: ?Sized, D> Deref for StringObserver<'i, S, D> {
     type Target = ObserverPointer<S>;
 
     #[inline]
@@ -54,7 +54,7 @@ impl<'i, S: ?Sized, N> Deref for StringObserver<'i, S, N> {
     }
 }
 
-impl<'i, S: ?Sized, N> DerefMut for StringObserver<'i, S, N> {
+impl<'i, S: ?Sized, D> DerefMut for StringObserver<'i, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.mark_replace();
@@ -66,12 +66,12 @@ impl<'i, S> Assignable for StringObserver<'i, S> {
     type Depth = Succ<Zero>;
 }
 
-impl<'i, S: ?Sized, N> Observer<'i> for StringObserver<'i, S, N>
+impl<'i, S: ?Sized, D> Observer<'i> for StringObserver<'i, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = String> + 'i,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String> + 'i,
 {
-    type InnerDepth = N;
+    type InnerDepth = D;
     type OuterDepth = Zero;
     type Head = S;
 
@@ -84,10 +84,10 @@ where
     }
 }
 
-impl<'i, S: ?Sized, N> SerializeObserver<'i> for StringObserver<'i, S, N>
+impl<'i, S: ?Sized, D> SerializeObserver<'i> for StringObserver<'i, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = String> + 'i,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String> + 'i,
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         Ok(if let Some(mutation) = this.mutation.take() {
@@ -106,10 +106,10 @@ where
     }
 }
 
-impl<'i, S: ?Sized, N> StringObserver<'i, S, N>
+impl<'i, S: ?Sized, D> StringObserver<'i, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = String>,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String>,
 {
     pub fn push(&mut self, c: char) {
         Self::mark_append(self, self.as_deref().len());
@@ -125,10 +125,10 @@ where
     }
 }
 
-impl<'i, S: ?Sized, N> AddAssign<&str> for StringObserver<'i, S, N>
+impl<'i, S: ?Sized, D> AddAssign<&str> for StringObserver<'i, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = String>,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String>,
 {
     #[inline]
     fn add_assign(&mut self, rhs: &str) {
@@ -136,10 +136,10 @@ where
     }
 }
 
-impl<'i, S: ?Sized, N, U> Extend<U> for StringObserver<'i, S, N>
+impl<'i, S: ?Sized, D, U> Extend<U> for StringObserver<'i, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = String>,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String>,
     String: Extend<U>,
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
@@ -148,10 +148,10 @@ where
     }
 }
 
-impl<'i, S: ?Sized, N> Debug for StringObserver<'i, S, N>
+impl<'i, S: ?Sized, D> Debug for StringObserver<'i, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = String>,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String>,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -159,20 +159,20 @@ where
     }
 }
 
-impl<'i, S: ?Sized, N> Display for StringObserver<'i, S, N>
+impl<'i, S: ?Sized, D> Display for StringObserver<'i, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = String>,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self.as_deref(), f)
     }
 }
 
-impl<'i, S, N, U: ?Sized> PartialEq<U> for StringObserver<'i, S, N>
+impl<'i, S, D, U: ?Sized> PartialEq<U> for StringObserver<'i, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = String>,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String>,
     String: PartialEq<U>,
 {
     #[inline]
@@ -181,10 +181,10 @@ where
     }
 }
 
-impl<'i, S, N, U: ?Sized> PartialOrd<U> for StringObserver<'i, S, N>
+impl<'i, S, D, U: ?Sized> PartialOrd<U> for StringObserver<'i, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = String>,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String>,
     String: PartialOrd<U>,
 {
     #[inline]
@@ -194,12 +194,12 @@ where
 }
 
 impl Observe for String {
-    type Observer<'i, S, N>
-        = StringObserver<'i, S, N>
+    type Observer<'i, S, D>
+        = StringObserver<'i, S, D>
     where
         Self: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
 
     type Spec = DefaultSpec;
 }

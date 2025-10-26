@@ -13,15 +13,15 @@ use crate::{Adapter, Mutation, MutationKind, Observe};
 /// This observer tracks changes to optional values, including transitions between [`Some`] and
 /// [`None`] states. It provides specialized methods for working with options while maintaining
 /// change tracking.
-pub struct OptionObserver<'i, O, S: ?Sized, N = Zero> {
+pub struct OptionObserver<'i, O, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
     is_mutated: bool,
     is_initial_some: bool,
     ob: Option<O>,
-    phantom: PhantomData<&'i mut N>,
+    phantom: PhantomData<&'i mut D>,
 }
 
-impl<'i, O, S: ?Sized, N> Default for OptionObserver<'i, O, S, N> {
+impl<'i, O, S: ?Sized, D> Default for OptionObserver<'i, O, S, D> {
     #[inline]
     fn default() -> Self {
         Self {
@@ -34,7 +34,7 @@ impl<'i, O, S: ?Sized, N> Default for OptionObserver<'i, O, S, N> {
     }
 }
 
-impl<'i, O, S: ?Sized, N> Deref for OptionObserver<'i, O, S, N> {
+impl<'i, O, S: ?Sized, D> Deref for OptionObserver<'i, O, S, D> {
     type Target = ObserverPointer<S>;
 
     #[inline]
@@ -43,7 +43,7 @@ impl<'i, O, S: ?Sized, N> Deref for OptionObserver<'i, O, S, N> {
     }
 }
 
-impl<'i, O, S: ?Sized, N> DerefMut for OptionObserver<'i, O, S, N> {
+impl<'i, O, S: ?Sized, D> DerefMut for OptionObserver<'i, O, S, D> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.is_mutated = true;
         self.ob = None;
@@ -55,14 +55,14 @@ impl<'i, O, S> Assignable for OptionObserver<'i, O, S> {
     type Depth = Succ<Zero>;
 }
 
-impl<'i, O, S: ?Sized, N, T> Observer<'i> for OptionObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T> Observer<'i> for OptionObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Option<T>> + 'i,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Option<T>> + 'i,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: 'i,
 {
-    type InnerDepth = N;
+    type InnerDepth = D;
     type OuterDepth = Zero;
     type Head = S;
 
@@ -78,10 +78,10 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, T> SerializeObserver<'i> for OptionObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T> SerializeObserver<'i> for OptionObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Option<T>> + 'i,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Option<T>> + 'i,
     O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
     T: Serialize + 'i,
 {
@@ -99,10 +99,10 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, T> OptionObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, T> OptionObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = Option<T>> + 'i,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Option<T>> + 'i,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: 'i,
 {
@@ -148,10 +148,10 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N> Debug for OptionObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D> Debug for OptionObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target: Debug>,
+    D: Unsigned,
+    S: AsDerefMut<D, Target: Debug>,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -159,10 +159,10 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, U: ?Sized> PartialEq<U> for OptionObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, U: ?Sized> PartialEq<U> for OptionObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target: PartialEq<U>>,
+    D: Unsigned,
+    S: AsDerefMut<D, Target: PartialEq<U>>,
 {
     #[inline]
     fn eq(&self, other: &U) -> bool {
@@ -170,10 +170,10 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, N, U: ?Sized> PartialOrd<U> for OptionObserver<'i, O, S, N>
+impl<'i, O, S: ?Sized, D, U: ?Sized> PartialOrd<U> for OptionObserver<'i, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target: PartialOrd<U>>,
+    D: Unsigned,
+    S: AsDerefMut<D, Target: PartialOrd<U>>,
 {
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
@@ -185,42 +185,37 @@ impl<T> Observe for Option<T>
 where
     T: Observe + OptionObserveImpl<T, T::Spec>,
 {
-    type Observer<'i, S, N>
-        = <T as OptionObserveImpl<T, T::Spec>>::Observer<'i, S, N>
+    type Observer<'i, S, D>
+        = <T as OptionObserveImpl<T, T::Spec>>::Observer<'i, S, D>
     where
         Self: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
 
     type Spec = T::Spec;
 }
 
 /// Helper trait for selecting appropriate observer implementations for [`Option<T>`].
-///
-/// This trait allows specialized observation strategies to be selected based on the specification
-/// type of `T`. Different specs (like [`SnapshotSpec`](crate::observe::SnapshotSpec),
-/// [`HashSpec`](crate::observe::HashSpec)) can provide different observer implementations for
-/// [`Option<T>`].
 #[doc(hidden)]
 pub trait OptionObserveImpl<T: Observe, Spec> {
     /// The observer type for [`Option<T>`] with the given specification.
-    type Observer<'i, S, N>: Observer<'i, Head = S, InnerDepth = N>
+    type Observer<'i, S, D>: Observer<'i, Head = S, InnerDepth = D>
     where
         T: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Option<T>> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'i;
 }
 
 impl<T> OptionObserveImpl<T, DefaultSpec> for T
 where
     T: Observe<Spec = DefaultSpec>,
 {
-    type Observer<'i, S, N>
-        = OptionObserver<'i, T::Observer<'i, T, Zero>, S, N>
+    type Observer<'i, S, D>
+        = OptionObserver<'i, T::Observer<'i, T, Zero>, S, D>
     where
         T: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Option<T>> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'i;
 }
 
 #[cfg(test)]
@@ -237,12 +232,12 @@ mod tests {
     struct Number(i32);
 
     impl Observe for Number {
-        type Observer<'i, S, N>
-            = ShallowObserver<'i, S, N>
+        type Observer<'i, S, D>
+            = ShallowObserver<'i, S, D>
         where
             Self: 'i,
-            N: Unsigned,
-            S: AsDerefMut<N, Target = Self> + ?Sized + 'i;
+            D: Unsigned,
+            S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
 
         type Spec = DefaultSpec;
     }

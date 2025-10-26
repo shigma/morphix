@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 
 use crate::Observe;
 use crate::helper::Zero;
+use crate::impls::array::ArrayObserveImpl;
 use crate::impls::boxed::BoxObserveImpl;
 use crate::impls::option::OptionObserveImpl;
 use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
@@ -46,7 +47,7 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 /// 1. **Hash collisions**: Different values might have the same hash (though rare)
 /// 2. **Performance**: For small types, hashing might be slower than
 ///    [`ShallowObserver`](super::ShallowObserver)
-pub type HashObserver<'i, S, N = Zero, H = DefaultHasher> = GeneralObserver<'i, HashHandler<H>, S, N>;
+pub type HashObserver<'i, S, D = Zero, H = DefaultHasher> = GeneralObserver<'i, HashHandler<H>, S, D>;
 
 #[derive(Default)]
 pub struct HashHandler<H> {
@@ -93,26 +94,38 @@ impl<T: Hash, H: Hasher + Default> DebugHandler<T> for HashHandler<H> {
 /// type observations, such as [`Option<T>`].
 pub struct HashSpec;
 
+impl<T, const N: usize> ArrayObserveImpl<T, N, HashSpec> for T
+where
+    T: Hash + Observe<Spec = HashSpec>,
+{
+    type Observer<'i, S, D>
+        = HashObserver<'i, S, D>
+    where
+        T: 'i,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = [T; N]> + ?Sized + 'i;
+}
+
 impl<T> BoxObserveImpl<T, HashSpec> for T
 where
     T: Hash + Observe<Spec = HashSpec>,
 {
-    type Observer<'i, S, N>
-        = HashObserver<'i, S, N>
+    type Observer<'i, S, D>
+        = HashObserver<'i, S, D>
     where
         T: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Box<T>> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Box<T>> + ?Sized + 'i;
 }
 
 impl<T> OptionObserveImpl<T, HashSpec> for T
 where
     T: Hash + Observe<Spec = HashSpec>,
 {
-    type Observer<'i, S, N>
-        = HashObserver<'i, S, N>
+    type Observer<'i, S, D>
+        = HashObserver<'i, S, D>
     where
         T: 'i,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Option<T>> + ?Sized + 'i;
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'i;
 }
