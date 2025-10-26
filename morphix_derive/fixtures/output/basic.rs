@@ -10,7 +10,7 @@ struct Foo {
 const _: () = {
     #[allow(private_interfaces)]
     struct FooObserver<'morphix, __S: ?Sized, __N> {
-        __ptr: ::morphix::helper::Pointer<__S>,
+        __ptr: ::morphix::observe::ObserverPointer<__S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'morphix mut __N>,
         pub a: ::morphix::helper::DefaultObserver<'morphix, i32>,
@@ -36,7 +36,7 @@ const _: () = {
     {
         fn default() -> Self {
             Self {
-                __ptr: ::morphix::helper::Pointer::default(),
+                __ptr: ::morphix::observe::ObserverPointer::default(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
                 a: Default::default(),
@@ -47,7 +47,7 @@ const _: () = {
     #[automatically_derived]
     impl<'morphix, __S: ?Sized, __N> ::std::ops::Deref
     for FooObserver<'morphix, __S, __N> {
-        type Target = ::morphix::helper::Pointer<__S>;
+        type Target = ::morphix::observe::ObserverPointer<__S>;
         fn deref(&self) -> &Self::Target {
             &self.__ptr
         }
@@ -77,7 +77,7 @@ const _: () = {
         type UpperDepth = __N;
         type LowerDepth = ::morphix::helper::Zero;
         fn observe(value: &'morphix mut __S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(value);
+            let __ptr = ::morphix::observe::ObserverPointer::new(value);
             let __value = value.as_deref_mut();
             Self {
                 __ptr,

@@ -8,8 +8,8 @@ use std::slice::SliceIndex;
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, Assignable, Pointer, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, SerializeObserver};
+use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
+use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe, PathSegment};
 
 enum MutationState {
@@ -22,7 +22,7 @@ enum MutationState {
 /// `VecObserver` provides special handling for vector append operations, distinguishing them from
 /// complete replacements for efficiency.
 pub struct VecObserver<'i, O, S: ?Sized, N = Zero> {
-    ptr: Pointer<S>,
+    ptr: ObserverPointer<S>,
     mutation: Option<MutationState>,
     obs: UnsafeCell<Vec<O>>,
     phantom: PhantomData<&'i mut N>,
@@ -45,7 +45,7 @@ impl<'i, O, S: ?Sized, N> Default for VecObserver<'i, O, S, N> {
     #[inline]
     fn default() -> Self {
         Self {
-            ptr: Pointer::default(),
+            ptr: ObserverPointer::default(),
             mutation: None,
             obs: Default::default(),
             phantom: PhantomData,
@@ -54,7 +54,7 @@ impl<'i, O, S: ?Sized, N> Default for VecObserver<'i, O, S, N> {
 }
 
 impl<'i, O, S: ?Sized, N> Deref for VecObserver<'i, O, S, N> {
-    type Target = Pointer<S>;
+    type Target = ObserverPointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -87,7 +87,7 @@ where
     #[inline]
     fn observe(value: &'i mut Self::Head) -> Self {
         Self {
-            ptr: Pointer::new(value),
+            ptr: ObserverPointer::new(value),
             mutation: None,
             obs: Default::default(),
             phantom: PhantomData,
@@ -307,7 +307,7 @@ where
         if index >= obs.len() {
             obs.resize_with(index + 1, Default::default);
         }
-        if *O::as_ptr(&obs[index]) != Pointer::new(value) {
+        if *O::as_ptr(&obs[index]) != ObserverPointer::new(value) {
             obs[index] = O::observe(value);
         }
         &mut obs[index]
@@ -341,7 +341,7 @@ where
         }
         for (i, obs_item) in obs[start..end].iter_mut().enumerate() {
             let value = &mut Observer::as_inner(this)[start + i];
-            if *O::as_ptr(obs_item) != Pointer::new(value) {
+            if *O::as_ptr(obs_item) != ObserverPointer::new(value) {
                 *obs_item = O::observe(value);
             }
         }

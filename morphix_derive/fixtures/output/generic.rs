@@ -12,7 +12,7 @@ const _: () = {
     where
         T: ::morphix::Observe + 'morphix,
     {
-        __ptr: ::morphix::helper::Pointer<__S>,
+        __ptr: ::morphix::observe::ObserverPointer<__S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'morphix mut __N>,
         pub a: ::morphix::helper::DefaultObserver<'morphix, T>,
@@ -39,7 +39,7 @@ const _: () = {
     {
         fn default() -> Self {
             Self {
-                __ptr: ::morphix::helper::Pointer::default(),
+                __ptr: ::morphix::observe::ObserverPointer::default(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
                 a: Default::default(),
@@ -52,7 +52,7 @@ const _: () = {
     where
         T: ::morphix::Observe,
     {
-        type Target = ::morphix::helper::Pointer<__S>;
+        type Target = ::morphix::observe::ObserverPointer<__S>;
         fn deref(&self) -> &Self::Target {
             &self.__ptr
         }
@@ -89,7 +89,7 @@ const _: () = {
         type UpperDepth = __N;
         type LowerDepth = ::morphix::helper::Zero;
         fn observe(value: &'morphix mut __S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(value);
+            let __ptr = ::morphix::observe::ObserverPointer::new(value);
             let __value = value.as_deref_mut();
             Self {
                 __ptr,

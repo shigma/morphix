@@ -218,7 +218,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> TokenStream {
         const _: () = {
             #[allow(private_interfaces)]
             #input_vis struct #ob_ident #ob_impl_generics where #ob_where_predicates_with_lifetime_bounds {
-                __ptr: ::morphix::helper::Pointer<__S>,
+                __ptr: ::morphix::observe::ObserverPointer<__S>,
                 __mutated: bool,
                 __phantom: ::std::marker::PhantomData<&'morphix mut __N>,
                 #(#type_fields)*
@@ -239,7 +239,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> TokenStream {
             where #ob_impl_default_where_predicates {
                 fn default() -> Self {
                     Self {
-                        __ptr: ::morphix::helper::Pointer::default(),
+                        __ptr: ::morphix::observe::ObserverPointer::default(),
                         __mutated: false,
                         __phantom: ::std::marker::PhantomData,
                         #(#default_fields)*
@@ -251,7 +251,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> TokenStream {
             impl #ob_impl_generics ::std::ops::Deref
             for #ob_ident #ob_type_generics
             where #ob_where_predicates {
-                type Target = ::morphix::helper::Pointer<__S>;
+                type Target = ::morphix::observe::ObserverPointer<__S>;
                 fn deref(&self) -> &Self::Target {
                     &self.__ptr
                 }
@@ -283,7 +283,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> TokenStream {
                 type LowerDepth = ::morphix::helper::Zero;
 
                 fn observe(value: &'morphix mut __S) -> Self {
-                    let __ptr = ::morphix::helper::Pointer::new(value);
+                    let __ptr = ::morphix::observe::ObserverPointer::new(value);
                     let __value = value.as_deref_mut();
                     Self {
                         __ptr,

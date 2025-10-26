@@ -26,8 +26,8 @@
 //! - If `A'` → `B'` → `B`: Properties and methods on A become inaccessible (because no `A` in the
 //!   dereference chain)
 //!
-//! To solve this, we use a [`Pointer`] type to create the dereference chain: `A'` → `B'` →
-//! `Pointer<A>` → `A` → `B`. This allows tracking changes on both `A` and `B`.
+//! To solve this, we use a [`ObserverPointer`] type to create the dereference chain: `A'` → `B'` →
+//! `ObserverPointer<A>` → `A` → `B`. This allows tracking changes on both `A` and `B`.
 //!
 //! ## Observer Hierarchy
 //!
@@ -50,18 +50,20 @@
 //! field-level control. Direct use of types from this module is typically only needed for advanced
 //! use cases.
 
-use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Succ, Unsigned, Zero};
 use crate::{Adapter, Mutation};
 
 mod general;
 mod hash;
 mod noop;
+mod pointer;
 mod shallow;
 mod snapshot;
 
 pub use general::{DebugHandler, GeneralHandler, GeneralObserver};
 pub use hash::{HashObserver, HashSpec};
 pub use noop::NoopObserver;
+pub use pointer::ObserverPointer;
 pub use shallow::ShallowObserver;
 pub use snapshot::{SnapshotObserver, SnapshotSpec};
 
@@ -162,22 +164,22 @@ impl<T: Observe> ObserveExt for T {}
 ///
 /// ## Type Parameters
 ///
-/// - `Head`: The type stored in the internal [`Pointer`], representing the head of the dereference
-///   chain
+/// - `Head`: The type stored in the internal [`ObserverPointer`], representing the head of the
+///   dereference chain
 /// - `UpperDepth`: Type-level number indicating how many times `Head` must be dereferenced to reach
 ///   the observed type
 /// - `LowerDepth`: Type-level number indicating how many times `self` must be dereferenced (plus
-///   one) to reach `Pointer<Head>`
+///   one) to reach [`ObserverPointer<Head>`]
 ///
 /// See the [module documentation](self) for more details about how observers work with dereference
 /// chains.
 pub trait Observer<'i>
 where
-    Self: AsDerefMutCoinductive<Succ<Self::LowerDepth>, Target = Pointer<Self::Head>>,
+    Self: AsDerefMutCoinductive<Succ<Self::LowerDepth>, Target = ObserverPointer<Self::Head>>,
 {
     /// Type-level number of dereferences from `Head` to the observed type.
     type UpperDepth: Unsigned;
-    /// Type-level number of dereferences from `self` to `Pointer<Head>` minus one.
+    /// Type-level number of dereferences from `self` to [`ObserverPointer<Head>`] minus one.
     type LowerDepth: Unsigned;
     /// The head type of the dereference chain.
     type Head: AsDerefMut<Self::UpperDepth> + ?Sized + 'i;
@@ -200,7 +202,7 @@ where
     /// Gets a reference to the internal pointer.
     ///
     /// This is primarily used internally by observer implementations.
-    fn as_ptr(this: &Self) -> &Pointer<Self::Head> {
+    fn as_ptr(this: &Self) -> &ObserverPointer<Self::Head> {
         this.as_deref_coinductive()
     }
 
@@ -212,7 +214,8 @@ where
     where
         'i: 'j,
     {
-        AsDerefMut::<Self::UpperDepth>::as_deref_mut(Pointer::as_mut(Self::as_ptr(this)))
+        let head = unsafe { ObserverPointer::as_mut(Self::as_ptr(this)) };
+        AsDerefMut::<Self::UpperDepth>::as_deref_mut(head)
     }
 }
 
@@ -272,7 +275,7 @@ pub trait SerializeObserver<'i>: Observer<'i> {
     /// assert_eq!(result, None);   // Returns None instead of panicking
     /// ```
     fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
-        if Pointer::is_null(Self::as_ptr(this)) {
+        if ObserverPointer::is_null(Self::as_ptr(this)) {
             return Ok(None);
         }
         unsafe { Self::collect_unchecked(this) }

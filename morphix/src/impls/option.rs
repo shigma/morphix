@@ -4,8 +4,8 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, Assignable, Pointer, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, SerializeObserver};
+use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
+use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
 /// Observer implementation for [`Option<T>`].
@@ -14,7 +14,7 @@ use crate::{Adapter, Mutation, MutationKind, Observe};
 /// [`None`] states. It provides specialized methods for working with options while maintaining
 /// change tracking.
 pub struct OptionObserver<'i, O, S: ?Sized, N = Zero> {
-    ptr: Pointer<S>,
+    ptr: ObserverPointer<S>,
     is_mutated: bool,
     is_initial_some: bool,
     ob: Option<O>,
@@ -25,7 +25,7 @@ impl<'i, O, S: ?Sized, N> Default for OptionObserver<'i, O, S, N> {
     #[inline]
     fn default() -> Self {
         Self {
-            ptr: Pointer::default(),
+            ptr: ObserverPointer::default(),
             is_mutated: false,
             is_initial_some: false,
             ob: None,
@@ -35,7 +35,7 @@ impl<'i, O, S: ?Sized, N> Default for OptionObserver<'i, O, S, N> {
 }
 
 impl<'i, O, S: ?Sized, N> Deref for OptionObserver<'i, O, S, N> {
-    type Target = Pointer<S>;
+    type Target = ObserverPointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -69,7 +69,7 @@ where
     #[inline]
     fn observe(value: &'i mut Self::Head) -> Self {
         Self {
-            ptr: Pointer::new(value),
+            ptr: ObserverPointer::new(value),
             is_mutated: false,
             is_initial_some: value.as_deref().is_some(),
             ob: value.as_deref_mut().as_mut().map(O::observe),

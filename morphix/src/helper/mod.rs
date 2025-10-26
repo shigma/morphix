@@ -15,11 +15,9 @@
 use crate::Observe;
 
 pub mod deref;
-pub mod pointer;
 pub mod unsigned;
 
 pub use deref::{AsDeref, AsDerefCoinductive, AsDerefMut, AsDerefMutCoinductive};
-pub use pointer::Pointer;
 pub use unsigned::{Succ, Unsigned, Zero};
 
 /// A trait enabling assignment to observers using autoref-based specialization.

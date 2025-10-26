@@ -2,8 +2,8 @@ use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
-use crate::helper::{AsDerefMut, Assignable, Pointer, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, SerializeObserver};
+use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
+use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
 enum MutationState {
@@ -16,7 +16,7 @@ enum MutationState {
 /// `StringObserver` provides special handling for string append operations, distinguishing them
 /// from complete replacements for efficiency.
 pub struct StringObserver<'i, S: ?Sized, N = Zero> {
-    ptr: Pointer<S>,
+    ptr: ObserverPointer<S>,
     mutation: Option<MutationState>,
     phantom: PhantomData<&'i mut N>,
 }
@@ -38,7 +38,7 @@ impl<'i, S: ?Sized, N> Default for StringObserver<'i, S, N> {
     #[inline]
     fn default() -> Self {
         Self {
-            ptr: Pointer::default(),
+            ptr: ObserverPointer::default(),
             mutation: None,
             phantom: PhantomData,
         }
@@ -46,7 +46,7 @@ impl<'i, S: ?Sized, N> Default for StringObserver<'i, S, N> {
 }
 
 impl<'i, S: ?Sized, N> Deref for StringObserver<'i, S, N> {
-    type Target = Pointer<S>;
+    type Target = ObserverPointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -77,7 +77,7 @@ where
 
     fn observe(value: &mut Self::Head) -> Self {
         Self {
-            ptr: Pointer::new(value),
+            ptr: ObserverPointer::new(value),
             mutation: None,
             phantom: PhantomData,
         }
