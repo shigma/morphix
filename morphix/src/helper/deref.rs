@@ -4,7 +4,7 @@
 //! - [`AsDeref`] / [`AsDerefMut`]: Inductive version
 //! - [`AsDerefCoinductive`] / [`AsDerefMutCoinductive`]: Coinductive version
 //!
-//! ## Inductive vs Coinductive
+//! ## Inductive vs. Coinductive
 //!
 //! The key difference lies in their induction direction:
 //!

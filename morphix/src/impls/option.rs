@@ -8,7 +8,11 @@ use crate::helper::{AsDerefMut, Assignable, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
-/// An general observer for [`Option`].
+/// Observer implementation for [`Option<T>`].
+///
+/// This observer tracks changes to optional values, including transitions between [`Some`] and
+/// [`None`] states. It provides specialized methods for working with options while maintaining
+/// change tracking.
 pub struct OptionObserver<'i, O, S: ?Sized, N = Zero> {
     ptr: Pointer<S>,
     is_mutated: bool,
@@ -191,9 +195,15 @@ where
     type Spec = T::Spec;
 }
 
-/// Helper trait for selecting an appropriate observer for [`Option<T>`].
+/// Helper trait for selecting appropriate observer implementations for [`Option<T>`].
+///
+/// This trait allows specialized observation strategies to be selected based on the specification
+/// type of `T`. Different specs (like [`SnapshotSpec`](crate::observe::SnapshotSpec),
+/// [`HashSpec`](crate::observe::HashSpec)) can provide different observer implementations for
+/// [`Option<T>`].
 #[doc(hidden)]
 pub trait OptionObserveImpl<T: Observe, Spec> {
+    /// The observer type for [`Option<T>`] with the given specification.
     type Observer<'i, S, N>: Observer<'i, Head = S, UpperDepth = N>
     where
         T: 'i,

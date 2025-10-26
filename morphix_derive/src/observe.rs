@@ -25,6 +25,7 @@ impl Parse for Observe {
         }
     }
 }
+
 pub fn observe(input: TokenStream) -> Result<TokenStream, syn::Error> {
     let mut input: Observe = syn::parse2(input)?;
     if input.closure.inputs.len() != 1 {

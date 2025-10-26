@@ -72,24 +72,9 @@ pub trait Adapter: Sized {
     type Error;
 
     /// Serializes a value into the adapter's Value type.
-    ///
-    /// ## Arguments
-    ///
-    /// - `value` - value to be serialized as a replacement
     fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error>;
 
     /// Applies a [Mutation](crate::Mutation) to an existing value.
-    ///
-    /// ## Arguments
-    ///
-    /// - `old_value` - value to be modified
-    /// - `mutation` - mutation to apply
-    /// - `path_stack` - stack for tracking the current path (used for error reporting)
-    ///
-    /// ## Errors
-    ///
-    /// - Returns `MutationError::IndexError` if the path doesn't exist.
-    /// - Returns `MutationError::OperationError` if the operation cannot be performed.
     fn apply_mutation(
         old_value: &mut Self::Value,
         mutation: Mutation<Self>,
@@ -97,16 +82,6 @@ pub trait Adapter: Sized {
     ) -> Result<(), MutationError>;
 
     /// Merges one append value into another.
-    ///
-    /// ## Arguments
-    ///
-    /// - `old_value` - The existing append value
-    /// - `new_value` - The new append value to merge
-    /// - `path_stack` - Stack for tracking the current path (used for error reporting)
-    ///
-    /// ## Errors
-    ///
-    /// - Returns `MutationError::OperationError` if the values cannot be merged.
     fn merge_append(
         old_value: &mut Self::Value,
         append_value: Self::Value,

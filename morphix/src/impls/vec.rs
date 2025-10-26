@@ -17,20 +17,10 @@ enum MutationState {
     Append(usize),
 }
 
-/// An observer for [`Vec`] that tracks both replacements and appends.
+/// An observer for [`Vec<T>`] that tracks both replacements and appends.
 ///
 /// `VecObserver` provides special handling for vector append operations, distinguishing them from
 /// complete replacements for efficiency.
-///
-/// ## Supported Operations
-///
-/// The following mutations are tracked as [`Append`](MutationKind::Append):
-///
-/// - [Vec::push](std::vec::Vec::push)
-/// - [Vec::append](std::vec::Vec::append)
-/// - [Vec::extend](std::iter::Extend)
-/// - [Vec::extend_from_slice](std::vec::Vec::extend_from_slice)
-/// - [Vec::extend_from_within](std::vec::Vec::extend_from_within)
 pub struct VecObserver<'i, O, S: ?Sized, N = Zero> {
     ptr: Pointer<S>,
     mutation: Option<MutationState>,

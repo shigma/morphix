@@ -62,14 +62,6 @@ impl<A: Adapter> BatchTree<A> {
     }
 
     /// Loads a [`Mutation`] into the batch, potentially merging with existing mutations.
-    ///
-    /// ## Arguments
-    ///
-    /// - `mutation` - mutation to add to the batch
-    ///
-    /// ## Errors
-    ///
-    /// - Returns an [MutationError] if the mutation cannot be applied.
     pub fn load(&mut self, mutation: Mutation<A>) -> Result<(), MutationError> {
         self.load_with_stack(mutation, &mut Default::default())
     }

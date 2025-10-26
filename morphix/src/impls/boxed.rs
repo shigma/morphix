@@ -6,6 +6,10 @@ use crate::helper::{AsDeref, AsDerefMut, Assignable, Succ, Unsigned};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
+/// Observer implementation for [`Box<T>`].
+///
+/// This observer wraps the inner type's observer and forwards all operations to it, maintaining
+/// proper dereference chains for boxed types.
 #[derive(Default)]
 pub struct BoxObserver<'i, O> {
     inner: O,
@@ -133,8 +137,15 @@ where
     type Spec = T::Spec;
 }
 
+/// Helper trait for selecting appropriate observer implementations for [`Box<T>`].
+///
+/// This trait allows specialized observation strategies to be selected based on the specification
+/// type of `T`. Different specs (like [`SnapshotSpec`](crate::observe::SnapshotSpec),
+/// [`HashSpec`](crate::observe::HashSpec)) can provide different observer implementations for
+/// [`Box<T>`].
 #[doc(hidden)]
 pub trait BoxObserveImpl<T: Observe, Spec> {
+    /// The observer type for [`Box<T>`] with the given specification.
     type Observer<'i, S, N>: Observer<'i, Head = S, UpperDepth = N>
     where
         T: 'i,

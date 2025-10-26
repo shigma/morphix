@@ -15,14 +15,6 @@ enum MutationState {
 ///
 /// `StringObserver` provides special handling for string append operations, distinguishing them
 /// from complete replacements for efficiency.
-///
-/// ## Supported Operations
-///
-/// The following mutations are tracked as [`Append`](MutationKind::Append):
-///
-/// - [String::add_assign](std::ops::AddAssign) (`+=`)
-/// - [String::push](std::string::String::push)
-/// - [String::push_str](std::string::String::push_str)
 pub struct StringObserver<'i, S: ?Sized, N = Zero> {
     ptr: Pointer<S>,
     mutation: Option<MutationState>,
