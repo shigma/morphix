@@ -59,11 +59,11 @@ impl<'i, O, S: ?Sized, N, T> Observer<'i> for OptionObserver<'i, O, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Option<T>> + 'i,
-    O: Observer<'i, UpperDepth = Zero, Head = T>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: 'i,
 {
-    type UpperDepth = N;
-    type LowerDepth = Zero;
+    type InnerDepth = N;
+    type OuterDepth = Zero;
     type Head = S;
 
     #[inline]
@@ -82,7 +82,7 @@ impl<'i, O, S: ?Sized, N, T> SerializeObserver<'i> for OptionObserver<'i, O, S, 
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Option<T>> + 'i,
-    O: SerializeObserver<'i, UpperDepth = Zero, Head = T>,
+    O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
     T: Serialize + 'i,
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
@@ -103,7 +103,7 @@ impl<'i, O, S: ?Sized, N, T> OptionObserver<'i, O, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Option<T>> + 'i,
-    O: Observer<'i, UpperDepth = Zero, Head = T>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: 'i,
 {
     fn __insert(&mut self, value: T) {
@@ -204,7 +204,7 @@ where
 #[doc(hidden)]
 pub trait OptionObserveImpl<T: Observe, Spec> {
     /// The observer type for [`Option<T>`] with the given specification.
-    type Observer<'i, S, N>: Observer<'i, Head = S, UpperDepth = N>
+    type Observer<'i, S, N>: Observer<'i, Head = S, InnerDepth = N>
     where
         T: 'i,
         N: Unsigned,

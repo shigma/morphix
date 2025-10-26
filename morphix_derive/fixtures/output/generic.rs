@@ -86,8 +86,8 @@ const _: () = {
         __S: ::morphix::helper::AsDerefMut<__N, Target = Foo<T>> + 'morphix,
     {
         type Head = __S;
-        type UpperDepth = __N;
-        type LowerDepth = ::morphix::helper::Zero;
+        type InnerDepth = __N;
+        type OuterDepth = ::morphix::helper::Zero;
         fn observe(value: &'morphix mut __S) -> Self {
             let __ptr = ::morphix::observe::ObserverPointer::new(value);
             let __value = value.as_deref_mut();

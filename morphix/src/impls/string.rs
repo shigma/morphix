@@ -71,8 +71,8 @@ where
     N: Unsigned,
     S: AsDerefMut<N, Target = String> + 'i,
 {
-    type UpperDepth = N;
-    type LowerDepth = Zero;
+    type InnerDepth = N;
+    type OuterDepth = Zero;
     type Head = S;
 
     fn observe(value: &mut Self::Head) -> Self {

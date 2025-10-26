@@ -104,7 +104,7 @@ pub trait Observe {
     ///
     /// This associated type specifies the *default* observer implementation for the type, when used
     /// in contexts where an [`Observe`] implementation is required.
-    type Observer<'i, S, N>: Observer<'i, Head = S, UpperDepth = N>
+    type Observer<'i, S, N>: Observer<'i, Head = S, InnerDepth = N>
     where
         Self: 'i,
         N: Unsigned,
@@ -166,23 +166,23 @@ impl<T: Observe> ObserveExt for T {}
 ///
 /// - `Head`: The type stored in the internal [`ObserverPointer`], representing the head of the
 ///   dereference chain
-/// - `UpperDepth`: Type-level number indicating how many times `Head` must be dereferenced to reach
+/// - `InnerDepth`: Type-level number indicating how many times `Head` must be dereferenced to reach
 ///   the observed type
-/// - `LowerDepth`: Type-level number indicating how many times `self` must be dereferenced (plus
+/// - `OuterDepth`: Type-level number indicating how many times `Self` must be dereferenced (plus
 ///   one) to reach [`ObserverPointer<Head>`]
 ///
 /// See the [module documentation](self) for more details about how observers work with dereference
 /// chains.
 pub trait Observer<'i>
 where
-    Self: AsDerefMutCoinductive<Succ<Self::LowerDepth>, Target = ObserverPointer<Self::Head>>,
+    Self: AsDerefMutCoinductive<Succ<Self::OuterDepth>, Target = ObserverPointer<Self::Head>>,
 {
     /// Type-level number of dereferences from `Head` to the observed type.
-    type UpperDepth: Unsigned;
-    /// Type-level number of dereferences from `self` to [`ObserverPointer<Head>`] minus one.
-    type LowerDepth: Unsigned;
+    type InnerDepth: Unsigned;
+    /// Type-level number of dereferences from `Self` to [`ObserverPointer<Head>`] minus one.
+    type OuterDepth: Unsigned;
     /// The head type of the dereference chain.
-    type Head: AsDerefMut<Self::UpperDepth> + ?Sized + 'i;
+    type Head: AsDerefMut<Self::InnerDepth> + ?Sized + 'i;
 
     /// Creates a new observer for the given value.
     ///
@@ -210,12 +210,12 @@ where
     ///
     /// This method traverses the entire dereference chain to reach the observed value, bypassing
     /// any observation logic.
-    fn as_inner<'j>(this: &Self) -> &'j mut <Self::Head as AsDeref<Self::UpperDepth>>::Target
+    fn as_inner<'j>(this: &Self) -> &'j mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
     where
         'i: 'j,
     {
         let head = unsafe { ObserverPointer::as_mut(Self::as_ptr(this)) };
-        AsDerefMut::<Self::UpperDepth>::as_deref_mut(head)
+        AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
     }
 }
 

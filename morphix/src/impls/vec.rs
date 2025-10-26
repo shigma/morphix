@@ -78,10 +78,10 @@ impl<'i, O, S: ?Sized, N, T> Observer<'i> for VecObserver<'i, O, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Vec<T>> + 'i,
-    O: Observer<'i, UpperDepth = Zero, Head = T>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
 {
-    type UpperDepth = N;
-    type LowerDepth = Zero;
+    type InnerDepth = N;
+    type OuterDepth = Zero;
     type Head = S;
 
     #[inline]
@@ -99,7 +99,7 @@ impl<'i, O, S: ?Sized, N, T> SerializeObserver<'i> for VecObserver<'i, O, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Vec<T>> + 'i,
-    O: SerializeObserver<'i, UpperDepth = Zero, Head = T>,
+    O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
@@ -138,7 +138,7 @@ impl<'i, O, S: ?Sized, N, T> VecObserver<'i, O, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Vec<T>> + 'i,
-    O: Observer<'i, UpperDepth = Zero, Head = T>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
 {
     #[inline]
     pub fn reserve(&mut self, additional: usize) {
@@ -188,7 +188,7 @@ impl<'i, O, S: ?Sized, N, T> VecObserver<'i, O, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Vec<T>> + 'i,
-    O: Observer<'i, UpperDepth = Zero, Head = T>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: Clone,
 {
     pub fn extend_from_slice(&mut self, other: &[T]) {
@@ -209,7 +209,7 @@ impl<'i, O, S: ?Sized, N, T, U> Extend<U> for VecObserver<'i, O, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Vec<T>> + 'i,
-    O: Observer<'i, UpperDepth = Zero, Head = T>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
     Vec<T>: Extend<U>,
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
@@ -222,7 +222,7 @@ impl<'i, O, S: ?Sized, N, T> Debug for VecObserver<'i, O, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Vec<T>>,
-    O: Observer<'i, UpperDepth = Zero, Head = T> + Default,
+    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
     T: Debug,
 {
     #[inline]
@@ -235,7 +235,7 @@ impl<'i, O, S: ?Sized, N, T, U> PartialEq<U> for VecObserver<'i, O, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Vec<T>>,
-    O: Observer<'i, UpperDepth = Zero, Head = T> + Default,
+    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
     Vec<T>: PartialEq<U>,
 {
     #[inline]
@@ -248,7 +248,7 @@ impl<'i, O, S: ?Sized, N, T, U> PartialOrd<U> for VecObserver<'i, O, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Vec<T>>,
-    O: Observer<'i, UpperDepth = Zero, Head = T> + Default,
+    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
     Vec<T>: PartialOrd<U>,
 {
     #[inline]
@@ -270,7 +270,7 @@ impl<'i, O, S: ?Sized, N, T, I, Output: ?Sized> Index<I> for VecObserver<'i, O, 
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Vec<T>> + 'i,
-    O: Observer<'i, UpperDepth = Zero, Head = T> + Default,
+    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
     I: IndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
 {
     type Output = Output;
@@ -284,7 +284,7 @@ impl<'i, O, S: ?Sized, N, T, I, Output: ?Sized> IndexMut<I> for VecObserver<'i, 
 where
     N: Unsigned,
     S: AsDerefMut<N, Target = Vec<T>> + 'i,
-    O: Observer<'i, UpperDepth = Zero, Head = T> + Default,
+    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
     I: IndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
@@ -294,7 +294,7 @@ where
 
 impl<'i, O, T> IndexImpl<'i, T, O, O> for usize
 where
-    O: Observer<'i, UpperDepth = Zero, Head = T> + Default,
+    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
     T: 'i,
 {
     fn index_impl<'j, S, N>(this: &'j VecObserver<'i, O, S, N>, index: Self) -> &'j mut O
@@ -316,7 +316,7 @@ where
 
 impl<'i, O, T, I> IndexImpl<'i, T, O, [O]> for I
 where
-    O: Observer<'i, UpperDepth = Zero, Head = T> + Default,
+    O: Observer<'i, InnerDepth = Zero, Head = T> + Default,
     T: 'i,
     I: RangeBounds<usize> + SliceIndex<[O], Output = [O]>,
 {

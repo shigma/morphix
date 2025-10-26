@@ -107,6 +107,6 @@ impl<T> Assignable for &mut T {
 
 // The impl below will conflict with `&mut T`, so we have to impl `Assignable` for every single
 // `Observer` types.
-// impl<'i, T: crate::observe::Observer<'i, UpperDepth = Zero>> Assignable for T {
-//     type Depth = T::LowerDepth;
+// impl<'i, T: crate::observe::Observer<'i, InnerDepth = Zero>> Assignable for T {
+//     type Depth = T::OuterDepth;
 // }

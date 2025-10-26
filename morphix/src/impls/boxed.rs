@@ -36,17 +36,17 @@ impl<'i, O> Assignable for BoxObserver<'i, O>
 where
     O: Observer<'i>,
 {
-    type Depth = Succ<O::LowerDepth>;
+    type Depth = Succ<O::OuterDepth>;
 }
 
 impl<'i, O, N, T: ?Sized> Observer<'i> for BoxObserver<'i, O>
 where
-    O: Observer<'i, UpperDepth = Succ<N>>,
+    O: Observer<'i, InnerDepth = Succ<N>>,
     O::Head: AsDerefMut<N, Target = Box<T>>,
     N: Unsigned,
 {
-    type LowerDepth = Succ<O::LowerDepth>;
-    type UpperDepth = N;
+    type OuterDepth = Succ<O::OuterDepth>;
+    type InnerDepth = N;
     type Head = O::Head;
 
     #[inline]
@@ -60,7 +60,7 @@ where
 
 impl<'i, O, N, T: ?Sized> SerializeObserver<'i> for BoxObserver<'i, O>
 where
-    O: SerializeObserver<'i, UpperDepth = Succ<N>>,
+    O: SerializeObserver<'i, InnerDepth = Succ<N>>,
     O::Head: AsDerefMut<N, Target = Box<T>>,
     N: Unsigned,
 {
@@ -101,7 +101,7 @@ impl<'i, O: Debug> Debug for BoxObserver<'i, O> {
 
 impl<'i, O, N, T: ?Sized, U: ?Sized> PartialEq<U> for BoxObserver<'i, O>
 where
-    O: Observer<'i, UpperDepth = Succ<N>>,
+    O: Observer<'i, InnerDepth = Succ<N>>,
     O::Head: AsDerefMut<N, Target = Box<T>>,
     N: Unsigned,
     Box<T>: PartialEq<U>,
@@ -113,7 +113,7 @@ where
 
 impl<'i, O, N, T: ?Sized, U: ?Sized> PartialOrd<U> for BoxObserver<'i, O>
 where
-    O: Observer<'i, UpperDepth = Succ<N>>,
+    O: Observer<'i, InnerDepth = Succ<N>>,
     O::Head: AsDerefMut<N, Target = Box<T>>,
     N: Unsigned,
     Box<T>: PartialOrd<U>,
@@ -146,7 +146,7 @@ where
 #[doc(hidden)]
 pub trait BoxObserveImpl<T: Observe, Spec> {
     /// The observer type for [`Box<T>`] with the given specification.
-    type Observer<'i, S, N>: Observer<'i, Head = S, UpperDepth = N>
+    type Observer<'i, S, N>: Observer<'i, Head = S, InnerDepth = N>
     where
         T: 'i,
         N: Unsigned,

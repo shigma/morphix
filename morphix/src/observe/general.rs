@@ -179,8 +179,8 @@ where
     S: AsDerefMut<N> + 'i,
     H: GeneralHandler<S::Target>,
 {
-    type UpperDepth = N;
-    type LowerDepth = Zero;
+    type InnerDepth = N;
+    type OuterDepth = Zero;
     type Head = S;
 
     fn observe(value: &'i mut Self::Head) -> Self {

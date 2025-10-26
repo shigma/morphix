@@ -287,8 +287,8 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             for #ob_ident #ob_type_generics
             where #ob_observer_where_predicates {
                 type Head = __S;
-                type UpperDepth = __N;
-                type LowerDepth = ::morphix::helper::Zero;
+                type InnerDepth = __N;
+                type OuterDepth = ::morphix::helper::Zero;
 
                 fn observe(value: &'morphix mut __S) -> Self {
                     let __ptr = ::morphix::observe::ObserverPointer::new(value);
