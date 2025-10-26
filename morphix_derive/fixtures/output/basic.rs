@@ -13,8 +13,8 @@ const _: () = {
         __ptr: ::morphix::observe::ObserverPointer<__S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'morphix mut __N>,
-        pub a: ::morphix::helper::DefaultObserver<'morphix, i32>,
-        pub b: ::morphix::helper::DefaultObserver<'morphix, String>,
+        pub a: ::morphix::observe::DefaultObserver<'morphix, i32>,
+        pub b: ::morphix::observe::DefaultObserver<'morphix, String>,
     }
     #[automatically_derived]
     impl ::morphix::Observe for Foo
@@ -31,8 +31,8 @@ const _: () = {
     #[automatically_derived]
     impl<'morphix, __S: ?Sized, __N> Default for FooObserver<'morphix, __S, __N>
     where
-        ::morphix::helper::DefaultObserver<'morphix, i32>: Default,
-        ::morphix::helper::DefaultObserver<'morphix, String>: Default,
+        ::morphix::observe::DefaultObserver<'morphix, i32>: Default,
+        ::morphix::observe::DefaultObserver<'morphix, String>: Default,
     {
         fn default() -> Self {
             Self {
@@ -94,11 +94,11 @@ const _: () = {
         Foo: ::serde::Serialize,
         __N: ::morphix::helper::Unsigned,
         __S: ::morphix::helper::AsDerefMut<__N, Target = Foo> + 'morphix,
-        ::morphix::helper::DefaultObserver<
+        ::morphix::observe::DefaultObserver<
             'morphix,
             i32,
         >: ::morphix::observe::SerializeObserver<'morphix>,
-        ::morphix::helper::DefaultObserver<
+        ::morphix::observe::DefaultObserver<
             'morphix,
             String,
         >: ::morphix::observe::SerializeObserver<'morphix>,

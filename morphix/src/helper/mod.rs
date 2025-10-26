@@ -15,8 +15,6 @@
 //! Items in this module are considered internal implementation details and may change between minor
 //! versions without notice. Use at your own risk.
 
-use crate::Observe;
-
 pub mod deref;
 pub mod unsigned;
 
@@ -112,6 +110,3 @@ impl<T> Assignable for &mut T {
 // impl<'i, T: crate::observe::Observer<'i, UpperDepth = Zero>> Assignable for T {
 //     type Depth = T::LowerDepth;
 // }
-
-#[doc(hidden)]
-pub type DefaultObserver<'i, T> = <T as Observe>::Observer<'i, T, Zero>;

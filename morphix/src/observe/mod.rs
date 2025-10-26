@@ -308,3 +308,6 @@ impl<'i, T: SerializeObserver<'i>> SerializeObserverExt<'i> for T {}
 /// All `#[derive(Observe)]` implementations use `DefaultSpec` unless overridden with field
 /// attributes.
 pub struct DefaultSpec;
+
+#[doc(hidden)]
+pub type DefaultObserver<'i, T> = <T as Observe>::Observer<'i, T, Zero>;
