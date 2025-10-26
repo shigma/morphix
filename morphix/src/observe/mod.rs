@@ -30,8 +30,6 @@
 //! field-level control. Direct use of types from this module is typically only needed for advanced
 //! use cases.
 
-use serde::Serialize;
-
 use crate::helper::{AsDeref, AsDerefCoinductive, AsDerefMut, Pointer, Succ, Unsigned, Zero};
 use crate::{Adapter, Mutation};
 
@@ -79,7 +77,7 @@ pub use snapshot::{SnapshotObserver, SnapshotSpec};
 ///     data.field.push_str(" modified");
 /// });
 /// ```
-pub trait Observe: Serialize {
+pub trait Observe {
     /// Associated observer type.
     ///
     /// This associated type specifies the *default* observer implementation for the type, when used
