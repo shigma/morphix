@@ -15,7 +15,7 @@ impl Parse for ObserveArguments {
 
 #[derive(Default)]
 struct ObserveMeta {
-    ob_ident: Option<syn::Ident>,
+    ob_with_spec: Option<(syn::Ident, syn::Ident, Punctuated<syn::TypeParamBound, syn::Token![+]>)>,
 }
 
 impl ObserveMeta {
@@ -41,13 +41,29 @@ impl ObserveMeta {
             };
             for ident in args.0 {
                 if ident == "hash" {
-                    meta.ob_ident = Some(syn::Ident::new("HashObserver", ident.span()));
+                    meta.ob_with_spec = Some((
+                        syn::Ident::new("HashObserver", ident.span()),
+                        syn::Ident::new("HashSpec", ident.span()),
+                        syn::parse_quote! { ::std::hash::Hash },
+                    ));
                 } else if ident == "noop" {
-                    meta.ob_ident = Some(syn::Ident::new("NoopObserver", ident.span()));
+                    meta.ob_with_spec = Some((
+                        syn::Ident::new("NoopObserver", ident.span()),
+                        syn::Ident::new("DefaultSpec", ident.span()),
+                        Default::default(),
+                    ));
                 } else if ident == "shallow" {
-                    meta.ob_ident = Some(syn::Ident::new("ShallowObserver", ident.span()));
+                    meta.ob_with_spec = Some((
+                        syn::Ident::new("ShallowObserver", ident.span()),
+                        syn::Ident::new("DefaultSpec", ident.span()),
+                        Default::default(),
+                    ));
                 } else if ident == "snapshot" {
-                    meta.ob_ident = Some(syn::Ident::new("SnapshotObserver", ident.span()));
+                    meta.ob_with_spec = Some((
+                        syn::Ident::new("SnapshotObserver", ident.span()),
+                        syn::Ident::new("SnapshotSpec", ident.span()),
+                        syn::parse_quote! { ::std::clone::Clone + ::std::cmp::PartialEq },
+                    ));
                 } else {
                     errors.push(syn::Error::new(
                         ident.span(),
@@ -67,16 +83,27 @@ pub fn derive_observe(input: syn::DeriveInput) -> TokenStream {
     if !errors.is_empty() {
         return errors.into_iter().map(|error| error.to_compile_error()).collect();
     }
-    if let Some(ob_ident) = input_meta.ob_ident {
-        let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
+    if let Some((ob_ident, spec_ident, bounds)) = input_meta.ob_with_spec {
+        let mut where_predicates = match &input.generics.where_clause {
+            Some(where_clause) => where_clause.predicates.clone(),
+            None => Default::default(),
+        };
+        if !bounds.is_empty() {
+            where_predicates.push(syn::parse_quote! { Self: #bounds });
+        }
+        let (impl_generics, type_generics, _) = input.generics.split_for_impl();
         return quote! {
             const _: () = {
                 #[automatically_derived]
-                impl #impl_generics ::morphix::Observe for #input_ident #type_generics #where_clause {
-                    type Observer<'morphix>
-                        = ::morphix::observe::#ob_ident<'morphix, Self>
+                impl #impl_generics ::morphix::Observe for #input_ident #type_generics where #where_predicates {
+                    type Observer<'morphix, __S, __N>
+                        = ::morphix::observe::#ob_ident<'morphix, __S, __N>
                     where
-                        Self: 'morphix;
+                        Self: 'morphix,
+                        __N: ::morphix::helper::Unsigned,
+                        __S: ::morphix::helper::AsDerefMut<__N, Target = Self> + ?Sized + 'morphix;
+
+                    type Spec = ::morphix::observe::#spec_ident;
                 }
             };
         };
@@ -139,7 +166,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> TokenStream {
                 field_cloned.attrs = vec![];
                 let field_span = field_cloned.span();
                 let field_ty = &field.ty;
-                let ob_field_ty = match &field_meta.ob_ident {
+                let ob_field_ty = match &field_meta.ob_with_spec {
                     None => {
                         inst_fields.push(quote_spanned! { field_span =>
                             #field_ident: ::morphix::observe::ObserveExt::observe(&mut __value.#field_ident),
@@ -148,7 +175,7 @@ pub fn derive_observe(input: syn::DeriveInput) -> TokenStream {
                             ::morphix::helper::DefaultObserver<'morphix, #field_ty>
                         }
                     }
-                    Some(ob_ident) => {
+                    Some((ob_ident, _, _)) => {
                         inst_fields.push(quote_spanned! { field_span =>
                             #field_ident: ::morphix::observe::#ob_ident::<'morphix, #field_ty>::observe(
                                 &mut __value.#field_ident
