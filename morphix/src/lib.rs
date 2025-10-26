@@ -1,3 +1,4 @@
+#![allow(rustdoc::private_intra_doc_links)]
 #![doc = include_str!("../README.md")]
 
 mod adapter;

@@ -92,7 +92,7 @@ impl<T: Clone + PartialEq> DebugHandler<T> for SnapshotHandler<T> {
 /// Snapshot-based observation specification.
 ///
 /// `SnapshotSpec` marks a type as supporting efficient snapshot comparison (requires [`Clone`] +
-/// [`PartialEq`]). When used as the [`Spec`](crate::Observer::Spec) for a type `T`, it affects
+/// [`PartialEq`]). When used as the [`Spec`](crate::Observe::Spec) for a type `T`, it affects
 /// certain wrapper type observations, such as [`Option<T>`].
 pub struct SnapshotSpec;
 

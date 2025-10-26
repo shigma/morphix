@@ -220,7 +220,7 @@ pub enum MutationKind<A: Adapter> {
     ///
     /// ## Optimization
     ///
-    /// The batch collector ([`Batch`](crate::Batch)) automatically optimizes mutations:
+    /// The batch collector ([`BatchTree`](crate::BatchTree)) automatically optimizes mutations:
     /// - Consecutive appends are merged
     /// - Redundant changes are eliminated
     /// - Nested paths are consolidated when possible

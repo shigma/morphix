@@ -88,9 +88,9 @@ impl<T: Hash, H: Hasher + Default> DebugHandler<T> for HashHandler<H> {
 
 /// Hash-based observation specification.
 ///
-/// `HashSpec` marks a type as supporting change detection via hashing (requires [`Hash`]).  When
-/// used as the [`Spec`](crate::Observer::Spec) for a type `T`, it affects certain wrapper type
-/// observations, such as [`Option<T>`].
+/// `HashSpec` marks a type as supporting change detection via hashing (requires [`Hash`]). When
+/// used as the [`Spec`](crate::Observe::Spec) for a type `T`, it affects certain wrapper
+/// type observations, such as [`Option<T>`].
 pub struct HashSpec;
 
 impl<T> BoxObserveImpl<T, HashSpec> for T

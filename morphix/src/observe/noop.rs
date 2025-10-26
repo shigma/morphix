@@ -3,8 +3,8 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 
 /// A general observer that never reports changes.
 ///
-/// `NoopObserver` is a no-operation [`Observer`](crate::Observer) that always returns `None` when
-/// collecting changes, effectively ignoring all mutations to the observed value.
+/// `NoopObserver` is a no-operation [`Observer`](crate::observe::Observer) that always returns
+/// [`None`] when collecting changes, effectively ignoring all mutations to the observed value.
 ///
 /// ## Derive Usage
 ///

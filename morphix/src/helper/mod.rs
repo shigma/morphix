@@ -27,8 +27,8 @@ pub use unsigned::{Succ, Unsigned, Zero};
 ///
 /// Rust doesn't allow overloading the assignment operator (`=`). This creates a problem for
 /// observers: when you write `observer.field = value`, you want to assign to the observed field,
-/// not replace the observer itself. While [`DerefMut`] handles most operations, it doesn't work for
-/// direct assignment due to Rust's assignment semantics.
+/// not replace the observer itself. While [`DerefMut`](std::ops::DerefMut) handles most operations,
+/// it doesn't work for direct assignment due to Rust's assignment semantics.
 ///
 /// ## Autoref-based Specialization
 ///
@@ -36,8 +36,8 @@ pub use unsigned::{Succ, Unsigned, Zero};
 ///
 /// 1. The trait provides a method [`__assign`](Assignable::__assign) with a default implementation
 /// 2. We implement it for `&mut T` (all mutable references)
-/// 3. We also implement it for each [`Observer`](crate::Observer) type
-/// 4. The [`observe!`](crate::observe) macro automatically rewrites assignment expressions:
+/// 3. We also implement it for each [`Observer`](crate::observe::Observer) type
+/// 4. The [`observe!`](crate::observe!) macro automatically rewrites assignment expressions:
 ///
 /// ```
 /// # use morphix::helper::Assignable;
@@ -51,24 +51,24 @@ pub use unsigned::{Succ, Unsigned, Zero};
 ///
 /// This transformation ensures assignments work correctly for both regular fields and observed
 /// fields without requiring different syntax:
-/// - For normal values: calls `&mut T` impl, effectively becoming `*(&mut left) = right`
-/// - For observers: calls the observer's impl, properly dereferencing through the observer
+/// - For normal values: calls `&mut T` impl, effectively becoming `*(&mut left) = right`.
+/// - For observers: calls the observer's impl, properly dereferencing through the observer.
 ///
 /// This creates a form of specialization without requiring the unstable specialization feature.
 ///
 /// ## Implementation Notes
 ///
-/// 1. **Every type implementing [`Observer`](crate::Observer) should manually implement
-///    `Assignable`**. Without this implementation, assignments in the [`observe!`](crate::observe)
+/// 1. **Every type implementing [`Observer`](crate::observe::Observer) should manually implement
+///    `Assignable`**. Without this implementation, assignments in the [`observe!`](crate::observe!)
 ///    macro may not work as expected, potentially causing compilation errors or incorrect behavior.
 ///    We cannot provide a blanket implementation `impl<T: Observer> Assignable for T` because it
 ///    would conflict with the `impl<T> Assignable for &mut T` implementation.
 ///
 /// 2. **Do not implement `Assignable` for types other than `&mut T` and
-///    [`Observer`](crate::Observer) types**. Implementing `Assignable` for other [`DerefMut`] types
-///    (like [`Box`], [`MutexGuard`](std::sync::MutexGuard), etc.) may cause unexpected behavior in
-///    the [`observe!`](crate::observe) macro, as it would interfere with the autoref-based
-///    specialization mechanism.
+///    [`Observer`](crate::observe::Observer) types**. Implementing `Assignable` for other
+///    [`DerefMut`](std::ops::DerefMut) types (like [`Box`], [`MutexGuard`](std::sync::MutexGuard),
+///    etc.) may cause unexpected behavior in the [`observe!`](crate::observe!) macro, as it would
+///    interfere with the autoref-based specialization mechanism.
 ///
 /// ## Example
 ///
