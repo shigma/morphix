@@ -74,12 +74,15 @@ pub fn observe(input: TokenStream) -> Result<TokenStream, syn::Error> {
 struct DerefAssign;
 
 impl VisitMut for DerefAssign {
-    fn visit_expr_assign_mut(&mut self, expr_assign: &mut syn::ExprAssign) {
-        syn::visit_mut::visit_expr_assign_mut(self, expr_assign);
-        let left = &expr_assign.left;
-        expr_assign.left = parse_quote! {
-            *(&mut #left).__deref_mut()
-        };
+    fn visit_expr_mut(&mut self, expr: &mut syn::Expr) {
+        if let syn::Expr::Assign(expr_assign) = expr {
+            let left = &expr_assign.left;
+            let right = &expr_assign.right;
+            *expr = parse_quote! {
+                (&mut #left).__assign(#right)
+            };
+        }
+        syn::visit_mut::visit_expr_mut(self, expr);
     }
 }
 

@@ -9,7 +9,7 @@ struct Foo {
 #[rustfmt::skip]
 const _: () = {
     #[allow(private_interfaces)]
-    struct FooObserver<'morphix, __S: ?Sized, __N> {
+    struct FooObserver<'morphix, __S: ?Sized, __N = ::morphix::helper::Zero> {
         __ptr: ::morphix::observe::ObserverPointer<__S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'morphix mut __N>,
@@ -61,8 +61,7 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'morphix, __S: ?Sized, __N> ::morphix::helper::Assignable
-    for FooObserver<'morphix, __S, __N> {
+    impl<'morphix, __S> ::morphix::helper::Assignable for FooObserver<'morphix, __S> {
         type Depth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]

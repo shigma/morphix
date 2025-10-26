@@ -166,11 +166,9 @@ where
     }
 }
 
-impl<'i, H, S: ?Sized, N> Assignable for GeneralObserver<'i, H, S, N>
+impl<'i, H, S> Assignable for GeneralObserver<'i, H, S>
 where
-    N: Unsigned,
-    S: AsDerefMut<N>,
-    H: GeneralHandler<S::Target>,
+    H: GeneralHandler<S>,
 {
     type Depth = Succ<Zero>;
 }

@@ -6,6 +6,9 @@
 //! ## Contents
 //!
 //! - [`Assignable`] - Enables assignment operations on observers via autoref-based specialization
+//! - [`Unsigned`], [`Zero`], [`Succ`] - Type-level natural numbers for compile-time depth tracking
+//! - [`AsDeref`], [`AsDerefMut`] - Inductive recursive dereferencing
+//! - [`AsDerefCoinductive`], [`AsDerefMutCoinductive`] - Coinductive recursive dereferencing
 //!
 //! ## Stability
 //!
@@ -33,8 +36,7 @@ pub use unsigned::{Succ, Unsigned, Zero};
 ///
 /// `Assignable` uses a technique called autoref-based specialization to solve this:
 ///
-/// 1. The trait provides a method [`__deref_mut`](Assignable::__deref_mut) with a default
-///    implementation
+/// 1. The trait provides a method [`__assign`](Assignable::__assign) with a default implementation
 /// 2. We implement it for `&mut T` (all mutable references)
 /// 3. We also implement it for each [`Observer`](crate::Observer) type
 /// 4. The [`observe!`](crate::observe) macro automatically rewrites assignment expressions:
@@ -46,7 +48,7 @@ pub use unsigned::{Succ, Unsigned, Zero};
 /// value = 42;
 ///
 /// // Macro transforms to:
-/// *(&mut value).__deref_mut() = 42;
+/// (&mut value).__assign(42);
 /// ```
 ///
 /// This transformation ensures assignments work correctly for both regular fields and observed
@@ -89,17 +91,15 @@ pub use unsigned::{Succ, Unsigned, Zero};
 ///     type Depth = Zero;
 /// }
 /// ```
-pub trait Assignable: AsDerefMutCoinductive<Succ<Self::Depth>> {
+pub trait Assignable: AsDerefMutCoinductive<Succ<Self::Depth>, Target: Sized> {
     type Depth: Unsigned;
 
-    /// Internal method for assignment operations. The default implementation simply calls
-    /// [`DerefMut::deref_mut`].
+    /// Internal method for assignment operations.
     ///
-    /// **Do not call directly**. This method is automatically used by the
-    /// [`observe!`](crate::observe) macro.
+    /// This method is automatically used by the [`observe!`](crate::observe) macro.
     #[doc(hidden)]
-    fn __deref_mut(&mut self) -> &mut Self::Target {
-        self.as_deref_mut_coinductive()
+    fn __assign(&mut self, value: Self::Target) {
+        *self.as_deref_mut_coinductive() = value;
     }
 }
 
@@ -109,7 +109,7 @@ impl<T> Assignable for &mut T {
 
 // The impl below will conflict with `&mut T`, so we have to impl `Assignable` for every single
 // `Observer` types.
-// impl<'i, T: Observer<'i>> Assignable for T {
+// impl<'i, T: crate::observe::Observer<'i, UpperDepth = Zero>> Assignable for T {
 //     type Depth = T::LowerDepth;
 // }
 

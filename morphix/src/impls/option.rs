@@ -51,7 +51,7 @@ impl<'i, O, S: ?Sized, N> DerefMut for OptionObserver<'i, O, S, N> {
     }
 }
 
-impl<'i, O, S: ?Sized, N> Assignable for OptionObserver<'i, O, S, N> {
+impl<'i, O, S> Assignable for OptionObserver<'i, O, S> {
     type Depth = Succ<Zero>;
 }
 

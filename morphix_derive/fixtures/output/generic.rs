@@ -8,7 +8,7 @@ struct Foo<T> {
 #[rustfmt::skip]
 const _: () = {
     #[allow(private_interfaces)]
-    struct FooObserver<'morphix, T, __S: ?Sized, __N>
+    struct FooObserver<'morphix, T, __S: ?Sized, __N = ::morphix::helper::Zero>
     where
         T: ::morphix::Observe + 'morphix,
     {
@@ -69,8 +69,8 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'morphix, T, __S: ?Sized, __N> ::morphix::helper::Assignable
-    for FooObserver<'morphix, T, __S, __N>
+    impl<'morphix, T, __S> ::morphix::helper::Assignable
+    for FooObserver<'morphix, T, __S>
     where
         T: ::morphix::Observe,
     {

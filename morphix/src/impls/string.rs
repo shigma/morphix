@@ -62,7 +62,7 @@ impl<'i, S: ?Sized, N> DerefMut for StringObserver<'i, S, N> {
     }
 }
 
-impl<'i, S: ?Sized, N> Assignable for StringObserver<'i, S, N> {
+impl<'i, S> Assignable for StringObserver<'i, S> {
     type Depth = Succ<Zero>;
 }
 

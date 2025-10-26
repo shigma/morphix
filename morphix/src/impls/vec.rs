@@ -70,7 +70,7 @@ impl<'i, O, S: ?Sized, N> DerefMut for VecObserver<'i, O, S, N> {
     }
 }
 
-impl<'i, O, S: ?Sized, N> Assignable for VecObserver<'i, O, S, N> {
+impl<'i, O, S> Assignable for VecObserver<'i, O, S> {
     type Depth = Succ<Zero>;
 }
 
