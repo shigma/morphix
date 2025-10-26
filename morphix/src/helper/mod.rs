@@ -12,8 +12,6 @@
 //! Items in this module are considered internal implementation details and may change between minor
 //! versions without notice. Use at your own risk.
 
-use std::ops::DerefMut;
-
 use crate::Observe;
 
 pub mod deref;
@@ -79,20 +77,23 @@ pub use unsigned::{Succ, Unsigned, Zero};
 /// Implement `Assignable` for a custom observer type:
 ///
 /// ```
-/// # use morphix::helper::Assignable;
-/// # struct MyObserver<'i, T>(&'i mut T);
-/// # impl<'i, T> std::ops::Deref for MyObserver<'i, T> {
+/// # use morphix::helper::{Assignable, Succ, Zero};
+/// # struct MyStruct<'i, T>(&'i mut T);
+/// # impl<'i, T> std::ops::Deref for MyStruct<'i, T> {
 /// #     type Target = T;
 /// #     fn deref(&self) -> &Self::Target { &self.0 }
 /// # }
-/// # impl<'i, T> std::ops::DerefMut for MyObserver<'i, T> {
+/// # impl<'i, T> std::ops::DerefMut for MyStruct<'i, T> {
 /// #     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.0 }
 /// # }
-/// impl<'i, T> Assignable for MyObserver<'i, T> {
-///     // Uses the default implementation which calls DerefMut::deref_mut
+/// impl<'i, T> Assignable for MyStruct<'i, T> {
+///     // Uses the default implementation which calls `DerefMut::deref_mut`
+///     type Depth = Zero;
 /// }
 /// ```
-pub trait Assignable: DerefMut {
+pub trait Assignable: AsDerefMutCoinductive<Succ<Self::Depth>> {
+    type Depth: Unsigned;
+
     /// Internal method for assignment operations. The default implementation simply calls
     /// [`DerefMut::deref_mut`].
     ///
@@ -100,11 +101,19 @@ pub trait Assignable: DerefMut {
     /// [`observe!`](crate::observe) macro.
     #[doc(hidden)]
     fn __deref_mut(&mut self) -> &mut Self::Target {
-        self.deref_mut()
+        self.as_deref_mut_coinductive()
     }
 }
 
-impl<T> Assignable for &mut T {}
+impl<T> Assignable for &mut T {
+    type Depth = Zero;
+}
+
+// The impl below will conflict with `&mut T`, so we have to impl `Assignable` for every single
+// `Observer` types.
+// impl<'i, T: Observer<'i>> Assignable for T {
+//     type Depth = T::LowerDepth;
+// }
 
 #[doc(hidden)]
 pub type DefaultObserver<'i, T> = <T as Observe>::Observer<'i, T, Zero>;

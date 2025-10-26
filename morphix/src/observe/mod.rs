@@ -30,7 +30,7 @@
 //! field-level control. Direct use of types from this module is typically only needed for advanced
 //! use cases.
 
-use crate::helper::{AsDeref, AsDerefCoinductive, AsDerefMut, Pointer, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, Succ, Unsigned, Zero};
 use crate::{Adapter, Mutation};
 
 mod general;
@@ -123,7 +123,7 @@ impl<T: Observe> ObserveExt for T {}
 /// occur.
 pub trait Observer<'i>
 where
-    Self: AsDerefCoinductive<Succ<Self::LowerDepth>, Target = Pointer<Self::Head>>,
+    Self: AsDerefMutCoinductive<Succ<Self::LowerDepth>, Target = Pointer<Self::Head>>,
 {
     type UpperDepth: Unsigned;
     type LowerDepth: Unsigned;
@@ -136,12 +136,11 @@ where
     ///
     /// ## Example
     ///
-    /// ```rust
-    /// use morphix::Observer;
-    /// use morphix::observe::ShallowObserver;
+    /// ```
+    /// use morphix::observe::{Observer, ShallowObserver};
     ///
     /// let mut value = 42;
-    /// let observer = ShallowObserver::observe(&mut value);
+    /// let observer = ShallowObserver::<i32>::observe(&mut value);
     /// ```
     fn observe(value: &'i mut Self::Head) -> Self;
 
@@ -165,14 +164,16 @@ pub trait SerializeObserver<'i>: Observer<'i> {
     /// This method assumes the observer contains a valid (non-null) pointer. Calling this on a
     /// default-constructed observer results in *undefined behavior*.
     ///
-    /// Most users should call [`Observer::collect`] instead, which includes a null pointer check.
+    /// Most users should call [`collect`](SerializeObserver::collect) instead, which includes a
+    /// null pointer check.
     ///
     /// ## Implementation Notes
     ///
-    /// Implementations can safely use [`Deref`](std::ops::Deref) and [`DerefMut`] to access the
-    /// observed value, as this method is only called when the observer contains a valid pointer.
-    /// The observer's [`Deref`](std::ops::Deref) and [`DerefMut`] implementations are guaranteed to
-    /// be safe when `collect_unchecked` is called.
+    /// Implementations can safely use [`Deref`](std::ops::Deref) and
+    /// [`DerefMut`](std::ops::DerefMut) to access the observed value, as this method is only
+    /// called when the observer contains a valid pointer. The observer's
+    /// [`Deref`](std::ops::Deref) and [`DerefMut`](std::ops::DerefMut) implementations are
+    /// guaranteed to be safe when `collect_unchecked` is called.
     ///
     /// ```ignore
     /// unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error> {
@@ -198,20 +199,20 @@ pub trait SerializeObserver<'i>: Observer<'i> {
     ///
     /// ## Example
     ///
-    /// ```rust
-    /// use morphix::{Observer, JsonAdapter};
-    /// use morphix::observe::ShallowObserver;
+    /// ```
+    /// use morphix::JsonAdapter;
+    /// use morphix::observe::{ObserveExt, SerializeObserverExt, ShallowObserver};
     ///
     /// // Normal usage
-    /// let mut value = 42;
-    /// let mut observer = ShallowObserver::observe(&mut value);
-    /// observer += 1;
-    /// let mutation = Observer::collect::<JsonAdapter>(observer).unwrap();
+    /// let mut value = String::from("Hello");
+    /// let mut ob = value.observe();
+    /// ob += " world";
+    /// let mutation = ob.collect::<JsonAdapter>().unwrap();
     /// assert!(mutation.is_some());
     ///
     /// // Safe handling of default-constructed observer
-    /// let empty: ShallowObserver<i32> = Default::default();
-    /// let result = Observer::collect::<JsonAdapter>(empty).unwrap();
+    /// let mut empty: ShallowObserver<i32> = Default::default();
+    /// let result = empty.collect::<JsonAdapter>().unwrap();
     /// assert_eq!(result, None);   // Returns None instead of panicking
     /// ```
     fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
@@ -222,15 +223,17 @@ pub trait SerializeObserver<'i>: Observer<'i> {
     }
 }
 
-#[cfg(test)]
 pub trait SerializeObserverExt<'i>: SerializeObserver<'i> {
     #[inline]
     fn collect<A: Adapter>(&mut self) -> Result<Option<Mutation<A>>, <A>::Error> {
         SerializeObserver::collect(self)
     }
+    #[inline]
+    fn collect1<A: Adapter>(&mut self) -> Result<Option<Mutation<A>>, <A>::Error> {
+        SerializeObserver::collect(self)
+    }
 }
 
-#[cfg(test)]
 impl<'i, T: SerializeObserver<'i>> SerializeObserverExt<'i> for T {}
 
 /// Default observation specification.

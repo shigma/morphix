@@ -28,7 +28,12 @@ impl<'i, O> DerefMut for BoxObserver<'i, O> {
     }
 }
 
-impl<'i, O> Assignable for BoxObserver<'i, O> {}
+impl<'i, O> Assignable for BoxObserver<'i, O>
+where
+    O: Observer<'i>,
+{
+    type Depth = Succ<O::LowerDepth>;
+}
 
 impl<'i, O, N, T: ?Sized> Observer<'i> for BoxObserver<'i, O>
 where

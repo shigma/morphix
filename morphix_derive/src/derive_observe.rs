@@ -268,6 +268,13 @@ pub fn derive_observe(input: syn::DeriveInput) -> TokenStream {
             }
 
             #[automatically_derived]
+            impl #ob_impl_generics ::morphix::helper::Assignable
+            for #ob_ident #ob_type_generics
+            where #ob_where_predicates {
+                type Depth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+            }
+
+            #[automatically_derived]
             impl #ob_impl_generics ::morphix::observe::Observer<'morphix>
             for #ob_ident #ob_type_generics
             where #ob_impl_observer_where_predicates {

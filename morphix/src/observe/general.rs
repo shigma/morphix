@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::helper::Assignable;
+use crate::helper::{Assignable, Succ};
 use crate::observe::{AsDerefMut, Observer, Pointer, SerializeObserver, Unsigned, Zero};
 use crate::{Adapter, Mutation, MutationKind};
 
@@ -49,7 +49,7 @@ use crate::{Adapter, Mutation, MutationKind};
 ///     }
 /// }
 ///
-/// type ShallowObserver<T> = GeneralObserver<'i, T, ShallowHandler>;
+/// type ShallowObserver<'i, T> = GeneralObserver<'i, T, ShallowHandler>;
 /// ```
 pub trait GeneralHandler<T: ?Sized> {
     /// Associated specification type for [`GeneralObserver`].
@@ -72,16 +72,14 @@ pub trait GeneralHandler<T: ?Sized> {
 ///
 /// ## Example
 ///
-/// ```rust
-/// use morphix::observe::{DebugHandler, GeneralHandler, GeneralObserver};
-/// # use morphix::observe::DefaultSpec;
-/// use morphix::Observer;
+/// ```
+/// use morphix::observe::{DebugHandler, GeneralHandler, GeneralObserver, Observer};
 ///
 /// pub struct MyHandler;
 ///
 /// impl<T> GeneralHandler<T> for MyHandler {
 ///     // omitted for brevity
-/// #   type Spec = DefaultSpec;
+/// #   type Spec = morphix::observe::DefaultSpec;
 /// #   fn on_observe(_value: &mut T) -> Self { MyHandler }
 /// #   fn on_deref_mut(&mut self) {}
 /// #   fn on_collect(&self, _value: &T) -> bool { true }
@@ -92,7 +90,7 @@ pub trait GeneralHandler<T: ?Sized> {
 /// }
 ///
 /// let mut value = 123;
-/// let ob = GeneralObserver::<_, MyHandler>::observe(&mut value);
+/// let ob = GeneralObserver::<MyHandler, i32>::observe(&mut value);
 /// println!("{:?}", ob); // prints: MyObserver(123)
 /// ```
 pub trait DebugHandler<T: ?Sized>: GeneralHandler<T> {
@@ -174,6 +172,7 @@ where
     S: AsDerefMut<N>,
     H: GeneralHandler<S::Target>,
 {
+    type Depth = Succ<Zero>;
 }
 
 impl<'i, H, S: ?Sized, N> Observer<'i> for GeneralObserver<'i, H, S, N>

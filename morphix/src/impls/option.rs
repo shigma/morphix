@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, Assignable, Pointer, Unsigned, Zero};
+use crate::helper::{AsDerefMut, Assignable, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
@@ -47,7 +47,9 @@ impl<'i, O, S: ?Sized, N> DerefMut for OptionObserver<'i, O, S, N> {
     }
 }
 
-impl<'i, O, S: ?Sized, N> Assignable for OptionObserver<'i, O, S, N> {}
+impl<'i, O, S: ?Sized, N> Assignable for OptionObserver<'i, O, S, N> {
+    type Depth = Succ<Zero>;
+}
 
 impl<'i, O, S: ?Sized, N, T> Observer<'i> for OptionObserver<'i, O, S, N>
 where
@@ -278,7 +280,7 @@ mod tests {
     fn insert_returns_observer() {
         let mut opt: Option<String> = None;
         let mut ob = opt.observe();
-        let s: &mut StringObserver<'_, _, _> = ob.insert(String::from("99")); // assert type
+        let s: &mut StringObserver<_, _> = ob.insert(String::from("99")); // assert type
         *s += "9";
         let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!("999")));
@@ -320,9 +322,9 @@ mod tests {
     #[test]
     fn specialization() {
         let mut opt = Some(0i32);
-        let _ob: GeneralObserver<'_, _, _, _> = opt.observe(); // assert type
+        let _ob: GeneralObserver<_, _, _> = opt.observe(); // assert type
 
         let mut opt = Some(Number(0));
-        let _ob: OptionObserver<'_, _, _, _> = opt.observe(); // assert type
+        let _ob: OptionObserver<_, _, _> = opt.observe(); // assert type
     }
 }

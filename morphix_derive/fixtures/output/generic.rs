@@ -69,6 +69,14 @@ const _: () = {
         }
     }
     #[automatically_derived]
+    impl<'morphix, T, __S: ?Sized, __N> ::morphix::helper::Assignable
+    for FooObserver<'morphix, T, __S, __N>
+    where
+        T: ::morphix::Observe,
+    {
+        type Depth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+    }
+    #[automatically_derived]
     impl<'morphix, T, __S: ?Sized, __N> ::morphix::observe::Observer<'morphix>
     for FooObserver<'morphix, T, __S, __N>
     where

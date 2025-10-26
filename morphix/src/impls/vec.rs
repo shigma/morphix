@@ -8,7 +8,7 @@ use std::slice::SliceIndex;
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, Assignable, Pointer, Unsigned, Zero};
+use crate::helper::{AsDerefMut, Assignable, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe, PathSegment};
 
@@ -80,7 +80,9 @@ impl<'i, O, S: ?Sized, N> DerefMut for VecObserver<'i, O, S, N> {
     }
 }
 
-impl<'i, O, S: ?Sized, N> Assignable for VecObserver<'i, O, S, N> {}
+impl<'i, O, S: ?Sized, N> Assignable for VecObserver<'i, O, S, N> {
+    type Depth = Succ<Zero>;
+}
 
 impl<'i, O, S: ?Sized, N, T> Observer<'i> for VecObserver<'i, O, S, N>
 where

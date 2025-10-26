@@ -2,7 +2,7 @@ use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::ops::{AddAssign, Deref, DerefMut};
 
-use crate::helper::{AsDerefMut, Assignable, Pointer, Unsigned, Zero};
+use crate::helper::{AsDerefMut, Assignable, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
@@ -70,7 +70,9 @@ impl<'i, S: ?Sized, N> DerefMut for StringObserver<'i, S, N> {
     }
 }
 
-impl<'i, S: ?Sized, N> Assignable for StringObserver<'i, S, N> {}
+impl<'i, S: ?Sized, N> Assignable for StringObserver<'i, S, N> {
+    type Depth = Succ<Zero>;
+}
 
 impl<'i, S: ?Sized, N> Observer<'i> for StringObserver<'i, S, N>
 where
