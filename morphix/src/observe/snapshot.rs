@@ -2,7 +2,6 @@ use std::mem::MaybeUninit;
 
 use crate::Observe;
 use crate::helper::{AsDeref, Zero};
-use crate::impls::array::ArrayObserveImpl;
 use crate::impls::boxed::BoxObserveImpl;
 use crate::impls::option::OptionObserveImpl;
 use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
@@ -119,18 +118,6 @@ impl_observe! {
     ::core::net::IpAddr, ::core::net::Ipv4Addr, ::core::net::Ipv6Addr,
     ::core::net::SocketAddr, ::core::net::SocketAddrV4, ::core::net::SocketAddrV6,
     ::core::time::Duration, ::std::time::SystemTime,
-}
-
-impl<T, const N: usize> ArrayObserveImpl<T, N, SnapshotSpec> for T
-where
-    T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
-{
-    type Observer<'i, S, D>
-        = SnapshotObserver<'i, S, D>
-    where
-        T: 'i,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = [T; N]> + ?Sized + 'i;
 }
 
 impl<T> BoxObserveImpl<T, SnapshotSpec> for T

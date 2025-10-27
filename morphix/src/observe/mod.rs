@@ -173,9 +173,8 @@ impl<T: Observe> ObserveExt for T {}
 ///
 /// See the [module documentation](self) for more details about how observers work with dereference
 /// chains.
-pub trait Observer<'i>
+pub trait Observer<'i>: Default
 where
-    Self: Default,
     Self: AsDerefMutCoinductive<Succ<Self::OuterDepth>, Target = ObserverPointer<Self::Head>>,
 {
     /// Type-level number of dereferences from `Head` to the observed type.

@@ -135,7 +135,10 @@ pub struct GeneralObserver<'i, H, S: ?Sized, N = Zero> {
     phantom: PhantomData<&'i mut N>,
 }
 
-impl<'i, H: Default, S: ?Sized, N> Default for GeneralObserver<'i, H, S, N> {
+impl<'i, H, S: ?Sized, N> Default for GeneralObserver<'i, H, S, N>
+where
+    H: Default,
+{
     #[inline]
     fn default() -> Self {
         Self {

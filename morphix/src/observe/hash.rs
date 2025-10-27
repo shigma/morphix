@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 
 use crate::Observe;
 use crate::helper::Zero;
-use crate::impls::array::ArrayObserveImpl;
 use crate::impls::boxed::BoxObserveImpl;
 use crate::impls::option::OptionObserveImpl;
 use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
@@ -93,18 +92,6 @@ impl<T: Hash, H: Hasher + Default> DebugHandler<T> for HashHandler<H> {
 /// used as the [`Spec`](crate::Observe::Spec) for a type `T`, it affects certain wrapper
 /// type observations, such as [`Option<T>`].
 pub struct HashSpec;
-
-impl<T, const N: usize> ArrayObserveImpl<T, N, HashSpec> for T
-where
-    T: Hash + Observe<Spec = HashSpec>,
-{
-    type Observer<'i, S, D>
-        = HashObserver<'i, S, D>
-    where
-        T: 'i,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = [T; N]> + ?Sized + 'i;
-}
 
 impl<T> BoxObserveImpl<T, HashSpec> for T
 where
