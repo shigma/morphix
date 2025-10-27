@@ -2,8 +2,7 @@ use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem::take;
-use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
-use std::slice::SliceIndex;
+use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
@@ -22,7 +21,7 @@ enum MutationState {
 /// complete replacements for efficiency.
 pub struct SliceObserver<'i, O, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
-    obs: UnsafeCell<Vec<O>>,
+    pub(super) obs: UnsafeCell<Vec<O>>,
     mutation: Option<MutationState>,
     phantom: PhantomData<&'i mut D>,
 }
@@ -103,29 +102,27 @@ where
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         let mut mutations = vec![];
-        let mut max_index = None;
+        let mut max_index = usize::MAX;
         if let Some(mutation) = this.mutation.take() {
             mutations.push(Mutation {
                 path: Default::default(),
                 kind: match mutation {
-                    MutationState::Replace => MutationKind::Replace(A::serialize_value(this.as_deref())?),
+                    MutationState::Replace => {
+                        max_index = 0;
+                        MutationKind::Replace(A::serialize_value(this.as_deref())?)
+                    }
                     MutationState::Append(start_index) => {
-                        max_index = Some(start_index);
+                        max_index = start_index;
                         MutationKind::Append(A::serialize_value(&this.as_deref()[start_index..])?)
                     }
                 },
             });
         };
-        let obs = take(unsafe { &mut *this.obs.get() });
-        for (index, mut observer) in obs.into_iter().enumerate() {
-            if let Some(max_index) = max_index
-                && index >= max_index
-            {
-                // already included in append
-                continue;
-            }
-            if let Some(mut mutation) = SerializeObserver::collect::<A>(&mut observer)? {
-                mutation.path.push(PathSegment::NegIndex(this.as_deref().len() - index));
+        let len = this.as_deref().len();
+        let obs = unsafe { &mut *this.obs.get() };
+        for (index, observer) in obs.iter_mut().take(max_index).enumerate() {
+            if let Some(mut mutation) = SerializeObserver::collect::<A>(observer)? {
+                mutation.path.push(PathSegment::NegIndex(len - index));
                 mutations.push(mutation);
             }
         }
@@ -169,98 +166,6 @@ where
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
         self.as_deref().partial_cmp(other)
-    }
-}
-
-pub(super) trait SliceIndexImpl<'i, T, O, Output: ?Sized> {
-    #[track_caller]
-    #[expect(clippy::mut_from_ref)]
-    fn index_impl<'j, S, D>(this: &'j SliceObserver<'i, O, S, D>, index: Self) -> &'j mut Output
-    where
-        D: Unsigned,
-        S: AsDerefMut<D, Target = [T]> + ?Sized + 'i;
-}
-
-impl<'i, O, S: ?Sized, D, T, I, Output: ?Sized> Index<I> for SliceObserver<'i, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = [T]> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    I: SliceIndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
-{
-    type Output = Output;
-
-    fn index(&self, index: I) -> &Self::Output {
-        SliceIndexImpl::index_impl(self, index)
-    }
-}
-
-impl<'i, O, S: ?Sized, D, T, I, Output: ?Sized> IndexMut<I> for SliceObserver<'i, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = [T]> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    I: SliceIndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
-{
-    fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        SliceIndexImpl::index_impl(self, index)
-    }
-}
-
-impl<'i, O, T> SliceIndexImpl<'i, T, O, O> for usize
-where
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    T: 'i,
-{
-    fn index_impl<'j, S, D>(this: &'j SliceObserver<'i, O, S, D>, index: Self) -> &'j mut O
-    where
-        D: Unsigned,
-        S: AsDerefMut<D, Target = [T]> + ?Sized + 'i,
-    {
-        let value = &mut Observer::as_inner(this)[index];
-        let obs = unsafe { &mut *this.obs.get() };
-        if index >= obs.len() {
-            obs.resize_with(index + 1, Default::default);
-        }
-        if *O::as_ptr(&obs[index]) != ObserverPointer::new(value) {
-            obs[index] = O::observe(value);
-        }
-        &mut obs[index]
-    }
-}
-
-impl<'i, O, T, I> SliceIndexImpl<'i, T, O, [O]> for I
-where
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    T: 'i,
-    I: RangeBounds<usize> + SliceIndex<[O], Output = [O]>,
-{
-    fn index_impl<'j, S, D>(this: &'j SliceObserver<'i, O, S, D>, index: Self) -> &'j mut [O]
-    where
-        D: Unsigned,
-        S: AsDerefMut<D, Target = [T]> + ?Sized + 'i,
-    {
-        let obs = unsafe { &mut *this.obs.get() };
-        let start = match index.start_bound() {
-            Bound::Included(&start) => start,
-            Bound::Excluded(&start) => start + 1,
-            Bound::Unbounded => 0,
-        };
-        let end = match index.end_bound() {
-            Bound::Included(&end) => end + 1,
-            Bound::Excluded(&end) => end,
-            Bound::Unbounded => this.as_deref().len(),
-        };
-        if end > obs.len() {
-            obs.resize_with(end, Default::default);
-        }
-        for (i, obs_item) in obs[start..end].iter_mut().enumerate() {
-            let value = &mut Observer::as_inner(this)[start + i];
-            if *O::as_ptr(obs_item) != ObserverPointer::new(value) {
-                *obs_item = O::observe(value);
-            }
-        }
-        &mut obs[index]
     }
 }
 

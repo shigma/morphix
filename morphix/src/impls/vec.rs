@@ -1,12 +1,11 @@
 use std::collections::TryReserveError;
 use std::fmt::Debug;
-use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
-use std::slice::SliceIndex;
+use std::ops::{Deref, DerefMut, RangeBounds};
 
 use serde::Serialize;
 
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
-use crate::impls::slice::{SliceIndexImpl, SliceObserver};
+use crate::impls::slice::SliceObserver;
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
@@ -196,32 +195,6 @@ where
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
         self.as_deref().partial_cmp(other)
-    }
-}
-
-impl<'i, O, S: ?Sized, D, T, I, Output: ?Sized> Index<I> for VecObserver<'i, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    I: SliceIndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
-{
-    type Output = Output;
-
-    fn index(&self, index: I) -> &Self::Output {
-        SliceIndexImpl::index_impl(self, index)
-    }
-}
-
-impl<'i, O, S: ?Sized, D, T, I, Output: ?Sized> IndexMut<I> for VecObserver<'i, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    I: SliceIndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
-{
-    fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        SliceIndexImpl::index_impl(self, index)
     }
 }
 

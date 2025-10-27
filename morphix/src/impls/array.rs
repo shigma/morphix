@@ -1,5 +1,6 @@
 use std::array::from_fn;
 use std::cell::UnsafeCell;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
@@ -11,7 +12,7 @@ use crate::{Adapter, Mutation, MutationKind, Observe, PathSegment};
 
 pub struct ArrayObserver<'i, const N: usize, O, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
-    obs: UnsafeCell<[O; N]>,
+    pub(super) obs: UnsafeCell<[O; N]>,
     is_replaced: bool,
     phantom: PhantomData<&'i mut D>,
 }
@@ -103,6 +104,45 @@ where
             }
         }
         Ok(Mutation::coalesce(mutations))
+    }
+}
+
+impl<'i, const N: usize, O, S: ?Sized, D, T> Debug for ArrayObserver<'i, N, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    T: Debug,
+{
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("ArrayObserver").field(self.as_deref()).finish()
+    }
+}
+
+impl<'i, const N: usize, O, S: ?Sized, D, T, U> PartialEq<U> for ArrayObserver<'i, N, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    [T; N]: PartialEq<U>,
+{
+    #[inline]
+    fn eq(&self, other: &U) -> bool {
+        self.as_deref().eq(other)
+    }
+}
+
+impl<'i, const N: usize, O, S: ?Sized, D, T, U> PartialOrd<U> for ArrayObserver<'i, N, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    [T; N]: PartialOrd<U>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
+        self.as_deref().partial_cmp(other)
     }
 }
 
