@@ -15,7 +15,7 @@ enum MutationState {
     Append(usize),
 }
 
-/// An observer for [`[T]`] that tracks both replacements and appends.
+/// An observer for [`[T]`](core::slice) that tracks both replacements and appends.
 ///
 /// `SliceObserver` provides special handling for vector append operations, distinguishing them from
 /// complete replacements for efficiency.

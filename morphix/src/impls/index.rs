@@ -16,9 +16,9 @@ where
     fn as_obs(this: &Self, max_len: usize) -> &mut [O];
 }
 
-trait SliceIndexImpl<'i, T, O, Output: ?Sized>
+trait SliceIndexImpl<'i, O, Output: ?Sized>
 where
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
     #[track_caller]
     #[expect(clippy::mut_from_ref)]
@@ -27,10 +27,9 @@ where
         P: SliceObserverImpl<'i, O>;
 }
 
-impl<'i, O, T> SliceIndexImpl<'i, T, O, O> for usize
+impl<'i, O> SliceIndexImpl<'i, O, O> for usize
 where
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    T: 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized + 'i>,
 {
     fn index_impl<P>(this: &P, index: Self) -> &mut O
     where
@@ -45,10 +44,9 @@ where
     }
 }
 
-impl<'i, O, T, I> SliceIndexImpl<'i, T, O, [O]> for I
+impl<'i, O, I> SliceIndexImpl<'i, O, [O]> for I
 where
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    T: 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized + 'i>,
     I: RangeBounds<usize> + SliceIndex<[O], Output = [O]>,
 {
     fn index_impl<P>(this: &P, index: Self) -> &mut [O]
@@ -80,11 +78,11 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T> SliceObserverImpl<'i, O> for SliceObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D> SliceObserverImpl<'i, O> for SliceObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T]> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    S: AsDerefMut<D, Target = [O::Head]> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
     fn as_obs(this: &Self, len: usize) -> &mut [O] {
@@ -96,11 +94,11 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T> SliceObserverImpl<'i, O> for ArrayObserver<'i, N, O, S, D>
+impl<'i, const N: usize, O, S: ?Sized, D> SliceObserverImpl<'i, O> for ArrayObserver<'i, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    S: AsDerefMut<D, Target = [O::Head; N]> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
     fn as_obs(this: &Self, _len: usize) -> &mut [O] {
@@ -109,12 +107,12 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T, I, Output: ?Sized> Index<I> for SliceObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D, I, Output: ?Sized> Index<I> for SliceObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T]> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    I: SliceIndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
+    S: AsDerefMut<D, Target = [O::Head]> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+    I: SliceIndexImpl<'i, O, Output> + SliceIndex<[O], Output = Output>,
 {
     type Output = Output;
 
@@ -123,24 +121,24 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T, I, Output: ?Sized> IndexMut<I> for SliceObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D, I, Output: ?Sized> IndexMut<I> for SliceObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T]> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    I: SliceIndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
+    S: AsDerefMut<D, Target = [O::Head]> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+    I: SliceIndexImpl<'i, O, Output> + SliceIndex<[O], Output = Output>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         SliceIndexImpl::index_impl(self, index)
     }
 }
 
-impl<'i, O, S: ?Sized, D, T, I, Output: ?Sized> Index<I> for VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D, I, Output: ?Sized> Index<I> for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    I: SliceIndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
+    S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+    I: SliceIndexImpl<'i, O, Output> + SliceIndex<[O], Output = Output>,
 {
     type Output = Output;
 
@@ -149,24 +147,24 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T, I, Output: ?Sized> IndexMut<I> for VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D, I, Output: ?Sized> IndexMut<I> for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    I: SliceIndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
+    S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+    I: SliceIndexImpl<'i, O, Output> + SliceIndex<[O], Output = Output>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         SliceIndexImpl::index_impl(&**self, index)
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T, I, Output: ?Sized> Index<I> for ArrayObserver<'i, N, O, S, D>
+impl<'i, const N: usize, O, S: ?Sized, D, I, Output: ?Sized> Index<I> for ArrayObserver<'i, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    I: SliceIndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
+    S: AsDerefMut<D, Target = [O::Head; N]> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+    I: SliceIndexImpl<'i, O, Output> + SliceIndex<[O], Output = Output>,
 {
     type Output = Output;
 
@@ -175,12 +173,12 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T, I, Output: ?Sized> IndexMut<I> for ArrayObserver<'i, N, O, S, D>
+impl<'i, const N: usize, O, S: ?Sized, D, I, Output: ?Sized> IndexMut<I> for ArrayObserver<'i, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    I: SliceIndexImpl<'i, T, O, Output> + SliceIndex<[O], Output = Output>,
+    S: AsDerefMut<D, Target = [O::Head; N]> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+    I: SliceIndexImpl<'i, O, Output> + SliceIndex<[O], Output = Output>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         SliceIndexImpl::index_impl(self, index)

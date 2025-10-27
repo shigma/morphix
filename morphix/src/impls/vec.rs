@@ -1,3 +1,4 @@
+use std::borrow::{Borrow, BorrowMut};
 use std::collections::TryReserveError;
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut, RangeBounds};
@@ -195,6 +196,28 @@ where
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
         self.as_deref().partial_cmp(other)
+    }
+}
+
+impl<'i, O, S: ?Sized, D> Borrow<[O]> for VecObserver<'i, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized + 'i>,
+{
+    fn borrow(&self) -> &[O] {
+        &self[..]
+    }
+}
+
+impl<'i, O, S: ?Sized, D> BorrowMut<[O]> for VecObserver<'i, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized + 'i>,
+{
+    fn borrow_mut(&mut self) -> &mut [O] {
+        &mut self[..]
     }
 }
 

@@ -1,4 +1,5 @@
 use std::array::from_fn;
+use std::borrow::{Borrow, BorrowMut};
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -10,11 +11,33 @@ use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe, PathSegment};
 
+/// An observer for [`[T; N]`](core::array) that tracks both replacements and appends.
+///
+/// `SliceObserver` provides special handling for vector append operations, distinguishing them from
+/// complete replacements for efficiency.
 pub struct ArrayObserver<'i, const N: usize, O, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
     pub(super) obs: UnsafeCell<[O; N]>,
     is_replaced: bool,
     phantom: PhantomData<&'i mut D>,
+}
+
+impl<'i, const N: usize, O, S: ?Sized, D> ArrayObserver<'i, N, O, S, D> {
+    pub fn as_slice(&self) -> &[O] {
+        unsafe { &*self.obs.get() }
+    }
+
+    pub fn as_mut_slice(&mut self) -> &mut [O] {
+        unsafe { &mut *self.obs.get() }
+    }
+
+    pub fn each_ref(&self) -> [&O; N] {
+        unsafe { &*self.obs.get() }.each_ref()
+    }
+
+    pub fn each_mut(&mut self) -> [&mut O; N] {
+        unsafe { &mut *self.obs.get() }.each_mut()
+    }
 }
 
 impl<'i, const N: usize, O, S: ?Sized, D> Default for ArrayObserver<'i, N, O, S, D>
@@ -146,6 +169,34 @@ where
     }
 }
 
+impl<'i, const N: usize, O, S: ?Sized, D> AsRef<[O]> for ArrayObserver<'i, N, O, S, D> {
+    #[inline]
+    fn as_ref(&self) -> &[O] {
+        self.as_slice()
+    }
+}
+
+impl<'i, const N: usize, O, S: ?Sized, D> AsMut<[O]> for ArrayObserver<'i, N, O, S, D> {
+    #[inline]
+    fn as_mut(&mut self) -> &mut [O] {
+        self.as_mut_slice()
+    }
+}
+
+impl<'i, const N: usize, O, S: ?Sized, D> Borrow<[O]> for ArrayObserver<'i, N, O, S, D> {
+    #[inline]
+    fn borrow(&self) -> &[O] {
+        self.as_slice()
+    }
+}
+
+impl<'i, const N: usize, O, S: ?Sized, D> BorrowMut<[O]> for ArrayObserver<'i, N, O, S, D> {
+    #[inline]
+    fn borrow_mut(&mut self) -> &mut [O] {
+        self.as_mut_slice()
+    }
+}
+
 impl<T, const N: usize> Observe for [T; N]
 where
     T: Observe + ArrayObserveImpl<T, N, T::Spec>,
@@ -160,10 +211,10 @@ where
     type Spec = T::Spec;
 }
 
-/// Helper trait for selecting appropriate observer implementations for [`[T; N]`](std::array).
+/// Helper trait for selecting appropriate observer implementations for [`[T; N]`](core::array).
 #[doc(hidden)]
 pub trait ArrayObserveImpl<T: Observe, const N: usize, Spec> {
-    /// The observer type for [`[T; N]`](std::array) with the given specification.
+    /// The observer type for [`[T; N]`](core::array) with the given specification.
     type Observer<'i, S, D>: Observer<'i, Head = S, InnerDepth = D>
     where
         T: 'i,
