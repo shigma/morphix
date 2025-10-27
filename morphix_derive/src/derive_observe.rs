@@ -184,7 +184,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     }
                     Some((ob_ident, _, _)) => {
                         inst_fields.push(quote_spanned! { field_span =>
-                            #field_ident: ::morphix::observe::#ob_ident::<'morphix, #field_ty>::observe(
+                            #field_ident: ::morphix::observe::#ob_ident::<#field_ty>::observe(
                                 &mut __value.#field_ident
                             ),
                         });

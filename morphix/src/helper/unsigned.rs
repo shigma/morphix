@@ -29,7 +29,7 @@ impl Unsigned for Zero {}
 /// - [`Zero`] = 0
 /// - [`Succ<Zero>`] = 1
 /// - [`Succ<Succ<Zero>>`] = 2
-pub struct Succ<N: Unsigned>(PhantomData<N>);
+pub struct Succ<N>(PhantomData<N>);
 
 impl<N: Unsigned> private::Sealed for Succ<N> {}
 impl<N: Unsigned> Unsigned for Succ<N> {}

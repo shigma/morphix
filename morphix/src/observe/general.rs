@@ -75,6 +75,7 @@ pub trait GeneralHandler<T: ?Sized>: Default {
 /// ```
 /// use morphix::observe::{DebugHandler, GeneralHandler, GeneralObserver, Observer};
 ///
+/// #[derive(Default)]
 /// pub struct MyHandler;
 ///
 /// impl<T> GeneralHandler<T> for MyHandler {
