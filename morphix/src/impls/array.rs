@@ -1,5 +1,4 @@
 use std::array::from_fn;
-use std::borrow::{Borrow, BorrowMut};
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -169,34 +168,6 @@ where
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
         self.as_deref().partial_cmp(other)
-    }
-}
-
-impl<'i, const N: usize, O, S: ?Sized, D> AsRef<[O]> for ArrayObserver<'i, N, O, S, D> {
-    #[inline]
-    fn as_ref(&self) -> &[O] {
-        self.as_slice()
-    }
-}
-
-impl<'i, const N: usize, O, S: ?Sized, D> AsMut<[O]> for ArrayObserver<'i, N, O, S, D> {
-    #[inline]
-    fn as_mut(&mut self) -> &mut [O] {
-        self.as_mut_slice()
-    }
-}
-
-impl<'i, const N: usize, O, S: ?Sized, D> Borrow<[O]> for ArrayObserver<'i, N, O, S, D> {
-    #[inline]
-    fn borrow(&self) -> &[O] {
-        self.as_slice()
-    }
-}
-
-impl<'i, const N: usize, O, S: ?Sized, D> BorrowMut<[O]> for ArrayObserver<'i, N, O, S, D> {
-    #[inline]
-    fn borrow_mut(&mut self) -> &mut [O] {
-        self.as_mut_slice()
     }
 }
 

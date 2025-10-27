@@ -1,12 +1,12 @@
-use std::borrow::{Borrow, BorrowMut};
 use std::collections::TryReserveError;
 use std::fmt::Debug;
-use std::ops::{Deref, DerefMut, RangeBounds};
+use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
+use std::slice::SliceIndex;
 
 use serde::Serialize;
 
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
-use crate::impls::slice::SliceObserver;
+use crate::impls::slice::{SliceIndexImpl, SliceObserver};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
@@ -204,27 +204,31 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D> Borrow<[O]> for VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D, I> Index<I> for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
     O: Observer<'i, InnerDepth = Zero>,
     O::Head: Sized,
+    I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
-    fn borrow(&self) -> &[O] {
-        &self[..]
+    type Output = I::Output;
+
+    fn index(&self, index: I) -> &Self::Output {
+        &self.inner[index]
     }
 }
 
-impl<'i, O, S: ?Sized, D> BorrowMut<[O]> for VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D, I> IndexMut<I> for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
     O: Observer<'i, InnerDepth = Zero>,
     O::Head: Sized,
+    I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
-    fn borrow_mut(&mut self) -> &mut [O] {
-        &mut self[..]
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        &mut self.inner[index]
     }
 }
 
