@@ -7,40 +7,78 @@ use crate::impls::slice::SliceObserver;
 use crate::impls::vec::VecObserver;
 use crate::observe::{Observer, ObserverPointer};
 
-trait SliceObserverImpl<'i, O>
+pub trait SliceObserverImpl<'i, O>
 where
     O: Observer<'i, InnerDepth = Zero, Head: Sized>,
     Self: Observer<'i, Head: AsDeref<Self::InnerDepth, Target: AsMut<[O::Head]>>>,
 {
     #[expect(clippy::mut_from_ref)]
-    fn as_obs(this: &Self, max_len: usize) -> &mut [O];
+    unsafe fn as_obs_unchecked(&self, len: usize) -> &mut [O];
+
+    fn as_obs_checked(&mut self, index: usize) -> Option<&mut [O]> {
+        let current_len = Self::as_inner(self).as_mut().len();
+        (current_len > index).then(|| unsafe { Self::as_obs_unchecked(self, index + 1) })
+    }
+
+    fn as_obs_full(&mut self) -> &mut [O] {
+        let len = Self::as_inner(self).as_mut().len();
+        unsafe { Self::as_obs_unchecked(self, len) }
+    }
 }
 
-trait SliceIndexImpl<'i, O, Output: ?Sized>
+pub trait SliceIndexImpl<'i, O, Output: ?Sized>: Sized
 where
     O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
     #[track_caller]
     #[expect(clippy::mut_from_ref)]
-    fn index_impl<P>(this: &P, index: Self) -> &mut Output
+    unsafe fn ob_get_impl<P>(self, observer: &P) -> Option<&mut Output>
     where
         P: SliceObserverImpl<'i, O>;
+
+    // fn ob_get<P>(self, observer: &P) -> Option<&Output>
+    // where
+    //     P: SliceObserverImpl<'i, O>,
+    // {
+    //     unsafe { self.ob_get_impl(observer) }
+    // }
+
+    fn ob_get_mut<P>(self, observer: &mut P) -> Option<&mut Output>
+    where
+        P: SliceObserverImpl<'i, O>,
+    {
+        unsafe { self.ob_get_impl(observer) }
+    }
+
+    fn ob_index<P>(self, observer: &P) -> &Output
+    where
+        P: SliceObserverImpl<'i, O>,
+    {
+        unsafe { self.ob_get_impl(observer).expect("index out of bounds") }
+    }
+
+    fn ob_index_mut<P>(self, observer: &mut P) -> &mut Output
+    where
+        P: SliceObserverImpl<'i, O>,
+    {
+        unsafe { self.ob_get_impl(observer).expect("index out of bounds") }
+    }
 }
 
 impl<'i, O> SliceIndexImpl<'i, O, O> for usize
 where
     O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
-    fn index_impl<P>(this: &P, index: Self) -> &mut O
+    unsafe fn ob_get_impl<P>(self, observer: &P) -> Option<&mut O>
     where
         P: SliceObserverImpl<'i, O>,
     {
-        let value = &mut P::as_inner(this).as_mut()[index];
-        let obs = P::as_obs(this, index + 1);
-        if *O::as_ptr(&obs[index]) != ObserverPointer::new(value) {
-            obs[index] = O::observe(value);
+        let value = P::as_inner(observer).as_mut().get_mut(self)?;
+        let obs = unsafe { P::as_obs_unchecked(observer, self + 1) };
+        if *O::as_ptr(&obs[self]) != ObserverPointer::new(value) {
+            obs[self] = O::observe(value);
         }
-        &mut obs[index]
+        Some(&mut obs[self])
     }
 }
 
@@ -49,48 +87,32 @@ where
     O: Observer<'i, InnerDepth = Zero, Head: Sized>,
     I: RangeBounds<usize> + SliceIndex<[O], Output = [O]>,
 {
-    fn index_impl<P>(this: &P, index: Self) -> &mut [O]
+    unsafe fn ob_get_impl<P>(self, observer: &P) -> Option<&mut [O]>
     where
         P: SliceObserverImpl<'i, O>,
     {
-        let slice = P::as_inner(this).as_mut();
-        let start = match index.start_bound() {
+        let slice = P::as_inner(observer).as_mut();
+        let start = match self.start_bound() {
             Bound::Included(&start) => start,
             Bound::Excluded(&start) => start + 1,
             Bound::Unbounded => 0,
         };
-        let end = match index.end_bound() {
+        let end = match self.end_bound() {
             Bound::Included(&end) => end + 1,
             Bound::Excluded(&end) => end,
             Bound::Unbounded => slice.len(),
         };
+        let slice_iter = slice.get_mut(start..end)?.iter_mut();
 
-        let obs = P::as_obs(this, end);
+        let obs = unsafe { P::as_obs_unchecked(observer, end) };
         let obs_iter = obs[start..end].iter_mut();
-        let slice_iter = slice[start..end].iter_mut();
 
         for (value, obs_item) in slice_iter.zip(obs_iter) {
             if *O::as_ptr(obs_item) != ObserverPointer::new(value) {
                 *obs_item = O::observe(value);
             }
         }
-        &mut obs[index]
-    }
-}
-
-impl<'i, O, S: ?Sized, D> SliceObserverImpl<'i, O> for SliceObserver<'i, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = [O::Head]> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
-{
-    #[inline]
-    fn as_obs(this: &Self, len: usize) -> &mut [O] {
-        let obs = unsafe { &mut *this.obs.get() };
-        if len >= obs.len() {
-            obs.resize_with(len, Default::default);
-        }
-        obs.as_mut()
+        Some(&mut obs[self])
     }
 }
 
@@ -101,8 +123,8 @@ where
     O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
-    fn as_obs(this: &Self, _len: usize) -> &mut [O] {
-        let obs = unsafe { &mut *this.obs.get() };
+    unsafe fn as_obs_unchecked(&self, _len: usize) -> &mut [O] {
+        let obs = unsafe { &mut *self.obs.get() };
         obs.as_mut()
     }
 }
@@ -117,7 +139,7 @@ where
     type Output = Output;
 
     fn index(&self, index: I) -> &Self::Output {
-        SliceIndexImpl::index_impl(self, index)
+        index.ob_index(self)
     }
 }
 
@@ -129,7 +151,7 @@ where
     I: SliceIndexImpl<'i, O, Output> + SliceIndex<[O], Output = Output>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        SliceIndexImpl::index_impl(self, index)
+        index.ob_index_mut(self)
     }
 }
 
@@ -143,7 +165,7 @@ where
     type Output = Output;
 
     fn index(&self, index: I) -> &Self::Output {
-        SliceIndexImpl::index_impl(&**self, index)
+        index.ob_index(&**self)
     }
 }
 
@@ -155,7 +177,7 @@ where
     I: SliceIndexImpl<'i, O, Output> + SliceIndex<[O], Output = Output>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        SliceIndexImpl::index_impl(&**self, index)
+        index.ob_index_mut(&mut **self)
     }
 }
 
@@ -169,7 +191,7 @@ where
     type Output = Output;
 
     fn index(&self, index: I) -> &Self::Output {
-        SliceIndexImpl::index_impl(self, index)
+        index.ob_index(self)
     }
 }
 
@@ -181,6 +203,6 @@ where
     I: SliceIndexImpl<'i, O, Output> + SliceIndex<[O], Output = Output>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        SliceIndexImpl::index_impl(self, index)
+        index.ob_index_mut(self)
     }
 }
