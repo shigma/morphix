@@ -1,3 +1,4 @@
+use std::cell::UnsafeCell;
 use std::collections::TryReserveError;
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
@@ -15,10 +16,13 @@ use crate::{Adapter, Mutation, Observe};
 /// `VecObserver` provides special handling for vector append operations, distinguishing them from
 /// complete replacements for efficiency.
 pub struct VecObserver<'i, O, S: ?Sized, D = Zero> {
-    inner: SliceObserver<'i, Vec<O>, S, Succ<D>>,
+    inner: SliceObserver<'i, UnsafeCell<Vec<O>>, S, Succ<D>>,
 }
 
-impl<'i, O, S: ?Sized, D> Default for VecObserver<'i, O, S, D> {
+impl<'i, O, S: ?Sized, D> Default for VecObserver<'i, O, S, D>
+where
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+{
     #[inline]
     fn default() -> Self {
         Self {
@@ -28,7 +32,7 @@ impl<'i, O, S: ?Sized, D> Default for VecObserver<'i, O, S, D> {
 }
 
 impl<'i, O, S: ?Sized, D> Deref for VecObserver<'i, O, S, D> {
-    type Target = SliceObserver<'i, Vec<O>, S, Succ<D>>;
+    type Target = SliceObserver<'i, UnsafeCell<Vec<O>>, S, Succ<D>>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -42,7 +46,10 @@ impl<'i, O, S: ?Sized, D> DerefMut for VecObserver<'i, O, S, D> {
     }
 }
 
-impl<'i, O, S> Assignable for VecObserver<'i, O, S> {
+impl<'i, O, S> Assignable for VecObserver<'i, O, S>
+where
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+{
     type Depth = Succ<Zero>;
 }
 
@@ -59,7 +66,7 @@ where
     #[inline]
     fn observe(value: &'i mut Self::Head) -> Self {
         Self {
-            inner: SliceObserver::<Vec<O>, S, Succ<D>>::observe(value),
+            inner: SliceObserver::<UnsafeCell<Vec<O>>, S, Succ<D>>::observe(value),
         }
     }
 }
@@ -354,6 +361,7 @@ mod tests {
             slice[1].0 = 333;
         }
         assert_eq!(ob, vec![Number(1), Number(222), Number(333), Number(4)]);
+        assert_eq!(ob[..], vec![Number(1), Number(222), Number(333), Number(4)]);
         let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.path, vec![].into());
         assert_eq!(

@@ -2,7 +2,6 @@ use std::array::from_fn;
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::mem::swap;
 use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 use std::slice::{
     ChunkByMut, ChunksExactMut, ChunksMut, IterMut, RChunksExactMut, RChunksMut, RSplitMut, RSplitNMut, SliceIndex,
@@ -20,77 +19,103 @@ enum MutationState {
     Append(usize),
 }
 
-pub trait AsSlice: AsRef<[Self::Item]> + AsMut<[Self::Item]> {
-    type Item;
-
-    fn resize_default(&mut self, new_len: usize)
-    where
-        Self: Sized,
-        Self::Item: Default;
+pub trait SliceObserverInner<'i> {
+    type Item: Observer<'i, InnerDepth = Zero, Head: Sized>;
+    fn as_slice(&self) -> &[Self::Item];
+    fn as_slice_mut(&mut self) -> &mut [Self::Item];
+    fn init_empty() -> Self;
+    fn init_range(&self, start: usize, end: usize, slice: &'i mut [<Self::Item as Observer<'i>>::Head]);
 }
 
-pub trait InitDefault {
-    fn init_default() -> Self;
-}
+impl<'i, O, const N: usize> SliceObserverInner<'i> for [O; N]
+where
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+{
+    type Item = O;
 
-impl<T> AsSlice for [T] {
-    type Item = T;
-}
-
-impl<T, const N: usize> AsSlice for [T; N] {
-    type Item = T;
-
-    fn resize_default(&mut self, _new_len: usize)
-    where
-        Self: Sized,
-        Self::Item: Default,
-    {
-        // No need to resize fixed-size array.
+    fn as_slice(&self) -> &[O] {
+        self
     }
-}
 
-impl<T: Default, const N: usize> InitDefault for [T; N] {
-    fn init_default() -> Self {
+    fn as_slice_mut(&mut self) -> &mut [O] {
+        self
+    }
+
+    fn init_empty() -> Self {
         from_fn(|_| Default::default())
     }
-}
 
-impl<T> InitDefault for Vec<T> {
-    fn init_default() -> Self {
-        Vec::new()
+    fn init_range(&self, _start: usize, _end: usize, _slice: &'i mut [<Self::Item as Observer<'i>>::Head]) {
+        // No need to re-initialize fixed-size array.
     }
 }
 
-impl<T> AsSlice for Vec<T> {
-    type Item = T;
+impl<'i, O> SliceObserverInner<'i> for UnsafeCell<Vec<O>>
+where
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+{
+    type Item = O;
 
-    fn resize_default(&mut self, new_len: usize)
-    where
-        Self: Sized,
-        Self::Item: Default,
-    {
-        self.resize_with(new_len, Default::default);
+    fn as_slice(&self) -> &[Self::Item] {
+        unsafe { &*self.get() }
+    }
+
+    fn as_slice_mut(&mut self) -> &mut [Self::Item] {
+        unsafe { &mut *self.get() }
+    }
+
+    fn init_empty() -> Self {
+        Default::default()
+    }
+
+    fn init_range(&self, start: usize, end: usize, slice: &'i mut [<Self::Item as Observer<'i>>::Head]) {
+        let inner = unsafe { &mut *self.get() };
+        if end > inner.len() {
+            inner.resize_with(end, Default::default);
+        }
+        let ob_iter = inner[start..end].iter_mut();
+        let value_iter = slice[start..end].iter_mut();
+        for (ob, value) in ob_iter.zip(value_iter) {
+            if *O::as_ptr(ob) != ObserverPointer::new(value) {
+                *ob = O::observe(value);
+            }
+        }
     }
 }
 
 pub(super) trait SliceIndexImpl<T: ?Sized, Output: ?Sized> {
-    fn end_bound_exclusive(&self) -> Option<usize>;
+    fn start_bound_inclusive(&self) -> usize;
+    fn end_bound_exclusive(&self, len: usize) -> usize;
 }
 
 impl<T> SliceIndexImpl<[T], T> for usize {
     #[inline]
-    fn end_bound_exclusive(&self) -> Option<usize> {
-        Some(self + 1)
+    fn start_bound_inclusive(&self) -> usize {
+        *self
+    }
+
+    #[inline]
+    fn end_bound_exclusive(&self, _len: usize) -> usize {
+        self + 1
     }
 }
 
 impl<T, I: SliceIndex<[T], Output = [T]> + RangeBounds<usize>> SliceIndexImpl<[T], [T]> for I {
     #[inline]
-    fn end_bound_exclusive(&self) -> Option<usize> {
+    fn start_bound_inclusive(&self) -> usize {
+        match self.start_bound() {
+            Bound::Included(&start) => start,
+            Bound::Excluded(&start) => start + 1,
+            Bound::Unbounded => 0,
+        }
+    }
+
+    #[inline]
+    fn end_bound_exclusive(&self, len: usize) -> usize {
         match self.end_bound() {
-            Bound::Included(&end) => Some(end + 1),
-            Bound::Excluded(&end) => Some(end),
-            Bound::Unbounded => None,
+            Bound::Included(&end) => end + 1,
+            Bound::Excluded(&end) => end,
+            Bound::Unbounded => len,
         }
     }
 }
@@ -101,7 +126,7 @@ impl<T, I: SliceIndex<[T], Output = [T]> + RangeBounds<usize>> SliceIndexImpl<[T
 /// complete replacements for efficiency.
 pub struct SliceObserver<'i, V, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
-    obs: UnsafeCell<V>,
+    pub(super) obs: V,
     mutation: Option<MutationState>,
     phantom: PhantomData<&'i mut D>,
 }
@@ -121,13 +146,13 @@ impl<'i, V, S: ?Sized, D> SliceObserver<'i, V, S, D> {
 
 impl<'i, V, S: ?Sized, D> Default for SliceObserver<'i, V, S, D>
 where
-    V: InitDefault,
+    V: SliceObserverInner<'i>,
 {
     #[inline]
     fn default() -> Self {
         Self {
             ptr: ObserverPointer::default(),
-            obs: UnsafeCell::new(V::init_default()),
+            obs: V::init_empty(),
             mutation: None,
             phantom: PhantomData,
         }
@@ -145,28 +170,28 @@ impl<'i, V, S: ?Sized, D> Deref for SliceObserver<'i, V, S, D> {
 
 impl<'i, V, S: ?Sized, D> DerefMut for SliceObserver<'i, V, S, D>
 where
-    V: InitDefault,
+    V: SliceObserverInner<'i>,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.mark_replace();
-        self.obs = UnsafeCell::new(V::init_default());
+        self.obs = V::init_empty();
         &mut self.ptr
     }
 }
 
 impl<'i, V, S> Assignable for SliceObserver<'i, V, S>
 where
-    V: InitDefault,
+    V: SliceObserverInner<'i>,
 {
     type Depth = Succ<Zero>;
 }
 
 impl<'i, V, S: ?Sized, D, O, T> Observer<'i> for SliceObserver<'i, V, S, D>
 where
-    V: AsSlice<Item = O> + InitDefault,
+    V: SliceObserverInner<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D> + 'i,
-    S::Target: AsSlice<Item = T>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
 {
     type InnerDepth = D;
@@ -177,7 +202,7 @@ where
     fn observe(value: &'i mut Self::Head) -> Self {
         Self {
             ptr: ObserverPointer::new(value),
-            obs: UnsafeCell::new(V::init_default()),
+            obs: V::init_empty(),
             mutation: None,
             phantom: PhantomData,
         }
@@ -186,10 +211,10 @@ where
 
 impl<'i, V, S: ?Sized, D, O, T> SerializeObserver<'i> for SliceObserver<'i, V, S, D>
 where
-    V: AsSlice<Item = O> + InitDefault,
+    V: SliceObserverInner<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D> + 'i,
-    S::Target: AsSlice<Item = T>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
     O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
@@ -212,8 +237,7 @@ where
             });
         };
         let len = this.as_deref().as_ref().len();
-        let obs = unsafe { &mut *this.obs.get() };
-        for (index, observer) in obs.as_mut().iter_mut().take(max_index).enumerate() {
+        for (index, observer) in this.obs.as_slice_mut().iter_mut().take(max_index).enumerate() {
             if let Some(mut mutation) = SerializeObserver::collect::<A>(observer)? {
                 mutation.path.push(PathSegment::NegIndex(len - index));
                 mutations.push(mutation);
@@ -225,40 +249,30 @@ where
 
 impl<'i, V, S: ?Sized, D, O, T> SliceObserver<'i, V, S, D>
 where
-    V: AsSlice<Item = O> + InitDefault,
+    V: SliceObserverInner<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D> + 'i,
-    S::Target: AsSlice<Item = T>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: 'i,
 {
-    #[expect(clippy::mut_from_ref)]
-    unsafe fn obs_unchecked(&self, len: usize) -> &mut [O] {
-        let obs = unsafe { &mut *self.obs.get() };
-        let old_len = obs.as_ref().len();
-        if len >= old_len {
-            obs.resize_default(len);
-            let ob_iter = obs.as_mut().iter_mut();
-            let value_iter = Self::as_inner(self).as_mut().iter_mut();
-            for (ob, value) in ob_iter.zip(value_iter).skip(old_len) {
-                *ob = O::observe(value);
-            }
-        }
-        obs.as_mut()
-    }
-
-    fn obs_checked(&mut self, len: usize) -> Option<&mut [O]> {
+    fn obs_range(&mut self, start: usize, end: usize) -> Option<&mut [O]> {
         let current_len = Self::as_inner(self).as_mut().len();
-        (current_len >= len).then(|| unsafe { Self::obs_unchecked(self, len) })
+        if current_len < end {
+            return None;
+        }
+        self.obs.init_range(start, end, Self::as_inner(self).as_mut());
+        Some(self.obs.as_slice_mut())
     }
 
     fn obs_full(&mut self) -> &mut [O] {
         let len = Self::as_inner(self).as_mut().len();
-        unsafe { Self::obs_unchecked(self, len) }
+        self.obs.init_range(0, len, Self::as_inner(self).as_mut());
+        self.obs.as_slice_mut()
     }
 
     pub fn first_mut(&mut self) -> Option<&mut O> {
-        self.obs_checked(1)?.first_mut()
+        self.obs_range(0, 1)?.first_mut()
     }
 
     pub fn split_first_mut(&mut self) -> Option<(&mut O, &mut [O])> {
@@ -274,7 +288,7 @@ where
     }
 
     pub fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [O; N]> {
-        self.obs_checked(N)?.first_chunk_mut()
+        self.obs_range(0, N)?.first_chunk_mut()
     }
 
     pub fn split_first_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [O; N], &mut [O])> {
@@ -290,17 +304,15 @@ where
     }
 
     pub fn get_mut(&mut self, index: usize) -> Option<&mut O> {
-        self.obs_checked(index + 1)?.get_mut(index)
+        self.obs_range(index, index + 1)?.get_mut(index)
     }
 
     pub fn swap(&mut self, a: usize, b: usize) {
-        let obs = self.obs_checked(a.max(b) + 1).expect("index out of bounds");
-        unsafe {
-            let pa = ObserverPointer::as_mut(O::as_ptr(&obs[a]));
-            let pb = ObserverPointer::as_mut(O::as_ptr(&obs[b]));
-            swap(pa, pb);
-        }
+        Self::as_inner(self).as_mut().swap(a, b);
         // manually trigger `DerefMut` down to `T`
+        self.obs.init_range(a, a + 1, Self::as_inner(self).as_mut());
+        self.obs.init_range(b, b + 1, Self::as_inner(self).as_mut());
+        let obs = self.obs.as_slice_mut();
         obs[a].as_deref_mut_coinductive();
         obs[b].as_deref_mut_coinductive();
     }
@@ -386,10 +398,10 @@ where
 
 impl<'i, V, S: ?Sized, D, O, T> Debug for SliceObserver<'i, V, S, D>
 where
-    V: AsSlice<Item = O> + InitDefault,
+    V: SliceObserverInner<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D>,
-    S::Target: AsSlice<Item = T>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: Debug,
 {
@@ -401,10 +413,10 @@ where
 
 impl<'i, V, S: ?Sized, D, O, T, U> PartialEq<U> for SliceObserver<'i, V, S, D>
 where
-    V: AsSlice<Item = O> + InitDefault,
+    V: SliceObserverInner<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D>,
-    S::Target: AsSlice<Item = T>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
     [T]: PartialEq<U>,
 {
@@ -416,10 +428,10 @@ where
 
 impl<'i, V, S: ?Sized, D, O, T, U> PartialOrd<U> for SliceObserver<'i, V, S, D>
 where
-    V: AsSlice<Item = O> + InitDefault,
+    V: SliceObserverInner<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D>,
-    S::Target: AsSlice<Item = T>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
     [T]: PartialOrd<U>,
 {
@@ -431,10 +443,10 @@ where
 
 impl<'i, V, S: ?Sized, D, O, T, I> Index<I> for SliceObserver<'i, V, S, D>
 where
-    V: AsSlice<Item = O> + InitDefault,
+    V: SliceObserverInner<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D> + 'i,
-    S::Target: AsSlice<Item = T>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<'i, InnerDepth = Zero, Head = T> + 'i,
     T: 'i,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
@@ -443,39 +455,43 @@ where
 
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
-        let current_len = Self::as_inner(self).as_mut().len();
-        let len = index.end_bound_exclusive().unwrap_or(current_len);
-        if len > current_len {
+        let len = Self::as_inner(self).as_mut().len();
+        let start = index.start_bound_inclusive();
+        let end = index.end_bound_exclusive(len);
+        if end > len {
             panic!("index out of bounds");
         }
-        unsafe { self.obs_unchecked(len) }.index(index)
+        self.obs.init_range(start, end, Self::as_inner(self).as_mut());
+        self.obs.as_slice().index(index)
     }
 }
 
 impl<'i, V, S: ?Sized, D, O, T, I> IndexMut<I> for SliceObserver<'i, V, S, D>
 where
-    V: AsSlice<Item = O> + InitDefault,
+    V: SliceObserverInner<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D> + 'i,
-    S::Target: AsSlice<Item = T>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<'i, InnerDepth = Zero, Head = T> + 'i,
     T: 'i,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        let current_len = Self::as_inner(self).as_mut().len();
-        let len = index.end_bound_exclusive().unwrap_or(current_len);
-        if len > current_len {
+        let len = Self::as_inner(self).as_mut().len();
+        let start = index.start_bound_inclusive();
+        let end = index.end_bound_exclusive(len);
+        if end > len {
             panic!("index out of bounds");
         }
-        unsafe { self.obs_unchecked(len) }.index_mut(index)
+        self.obs.init_range(start, end, Self::as_inner(self).as_mut());
+        self.obs.as_slice_mut().index_mut(index)
     }
 }
 
 impl<T: Observe> Observe for [T] {
     type Observer<'i, S, D>
-        = SliceObserver<'i, Vec<T::Observer<'i, T, Zero>>, S, D>
+        = SliceObserver<'i, UnsafeCell<Vec<T::Observer<'i, T, Zero>>>, S, D>
     where
         Self: 'i,
         D: Unsigned,

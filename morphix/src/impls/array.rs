@@ -14,27 +14,27 @@ pub struct ArrayObserver<'i, const N: usize, O, S: ?Sized, D = Zero> {
     inner: SliceObserver<'i, [O; N], S, D>,
 }
 
-// impl<'i, const N: usize, O, S: ?Sized, D> ArrayObserver<'i, N, O, S, D> {
-//     pub fn as_slice(&self) -> &[O] {
-//         unsafe { &*self.obs.get() }
-//     }
+impl<'i, const N: usize, O, S: ?Sized, D> ArrayObserver<'i, N, O, S, D> {
+    pub fn as_slice(&self) -> &[O] {
+        &self.inner.obs
+    }
 
-//     pub fn as_mut_slice(&mut self) -> &mut [O] {
-//         unsafe { &mut *self.obs.get() }
-//     }
+    pub fn as_mut_slice(&mut self) -> &mut [O] {
+        &mut self.inner.obs
+    }
 
-//     pub fn each_ref(&self) -> [&O; N] {
-//         unsafe { &*self.obs.get() }.each_ref()
-//     }
+    pub fn each_ref(&self) -> [&O; N] {
+        self.inner.obs.each_ref()
+    }
 
-//     pub fn each_mut(&mut self) -> [&mut O; N] {
-//         unsafe { &mut *self.obs.get() }.each_mut()
-//     }
-// }
+    pub fn each_mut(&mut self) -> [&mut O; N] {
+        self.inner.obs.each_mut()
+    }
+}
 
 impl<'i, const N: usize, O, S: ?Sized, D> Default for ArrayObserver<'i, N, O, S, D>
 where
-    O: Default,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
     fn default() -> Self {
@@ -64,7 +64,7 @@ where
 
 impl<'i, const N: usize, O, S> Assignable for ArrayObserver<'i, N, O, S>
 where
-    O: Default,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
     type Depth = Succ<Zero>;
 }
@@ -166,39 +166,13 @@ where
     }
 }
 
-impl<T, const N: usize> Observe for [T; N]
-where
-    T: Observe + ArrayObserveImpl<T, N, T::Spec>,
-{
+impl<T: Observe, const N: usize> Observe for [T; N] {
     type Observer<'i, S, D>
-        = <T as ArrayObserveImpl<T, N, T::Spec>>::Observer<'i, S, D>
+        = ArrayObserver<'i, N, T::Observer<'i, T, Zero>, S, D>
     where
         Self: 'i,
         D: Unsigned,
         S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
 
-    type Spec = T::Spec;
-}
-
-/// Helper trait for selecting appropriate observer implementations for [`[T; N]`](core::array).
-#[doc(hidden)]
-pub trait ArrayObserveImpl<T: Observe, const N: usize, Spec> {
-    /// The observer type for [`[T; N]`](core::array) with the given specification.
-    type Observer<'i, S, D>: Observer<'i, Head = S, InnerDepth = D>
-    where
-        T: 'i,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = [T; N]> + ?Sized + 'i;
-}
-
-impl<T, const N: usize> ArrayObserveImpl<T, N, DefaultSpec> for T
-where
-    T: Observe<Spec = DefaultSpec>,
-{
-    type Observer<'i, S, D>
-        = ArrayObserver<'i, N, T::Observer<'i, T, Zero>, S, D>
-    where
-        T: 'i,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = [T; N]> + ?Sized + 'i;
+    type Spec = DefaultSpec;
 }
