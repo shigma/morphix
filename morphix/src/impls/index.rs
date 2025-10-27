@@ -29,7 +29,7 @@ where
 
 impl<'i, O> SliceIndexImpl<'i, O, O> for usize
 where
-    O: Observer<'i, InnerDepth = Zero, Head: Sized + 'i>,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
     fn index_impl<P>(this: &P, index: Self) -> &mut O
     where
@@ -46,7 +46,7 @@ where
 
 impl<'i, O, I> SliceIndexImpl<'i, O, [O]> for I
 where
-    O: Observer<'i, InnerDepth = Zero, Head: Sized + 'i>,
+    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
     I: RangeBounds<usize> + SliceIndex<[O], Output = [O]>,
 {
     fn index_impl<P>(this: &P, index: Self) -> &mut [O]

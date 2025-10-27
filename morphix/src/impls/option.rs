@@ -55,12 +55,12 @@ impl<'i, O, S> Assignable for OptionObserver<'i, O, S> {
     type Depth = Succ<Zero>;
 }
 
-impl<'i, O, S: ?Sized, D, T> Observer<'i> for OptionObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D> Observer<'i> for OptionObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Option<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    T: 'i,
+    S: AsDerefMut<D, Target = Option<O::Head>> + 'i,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
 {
     type InnerDepth = D;
     type OuterDepth = Zero;
@@ -78,12 +78,12 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T> SerializeObserver<'i> for OptionObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D> SerializeObserver<'i> for OptionObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Option<T>> + 'i,
-    O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
-    T: Serialize + 'i,
+    S: AsDerefMut<D, Target = Option<O::Head>> + 'i,
+    O: SerializeObserver<'i, InnerDepth = Zero>,
+    O::Head: Serialize + Sized,
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         if this.is_mutated && (this.is_initial_some || this.as_deref().is_some()) {
@@ -99,14 +99,14 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T> OptionObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D> OptionObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Option<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    T: 'i,
+    S: AsDerefMut<D, Target = Option<O::Head>> + 'i,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
 {
-    fn __insert(&mut self, value: T) {
+    fn __insert(&mut self, value: O::Head) {
         self.is_mutated = true;
         let inserted = Observer::as_inner(self).insert(value);
         self.ob = Some(O::observe(inserted));
@@ -119,27 +119,27 @@ where
         self.ob.as_mut()
     }
 
-    pub fn insert(&mut self, value: T) -> &mut O {
+    pub fn insert(&mut self, value: O::Head) -> &mut O {
         self.__insert(value);
         self.ob.as_mut().unwrap()
     }
 
     #[inline]
-    pub fn get_or_insert(&mut self, value: T) -> &mut O {
+    pub fn get_or_insert(&mut self, value: O::Head) -> &mut O {
         self.get_or_insert_with(|| value)
     }
 
     #[inline]
     pub fn get_or_insert_default(&mut self) -> &mut O
     where
-        T: Default,
+        O::Head: Default,
     {
         self.get_or_insert_with(Default::default)
     }
 
     pub fn get_or_insert_with<F>(&mut self, f: F) -> &mut O
     where
-        F: FnOnce() -> T,
+        F: FnOnce() -> O::Head,
     {
         if self.as_deref().is_none() {
             self.__insert(f());

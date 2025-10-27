@@ -82,11 +82,12 @@ where
     type Depth = Succ<Zero>;
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T> Observer<'i> for ArrayObserver<'i, N, O, S, D>
+impl<'i, const N: usize, O, S: ?Sized, D> Observer<'i> for ArrayObserver<'i, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    S: AsDerefMut<D, Target = [O::Head; N]> + 'i,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
 {
     type InnerDepth = D;
     type OuterDepth = Zero;
@@ -103,12 +104,12 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T> SerializeObserver<'i> for ArrayObserver<'i, N, O, S, D>
+impl<'i, const N: usize, O, S: ?Sized, D> SerializeObserver<'i> for ArrayObserver<'i, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'i,
-    O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
-    T: Serialize,
+    S: AsDerefMut<D, Target = [O::Head; N]> + 'i,
+    O: SerializeObserver<'i, InnerDepth = Zero>,
+    O::Head: Serialize + Sized,
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         let mut mutations = vec![];
@@ -130,12 +131,12 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T> Debug for ArrayObserver<'i, N, O, S, D>
+impl<'i, const N: usize, O, S: ?Sized, D> Debug for ArrayObserver<'i, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    T: Debug,
+    S: AsDerefMut<D, Target = [O::Head; N]>,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Debug + Sized,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -143,12 +144,13 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T, U> PartialEq<U> for ArrayObserver<'i, N, O, S, D>
+impl<'i, const N: usize, O, S: ?Sized, D, U> PartialEq<U> for ArrayObserver<'i, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    [T; N]: PartialEq<U>,
+    S: AsDerefMut<D, Target = [O::Head; N]>,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
+    [O::Head; N]: PartialEq<U>,
 {
     #[inline]
     fn eq(&self, other: &U) -> bool {
@@ -156,12 +158,13 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T, U> PartialOrd<U> for ArrayObserver<'i, N, O, S, D>
+impl<'i, const N: usize, O, S: ?Sized, D, U> PartialOrd<U> for ArrayObserver<'i, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    [T; N]: PartialOrd<U>,
+    S: AsDerefMut<D, Target = [O::Head; N]>,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
+    [O::Head; N]: PartialOrd<U>,
 {
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {

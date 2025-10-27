@@ -46,11 +46,12 @@ impl<'i, O, S> Assignable for VecObserver<'i, O, S> {
     type Depth = Succ<Zero>;
 }
 
-impl<'i, O, S: ?Sized, D, T> Observer<'i> for VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D> Observer<'i> for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
 {
     type InnerDepth = D;
     type OuterDepth = Succ<Zero>;
@@ -64,23 +65,24 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T> SerializeObserver<'i> for VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D> SerializeObserver<'i> for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
-    T: Serialize,
+    S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
+    O: SerializeObserver<'i, InnerDepth = Zero>,
+    O::Head: Serialize + Sized,
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         unsafe { SliceObserver::collect_unchecked(&mut this.inner) }
     }
 }
 
-impl<'i, O, S: ?Sized, D, T> VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D> VecObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
 {
     #[inline]
     pub fn reserve(&mut self, additional: usize) {
@@ -112,12 +114,12 @@ where
         Observer::as_inner(self).shrink_to(min_capacity);
     }
 
-    pub fn push(&mut self, value: T) {
+    pub fn push(&mut self, value: O::Head) {
         self.inner.mark_append(self.as_deref().len());
         Observer::as_inner(self).push(value);
     }
 
-    pub fn append(&mut self, other: &mut Vec<T>) {
+    pub fn append(&mut self, other: &mut Vec<O::Head>) {
         if other.is_empty() {
             return;
         }
@@ -126,14 +128,14 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T> VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D> VecObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    T: Clone,
+    S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Clone + Sized,
 {
-    pub fn extend_from_slice(&mut self, other: &[T]) {
+    pub fn extend_from_slice(&mut self, other: &[O::Head]) {
         if other.is_empty() {
             return;
         }
@@ -147,12 +149,13 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T, U> Extend<U> for VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D, U> Extend<U> for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    Vec<T>: Extend<U>,
+    S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
+    Vec<O::Head>: Extend<U>,
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
         self.inner.mark_append(self.as_deref().len());
@@ -160,12 +163,12 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T> Debug for VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D> Debug for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    T: Debug,
+    S: AsDerefMut<D, Target = Vec<O::Head>>,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Debug + Sized,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -173,12 +176,13 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T, U> PartialEq<U> for VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D, U> PartialEq<U> for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    Vec<T>: PartialEq<U>,
+    S: AsDerefMut<D, Target = Vec<O::Head>>,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
+    Vec<O::Head>: PartialEq<U>,
 {
     #[inline]
     fn eq(&self, other: &U) -> bool {
@@ -186,12 +190,13 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, T, U> PartialOrd<U> for VecObserver<'i, O, S, D>
+impl<'i, O, S: ?Sized, D, U> PartialOrd<U> for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
-    Vec<T>: PartialOrd<U>,
+    S: AsDerefMut<D, Target = Vec<O::Head>>,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
+    Vec<O::Head>: PartialOrd<U>,
 {
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
@@ -203,7 +208,8 @@ impl<'i, O, S: ?Sized, D> Borrow<[O]> for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head: Sized + 'i>,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
 {
     fn borrow(&self) -> &[O] {
         &self[..]
@@ -214,7 +220,8 @@ impl<'i, O, S: ?Sized, D> BorrowMut<[O]> for VecObserver<'i, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<O::Head>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head: Sized + 'i>,
+    O: Observer<'i, InnerDepth = Zero>,
+    O::Head: Sized,
 {
     fn borrow_mut(&mut self) -> &mut [O] {
         &mut self[..]
