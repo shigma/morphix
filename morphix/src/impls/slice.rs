@@ -2,7 +2,7 @@ use std::array::from_fn;
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
+use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, Range, RangeBounds};
 use std::slice::{
     ChunkByMut, ChunksExactMut, ChunksMut, IterMut, RChunksExactMut, RChunksMut, RSplitMut, RSplitNMut, SliceIndex,
     SplitInclusiveMut, SplitMut, SplitNMut,
@@ -14,17 +14,12 @@ use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe, PathSegment};
 
-enum MutationState {
-    Replace,
-    Append(usize),
-}
-
 pub trait SliceObserverInner<'i> {
     type Item: Observer<'i, InnerDepth = Zero, Head: Sized>;
     fn as_slice(&self) -> &[Self::Item];
-    fn as_slice_mut(&mut self) -> &mut [Self::Item];
+    fn as_mut_slice(&mut self) -> &mut [Self::Item];
     fn init_empty() -> Self;
-    fn init_range(&self, start: usize, end: usize, slice: &'i mut [<Self::Item as Observer<'i>>::Head]);
+    fn init_range(&self, range: Range<usize>, slice: &'i mut [<Self::Item as Observer<'i>>::Head]);
 }
 
 impl<'i, O, const N: usize> SliceObserverInner<'i> for [O; N]
@@ -37,7 +32,7 @@ where
         self
     }
 
-    fn as_slice_mut(&mut self) -> &mut [O] {
+    fn as_mut_slice(&mut self) -> &mut [O] {
         self
     }
 
@@ -45,7 +40,7 @@ where
         from_fn(|_| Default::default())
     }
 
-    fn init_range(&self, _start: usize, _end: usize, _slice: &'i mut [<Self::Item as Observer<'i>>::Head]) {
+    fn init_range(&self, _range: Range<usize>, _slice: &'i mut [<Self::Item as Observer<'i>>::Head]) {
         // No need to re-initialize fixed-size array.
     }
 }
@@ -60,7 +55,7 @@ where
         unsafe { &*self.get() }
     }
 
-    fn as_slice_mut(&mut self) -> &mut [Self::Item] {
+    fn as_mut_slice(&mut self) -> &mut [Self::Item] {
         unsafe { &mut *self.get() }
     }
 
@@ -68,13 +63,13 @@ where
         Default::default()
     }
 
-    fn init_range(&self, start: usize, end: usize, slice: &'i mut [<Self::Item as Observer<'i>>::Head]) {
+    fn init_range(&self, range: Range<usize>, slice: &'i mut [<Self::Item as Observer<'i>>::Head]) {
         let inner = unsafe { &mut *self.get() };
-        if end > inner.len() {
-            inner.resize_with(end, Default::default);
+        if range.end > inner.len() {
+            inner.resize_with(range.end, Default::default);
         }
-        let ob_iter = inner[start..end].iter_mut();
-        let value_iter = slice[start..end].iter_mut();
+        let ob_iter = inner[range.clone()].iter_mut();
+        let value_iter = slice[range].iter_mut();
         for (ob, value) in ob_iter.zip(value_iter) {
             ObserverPointer::set(O::as_ptr(ob), value);
         }
@@ -127,14 +122,14 @@ impl<T, I: SliceIndex<[T], Output = [T]> + RangeBounds<usize>> SliceIndexImpl<[T
 pub struct SliceObserver<'i, V, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
     pub(super) obs: V,
-    mutation: Option<MutationState>,
+    mutation: Option<usize>,
     phantom: PhantomData<&'i mut D>,
 }
 
 impl<'i, V, S: ?Sized, D> SliceObserver<'i, V, S, D> {
     #[inline]
     pub(super) fn __mark_replace(&mut self) {
-        self.mutation = Some(MutationState::Replace);
+        self.mutation = None;
     }
 }
 
@@ -197,7 +192,7 @@ where
         Self {
             ptr: ObserverPointer::new(value),
             obs: V::init_empty(),
-            mutation: None,
+            mutation: Some(value.as_deref().as_ref().len()),
             phantom: PhantomData,
         }
     }
@@ -214,24 +209,23 @@ where
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         let mut mutations = vec![];
-        let mut max_index = usize::MAX;
-        if let Some(mutation) = this.mutation.take() {
+        let len = this.as_deref().as_ref().len();
+        let initial_len = if let Some(initial_len) = this.mutation.replace(len) {
+            if len > initial_len {
+                mutations.push(Mutation {
+                    path: Default::default(),
+                    kind: MutationKind::Append(A::serialize_value(&this.as_deref().as_ref()[initial_len..])?),
+                });
+            }
+            initial_len
+        } else {
             mutations.push(Mutation {
                 path: Default::default(),
-                kind: match mutation {
-                    MutationState::Replace => {
-                        max_index = 0;
-                        MutationKind::Replace(A::serialize_value(this.as_deref().as_ref())?)
-                    }
-                    MutationState::Append(start_index) => {
-                        max_index = start_index;
-                        MutationKind::Append(A::serialize_value(&this.as_deref().as_ref()[start_index..])?)
-                    }
-                },
+                kind: MutationKind::Replace(A::serialize_value(this.as_deref().as_ref())?),
             });
+            0
         };
-        let len = this.as_deref().as_ref().len();
-        for (index, observer) in this.obs.as_slice_mut().iter_mut().take(max_index).enumerate() {
+        for (index, observer) in this.obs.as_mut_slice().iter_mut().take(initial_len).enumerate() {
             if let Some(mut mutation) = SerializeObserver::collect::<A>(observer)? {
                 mutation.path.push(PathSegment::NegIndex(len - index));
                 mutations.push(mutation);
@@ -251,31 +245,34 @@ where
     T: 'i,
 {
     #[inline]
-    pub(super) fn __mark_append(&mut self) {
-        if self.mutation.is_some() {
-            return;
-        }
-        self.mutation = Some(MutationState::Append(self.as_deref().as_ref().len()));
+    pub(super) fn __initial_len(&mut self) -> usize {
+        self.mutation.unwrap_or(0)
     }
 
-    fn __obs_range(&mut self, start: usize, end: usize) -> Option<&mut [O]> {
+    /// Manually trigger [`DerefMut`] down to [`ObserverPointer`].
+    pub(super) fn __track_index(&mut self, index: usize) {
+        self.obs.init_range(index..index + 1, Self::as_inner(self).as_mut());
+        self.obs.as_mut_slice()[index].as_deref_mut_coinductive();
+    }
+
+    fn __obs_range(&mut self, range: Range<usize>) -> Option<&mut [O]> {
         let len = self.as_deref().as_ref().len();
-        if end > len {
+        if range.end > len {
             return None;
         }
-        self.obs.init_range(start, end, Self::as_inner(self).as_mut());
-        Some(self.obs.as_slice_mut())
+        self.obs.init_range(range, Self::as_inner(self).as_mut());
+        Some(self.obs.as_mut_slice())
     }
 
     fn __obs_full(&mut self) -> &mut [O] {
         let len = self.as_deref().as_ref().len();
-        self.obs.init_range(0, len, Self::as_inner(self).as_mut());
-        self.obs.as_slice_mut()
+        self.obs.init_range(0..len, Self::as_inner(self).as_mut());
+        self.obs.as_mut_slice()
     }
 
     /// See [`slice::first_mut`].
     pub fn first_mut(&mut self) -> Option<&mut O> {
-        self.__obs_range(0, 1)?.first_mut()
+        self.__obs_range(0..1)?.first_mut()
     }
 
     /// See [`slice::split_first_mut`].
@@ -290,12 +287,16 @@ where
 
     /// See [`slice::last_mut`].
     pub fn last_mut(&mut self) -> Option<&mut O> {
-        self.__obs_full().last_mut()
+        let len = self.as_deref().as_ref().len();
+        if len == 0 {
+            return None;
+        }
+        self.__obs_range(len - 1..len)?.last_mut()
     }
 
     /// See [`slice::first_chunk_mut`].
     pub fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [O; N]> {
-        self.__obs_range(0, N)?.first_chunk_mut()
+        self.__obs_range(0..N)?.first_chunk_mut()
     }
 
     /// See [`slice::split_first_chunk_mut`].
@@ -310,23 +311,23 @@ where
 
     /// See [`slice::last_chunk_mut`].
     pub fn last_chunk_mut<const N: usize>(&mut self) -> Option<&mut [O; N]> {
-        self.__obs_full().last_chunk_mut()
+        let len = self.as_deref().as_ref().len();
+        if len < N {
+            return None;
+        }
+        self.__obs_range(len - N..len)?.last_chunk_mut()
     }
 
     /// See [`slice::get_mut`].
     pub fn get_mut(&mut self, index: usize) -> Option<&mut O> {
-        self.__obs_range(index, index + 1)?.get_mut(index)
+        self.__obs_range(index..index + 1)?.get_mut(index)
     }
 
     /// See [`slice::swap`].
     pub fn swap(&mut self, a: usize, b: usize) {
         Self::as_inner(self).as_mut().swap(a, b);
-        // manually trigger `DerefMut` down to `T`
-        self.obs.init_range(a, a + 1, Self::as_inner(self).as_mut());
-        self.obs.init_range(b, b + 1, Self::as_inner(self).as_mut());
-        let obs = self.obs.as_slice_mut();
-        obs[a].as_deref_mut_coinductive();
-        obs[b].as_deref_mut_coinductive();
+        self.__track_index(a);
+        self.__track_index(b);
     }
 
     /// See [`slice::iter_mut`].
@@ -488,7 +489,7 @@ where
         if end > len {
             panic!("index out of bounds");
         }
-        self.obs.init_range(start, end, Self::as_inner(self).as_mut());
+        self.obs.init_range(start..end, Self::as_inner(self).as_mut());
         self.obs.as_slice().index(index)
     }
 }
@@ -511,8 +512,8 @@ where
         if end > len {
             panic!("index out of bounds");
         }
-        self.obs.init_range(start, end, Self::as_inner(self).as_mut());
-        self.obs.as_slice_mut().index_mut(index)
+        self.obs.init_range(start..end, Self::as_inner(self).as_mut());
+        self.obs.as_mut_slice().index_mut(index)
     }
 }
 
@@ -525,4 +526,79 @@ impl<T: Observe> Observe for [T] {
         S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
 
     type Spec = DefaultSpec;
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::Serialize;
+    use serde_json::json;
+
+    use super::*;
+    use crate::observe::{ObserveExt, SerializeObserverExt, ShallowObserver};
+    use crate::{JsonAdapter, MutationKind};
+
+    #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
+    struct Number(i32);
+
+    impl Observe for Number {
+        type Observer<'i, S, D>
+            = ShallowObserver<'i, S, D>
+        where
+            Self: 'i,
+            D: Unsigned,
+            S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
+
+        type Spec = DefaultSpec;
+    }
+
+    #[test]
+    fn index_by_usize() {
+        let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
+        let mut ob = slice.observe();
+        assert_eq!(ob[2], Number(2));
+        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
+        **ob[2] = Number(42);
+        assert_eq!(ob[2], Number(42));
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
+        assert_eq!(mutation.path, vec![(-1).into()].into());
+        assert_eq!(mutation.kind, MutationKind::Replace(json!(Number(42))));
+    }
+
+    #[test]
+    fn get_mut() {
+        let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
+        let mut ob = slice.observe();
+        assert_eq!(*ob.get_mut(2).unwrap(), Number(2));
+        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
+        ***ob.get_mut(2).unwrap() = Number(42);
+        assert_eq!(*ob.get_mut(2).unwrap(), Number(42));
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
+        assert_eq!(mutation.path, vec![(-1).into()].into());
+        assert_eq!(mutation.kind, MutationKind::Replace(json!(Number(42))));
+    }
+
+    #[test]
+    fn swap() {
+        let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
+        let mut ob = slice.observe();
+        ob.swap(0, 1);
+        assert_eq!(**ob, [Number(1), Number(0), Number(2)]);
+        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
+        assert_eq!(
+            mutation,
+            Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Batch(vec![
+                    Mutation {
+                        path: vec![(-3).into()].into(),
+                        kind: MutationKind::Replace(json!(Number(1))),
+                    },
+                    Mutation {
+                        path: vec![(-2).into()].into(),
+                        kind: MutationKind::Replace(json!(Number(0))),
+                    }
+                ]),
+            }
+        );
+    }
 }

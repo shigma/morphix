@@ -6,25 +6,20 @@ use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
-enum MutationState {
-    Replace,
-    Append(usize),
-}
-
 /// Observer implementation for [`String`].
 ///
 /// `StringObserver` provides special handling for string append operations, distinguishing them
 /// from complete replacements for efficiency.
 pub struct StringObserver<'i, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
-    mutation: Option<MutationState>,
+    mutation: Option<usize>,
     phantom: PhantomData<&'i mut D>,
 }
 
 impl<'i, S: ?Sized, D> StringObserver<'i, S, D> {
     #[inline]
     fn __mark_replace(&mut self) {
-        self.mutation = Some(MutationState::Replace);
+        self.mutation = None;
     }
 }
 
@@ -73,7 +68,7 @@ where
     fn observe(value: &mut Self::Head) -> Self {
         Self {
             ptr: ObserverPointer::new(value),
-            mutation: None,
+            mutation: Some(value.as_deref().len()),
             phantom: PhantomData,
         }
     }
@@ -85,18 +80,21 @@ where
     S: AsDerefMut<D, Target = String> + 'i,
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
-        Ok(if let Some(mutation) = this.mutation.take() {
+        let len = this.as_deref().len();
+        Ok(if let Some(initial_len) = this.mutation.replace(len) {
+            if len > initial_len {
+                Some(Mutation {
+                    path: Default::default(),
+                    kind: MutationKind::Append(A::serialize_value(&this.as_deref()[initial_len..])?),
+                })
+            } else {
+                None
+            }
+        } else {
             Some(Mutation {
                 path: Default::default(),
-                kind: match mutation {
-                    MutationState::Replace => MutationKind::Replace(A::serialize_value(this.as_deref())?),
-                    MutationState::Append(start_index) => {
-                        MutationKind::Append(A::serialize_value(&this.as_deref()[start_index..])?)
-                    }
-                },
+                kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
             })
-        } else {
-            None
         })
     }
 }
@@ -106,26 +104,15 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String>,
 {
-    #[inline]
-    fn __mark_append(&mut self) {
-        if self.mutation.is_some() {
-            return;
-        }
-        self.mutation = Some(MutationState::Append(self.as_deref().len()));
-    }
-
     /// See [`String::push`].
+    #[inline]
     pub fn push(&mut self, c: char) {
-        self.__mark_append();
         Observer::as_inner(self).push(c);
     }
 
     /// See [`String::push_str`].
+    #[inline]
     pub fn push_str(&mut self, s: &str) {
-        if s.is_empty() {
-            return;
-        }
-        self.__mark_append();
         Observer::as_inner(self).push_str(s);
     }
 }
@@ -147,8 +134,8 @@ where
     S: AsDerefMut<D, Target = String>,
     String: Extend<U>,
 {
+    #[inline]
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
-        self.__mark_append();
         Observer::as_inner(self).extend(other);
     }
 }

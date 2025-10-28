@@ -1,13 +1,14 @@
 use std::cell::UnsafeCell;
 use std::collections::TryReserveError;
 use std::fmt::Debug;
-use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
+use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 use std::slice::SliceIndex;
+use std::vec::{Drain, ExtractIf, Splice};
 
 use serde::Serialize;
 
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
-use crate::impls::slice::{SliceIndexImpl, SliceObserver};
+use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverInner};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
@@ -127,19 +128,166 @@ where
         Observer::as_inner(self).shrink_to(min_capacity);
     }
 
+    /// See [`Vec::truncate`].
+    pub fn truncate(&mut self, len: usize) {
+        if len >= self.__initial_len() {
+            Observer::as_inner(self).truncate(len)
+        } else {
+            Observer::track_inner(self).truncate(len)
+        }
+    }
+
+    /// See [`Vec::as_slice`].
+    #[inline]
+    pub fn as_slice(&self) -> &[O] {
+        self.inner.obs.as_slice()
+    }
+
+    /// See [`Vec::as_mut_slice`].
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [O] {
+        self.inner.obs.as_mut_slice()
+    }
+
+    /// See [`Vec::swap_remove`].
+    pub fn swap_remove(&mut self, index: usize) -> T {
+        let initial_len = self.__initial_len();
+        if self.as_deref().len() <= initial_len {
+            Observer::track_inner(self).swap_remove(index)
+        } else {
+            if index < initial_len {
+                self.__track_index(index);
+            }
+            Observer::as_inner(self).swap_remove(index)
+        }
+    }
+
+    /// See [`Vec::insert`].
+    pub fn insert(&mut self, index: usize, element: T) {
+        if index >= self.__initial_len() {
+            Observer::as_inner(self).insert(index, element)
+        } else {
+            Observer::track_inner(self).insert(index, element)
+        }
+    }
+
+    /// See [`Vec::remove`].
+    pub fn remove(&mut self, index: usize) -> T {
+        if index >= self.__initial_len() {
+            Observer::as_inner(self).remove(index)
+        } else {
+            Observer::track_inner(self).remove(index)
+        }
+    }
+
     /// See [`Vec::push`].
+    #[inline]
     pub fn push(&mut self, value: T) {
-        self.inner.__mark_append();
         Observer::as_inner(self).push(value);
     }
 
-    /// See [`Vec::append`].
-    pub fn append(&mut self, other: &mut Vec<T>) {
-        if other.is_empty() {
-            return;
+    /// See [`Vec::pop`].
+    pub fn pop(&mut self) -> Option<T> {
+        if self.as_deref().len() > self.__initial_len() {
+            Observer::as_inner(self).pop()
+        } else {
+            Observer::track_inner(self).pop()
         }
-        self.inner.__mark_append();
+    }
+
+    /// See [`Vec::pop_if`].
+    pub fn pop_if(&mut self, predicate: impl FnOnce(&mut O) -> bool) -> Option<T> {
+        let last = self.last_mut()?;
+        if predicate(last) { self.pop() } else { None }
+    }
+
+    /// See [`Vec::append`].
+    #[inline]
+    pub fn append(&mut self, other: &mut Vec<T>) {
         Observer::as_inner(self).append(other);
+    }
+
+    /// See [`Vec::drain`].
+    pub fn drain<R>(&mut self, range: R) -> Drain<'_, T>
+    where
+        R: RangeBounds<usize>,
+    {
+        let start_index = match range.start_bound() {
+            Bound::Included(&n) => n,
+            Bound::Excluded(&n) => n + 1,
+            Bound::Unbounded => 0,
+        };
+        if start_index >= self.__initial_len() {
+            Observer::as_inner(self).drain(range)
+        } else {
+            Observer::track_inner(self).drain(range)
+        }
+    }
+
+    /// See [`Vec::clear`].
+    pub fn clear(&mut self) {
+        if self.__initial_len() == 0 {
+            Observer::as_inner(self).clear()
+        } else {
+            Observer::track_inner(self).clear()
+        }
+    }
+
+    /// See [`Vec::split_off`].
+    pub fn split_off(&mut self, at: usize) -> Vec<T> {
+        if at >= self.__initial_len() {
+            Observer::as_inner(self).split_off(at)
+        } else {
+            Observer::track_inner(self).split_off(at)
+        }
+    }
+
+    /// See [`Vec::resize_with`].
+    pub fn resize_with<F>(&mut self, new_len: usize, f: F)
+    where
+        F: FnMut() -> T,
+    {
+        if new_len >= self.__initial_len() {
+            Observer::as_inner(self).resize_with(new_len, f)
+        } else {
+            Observer::track_inner(self).resize_with(new_len, f)
+        }
+    }
+
+    /// See [`Vec::splice`].
+    pub fn splice<R, I>(&mut self, range: R, replace_with: I) -> Splice<'_, I::IntoIter>
+    where
+        R: RangeBounds<usize>,
+        I: IntoIterator<Item = T>,
+    {
+        let start_index = match range.start_bound() {
+            Bound::Included(&n) => n,
+            Bound::Excluded(&n) => n + 1,
+            Bound::Unbounded => 0,
+        };
+        if start_index >= self.__initial_len() {
+            Observer::as_inner(self).splice(range, replace_with)
+        } else {
+            Observer::track_inner(self).splice(range, replace_with)
+        }
+    }
+
+    /// See [`Vec::extract_if`].
+    pub fn extract_if<F, R>(&mut self, range: R, filter: F) -> ExtractIf<'_, T, F>
+    where
+        F: FnMut(&mut T) -> bool,
+        R: RangeBounds<usize>,
+    {
+        let start_index = match range.start_bound() {
+            Bound::Included(&n) => n,
+            Bound::Excluded(&n) => n + 1,
+            Bound::Unbounded => 0,
+        };
+        if start_index >= self.__initial_len() {
+            Observer::as_inner(self).extract_if(range, filter)
+        } else {
+            Observer::track_inner(self).extract_if(range, filter)
+        }
     }
 }
 
@@ -150,16 +298,24 @@ where
     O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: Clone + 'i,
 {
-    pub fn extend_from_slice(&mut self, other: &[T]) {
-        if other.is_empty() {
-            return;
+    /// See [`Vec::resize`].
+    pub fn resize(&mut self, new_len: usize, value: T) {
+        if new_len >= self.__initial_len() {
+            Observer::as_inner(self).resize(new_len, value)
+        } else {
+            Observer::track_inner(self).resize(new_len, value)
         }
-        self.inner.__mark_append();
+    }
+
+    /// See [`Vec::extend_from_slice`].
+    #[inline]
+    pub fn extend_from_slice(&mut self, other: &[T]) {
         Observer::as_inner(self).extend_from_slice(other);
     }
 
+    /// See [`Vec::extend_from_within`].
+    #[inline]
     pub fn extend_from_within<R: RangeBounds<usize>>(&mut self, range: R) {
-        self.inner.__mark_append();
         Observer::as_inner(self).extend_from_within(range);
     }
 }
@@ -172,8 +328,8 @@ where
     T: 'i,
     Vec<T>: Extend<U>,
 {
+    #[inline]
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
-        self.inner.__mark_append();
         Observer::as_inner(self).extend(other);
     }
 }
@@ -227,6 +383,7 @@ where
 {
     type Output = I::Output;
 
+    #[inline]
     fn index(&self, index: I) -> &Self::Output {
         &self.inner[index]
     }
@@ -240,6 +397,7 @@ where
     T: 'i,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
+    #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         &mut self.inner[index]
     }

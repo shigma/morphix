@@ -155,7 +155,7 @@ pub trait ObserveExt: Observe {
     }
 }
 
-impl<T: Observe> ObserveExt for T {}
+impl<T: Observe + ?Sized> ObserveExt for T {}
 
 /// A trait for observer types that wrap and track mutations to values.
 ///
@@ -215,6 +215,14 @@ where
         'i: 'j,
     {
         let head = unsafe { ObserverPointer::as_mut(Self::as_ptr(this)) };
+        AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
+    }
+
+    fn track_inner<'j>(this: &mut Self) -> &'j mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
+    where
+        'i: 'j,
+    {
+        let head = unsafe { ObserverPointer::as_mut(this.as_deref_mut_coinductive()) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
     }
 }
