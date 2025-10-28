@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::ops::{Deref, DerefMut};
 
 /// An internal pointer type for observer dereference chains.
@@ -30,7 +31,7 @@ use std::ops::{Deref, DerefMut};
 /// This type is not intended for direct use outside of observer implementations. All safety
 /// invariants are maintained by the observer infrastructure when used correctly within that
 /// context.
-pub struct ObserverPointer<S: ?Sized>(Option<*mut S>);
+pub struct ObserverPointer<S: ?Sized>(Cell<Option<*mut S>>);
 
 impl<S: ?Sized> ObserverPointer<S> {
     /// Creates a new pointer from a mutable reference.
@@ -39,7 +40,18 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// which is enforced by the lifetime parameter in observer types.
     #[inline]
     pub fn new(value: &mut S) -> Self {
-        Self(Some(value))
+        Self(Cell::new(Some(value)))
+    }
+
+    /// Updates the internal pointer to a new reference.
+    ///
+    /// This method is primarily used when observed collections (like [`Vec`]) reallocate their
+    /// internal storage. When a vector grows and moves its elements to a new memory location,
+    /// any existing `ObserverPointer` instances pointing to those elements become invalid.
+    /// This method allows updating those pointers to point to the elements' new locations.
+    #[inline]
+    pub fn set(this: &Self, value: &mut S) {
+        this.0.set(Some(value));
     }
 
     /// Checks if this pointer is null.
@@ -48,7 +60,7 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// initialized via [`observe`](crate::observe::Observer::observe).
     #[inline]
     pub fn is_null(this: &Self) -> bool {
-        this.0.is_none()
+        this.0.get().is_none()
     }
 
     /// Returns a reference to the pointed value.
@@ -64,7 +76,7 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// observer infrastructure, but must be manually verified if called directly.
     #[inline]
     pub unsafe fn as_ref<'i>(this: &Self) -> &'i S {
-        let ptr = this.0.expect("Observed pointer should not be null");
+        let ptr = this.0.get().expect("Observed pointer should not be null");
         // SAFETY: The caller guarantees the pointer is valid and properly aligned,
         // and that the lifetime 'i does not outlive the original value.
         unsafe { &*ptr }
@@ -84,7 +96,7 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// observer infrastructure, but must be manually verified if called directly.
     #[inline]
     pub unsafe fn as_mut<'i>(this: &Self) -> &'i mut S {
-        let ptr = this.0.expect("Observed pointer should not be null");
+        let ptr = this.0.get().expect("Observed pointer should not be null");
         // SAFETY: The caller guarantees exclusive access to the pointed value,
         // that the pointer is valid and properly aligned, and that the lifetime
         // 'i does not outlive the original value.
@@ -95,7 +107,7 @@ impl<S: ?Sized> ObserverPointer<S> {
 impl<S: ?Sized> Default for ObserverPointer<S> {
     #[inline]
     fn default() -> Self {
-        Self(None)
+        Self(Cell::new(None))
     }
 }
 

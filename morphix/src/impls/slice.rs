@@ -76,9 +76,7 @@ where
         let ob_iter = inner[start..end].iter_mut();
         let value_iter = slice[start..end].iter_mut();
         for (ob, value) in ob_iter.zip(value_iter) {
-            if *O::as_ptr(ob) != ObserverPointer::new(value) {
-                *ob = O::observe(value);
-            }
+            ObserverPointer::set(O::as_ptr(ob), value);
         }
     }
 }
@@ -120,10 +118,12 @@ impl<T, I: SliceIndex<[T], Output = [T]> + RangeBounds<usize>> SliceIndexImpl<[T
     }
 }
 
-/// An observer for [`[T]`](core::slice) that tracks both replacements and appends.
+/// Observer implementation for [slice](core::slice).
 ///
-/// `SliceObserver` provides special handling for vector append operations, distinguishing them from
-/// complete replacements for efficiency.
+/// `SliceObserver` provides element-level change tracking for slices through indexing operations.
+/// It serves as the foundation for both [`VecObserver`](crate::impls::vec::VecObserver) and
+/// [`ArrayObserver`](crate::impls::array::ArrayObserver), enabling them to track mutations to
+/// individual elements.
 pub struct SliceObserver<'i, V, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
     pub(super) obs: V,

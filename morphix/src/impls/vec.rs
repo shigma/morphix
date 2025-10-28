@@ -11,10 +11,11 @@ use crate::impls::slice::{SliceIndexImpl, SliceObserver};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
-/// An observer for [`Vec<T>`] that tracks both replacements and appends.
+/// Observer implementation for [`Vec`].
 ///
-/// `VecObserver` provides special handling for vector append operations, distinguishing them from
-/// complete replacements for efficiency.
+/// `VecObserver` provides comprehensive change tracking for vectors, including both element-level
+/// mutations and append operations. It builds on [`SliceObserver`] for element tracking while
+/// adding specialized support for dynamic operations.
 pub struct VecObserver<'i, O, S: ?Sized, D = Zero> {
     inner: SliceObserver<'i, UnsafeCell<Vec<O>>, S, Succ<D>>,
 }
@@ -318,9 +319,9 @@ mod tests {
         let mut vec: Vec<Number> = vec![Number(1), Number(2)];
         let mut ob = vec.observe();
         assert_eq!(ob[0].0, 1);
-        ob.reserve(100); // force reallocation
+        ob.reserve(4); // force reallocation
         ob[0].0 = 99;
-        ob.reserve(100); // force reallocation
+        ob.reserve(64); // force reallocation
         assert_eq!(ob[0].0, 99);
         let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.path, vec![(-2).into()].into());
