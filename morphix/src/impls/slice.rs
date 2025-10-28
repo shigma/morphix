@@ -132,15 +132,9 @@ pub struct SliceObserver<'i, V, S: ?Sized, D = Zero> {
 }
 
 impl<'i, V, S: ?Sized, D> SliceObserver<'i, V, S, D> {
-    pub(super) fn mark_replace(&mut self) {
+    #[inline]
+    pub(super) fn __mark_replace(&mut self) {
         self.mutation = Some(MutationState::Replace);
-    }
-
-    pub(super) fn mark_append(&mut self, start_index: usize) {
-        if self.mutation.is_some() {
-            return;
-        }
-        self.mutation = Some(MutationState::Append(start_index));
     }
 }
 
@@ -173,7 +167,7 @@ where
     V: SliceObserverInner<'i>,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mark_replace();
+        self.__mark_replace();
         self.obs = V::init_empty();
         &mut self.ptr
     }
@@ -256,57 +250,75 @@ where
     O: Observer<'i, InnerDepth = Zero, Head = T>,
     T: 'i,
 {
-    fn obs_range(&mut self, start: usize, end: usize) -> Option<&mut [O]> {
-        let current_len = Self::as_inner(self).as_mut().len();
-        if current_len < end {
+    #[inline]
+    pub(super) fn __mark_append(&mut self) {
+        if self.mutation.is_some() {
+            return;
+        }
+        self.mutation = Some(MutationState::Append(self.as_deref().as_ref().len()));
+    }
+
+    fn __obs_range(&mut self, start: usize, end: usize) -> Option<&mut [O]> {
+        let len = self.as_deref().as_ref().len();
+        if end > len {
             return None;
         }
         self.obs.init_range(start, end, Self::as_inner(self).as_mut());
         Some(self.obs.as_slice_mut())
     }
 
-    fn obs_full(&mut self) -> &mut [O] {
-        let len = Self::as_inner(self).as_mut().len();
+    fn __obs_full(&mut self) -> &mut [O] {
+        let len = self.as_deref().as_ref().len();
         self.obs.init_range(0, len, Self::as_inner(self).as_mut());
         self.obs.as_slice_mut()
     }
 
+    /// See [`slice::first_mut`].
     pub fn first_mut(&mut self) -> Option<&mut O> {
-        self.obs_range(0, 1)?.first_mut()
+        self.__obs_range(0, 1)?.first_mut()
     }
 
+    /// See [`slice::split_first_mut`].
     pub fn split_first_mut(&mut self) -> Option<(&mut O, &mut [O])> {
-        self.obs_full().split_first_mut()
+        self.__obs_full().split_first_mut()
     }
 
+    /// See [`slice::split_last_mut`].
     pub fn split_last_mut(&mut self) -> Option<(&mut O, &mut [O])> {
-        self.obs_full().split_last_mut()
+        self.__obs_full().split_last_mut()
     }
 
+    /// See [`slice::last_mut`].
     pub fn last_mut(&mut self) -> Option<&mut O> {
-        self.obs_full().last_mut()
+        self.__obs_full().last_mut()
     }
 
+    /// See [`slice::first_chunk_mut`].
     pub fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [O; N]> {
-        self.obs_range(0, N)?.first_chunk_mut()
+        self.__obs_range(0, N)?.first_chunk_mut()
     }
 
+    /// See [`slice::split_first_chunk_mut`].
     pub fn split_first_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [O; N], &mut [O])> {
-        self.obs_full().split_first_chunk_mut()
+        self.__obs_full().split_first_chunk_mut()
     }
 
+    /// See [`slice::split_last_chunk_mut`].
     pub fn split_last_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [O], &mut [O; N])> {
-        self.obs_full().split_last_chunk_mut()
+        self.__obs_full().split_last_chunk_mut()
     }
 
+    /// See [`slice::last_chunk_mut`].
     pub fn last_chunk_mut<const N: usize>(&mut self) -> Option<&mut [O; N]> {
-        self.obs_full().last_chunk_mut()
+        self.__obs_full().last_chunk_mut()
     }
 
+    /// See [`slice::get_mut`].
     pub fn get_mut(&mut self, index: usize) -> Option<&mut O> {
-        self.obs_range(index, index + 1)?.get_mut(index)
+        self.__obs_range(index, index + 1)?.get_mut(index)
     }
 
+    /// See [`slice::swap`].
     pub fn swap(&mut self, a: usize, b: usize) {
         Self::as_inner(self).as_mut().swap(a, b);
         // manually trigger `DerefMut` down to `T`
@@ -317,82 +329,97 @@ where
         obs[b].as_deref_mut_coinductive();
     }
 
+    /// See [`slice::iter_mut`].
     pub fn iter_mut(&mut self) -> IterMut<'_, O> {
-        self.obs_full().iter_mut()
+        self.__obs_full().iter_mut()
     }
 
+    /// See [`slice::chunks_mut`].
     pub fn chunks_mut(&mut self, chunk_size: usize) -> ChunksMut<'_, O> {
-        self.obs_full().chunks_mut(chunk_size)
+        self.__obs_full().chunks_mut(chunk_size)
     }
 
+    /// See [`slice::chunks_exact_mut`].
     pub fn chunks_exact_mut(&mut self, chunk_size: usize) -> ChunksExactMut<'_, O> {
-        self.obs_full().chunks_exact_mut(chunk_size)
+        self.__obs_full().chunks_exact_mut(chunk_size)
     }
 
+    /// See [`slice::as_chunks_mut`].
     pub fn as_chunks_mut<const N: usize>(&mut self) -> (&mut [[O; N]], &mut [O]) {
-        self.obs_full().as_chunks_mut()
+        self.__obs_full().as_chunks_mut()
     }
 
+    /// See [`slice::as_rchunks_mut`].
     pub fn as_rchunks_mut<const N: usize>(&mut self) -> (&mut [O], &mut [[O; N]]) {
-        self.obs_full().as_rchunks_mut()
+        self.__obs_full().as_rchunks_mut()
     }
 
+    /// See [`slice::rchunks_mut`].
     pub fn rchunks_mut(&mut self, chunk_size: usize) -> RChunksMut<'_, O> {
-        self.obs_full().rchunks_mut(chunk_size)
+        self.__obs_full().rchunks_mut(chunk_size)
     }
 
+    /// See [`slice::rchunks_exact_mut`].
     pub fn rchunks_exact_mut(&mut self, chunk_size: usize) -> RChunksExactMut<'_, O> {
-        self.obs_full().rchunks_exact_mut(chunk_size)
+        self.__obs_full().rchunks_exact_mut(chunk_size)
     }
 
+    /// See [`slice::chunk_by_mut`].
     pub fn chunk_by_mut<F>(&mut self, pred: F) -> ChunkByMut<'_, O, F>
     where
         F: FnMut(&O, &O) -> bool,
     {
-        self.obs_full().chunk_by_mut(pred)
+        self.__obs_full().chunk_by_mut(pred)
     }
 
+    /// See [`slice::split_at_mut`].
     pub fn split_at_mut(&mut self, mid: usize) -> (&mut [O], &mut [O]) {
-        self.obs_full().split_at_mut(mid)
+        self.__obs_full().split_at_mut(mid)
     }
 
+    /// See [`slice::split_at_mut_checked`].
     pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut [O], &mut [O])> {
-        self.obs_full().split_at_mut_checked(mid)
+        self.__obs_full().split_at_mut_checked(mid)
     }
 
+    /// See [`slice::split_mut`].
     pub fn split_mut<F>(&mut self, pred: F) -> SplitMut<'_, O, F>
     where
         F: FnMut(&O) -> bool,
     {
-        self.obs_full().split_mut(pred)
+        self.__obs_full().split_mut(pred)
     }
 
+    /// See [`slice::split_inclusive_mut`].
     pub fn split_inclusive_mut<F>(&mut self, pred: F) -> SplitInclusiveMut<'_, O, F>
     where
         F: FnMut(&O) -> bool,
     {
-        self.obs_full().split_inclusive_mut(pred)
+        self.__obs_full().split_inclusive_mut(pred)
     }
 
+    /// See [`slice::rsplit_mut`].
     pub fn rsplit_mut<F>(&mut self, pred: F) -> RSplitMut<'_, O, F>
     where
         F: FnMut(&O) -> bool,
     {
-        self.obs_full().rsplit_mut(pred)
+        self.__obs_full().rsplit_mut(pred)
     }
 
+    /// See [`slice::splitn_mut`].
     pub fn splitn_mut<F>(&mut self, n: usize, pred: F) -> SplitNMut<'_, O, F>
     where
         F: FnMut(&O) -> bool,
     {
-        self.obs_full().splitn_mut(n, pred)
+        self.__obs_full().splitn_mut(n, pred)
     }
 
+    /// See [`slice::rsplitn_mut`].
     pub fn rsplitn_mut<F>(&mut self, n: usize, pred: F) -> RSplitNMut<'_, O, F>
     where
         F: FnMut(&O) -> bool,
     {
-        self.obs_full().rsplitn_mut(n, pred)
+        self.__obs_full().rsplitn_mut(n, pred)
     }
 }
 
@@ -455,7 +482,7 @@ where
 
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
-        let len = Self::as_inner(self).as_mut().len();
+        let len = self.as_deref().as_ref().len();
         let start = index.start_bound_inclusive();
         let end = index.end_bound_exclusive(len);
         if end > len {
@@ -478,7 +505,7 @@ where
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        let len = Self::as_inner(self).as_mut().len();
+        let len = self.as_deref().as_ref().len();
         let start = index.start_bound_inclusive();
         let end = index.end_bound_exclusive(len);
         if end > len {

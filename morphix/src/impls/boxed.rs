@@ -6,7 +6,7 @@ use crate::helper::{AsDeref, AsDerefMut, Assignable, Succ, Unsigned};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
-/// Observer implementation for [`Box<T>`].
+/// Observer implementation for [`Box`].
 ///
 /// This observer wraps the inner type's observer and forwards all operations to it, maintaining
 /// proper dereference chains for boxed types.

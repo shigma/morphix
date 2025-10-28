@@ -11,7 +11,7 @@ enum MutationState {
     Append(usize),
 }
 
-/// An observer for [`String`] that tracks both replacements and appends.
+/// Observer implementation for [`String`].
 ///
 /// `StringObserver` provides special handling for string append operations, distinguishing them
 /// from complete replacements for efficiency.
@@ -22,15 +22,9 @@ pub struct StringObserver<'i, S: ?Sized, D = Zero> {
 }
 
 impl<'i, S: ?Sized, D> StringObserver<'i, S, D> {
-    fn mark_replace(&mut self) {
+    #[inline]
+    fn __mark_replace(&mut self) {
         self.mutation = Some(MutationState::Replace);
-    }
-
-    fn mark_append(&mut self, start_index: usize) {
-        if self.mutation.is_some() {
-            return;
-        }
-        self.mutation = Some(MutationState::Append(start_index));
     }
 }
 
@@ -57,7 +51,7 @@ impl<'i, S: ?Sized, D> Deref for StringObserver<'i, S, D> {
 impl<'i, S: ?Sized, D> DerefMut for StringObserver<'i, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mark_replace();
+        self.__mark_replace();
         &mut self.ptr
     }
 }
@@ -75,6 +69,7 @@ where
     type OuterDepth = Zero;
     type Head = S;
 
+    #[inline]
     fn observe(value: &mut Self::Head) -> Self {
         Self {
             ptr: ObserverPointer::new(value),
@@ -111,16 +106,26 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String>,
 {
+    #[inline]
+    fn __mark_append(&mut self) {
+        if self.mutation.is_some() {
+            return;
+        }
+        self.mutation = Some(MutationState::Append(self.as_deref().len()));
+    }
+
+    /// See [`String::push`].
     pub fn push(&mut self, c: char) {
-        Self::mark_append(self, self.as_deref().len());
+        self.__mark_append();
         Observer::as_inner(self).push(c);
     }
 
+    /// See [`String::push_str`].
     pub fn push_str(&mut self, s: &str) {
         if s.is_empty() {
             return;
         }
-        Self::mark_append(self, self.as_deref().len());
+        self.__mark_append();
         Observer::as_inner(self).push_str(s);
     }
 }
@@ -143,7 +148,7 @@ where
     String: Extend<U>,
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
-        Self::mark_append(self, self.as_deref().len());
+        self.__mark_append();
         Observer::as_inner(self).extend(other);
     }
 }

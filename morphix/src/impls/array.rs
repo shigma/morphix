@@ -9,24 +9,32 @@ use crate::impls::slice::{SliceIndexImpl, SliceObserver};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
-/// An observer for [`[T; N]`](core::array) that tracks both replacements and appends.
+/// Observer implementation for [array](core::array).
+///
+/// `ArrayObserver` provides element-level change tracking for fixed-size arrays by building on
+/// [`SliceObserver`]. It tracks modifications to individual array elements through indexing
+/// operations.
 pub struct ArrayObserver<'i, const N: usize, O, S: ?Sized, D = Zero> {
     inner: SliceObserver<'i, [O; N], S, D>,
 }
 
 impl<'i, const N: usize, O, S: ?Sized, D> ArrayObserver<'i, N, O, S, D> {
+    /// See [`array::as_slice`].
     pub fn as_slice(&self) -> &[O] {
         &self.inner.obs
     }
 
+    /// See [`array::as_mut_slice`].
     pub fn as_mut_slice(&mut self) -> &mut [O] {
         &mut self.inner.obs
     }
 
+    /// See [`array::each_ref`].
     pub fn each_ref(&self) -> [&O; N] {
         self.inner.obs.each_ref()
     }
 
+    /// See [`array::each_mut`].
     pub fn each_mut(&mut self) -> [&mut O; N] {
         self.inner.obs.each_mut()
     }

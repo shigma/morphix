@@ -89,47 +89,56 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'i,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
+    T: 'i,
 {
+    /// See [`Vec::reserve`].
     #[inline]
     pub fn reserve(&mut self, additional: usize) {
         Observer::as_inner(self).reserve(additional);
     }
 
+    /// See [`Vec::reserve_exact`].
     #[inline]
     pub fn reserve_exact(&mut self, additional: usize) {
         Observer::as_inner(self).reserve_exact(additional);
     }
 
+    /// See [`Vec::try_reserve`].
     #[inline]
     pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
         Observer::as_inner(self).try_reserve(additional)
     }
 
+    /// See [`Vec::try_reserve_exact`].
     #[inline]
     pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
         Observer::as_inner(self).try_reserve_exact(additional)
     }
 
+    /// See [`Vec::shrink_to_fit`].
     #[inline]
     pub fn shrink_to_fit(&mut self) {
         Observer::as_inner(self).shrink_to_fit();
     }
 
+    /// See [`Vec::shrink_to`].
     #[inline]
     pub fn shrink_to(&mut self, min_capacity: usize) {
         Observer::as_inner(self).shrink_to(min_capacity);
     }
 
+    /// See [`Vec::push`].
     pub fn push(&mut self, value: T) {
-        self.inner.mark_append(self.as_deref().len());
+        self.inner.__mark_append();
         Observer::as_inner(self).push(value);
     }
 
+    /// See [`Vec::append`].
     pub fn append(&mut self, other: &mut Vec<T>) {
         if other.is_empty() {
             return;
         }
-        self.inner.mark_append(self.as_deref().len());
+        self.inner.__mark_append();
         Observer::as_inner(self).append(other);
     }
 }
@@ -139,18 +148,18 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'i,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
-    T: Clone,
+    T: Clone + 'i,
 {
     pub fn extend_from_slice(&mut self, other: &[T]) {
         if other.is_empty() {
             return;
         }
-        self.inner.mark_append(self.as_deref().len());
+        self.inner.__mark_append();
         Observer::as_inner(self).extend_from_slice(other);
     }
 
     pub fn extend_from_within<R: RangeBounds<usize>>(&mut self, range: R) {
-        self.inner.mark_append(self.as_deref().len());
+        self.inner.__mark_append();
         Observer::as_inner(self).extend_from_within(range);
     }
 }
@@ -160,10 +169,11 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'i,
     O: Observer<'i, InnerDepth = Zero, Head = T>,
+    T: 'i,
     Vec<T>: Extend<U>,
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
-        self.inner.mark_append(self.as_deref().len());
+        self.inner.__mark_append();
         Observer::as_inner(self).extend(other);
     }
 }

@@ -8,7 +8,7 @@ use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
-/// Observer implementation for [`Option<T>`].
+/// Observer implementation for [`Option`].
 ///
 /// This observer tracks changes to optional values, including transitions between [`Some`] and
 /// [`None`] states. It provides specialized methods for working with options while maintaining
@@ -112,6 +112,7 @@ where
         self.ob = Some(O::observe(inserted));
     }
 
+    /// See [`Option::as_mut`].
     pub fn as_mut(&mut self) -> Option<&mut O> {
         if self.as_deref().is_some() && self.ob.is_none() {
             self.ob = Observer::as_inner(self).as_mut().map(O::observe);
@@ -119,16 +120,19 @@ where
         self.ob.as_mut()
     }
 
+    /// See [`Option::insert`].
     pub fn insert(&mut self, value: O::Head) -> &mut O {
         self.__insert(value);
         self.ob.as_mut().unwrap()
     }
 
+    /// See [`Option::get_or_insert`].
     #[inline]
     pub fn get_or_insert(&mut self, value: O::Head) -> &mut O {
         self.get_or_insert_with(|| value)
     }
 
+    /// See [`Option::get_or_insert_default`].
     #[inline]
     pub fn get_or_insert_default(&mut self) -> &mut O
     where
@@ -137,6 +141,7 @@ where
         self.get_or_insert_with(Default::default)
     }
 
+    /// See [`Option::get_or_insert_with`].
     pub fn get_or_insert_with<F>(&mut self, f: F) -> &mut O
     where
         F: FnOnce() -> O::Head,
