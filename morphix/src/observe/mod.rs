@@ -206,10 +206,16 @@ where
         this.as_deref_coinductive()
     }
 
-    /// Gets a mutable reference to the inner observed value.
+    /// Gets a mutable reference to the inner observed value without triggering observation.
     ///
-    /// This method traverses the entire dereference chain to reach the observed value, bypassing
-    /// any observation logic.
+    /// This method bypasses the entire observer chain, directly accessing the observed value
+    /// through the internal pointer. No [`DerefMut`](std::ops::DerefMut) hooks are triggered,
+    /// making this useful for internal operations that shouldn't be recorded as mutations.
+    ///
+    /// ## Usage
+    ///
+    /// This method is primarily used internally by observer implementations when they need
+    /// to perform operations on the observed value without recording them as changes.
     fn as_inner<'j>(this: &Self) -> &'j mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
     where
         'i: 'j,
@@ -218,6 +224,36 @@ where
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
     }
 
+    /// Gets a mutable reference to the inner observed value while triggering observation.
+    ///
+    /// This method traverses the entire dereference chain, triggering
+    /// [`DerefMut`](std::ops::DerefMut) hooks on all observers in the chain. This ensures that
+    /// any mutations through the returned reference are properly tracked by all relevant
+    /// observers.
+    ///
+    /// ## Usage
+    ///
+    /// Use this method when you need to access the inner value in a way that should be recorded as
+    /// a potential mutation, such as when implementing specialized methods on observers.
+    ///
+    /// ## Example
+    ///
+    /// Implementing [`Vec::pop`] for a [`VecObserver`](crate::impls::vec::VecObserver):
+    ///
+    /// ```ignore
+    /// impl VecObserver<'i> {
+    ///     pub fn pop(&mut self) -> Option<T> {
+    ///         if self.as_deref().len() > self.initial_len() {
+    ///             // If the current length exceeds the initial length, the pop operation can be
+    ///             // expressed by `MutationKind::Append`, so we do not trigger full mutation.
+    ///             Observer::as_inner(self).pop()
+    ///         } else {
+    ///             // Otherwise, we need to treat the pop operation as `MutationKind::Replace`.
+    ///             Observer::track_inner(self).pop()
+    ///         }
+    ///     }
+    /// }
+    /// ```
     fn track_inner<'j>(this: &mut Self) -> &'j mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
     where
         'i: 'j,

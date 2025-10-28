@@ -2,7 +2,7 @@ use std::array::from_fn;
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, Range, RangeBounds};
+use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 use std::slice::{
     ChunkByMut, ChunksExactMut, ChunksMut, IterMut, RChunksExactMut, RChunksMut, RSplitMut, RSplitNMut, SliceIndex,
     SplitInclusiveMut, SplitMut, SplitNMut,
@@ -14,15 +14,15 @@ use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe, PathSegment};
 
-pub trait SliceObserverInner<'i> {
+pub trait ObserverSlice<'i> {
     type Item: Observer<'i, InnerDepth = Zero, Head: Sized>;
+    fn default() -> Self;
     fn as_slice(&self) -> &[Self::Item];
     fn as_mut_slice(&mut self) -> &mut [Self::Item];
-    fn init_empty() -> Self;
-    fn init_range(&self, range: Range<usize>, slice: &'i mut [<Self::Item as Observer<'i>>::Head]);
+    fn init_range(&self, start: usize, end: usize, values: &'i mut [<Self::Item as Observer<'i>>::Head]);
 }
 
-impl<'i, O, const N: usize> SliceObserverInner<'i> for [O; N]
+impl<'i, O, const N: usize> ObserverSlice<'i> for [O; N]
 where
     O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
@@ -36,16 +36,16 @@ where
         self
     }
 
-    fn init_empty() -> Self {
+    fn default() -> Self {
         from_fn(|_| Default::default())
     }
 
-    fn init_range(&self, _range: Range<usize>, _slice: &'i mut [<Self::Item as Observer<'i>>::Head]) {
+    fn init_range(&self, _start: usize, _end: usize, _values: &'i mut [<Self::Item as Observer<'i>>::Head]) {
         // No need to re-initialize fixed-size array.
     }
 }
 
-impl<'i, O> SliceObserverInner<'i> for UnsafeCell<Vec<O>>
+impl<'i, O> ObserverSlice<'i> for UnsafeCell<Vec<O>>
 where
     O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
@@ -59,17 +59,17 @@ where
         unsafe { &mut *self.get() }
     }
 
-    fn init_empty() -> Self {
+    fn default() -> Self {
         Default::default()
     }
 
-    fn init_range(&self, range: Range<usize>, slice: &'i mut [<Self::Item as Observer<'i>>::Head]) {
+    fn init_range(&self, start: usize, end: usize, values: &'i mut [<Self::Item as Observer<'i>>::Head]) {
         let inner = unsafe { &mut *self.get() };
-        if range.end > inner.len() {
-            inner.resize_with(range.end, Default::default);
+        if end > inner.len() {
+            inner.resize_with(end, Default::default);
         }
-        let ob_iter = inner[range.clone()].iter_mut();
-        let value_iter = slice[range].iter_mut();
+        let ob_iter = inner[start..end].iter_mut();
+        let value_iter = values[start..end].iter_mut();
         for (ob, value) in ob_iter.zip(value_iter) {
             ObserverPointer::set(O::as_ptr(ob), value);
         }
@@ -77,25 +77,25 @@ where
 }
 
 pub(super) trait SliceIndexImpl<T: ?Sized, Output: ?Sized> {
-    fn start_bound_inclusive(&self) -> usize;
-    fn end_bound_exclusive(&self, len: usize) -> usize;
+    fn start_inclusive(&self) -> usize;
+    fn end_exclusive(&self, len: usize) -> usize;
 }
 
 impl<T> SliceIndexImpl<[T], T> for usize {
     #[inline]
-    fn start_bound_inclusive(&self) -> usize {
+    fn start_inclusive(&self) -> usize {
         *self
     }
 
     #[inline]
-    fn end_bound_exclusive(&self, _len: usize) -> usize {
+    fn end_exclusive(&self, _len: usize) -> usize {
         self + 1
     }
 }
 
 impl<T, I: SliceIndex<[T], Output = [T]> + RangeBounds<usize>> SliceIndexImpl<[T], [T]> for I {
     #[inline]
-    fn start_bound_inclusive(&self) -> usize {
+    fn start_inclusive(&self) -> usize {
         match self.start_bound() {
             Bound::Included(&start) => start,
             Bound::Excluded(&start) => start + 1,
@@ -104,7 +104,7 @@ impl<T, I: SliceIndex<[T], Output = [T]> + RangeBounds<usize>> SliceIndexImpl<[T
     }
 
     #[inline]
-    fn end_bound_exclusive(&self, len: usize) -> usize {
+    fn end_exclusive(&self, len: usize) -> usize {
         match self.end_bound() {
             Bound::Included(&end) => end + 1,
             Bound::Excluded(&end) => end,
@@ -135,13 +135,13 @@ impl<'i, V, S: ?Sized, D> SliceObserver<'i, V, S, D> {
 
 impl<'i, V, S: ?Sized, D> Default for SliceObserver<'i, V, S, D>
 where
-    V: SliceObserverInner<'i>,
+    V: ObserverSlice<'i>,
 {
     #[inline]
     fn default() -> Self {
         Self {
             ptr: ObserverPointer::default(),
-            obs: V::init_empty(),
+            obs: V::default(),
             mutation: None,
             phantom: PhantomData,
         }
@@ -159,25 +159,25 @@ impl<'i, V, S: ?Sized, D> Deref for SliceObserver<'i, V, S, D> {
 
 impl<'i, V, S: ?Sized, D> DerefMut for SliceObserver<'i, V, S, D>
 where
-    V: SliceObserverInner<'i>,
+    V: ObserverSlice<'i>,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.__mark_replace();
-        self.obs = V::init_empty();
+        self.obs = V::default();
         &mut self.ptr
     }
 }
 
 impl<'i, V, S> Assignable for SliceObserver<'i, V, S>
 where
-    V: SliceObserverInner<'i>,
+    V: ObserverSlice<'i>,
 {
     type Depth = Succ<Zero>;
 }
 
 impl<'i, V, S: ?Sized, D, O, T> Observer<'i> for SliceObserver<'i, V, S, D>
 where
-    V: SliceObserverInner<'i, Item = O>,
+    V: ObserverSlice<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D> + 'i,
     S::Target: AsRef<[T]> + AsMut<[T]>,
@@ -191,7 +191,7 @@ where
     fn observe(value: &'i mut Self::Head) -> Self {
         Self {
             ptr: ObserverPointer::new(value),
-            obs: V::init_empty(),
+            obs: V::default(),
             mutation: Some(value.as_deref().as_ref().len()),
             phantom: PhantomData,
         }
@@ -200,7 +200,7 @@ where
 
 impl<'i, V, S: ?Sized, D, O, T> SerializeObserver<'i> for SliceObserver<'i, V, S, D>
 where
-    V: SliceObserverInner<'i, Item = O>,
+    V: ObserverSlice<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D> + 'i,
     S::Target: AsRef<[T]> + AsMut<[T]>,
@@ -237,11 +237,11 @@ where
 
 impl<'i, V, S: ?Sized, D, O, T> SliceObserver<'i, V, S, D>
 where
-    V: SliceObserverInner<'i, Item = O>,
+    V: ObserverSlice<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D> + 'i,
     S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    O: Observer<'i, InnerDepth = Zero, Head = T> + 'i,
     T: 'i,
 {
     #[inline]
@@ -249,64 +249,80 @@ where
         self.mutation.unwrap_or(0)
     }
 
-    /// Manually trigger [`DerefMut`] down to [`ObserverPointer`].
-    pub(super) fn __track_index(&mut self, index: usize) {
-        self.obs.init_range(index..index + 1, Self::as_inner(self).as_mut());
-        self.obs.as_mut_slice()[index].as_deref_mut_coinductive();
-    }
-
-    fn __obs_range(&mut self, range: Range<usize>) -> Option<&mut [O]> {
+    fn __init_index<I>(&self, index: &I) -> Option<()>
+    where
+        I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+    {
         let len = self.as_deref().as_ref().len();
-        if range.end > len {
+        let start = index.start_inclusive();
+        let end = index.end_exclusive(len);
+        if end > len {
             return None;
         }
-        self.obs.init_range(range, Self::as_inner(self).as_mut());
-        Some(self.obs.as_mut_slice())
+        self.obs.init_range(start, end, Self::as_inner(self).as_mut());
+        Some(())
     }
 
-    fn __obs_full(&mut self) -> &mut [O] {
+    fn __get<I>(&self, index: I) -> Option<&I::Output>
+    where
+        I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+    {
+        self.__init_index(&index)?;
+        Some(self.obs.as_slice().index(index))
+    }
+
+    fn __get_mut<I>(&mut self, index: I) -> Option<&mut I::Output>
+    where
+        I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+    {
+        self.__init_index(&index)?;
+        Some(self.obs.as_mut_slice().index_mut(index))
+    }
+
+    fn __full_mut(&mut self) -> &mut [O] {
         let len = self.as_deref().as_ref().len();
-        self.obs.init_range(0..len, Self::as_inner(self).as_mut());
+        self.obs.init_range(0, len, Self::as_inner(self).as_mut());
         self.obs.as_mut_slice()
     }
 
     /// See [`slice::first_mut`].
     pub fn first_mut(&mut self) -> Option<&mut O> {
-        self.__obs_range(0..1)?.first_mut()
+        self.__get_mut(0)
     }
 
     /// See [`slice::split_first_mut`].
     pub fn split_first_mut(&mut self) -> Option<(&mut O, &mut [O])> {
-        self.__obs_full().split_first_mut()
+        self.__full_mut().split_first_mut()
     }
 
     /// See [`slice::split_last_mut`].
     pub fn split_last_mut(&mut self) -> Option<(&mut O, &mut [O])> {
-        self.__obs_full().split_last_mut()
+        self.__full_mut().split_last_mut()
     }
 
     /// See [`slice::last_mut`].
     pub fn last_mut(&mut self) -> Option<&mut O> {
         let len = self.as_deref().as_ref().len();
-        if len == 0 {
-            return None;
-        }
-        self.__obs_range(len - 1..len)?.last_mut()
+        self.__get_mut(len - 1)
     }
 
     /// See [`slice::first_chunk_mut`].
     pub fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [O; N]> {
-        self.__obs_range(0..N)?.first_chunk_mut()
+        let len = self.as_deref().as_ref().len();
+        if len < N {
+            return None;
+        }
+        self.__get_mut(..N)?.first_chunk_mut()
     }
 
     /// See [`slice::split_first_chunk_mut`].
     pub fn split_first_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [O; N], &mut [O])> {
-        self.__obs_full().split_first_chunk_mut()
+        self.__full_mut().split_first_chunk_mut()
     }
 
     /// See [`slice::split_last_chunk_mut`].
     pub fn split_last_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [O], &mut [O; N])> {
-        self.__obs_full().split_last_chunk_mut()
+        self.__full_mut().split_last_chunk_mut()
     }
 
     /// See [`slice::last_chunk_mut`].
@@ -315,54 +331,54 @@ where
         if len < N {
             return None;
         }
-        self.__obs_range(len - N..len)?.last_chunk_mut()
+        self.__get_mut(len - N..)?.last_chunk_mut()
     }
 
     /// See [`slice::get_mut`].
     pub fn get_mut(&mut self, index: usize) -> Option<&mut O> {
-        self.__obs_range(index..index + 1)?.get_mut(index)
+        self.__get_mut(index)
     }
 
     /// See [`slice::swap`].
     pub fn swap(&mut self, a: usize, b: usize) {
         Self::as_inner(self).as_mut().swap(a, b);
-        self.__track_index(a);
-        self.__track_index(b);
+        self[a].as_deref_mut_coinductive();
+        self[b].as_deref_mut_coinductive();
     }
 
     /// See [`slice::iter_mut`].
     pub fn iter_mut(&mut self) -> IterMut<'_, O> {
-        self.__obs_full().iter_mut()
+        self.__full_mut().iter_mut()
     }
 
     /// See [`slice::chunks_mut`].
     pub fn chunks_mut(&mut self, chunk_size: usize) -> ChunksMut<'_, O> {
-        self.__obs_full().chunks_mut(chunk_size)
+        self.__full_mut().chunks_mut(chunk_size)
     }
 
     /// See [`slice::chunks_exact_mut`].
     pub fn chunks_exact_mut(&mut self, chunk_size: usize) -> ChunksExactMut<'_, O> {
-        self.__obs_full().chunks_exact_mut(chunk_size)
+        self.__full_mut().chunks_exact_mut(chunk_size)
     }
 
     /// See [`slice::as_chunks_mut`].
     pub fn as_chunks_mut<const N: usize>(&mut self) -> (&mut [[O; N]], &mut [O]) {
-        self.__obs_full().as_chunks_mut()
+        self.__full_mut().as_chunks_mut()
     }
 
     /// See [`slice::as_rchunks_mut`].
     pub fn as_rchunks_mut<const N: usize>(&mut self) -> (&mut [O], &mut [[O; N]]) {
-        self.__obs_full().as_rchunks_mut()
+        self.__full_mut().as_rchunks_mut()
     }
 
     /// See [`slice::rchunks_mut`].
     pub fn rchunks_mut(&mut self, chunk_size: usize) -> RChunksMut<'_, O> {
-        self.__obs_full().rchunks_mut(chunk_size)
+        self.__full_mut().rchunks_mut(chunk_size)
     }
 
     /// See [`slice::rchunks_exact_mut`].
     pub fn rchunks_exact_mut(&mut self, chunk_size: usize) -> RChunksExactMut<'_, O> {
-        self.__obs_full().rchunks_exact_mut(chunk_size)
+        self.__full_mut().rchunks_exact_mut(chunk_size)
     }
 
     /// See [`slice::chunk_by_mut`].
@@ -370,17 +386,17 @@ where
     where
         F: FnMut(&O, &O) -> bool,
     {
-        self.__obs_full().chunk_by_mut(pred)
+        self.__full_mut().chunk_by_mut(pred)
     }
 
     /// See [`slice::split_at_mut`].
     pub fn split_at_mut(&mut self, mid: usize) -> (&mut [O], &mut [O]) {
-        self.__obs_full().split_at_mut(mid)
+        self.__full_mut().split_at_mut(mid)
     }
 
     /// See [`slice::split_at_mut_checked`].
     pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut [O], &mut [O])> {
-        self.__obs_full().split_at_mut_checked(mid)
+        self.__full_mut().split_at_mut_checked(mid)
     }
 
     /// See [`slice::split_mut`].
@@ -388,7 +404,7 @@ where
     where
         F: FnMut(&O) -> bool,
     {
-        self.__obs_full().split_mut(pred)
+        self.__full_mut().split_mut(pred)
     }
 
     /// See [`slice::split_inclusive_mut`].
@@ -396,7 +412,7 @@ where
     where
         F: FnMut(&O) -> bool,
     {
-        self.__obs_full().split_inclusive_mut(pred)
+        self.__full_mut().split_inclusive_mut(pred)
     }
 
     /// See [`slice::rsplit_mut`].
@@ -404,7 +420,7 @@ where
     where
         F: FnMut(&O) -> bool,
     {
-        self.__obs_full().rsplit_mut(pred)
+        self.__full_mut().rsplit_mut(pred)
     }
 
     /// See [`slice::splitn_mut`].
@@ -412,7 +428,7 @@ where
     where
         F: FnMut(&O) -> bool,
     {
-        self.__obs_full().splitn_mut(n, pred)
+        self.__full_mut().splitn_mut(n, pred)
     }
 
     /// See [`slice::rsplitn_mut`].
@@ -420,13 +436,13 @@ where
     where
         F: FnMut(&O) -> bool,
     {
-        self.__obs_full().rsplitn_mut(n, pred)
+        self.__full_mut().rsplitn_mut(n, pred)
     }
 }
 
 impl<'i, V, S: ?Sized, D, O, T> Debug for SliceObserver<'i, V, S, D>
 where
-    V: SliceObserverInner<'i, Item = O>,
+    V: ObserverSlice<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
@@ -441,7 +457,7 @@ where
 
 impl<'i, V, S: ?Sized, D, O, T, U> PartialEq<U> for SliceObserver<'i, V, S, D>
 where
-    V: SliceObserverInner<'i, Item = O>,
+    V: ObserverSlice<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
@@ -456,7 +472,7 @@ where
 
 impl<'i, V, S: ?Sized, D, O, T, U> PartialOrd<U> for SliceObserver<'i, V, S, D>
 where
-    V: SliceObserverInner<'i, Item = O>,
+    V: ObserverSlice<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
@@ -471,7 +487,7 @@ where
 
 impl<'i, V, S: ?Sized, D, O, T, I> Index<I> for SliceObserver<'i, V, S, D>
 where
-    V: SliceObserverInner<'i, Item = O>,
+    V: ObserverSlice<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D> + 'i,
     S::Target: AsRef<[T]> + AsMut<[T]>,
@@ -483,20 +499,13 @@ where
 
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
-        let len = self.as_deref().as_ref().len();
-        let start = index.start_bound_inclusive();
-        let end = index.end_bound_exclusive(len);
-        if end > len {
-            panic!("index out of bounds");
-        }
-        self.obs.init_range(start..end, Self::as_inner(self).as_mut());
-        self.obs.as_slice().index(index)
+        self.__get(index).expect("index out of bounds")
     }
 }
 
 impl<'i, V, S: ?Sized, D, O, T, I> IndexMut<I> for SliceObserver<'i, V, S, D>
 where
-    V: SliceObserverInner<'i, Item = O>,
+    V: ObserverSlice<'i, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D> + 'i,
     S::Target: AsRef<[T]> + AsMut<[T]>,
@@ -506,14 +515,7 @@ where
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        let len = self.as_deref().as_ref().len();
-        let start = index.start_bound_inclusive();
-        let end = index.end_bound_exclusive(len);
-        if end > len {
-            panic!("index out of bounds");
-        }
-        self.obs.init_range(start..end, Self::as_inner(self).as_mut());
-        self.obs.as_mut_slice().index_mut(index)
+        self.__get_mut(index).expect("index out of bounds")
     }
 }
 

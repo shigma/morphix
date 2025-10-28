@@ -8,7 +8,7 @@ use std::vec::{Drain, ExtractIf, Splice};
 use serde::Serialize;
 
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
-use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverInner};
+use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
@@ -89,7 +89,7 @@ impl<'i, O, S: ?Sized, D, T> VecObserver<'i, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    O: Observer<'i, InnerDepth = Zero, Head = T> + 'i,
     T: 'i,
 {
     /// See [`Vec::reserve`].
@@ -156,7 +156,7 @@ where
             Observer::track_inner(self).swap_remove(index)
         } else {
             if index < initial_len {
-                self.__track_index(index);
+                self[index].as_deref_mut_coinductive();
             }
             Observer::as_inner(self).swap_remove(index)
         }
@@ -295,7 +295,7 @@ impl<'i, O, S: ?Sized, D, T> VecObserver<'i, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    O: Observer<'i, InnerDepth = Zero, Head = T> + 'i,
     T: Clone + 'i,
 {
     /// See [`Vec::resize`].
