@@ -9,15 +9,11 @@ struct Foo<T> {
 const _: () = {
     #[automatically_derived]
     impl<T> ::morphix::Observe for Foo<T> {
-        type Observer<'morphix, __S, __N> = ::morphix::observe::ShallowObserver<
-            'morphix,
-            __S,
-            __N,
-        >
+        type Observer<'ob, S, N> = ::morphix::observe::ShallowObserver<'ob, S, N>
         where
-            Self: 'morphix,
-            __N: ::morphix::helper::Unsigned,
-            __S: ::morphix::helper::AsDerefMut<__N, Target = Self> + ?Sized + 'morphix;
+            Self: 'ob,
+            N: ::morphix::helper::Unsigned,
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };
@@ -33,15 +29,11 @@ const _: () = {
     where
         Self: ::std::clone::Clone + ::std::cmp::PartialEq,
     {
-        type Observer<'morphix, __S, __N> = ::morphix::observe::SnapshotObserver<
-            'morphix,
-            __S,
-            __N,
-        >
+        type Observer<'ob, S, N> = ::morphix::observe::SnapshotObserver<'ob, S, N>
         where
-            Self: 'morphix,
-            __N: ::morphix::helper::Unsigned,
-            __S: ::morphix::helper::AsDerefMut<__N, Target = Self> + ?Sized + 'morphix;
+            Self: 'ob,
+            N: ::morphix::helper::Unsigned,
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::SnapshotSpec;
     }
 };
