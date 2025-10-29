@@ -179,8 +179,10 @@ where
 {
     /// Type-level number of dereferences from `Head` to the observed type.
     type InnerDepth: Unsigned;
+
     /// Type-level number of dereferences from `Self` to [`ObserverPointer<Head>`] minus one.
     type OuterDepth: Unsigned;
+
     /// The head type of the dereference chain.
     type Head: AsDerefMut<Self::InnerDepth> + ?Sized + 'i;
 
