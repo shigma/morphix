@@ -23,7 +23,7 @@ path = "fixtures/mod.rs"
 [dependencies]
 proc-macro2 = "1.0.101"
 quote = "1.0.41"
-syn = { version = "2.0.106", features = ["full", "visit-mut"] }
+syn = { version = "2.0.106", features = ["full", "visit", "visit-mut"] }
 
 [dev-dependencies]
 macro_expand = "0.1.2"

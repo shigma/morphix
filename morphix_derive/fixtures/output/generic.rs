@@ -25,7 +25,6 @@ const _: () = {
     impl<'morphix, T, __S: ?Sized, __N> Default for FooObserver<'morphix, T, __S, __N>
     where
         T: Observe,
-        DefaultObserver<'morphix, T>: Default,
     {
         fn default() -> Self {
             Self {
@@ -91,9 +90,9 @@ const _: () = {
     impl<'morphix, T, __S: ?Sized, __N> SerializeObserver<'morphix>
     for FooObserver<'morphix, T, __S, __N>
     where
+        Foo<T>: ::serde::Serialize,
         T: Observe,
         DefaultObserver<'morphix, T>: SerializeObserver<'morphix>,
-        Foo<T>: ::serde::Serialize,
         __S: AsDerefMut<__N, Target = Foo<T>> + 'morphix,
         __N: Unsigned,
     {

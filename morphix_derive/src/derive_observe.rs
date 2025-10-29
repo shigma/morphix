@@ -145,40 +145,51 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 field_cloned.attrs = vec![];
                 let field_span = field_cloned.span();
                 let field_ty = &field.ty;
+                let field_trivial = !GenericsDetector::detect(field_ty, &input.generics);
                 let ob_field_ty = if let Some(span) = field_meta.deref {
-                    deref_fields.push((field_ident, field_ty, span));
+                    let ob_field_ty = match &field_meta.general_impl {
+                        None => quote_spanned! { field_span =>
+                            DefaultObserver<'morphix, #field_ty, __S, Succ<__N>>
+                        },
+                        Some(GeneralImpl { ob_ident, .. }) => quote_spanned! { field_span =>
+                            ::morphix::observe::#ob_ident<'morphix, __S, Succ<__N>>
+                        },
+                    };
+                    deref_fields.push((field_ident, field_ty, ob_field_ty, span));
                     inst_fields.push(quote_spanned! { field_span =>
                         #field_ident: __inner,
                     });
-                    match &field_meta.general_impl {
-                        None => quote_spanned! { field_span => __O },
-                        // FIXME
-                        Some(GeneralImpl { ob_ident, .. }) => quote_spanned! { field_span =>
-                            ::morphix::observe::#ob_ident<'morphix, #field_ty>
-                        },
-                    }
+                    ob_default_extra_predicates.push(parse_quote_spanned! { field_span =>
+                        __O: Default
+                    });
+                    quote! { __O }
                 } else {
                     inst_fields.push(quote_spanned! { field_span =>
                         #field_ident: Observer::observe(&mut __value.#field_ident),
                     });
-                    // FIXME: trivial check
-                    ob_extra_predicates.push(parse_quote_spanned! { field_span =>
-                        #field_ty: Observe
-                    });
-                    ob_struct_extra_predicates.push(parse_quote_spanned! { field_span =>
-                        #field_ty: Observe + 'morphix
-                    });
-                    input_observe_observer_predicates.push(parse_quote_spanned! { field_span =>
-                        #field_ty: 'morphix
-                    });
-                    match &field_meta.general_impl {
+                    let ob_field_ty = match &field_meta.general_impl {
                         None => quote_spanned! { field_span =>
                             DefaultObserver<'morphix, #field_ty>
                         },
                         Some(GeneralImpl { ob_ident, .. }) => quote_spanned! { field_span =>
                             ::morphix::observe::#ob_ident<'morphix, #field_ty>
                         },
+                    };
+                    if !field_trivial {
+                        ob_extra_predicates.push(parse_quote_spanned! { field_span =>
+                            #field_ty: Observe
+                        });
+                        ob_struct_extra_predicates.push(parse_quote_spanned! { field_span =>
+                            #field_ty: Observe + 'morphix
+                        });
+                        input_observe_observer_predicates.push(parse_quote_spanned! { field_span =>
+                            #field_ty: 'morphix
+                        });
+                        ob_serialize_observer_extra_predicates.push(parse_quote_spanned! { field_span =>
+                            #ob_field_ty: SerializeObserver<'morphix>
+                        });
                     }
+                    ob_field_ty
                 };
                 type_fields.push(quote_spanned! { field_span =>
                     pub #field_ident: #ob_field_ty,
@@ -191,12 +202,6 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                         mutation.path.push(stringify!(#field_ident).into());
                         mutations.push(mutation);
                     }
-                });
-                ob_default_extra_predicates.push(parse_quote_spanned! { field_span =>
-                    #ob_field_ty: Default
-                });
-                ob_serialize_observer_extra_predicates.push(parse_quote_spanned! { field_span =>
-                    #ob_field_ty: SerializeObserver<'morphix>
                 });
             }
             if !errors.is_empty() {
@@ -231,8 +236,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             let serialize_observer_impl_prefix;
             let input_observe_observer;
 
-            let mut ob_observer_predicates = ob_predicates.clone();
-            let mut ob_serialize_observer_predicates = ob_predicates.clone();
+            let mut ob_observer_extra_predicates = WherePredicates::default();
             if deref_fields.is_empty() {
                 ob_generics.params.push(parse_quote! { __S: ?Sized });
                 ob_generics.params.push(parse_quote! { __N = Zero });
@@ -256,17 +260,14 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     },
                 );
 
-                ob_observer_predicates.push(parse_quote! {
+                ob_observer_extra_predicates.push(parse_quote! {
                     __S: AsDerefMut<__N, Target = #input_ident #type_generics> + 'morphix
                 });
-                ob_observer_predicates.push(parse_quote! { __N: Unsigned });
-
-                ob_serialize_observer_predicates.extend(ob_serialize_observer_extra_predicates);
-                ob_serialize_observer_predicates.push(parse_quote! { #input_ident #type_generics: ::serde::Serialize });
-                ob_serialize_observer_predicates.push(parse_quote! {
+                ob_observer_extra_predicates.push(parse_quote! { __N: Unsigned });
+                ob_serialize_observer_extra_predicates.push(parse_quote! {
                     __S: AsDerefMut<__N, Target = #input_ident #type_generics> + 'morphix
                 });
-                ob_serialize_observer_predicates.push(parse_quote! { __N: Unsigned });
+                ob_serialize_observer_extra_predicates.push(parse_quote! { __N: Unsigned });
 
                 deref_impl = quote! {
                     type Target = ObserverPointer<__S>;
@@ -316,7 +317,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     #ob_ident #ob_type_generics
                 };
             } else {
-                let (field_ident, field_ty, _) = deref_fields.swap_remove(0);
+                let (field_ident, _, ob_field_ty, _) = deref_fields.swap_remove(0);
 
                 ob_generics.params.push(parse_quote! { __O });
                 ob_assignable_generics.params.push(parse_quote! { __O });
@@ -340,22 +341,21 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     },
                 );
 
-                ob_observer_predicates.push(parse_quote! {
+                ob_observer_extra_predicates.push(parse_quote! {
                     __O: Observer<'morphix, InnerDepth = Succ<__N>>
                 });
-                ob_observer_predicates.push(parse_quote! {
+                ob_observer_extra_predicates.push(parse_quote! {
                     __O::Head: AsDerefMut<__N, Target = #input_ident #type_generics>
                 });
-                ob_observer_predicates.push(parse_quote! { __N: Unsigned });
+                ob_observer_extra_predicates.push(parse_quote! { __N: Unsigned });
 
-                ob_serialize_observer_predicates.extend(ob_serialize_observer_extra_predicates);
-                ob_serialize_observer_predicates.push(parse_quote! {
-                    __O: Observer<'morphix, InnerDepth = Succ<__N>>
+                ob_serialize_observer_extra_predicates.push(parse_quote! {
+                    __O: SerializeObserver<'morphix, InnerDepth = Succ<__N>>
                 });
-                ob_serialize_observer_predicates.push(parse_quote! {
+                ob_serialize_observer_extra_predicates.push(parse_quote! {
                     __O::Head: AsDerefMut<__N, Target = #input_ident #type_generics>
                 });
-                ob_serialize_observer_predicates.push(parse_quote! { __N: Unsigned });
+                ob_serialize_observer_extra_predicates.push(parse_quote! { __N: Unsigned });
 
                 deref_impl = quote! {
                     type Target = __O;
@@ -392,14 +392,26 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 serialize_observer_impl_prefix = quote! {};
 
                 let ob_type_generics = ob_generics.params.iter().map(|param| match param {
-                    syn::GenericParam::Type(ty_param) if ty_param.ident == "__O" => {
-                        quote! { DefaultObserver<'morphix, #field_ty, __S, Succ<__N>> }
-                    }
+                    syn::GenericParam::Type(ty_param) if ty_param.ident == "__O" => quote! { #ob_field_ty },
                     _ => quote! { #param },
                 });
                 input_observe_observer = quote! {
                     #ob_ident <#(#ob_type_generics),*>
                 };
+            }
+
+            let mut ob_observer_predicates = ob_predicates.clone();
+            ob_observer_predicates.extend(ob_observer_extra_predicates);
+            let mut ob_serialize_observer_predicates = ob_predicates.clone();
+            ob_serialize_observer_predicates.extend(ob_serialize_observer_extra_predicates);
+            let input_trivial = input.generics.params.is_empty();
+            if !input_trivial {
+                ob_serialize_observer_predicates.insert(
+                    0,
+                    parse_quote! {
+                        #input_ident #type_generics: ::serde::Serialize
+                    },
+                );
             }
 
             input_observe_observer_predicates.push(parse_quote! { Self: 'morphix });
@@ -409,7 +421,9 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             });
 
             let mut input_observe_predicates = ob_predicates.clone();
-            input_observe_predicates.push(parse_quote! { Self: ::serde::Serialize });
+            if !input_trivial {
+                input_observe_predicates.push(parse_quote! { Self: ::serde::Serialize });
+            }
 
             let mut ob_observer_generics = ob_generics.clone();
             ob_observer_generics.params.extend(ob_observer_extra_generics);
@@ -495,5 +509,56 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             }
         }
         _ => syn::Error::new(input.span(), "Observe can only be derived for named structs").to_compile_error(),
+    }
+}
+
+struct GenericsDetector<'i> {
+    is_detected: bool,
+    generics: &'i syn::Generics,
+}
+
+impl<'i> GenericsDetector<'i> {
+    fn detect(ty: &syn::Type, generics: &'i syn::Generics) -> bool {
+        let mut checker = GenericsDetector {
+            is_detected: false,
+            generics,
+        };
+        syn::visit::visit_type(&mut checker, ty);
+        checker.is_detected
+    }
+}
+
+impl<'i> syn::visit::Visit<'_> for GenericsDetector<'i> {
+    fn visit_type_path(&mut self, type_path: &syn::TypePath) {
+        if type_path.qself.is_none()
+            && let Some(ident) = type_path.path.get_ident()
+        {
+            for param in &self.generics.params {
+                match param {
+                    syn::GenericParam::Type(ty_param) => {
+                        if &ty_param.ident == ident {
+                            self.is_detected = true;
+                        }
+                    }
+                    syn::GenericParam::Lifetime(_lt_param) => {}
+                    syn::GenericParam::Const(const_param) => {
+                        if &const_param.ident == ident {
+                            self.is_detected = true;
+                        }
+                    }
+                }
+            }
+        }
+        syn::visit::visit_type_path(self, type_path);
+    }
+
+    fn visit_lifetime(&mut self, lifetime: &syn::Lifetime) {
+        for param in &self.generics.params {
+            if let syn::GenericParam::Lifetime(lt_param) = param
+                && &lt_param.lifetime == lifetime
+            {
+                self.is_detected = true;
+            }
+        }
     }
 }
