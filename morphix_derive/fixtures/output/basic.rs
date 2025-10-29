@@ -8,23 +8,19 @@ struct Foo {
 }
 #[rustfmt::skip]
 const _: () = {
-    use ::morphix::helper::{AsDerefMut, Succ, Unsigned, Zero};
-    use ::morphix::observe::{
-        DefaultObserver, Observe, Observer, ObserverPointer, SerializeObserver,
-    };
     #[allow(private_interfaces)]
-    struct FooObserver<'ob, S: ?Sized, N = Zero> {
-        __ptr: ObserverPointer<S>,
+    struct FooObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
+        __ptr: ::morphix::observe::ObserverPointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut N>,
-        pub a: DefaultObserver<'ob, i32>,
-        pub b: DefaultObserver<'ob, String>,
+        pub a: ::morphix::observe::DefaultObserver<'ob, i32>,
+        pub b: ::morphix::observe::DefaultObserver<'ob, String>,
     }
     #[automatically_derived]
-    impl<'ob, S: ?Sized, N> Default for FooObserver<'ob, S, N> {
+    impl<'ob, S: ?Sized, N> ::std::default::Default for FooObserver<'ob, S, N> {
         fn default() -> Self {
             Self {
-                __ptr: ObserverPointer::default(),
+                __ptr: Default::default(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
                 a: Default::default(),
@@ -34,7 +30,7 @@ const _: () = {
     }
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::ops::Deref for FooObserver<'ob, S, N> {
-        type Target = ObserverPointer<S>;
+        type Target = ::morphix::observe::ObserverPointer<S>;
         fn deref(&self) -> &Self::Target {
             &self.__ptr
         }
@@ -47,34 +43,35 @@ const _: () = {
     }
     #[automatically_derived]
     impl<'ob, S> ::morphix::helper::Assignable for FooObserver<'ob, S> {
-        type Depth = Succ<Zero>;
+        type Depth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]
-    impl<'ob, S: ?Sized, N> Observer<'ob> for FooObserver<'ob, S, N>
+    impl<'ob, S: ?Sized, N> ::morphix::observe::Observer<'ob> for FooObserver<'ob, S, N>
     where
-        S: AsDerefMut<N, Target = Foo> + 'ob,
-        N: Unsigned,
+        S: ::morphix::helper::AsDerefMut<N, Target = Foo> + 'ob,
+        N: ::morphix::helper::Unsigned,
     {
         type Head = S;
         type InnerDepth = N;
-        type OuterDepth = Zero;
+        type OuterDepth = ::morphix::helper::Zero;
         fn observe(value: &'ob mut S) -> Self {
-            let __ptr = ObserverPointer::new(value);
+            let __ptr = ::morphix::observe::ObserverPointer::new(value);
             let __value = value.as_deref_mut();
             Self {
                 __ptr,
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                a: Observer::observe(&mut __value.a),
-                b: Observer::observe(&mut __value.b),
+                a: ::morphix::observe::Observer::observe(&mut __value.a),
+                b: ::morphix::observe::Observer::observe(&mut __value.b),
             }
         }
     }
     #[automatically_derived]
-    impl<'ob, S: ?Sized, N> SerializeObserver<'ob> for FooObserver<'ob, S, N>
+    impl<'ob, S: ?Sized, N> ::morphix::observe::SerializeObserver<'ob>
+    for FooObserver<'ob, S, N>
     where
-        S: AsDerefMut<N, Target = Foo> + 'ob,
-        N: Unsigned,
+        S: ::morphix::helper::AsDerefMut<N, Target = Foo> + 'ob,
+        N: ::morphix::helper::Unsigned,
     {
         unsafe fn collect_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
@@ -93,11 +90,15 @@ const _: () = {
                 );
             }
             let mut mutations = ::std::vec::Vec::new();
-            if let Some(mut mutation) = SerializeObserver::collect::<A>(&mut this.a)? {
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
+                A,
+            >(&mut this.a)? {
                 mutation.path.push(stringify!(a).into());
                 mutations.push(mutation);
             }
-            if let Some(mut mutation) = SerializeObserver::collect::<A>(&mut this.b)? {
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
+                A,
+            >(&mut this.b)? {
                 mutation.path.push(stringify!(b).into());
                 mutations.push(mutation);
             }
@@ -105,12 +106,12 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl Observe for Foo {
+    impl ::morphix::Observe for Foo {
         type Observer<'ob, S, N> = FooObserver<'ob, S, N>
         where
             Self: 'ob,
-            N: Unsigned,
-            S: AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+            N: ::morphix::helper::Unsigned,
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };

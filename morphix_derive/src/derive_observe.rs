@@ -160,10 +160,10 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 let ob_field_ty = if let Some(span) = field_meta.deref {
                     let ob_field_ty = match &field_meta.general_impl {
                         None => quote_spanned! { field_span =>
-                            DefaultObserver<#ob_lt, #field_ty, #head, Succ<#depth>>
+                            ::morphix::observe::DefaultObserver<#ob_lt, #field_ty, #head, ::morphix::helper::Succ<#depth>>
                         },
                         Some(GeneralImpl { ob_ident, .. }) => quote_spanned! { field_span =>
-                            ::morphix::observe::#ob_ident<#ob_lt, #head, Succ<#depth>>
+                            ::morphix::observe::#ob_ident<#ob_lt, #head, ::morphix::helper::Succ<#depth>>
                         },
                     };
                     deref_fields.push((field, ob_field_ty, span));
@@ -171,16 +171,16 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                         #field_ident: __inner,
                     });
                     ob_default_extra_predicates.push(parse_quote_spanned! { field_span =>
-                        #inner: Default
+                        #inner: ::std::default::Default
                     });
                     quote! { #inner }
                 } else {
                     inst_fields.push(quote_spanned! { field_span =>
-                        #field_ident: Observer::observe(&mut __value.#field_ident),
+                        #field_ident: ::morphix::observe::Observer::observe(&mut __value.#field_ident),
                     });
                     let ob_field_ty = match &field_meta.general_impl {
                         None => quote_spanned! { field_span =>
-                            DefaultObserver<#ob_lt, #field_ty>
+                            ::morphix::observe::DefaultObserver<#ob_lt, #field_ty>
                         },
                         Some(GeneralImpl { ob_ident, .. }) => quote_spanned! { field_span =>
                             ::morphix::observe::#ob_ident<#ob_lt, #field_ty>
@@ -188,16 +188,16 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     };
                     if !field_trivial {
                         ob_extra_predicates.push(parse_quote_spanned! { field_span =>
-                            #field_ty: Observe
+                            #field_ty: ::morphix::Observe
                         });
                         ob_struct_extra_predicates.push(parse_quote_spanned! { field_span =>
-                            #field_ty: Observe + #ob_lt
+                            #field_ty: ::morphix::Observe + #ob_lt
                         });
                         input_observe_observer_predicates.push(parse_quote_spanned! { field_span =>
                             #field_ty: #ob_lt
                         });
                         ob_serialize_observer_extra_predicates.push(parse_quote_spanned! { field_span =>
-                            #ob_field_ty: SerializeObserver<#ob_lt>
+                            #ob_field_ty: ::morphix::observe::SerializeObserver<#ob_lt>
                         });
                     }
                     ob_field_ty
@@ -209,7 +209,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     #field_ident: Default::default(),
                 });
                 collect_stmts.push(quote_spanned! { field_span =>
-                    if let Some(mut mutation) = SerializeObserver::collect::<A>(&mut this.#field_ident)? {
+                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<A>(&mut this.#field_ident)? {
                         mutation.path.push(stringify!(#field_ident).into());
                         mutations.push(mutation);
                     }
@@ -250,13 +250,15 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             let mut ob_observer_extra_predicates = WherePredicates::default();
             if deref_fields.is_empty() {
                 ob_generics.params.push(parse_quote! { #head: ?Sized });
-                ob_generics.params.push(parse_quote! { #depth = Zero });
+                ob_generics
+                    .params
+                    .push(parse_quote! { #depth = ::morphix::helper::Zero });
                 ob_assignable_generics.params.push(parse_quote! { #head });
 
                 type_fields.insert(
                     0,
                     quote! {
-                        __ptr: ObserverPointer<#head>,
+                        __ptr: ::morphix::observe::ObserverPointer<#head>,
                         __mutated: bool,
                         __phantom: ::std::marker::PhantomData<&#ob_lt mut #depth>,
                     },
@@ -265,23 +267,23 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 default_fields.insert(
                     0,
                     quote! {
-                        __ptr: ObserverPointer::default(),
+                        __ptr: Default::default(),
                         __mutated: false,
                         __phantom: ::std::marker::PhantomData,
                     },
                 );
 
                 ob_observer_extra_predicates.push(parse_quote! {
-                    #head: AsDerefMut<#depth, Target = #input_ident #type_generics> + #ob_lt
+                    #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #type_generics> + #ob_lt
                 });
-                ob_observer_extra_predicates.push(parse_quote! { #depth: Unsigned });
+                ob_observer_extra_predicates.push(parse_quote! { #depth: ::morphix::helper::Unsigned });
                 ob_serialize_observer_extra_predicates.push(parse_quote! {
-                    #head: AsDerefMut<#depth, Target = #input_ident #type_generics> + #ob_lt
+                    #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #type_generics> + #ob_lt
                 });
-                ob_serialize_observer_extra_predicates.push(parse_quote! { #depth: Unsigned });
+                ob_serialize_observer_extra_predicates.push(parse_quote! { #depth: ::morphix::helper::Unsigned });
 
                 deref_impl = quote! {
-                    type Target = ObserverPointer<#head>;
+                    type Target = ::morphix::observe::ObserverPointer<#head>;
                     fn deref(&self) -> &Self::Target {
                         &self.__ptr
                     }
@@ -294,16 +296,16 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 };
 
                 assignable_impl = quote! {
-                    type Depth = Succ<Zero>;
+                    type Depth = ::morphix::helper::Succ<::morphix::helper::Zero>;
                 };
 
                 observer_impl = quote! {
                     type Head = #head;
                     type InnerDepth = #depth;
-                    type OuterDepth = Zero;
+                    type OuterDepth = ::morphix::helper::Zero;
 
                     fn observe(value: &#ob_lt mut #head) -> Self {
-                        let __ptr = ObserverPointer::new(value);
+                        let __ptr = ::morphix::observe::ObserverPointer::new(value);
                         let __value = value.as_deref_mut();
                         Self {
                             __ptr,
@@ -333,7 +335,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 ob_assignable_generics.params.push(parse_quote! { #inner });
                 // FIXME: spanned
                 ob_assignable_predicates.push(parse_quote! {
-                    #inner: Observer<#ob_lt>
+                    #inner: ::morphix::observe::Observer<#ob_lt>
                 });
                 ob_observer_extra_generics.push(parse_quote! { #depth });
 
@@ -352,20 +354,20 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 );
 
                 ob_observer_extra_predicates.push(parse_quote! {
-                    #inner: Observer<#ob_lt, InnerDepth = Succ<#depth>>
+                    #inner: ::morphix::observe::Observer<#ob_lt, InnerDepth = ::morphix::helper::Succ<#depth>>
                 });
                 ob_observer_extra_predicates.push(parse_quote! {
-                    #inner::Head: AsDerefMut<#depth, Target = #input_ident #type_generics>
+                    #inner::Head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #type_generics>
                 });
-                ob_observer_extra_predicates.push(parse_quote! { #depth: Unsigned });
+                ob_observer_extra_predicates.push(parse_quote! { #depth: ::morphix::helper::Unsigned });
 
                 ob_serialize_observer_extra_predicates.push(parse_quote! {
-                    #inner: SerializeObserver<#ob_lt, InnerDepth = Succ<#depth>>
+                    #inner: ::morphix::observe::SerializeObserver<#ob_lt, InnerDepth = ::morphix::helper::Succ<#depth>>
                 });
                 ob_serialize_observer_extra_predicates.push(parse_quote! {
-                    #inner::Head: AsDerefMut<#depth, Target = #input_ident #type_generics>
+                    #inner::Head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #type_generics>
                 });
-                ob_serialize_observer_extra_predicates.push(parse_quote! { #depth: Unsigned });
+                ob_serialize_observer_extra_predicates.push(parse_quote! { #depth: ::morphix::helper::Unsigned });
 
                 deref_impl = quote! {
                     type Target = #inner;
@@ -381,17 +383,17 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 };
 
                 assignable_impl = quote! {
-                    type Depth = Succ<#inner::OuterDepth>;
+                    type Depth = ::morphix::helper::Succ<#inner::OuterDepth>;
                 };
 
                 observer_impl = quote! {
                     type Head = #inner::Head;
                     type InnerDepth = #depth;
-                    type OuterDepth = Succ<#inner::OuterDepth>;
+                    type OuterDepth = ::morphix::helper::Succ<#inner::OuterDepth>;
 
                     fn observe(value: &#ob_lt mut #inner::Head) -> Self {
-                        let __inner = Observer::observe(unsafe { &mut *(value as *mut #inner::Head) });
-                        let __value = AsDerefMut::<#depth>::as_deref_mut(value);
+                        let __inner = ::morphix::observe::Observer::observe(unsafe { &mut *(value as *mut #inner::Head) });
+                        let __value = ::morphix::helper::AsDerefMut::<#depth>::as_deref_mut(value);
                         Self {
                             __phantom: ::std::marker::PhantomData,
                             #(#inst_fields)*
@@ -423,9 +425,9 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             }
 
             input_observe_observer_predicates.push(parse_quote! { Self: #ob_lt });
-            input_observe_observer_predicates.push(parse_quote! { #depth: Unsigned });
+            input_observe_observer_predicates.push(parse_quote! { #depth: ::morphix::helper::Unsigned });
             input_observe_observer_predicates.push(parse_quote! {
-                #head: AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt
+                #head: ::morphix::helper::AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt
             });
 
             let mut input_observe_predicates = ob_predicates.clone();
@@ -441,11 +443,6 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
 
             quote! {
                 const _: () = {
-                    // #[allow(unused_imports)]
-                    use ::morphix::helper::{AsDerefMut, Succ, Unsigned, Zero};
-                    // #[allow(unused_imports)]
-                    use ::morphix::observe::{DefaultObserver, Observe, Observer, ObserverPointer, SerializeObserver};
-
                     #[allow(private_interfaces)]
                     #input_vis struct #ob_ident #ob_generics
                     where #ob_struct_predicates {
@@ -453,7 +450,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     }
 
                     #[automatically_derived]
-                    impl #ob_impl_generics Default
+                    impl #ob_impl_generics ::std::default::Default
                     for #ob_ident #ob_type_generics
                     where #ob_default_predicates {
                         fn default() -> Self {
@@ -485,14 +482,14 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     }
 
                     #[automatically_derived]
-                    impl #ob_observer_impl_generics Observer<#ob_lt>
+                    impl #ob_observer_impl_generics ::morphix::observe::Observer<#ob_lt>
                     for #ob_ident #ob_type_generics
                     where #ob_observer_predicates {
                         #observer_impl
                     }
 
                     #[automatically_derived]
-                    impl #ob_observer_impl_generics SerializeObserver<#ob_lt>
+                    impl #ob_observer_impl_generics ::morphix::observe::SerializeObserver<#ob_lt>
                     for #ob_ident #ob_type_generics
                     where #ob_serialize_observer_predicates {
                         unsafe fn collect_unchecked<A: ::morphix::Adapter>(
@@ -506,7 +503,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     }
 
                     #[automatically_derived]
-                    impl #input_impl_generics Observe
+                    impl #input_impl_generics ::morphix::Observe
                     for #input_ident #type_generics
                     where #input_observe_predicates {
                         type Observer<#ob_lt, #head, #depth> = #ob_ident #input_observer_type_generics
