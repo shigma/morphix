@@ -356,4 +356,4 @@ impl<'i, T: SerializeObserver<'i>> SerializeObserverExt<'i> for T {}
 pub struct DefaultSpec;
 
 #[doc(hidden)]
-pub type DefaultObserver<'i, T> = <T as Observe>::Observer<'i, T, Zero>;
+pub type DefaultObserver<'i, T, S = T, D = Zero> = <T as Observe>::Observer<'i, S, D>;

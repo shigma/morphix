@@ -13,7 +13,11 @@ const _: () = {
         DefaultObserver, Observe, Observer, ObserverPointer, SerializeObserver,
     };
     #[allow(private_interfaces)]
-    struct FooObserver<'morphix, __S: ?Sized, __N = Zero> {
+    struct FooObserver<'morphix, __S: ?Sized, __N = Zero>
+    where
+        i32: Observe + 'morphix,
+        String: Observe + 'morphix,
+    {
         __ptr: ObserverPointer<__S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'morphix mut __N>,
@@ -23,6 +27,8 @@ const _: () = {
     #[automatically_derived]
     impl<'morphix, __S: ?Sized, __N> Default for FooObserver<'morphix, __S, __N>
     where
+        i32: Observe,
+        String: Observe,
         DefaultObserver<'morphix, i32>: Default,
         DefaultObserver<'morphix, String>: Default,
     {
@@ -38,7 +44,11 @@ const _: () = {
     }
     #[automatically_derived]
     impl<'morphix, __S: ?Sized, __N> ::std::ops::Deref
-    for FooObserver<'morphix, __S, __N> {
+    for FooObserver<'morphix, __S, __N>
+    where
+        i32: Observe,
+        String: Observe,
+    {
         type Target = ObserverPointer<__S>;
         fn deref(&self) -> &Self::Target {
             &self.__ptr
@@ -46,23 +56,31 @@ const _: () = {
     }
     #[automatically_derived]
     impl<'morphix, __S: ?Sized, __N> ::std::ops::DerefMut
-    for FooObserver<'morphix, __S, __N> {
+    for FooObserver<'morphix, __S, __N>
+    where
+        i32: Observe,
+        String: Observe,
+    {
         fn deref_mut(&mut self) -> &mut Self::Target {
-            self.__mutated = true;
             &mut self.__ptr
         }
     }
     #[automatically_derived]
-    impl<'morphix, __S> ::morphix::helper::Assignable for FooObserver<'morphix, __S> {
+    impl<'morphix, __S> ::morphix::helper::Assignable for FooObserver<'morphix, __S>
+    where
+        i32: Observe,
+        String: Observe,
+    {
         type Depth = Succ<Zero>;
     }
     #[automatically_derived]
     impl<'morphix, __S: ?Sized, __N> Observer<'morphix>
     for FooObserver<'morphix, __S, __N>
     where
-        Foo: ::serde::Serialize,
-        __N: Unsigned,
+        i32: Observe,
+        String: Observe,
         __S: AsDerefMut<__N, Target = Foo> + 'morphix,
+        __N: Unsigned,
     {
         type Head = __S;
         type InnerDepth = __N;
@@ -84,8 +102,8 @@ const _: () = {
     for FooObserver<'morphix, __S, __N>
     where
         i32: Observe,
-        DefaultObserver<'morphix, i32>: SerializeObserver<'morphix>,
         String: Observe,
+        DefaultObserver<'morphix, i32>: SerializeObserver<'morphix>,
         DefaultObserver<'morphix, String>: SerializeObserver<'morphix>,
         Foo: ::serde::Serialize,
         __S: AsDerefMut<__N, Target = Foo> + 'morphix,
@@ -122,10 +140,14 @@ const _: () = {
     #[automatically_derived]
     impl Observe for Foo
     where
+        i32: Observe,
+        String: Observe,
         Self: ::serde::Serialize,
     {
         type Observer<'morphix, __S, __N> = FooObserver<'morphix, __S, __N>
         where
+            i32: 'morphix,
+            String: 'morphix,
             Self: 'morphix,
             __N: Unsigned,
             __S: AsDerefMut<__N, Target = Self> + ?Sized + 'morphix;

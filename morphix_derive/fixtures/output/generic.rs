@@ -54,7 +54,6 @@ const _: () = {
         T: Observe,
     {
         fn deref_mut(&mut self) -> &mut Self::Target {
-            self.__mutated = true;
             &mut self.__ptr
         }
     }
@@ -71,9 +70,8 @@ const _: () = {
     for FooObserver<'morphix, T, __S, __N>
     where
         T: Observe,
-        Foo<T>: ::serde::Serialize,
-        __N: Unsigned,
         __S: AsDerefMut<__N, Target = Foo<T>> + 'morphix,
+        __N: Unsigned,
     {
         type Head = __S;
         type InnerDepth = __N;
