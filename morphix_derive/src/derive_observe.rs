@@ -328,12 +328,20 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 let (_, ob_type_generics, _) = ob_generics.split_for_impl();
                 input_observer_type_generics = quote! { #ob_type_generics };
             } else {
+                if deref_fields.len() > 1 {
+                    return deref_fields
+                        .into_iter()
+                        .map(|(_, _, span)| {
+                            syn::Error::new(span, "only one field can be marked as `deref`").to_compile_error()
+                        })
+                        .collect();
+                }
+
                 let (field, ob_field_ty, _) = deref_fields.swap_remove(0);
                 let field_ident = &field.ident;
 
                 ob_generics.params.push(parse_quote! { #inner });
                 ob_assignable_generics.params.push(parse_quote! { #inner });
-                // FIXME: spanned
                 ob_assignable_predicates.push(parse_quote! {
                     #inner: ::morphix::observe::Observer<#ob_lt>
                 });
