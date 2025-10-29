@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 use std::mem::take;
 
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
 use syn::parse::Parser;
 use syn::punctuated::Punctuated;
@@ -21,7 +21,7 @@ struct GeneralImpl {
 #[derive(Default)]
 struct ObserveMeta {
     general_impl: Option<GeneralImpl>,
-    deref: Option<Span>,
+    deref: Option<syn::Ident>,
 }
 
 impl ObserveMeta {
@@ -72,7 +72,7 @@ impl ObserveMeta {
                         bounds: parse_quote! { ::std::clone::Clone + ::std::cmp::PartialEq },
                     });
                 } else if ident == "deref" {
-                    meta.deref = Some(ident.span());
+                    meta.deref = Some(ident);
                 } else {
                     errors.push(syn::Error::new(
                         ident.span(),
@@ -240,6 +240,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             let mut ob_generics = ob_assignable_generics.clone();
             let mut ob_observer_extra_generics = Punctuated::<syn::GenericParam, syn::Token![,]>::default();
 
+            let deref_ident;
             let deref_impl;
             let deref_mut_impl;
             let assignable_impl;
@@ -282,6 +283,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 });
                 ob_serialize_observer_extra_predicates.push(parse_quote! { #depth: ::morphix::helper::Unsigned });
 
+                deref_ident = format_ident!("Deref");
                 deref_impl = quote! {
                     type Target = ::morphix::observe::ObserverPointer<#head>;
                     fn deref(&self) -> &Self::Target {
@@ -331,13 +333,13 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 if deref_fields.len() > 1 {
                     return deref_fields
                         .into_iter()
-                        .map(|(_, _, span)| {
-                            syn::Error::new(span, "only one field can be marked as `deref`").to_compile_error()
+                        .map(|(_, _, ident)| {
+                            syn::Error::new(ident.span(), "only one field can be marked as `deref`").to_compile_error()
                         })
                         .collect();
                 }
 
-                let (field, ob_field_ty, _) = deref_fields.swap_remove(0);
+                let (field, ob_field_ty, meta_ident) = deref_fields.swap_remove(0);
                 let field_ident = &field.ident;
 
                 ob_generics.params.push(parse_quote! { #inner });
@@ -377,6 +379,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 });
                 ob_serialize_observer_extra_predicates.push(parse_quote! { #depth: ::morphix::helper::Unsigned });
 
+                deref_ident = syn::Ident::new("Deref", meta_ident.span());
                 deref_impl = quote! {
                     type Target = #inner;
                     fn deref(&self) -> &Self::Target {
@@ -469,7 +472,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     }
 
                     #[automatically_derived]
-                    impl #ob_impl_generics ::std::ops::Deref
+                    impl #ob_impl_generics ::std::ops::#deref_ident
                     for #ob_ident #ob_type_generics
                     where #ob_predicates {
                         #deref_impl
