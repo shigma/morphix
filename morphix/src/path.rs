@@ -99,3 +99,13 @@ impl<const REV: bool> DerefMut for Path<REV> {
         &mut self.0
     }
 }
+
+impl<const REV: bool> FromIterator<PathSegment> for Path<REV> {
+    fn from_iter<T: IntoIterator<Item = PathSegment>>(iter: T) -> Self {
+        let mut segments: Vec<PathSegment> = iter.into_iter().collect();
+        if REV {
+            segments.reverse();
+        }
+        Self(segments)
+    }
+}
