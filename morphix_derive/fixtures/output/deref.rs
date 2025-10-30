@@ -1,4 +1,4 @@
-use std::ops::{Deref, DerefMut};
+use ::std::ops::{Deref, DerefMut};
 use morphix_derive::Observe;
 use serde::Serialize;
 #[rustfmt::skip]
@@ -23,8 +23,8 @@ const _: () = {
         fn default() -> Self {
             Self {
                 __phantom: ::std::marker::PhantomData,
-                a: Default::default(),
-                b: Default::default(),
+                a: ::std::default::Default::default(),
+                b: ::std::default::Default::default(),
             }
         }
     }
@@ -148,8 +148,8 @@ const _: () = {
         fn default() -> Self {
             Self {
                 __phantom: ::std::marker::PhantomData,
-                a: Default::default(),
-                b: Default::default(),
+                a: ::std::default::Default::default(),
+                b: ::std::default::Default::default(),
             }
         }
     }
@@ -269,10 +269,10 @@ const _: () = {
     impl<'ob, S: ?Sized, N> ::std::default::Default for QuxObserver<'ob, S, N> {
         fn default() -> Self {
             Self {
-                __ptr: Default::default(),
+                __ptr: ::std::default::Default::default(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                a: Default::default(),
+                a: ::std::default::Default::default(),
             }
         }
     }

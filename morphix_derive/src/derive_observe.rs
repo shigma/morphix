@@ -206,7 +206,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     pub #field_ident: #ob_field_ty,
                 });
                 default_fields.push(quote_spanned! { field_span =>
-                    #field_ident: Default::default(),
+                    #field_ident: ::std::default::Default::default(),
                 });
                 collect_stmts.push(quote_spanned! { field_span =>
                     if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<A>(&mut this.#field_ident)? {
@@ -268,7 +268,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 default_fields.insert(
                     0,
                     quote! {
-                        __ptr: Default::default(),
+                        __ptr: ::std::default::Default::default(),
                         __mutated: false,
                         __phantom: ::std::marker::PhantomData,
                     },

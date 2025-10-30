@@ -24,10 +24,10 @@ const _: () = {
     {
         fn default() -> Self {
             Self {
-                __ptr: Default::default(),
+                __ptr: ::std::default::Default::default(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                a: Default::default(),
+                a: ::std::default::Default::default(),
             }
         }
     }

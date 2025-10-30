@@ -20,11 +20,11 @@ const _: () = {
     impl<'ob, S: ?Sized, N> ::std::default::Default for FooObserver<'ob, S, N> {
         fn default() -> Self {
             Self {
-                __ptr: Default::default(),
+                __ptr: ::std::default::Default::default(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                a: Default::default(),
-                b: Default::default(),
+                a: ::std::default::Default::default(),
+                b: ::std::default::Default::default(),
             }
         }
     }
