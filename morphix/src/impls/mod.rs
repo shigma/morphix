@@ -1,5 +1,5 @@
 pub mod array;
-pub mod boxed;
+pub mod forward;
 pub mod option;
 pub mod slice;
 pub mod string;

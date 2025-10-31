@@ -188,10 +188,10 @@ where
 
 impl<T> Observe for Option<T>
 where
-    T: Observe + OptionObserveImpl<T, T::Spec>,
+    T: Observe + OptionObserveImpl<T::Spec>,
 {
     type Observer<'i, S, D>
-        = <T as OptionObserveImpl<T, T::Spec>>::Observer<'i, S, D>
+        = <T as OptionObserveImpl<T::Spec>>::Observer<'i, S, D>
     where
         Self: 'i,
         D: Unsigned,
@@ -202,16 +202,16 @@ where
 
 /// Helper trait for selecting appropriate observer implementations for [`Option<T>`].
 #[doc(hidden)]
-pub trait OptionObserveImpl<T: Observe, Spec> {
+pub trait OptionObserveImpl<Spec> {
     /// The observer type for [`Option<T>`] with the given specification.
     type Observer<'i, S, D>: Observer<'i, Head = S, InnerDepth = D>
     where
-        T: 'i,
+        Self: 'i,
         D: Unsigned,
-        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'i;
+        S: AsDerefMut<D, Target = Option<Self>> + ?Sized + 'i;
 }
 
-impl<T> OptionObserveImpl<T, DefaultSpec> for T
+impl<T> OptionObserveImpl<DefaultSpec> for T
 where
     T: Observe<Spec = DefaultSpec>,
 {

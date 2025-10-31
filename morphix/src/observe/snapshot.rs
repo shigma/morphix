@@ -2,7 +2,6 @@ use std::mem::MaybeUninit;
 
 use crate::Observe;
 use crate::helper::{AsDeref, Zero};
-use crate::impls::boxed::BoxObserveImpl;
 use crate::impls::option::OptionObserveImpl;
 use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
 
@@ -120,19 +119,7 @@ impl_observe! {
     ::core::time::Duration, ::std::time::SystemTime,
 }
 
-impl<T> BoxObserveImpl<T, SnapshotSpec> for T
-where
-    T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
-{
-    type Observer<'i, S, D>
-        = SnapshotObserver<'i, S, D>
-    where
-        T: 'i,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = Box<T>> + ?Sized + 'i;
-}
-
-impl<T> OptionObserveImpl<T, SnapshotSpec> for T
+impl<T> OptionObserveImpl<SnapshotSpec> for T
 where
     T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
 {
