@@ -142,7 +142,7 @@ pub trait Observe {
 /// use morphix::observe::ObserveExt;
 ///
 /// let mut data = 42;
-/// let ob = data.observe();
+/// let ob = data.__observe();
 /// ```
 pub trait ObserveExt: Observe {
     /// Creates an observer for this value.
@@ -150,7 +150,7 @@ pub trait ObserveExt: Observe {
     /// This is a convenience method that calls [`Observer::observe`] with the appropriate type
     /// parameters automatically inferred.
     #[inline]
-    fn observe<'i>(&'i mut self) -> Self::Observer<'i, Self, Zero> {
+    fn __observe<'i>(&'i mut self) -> Self::Observer<'i, Self, Zero> {
         Observer::observe(self)
     }
 }
@@ -310,7 +310,7 @@ pub trait SerializeObserver<'i>: Observer<'i> {
     ///
     /// // Normal usage
     /// let mut value = String::from("Hello");
-    /// let mut ob = value.observe();
+    /// let mut ob = value.__observe();
     /// ob += " world";
     /// let mutation = ob.collect::<JsonAdapter>().unwrap();
     /// assert!(mutation.is_some());

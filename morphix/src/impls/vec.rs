@@ -440,14 +440,14 @@ mod tests {
     #[test]
     fn no_change_returns_none() {
         let mut vec: Vec<Number> = vec![];
-        let mut ob = vec.observe();
+        let mut ob = vec.__observe();
         assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
     }
 
     #[test]
     fn deref_mut_triggers_replace() {
         let mut vec: Vec<Number> = vec![Number(1)];
-        let mut ob = vec.observe();
+        let mut ob = vec.__observe();
         ob.clear();
         let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Replace(json!([])));
@@ -456,7 +456,7 @@ mod tests {
     #[test]
     fn push_triggers_append() {
         let mut vec: Vec<Number> = vec![Number(1)];
-        let mut ob = vec.observe();
+        let mut ob = vec.__observe();
         ob.push(Number(2));
         ob.push(Number(3));
         let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
@@ -466,7 +466,7 @@ mod tests {
     #[test]
     fn append_vec() {
         let mut vec: Vec<Number> = vec![Number(1)];
-        let mut ob = vec.observe();
+        let mut ob = vec.__observe();
         let mut extra = vec![Number(4), Number(5)];
         ob.append(&mut extra);
         let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
@@ -476,7 +476,7 @@ mod tests {
     #[test]
     fn extend_from_slice() {
         let mut vec: Vec<Number> = vec![Number(1)];
-        let mut ob = vec.observe();
+        let mut ob = vec.__observe();
         ob.extend_from_slice(&[Number(6), Number(7)]);
         let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
         assert_eq!(mutation.kind, MutationKind::Append(json!([6, 7])));
@@ -485,7 +485,7 @@ mod tests {
     #[test]
     fn index_by_usize() {
         let mut vec: Vec<Number> = vec![Number(1), Number(2)];
-        let mut ob = vec.observe();
+        let mut ob = vec.__observe();
         assert_eq!(ob[0].0, 1);
         ob.reserve(4); // force reallocation
         ob[0].0 = 99;
@@ -499,7 +499,7 @@ mod tests {
     #[test]
     fn append_and_index() {
         let mut vec: Vec<Number> = vec![Number(1)];
-        let mut ob = vec.observe();
+        let mut ob = vec.__observe();
         ob[0].0 = 11;
         ob.push(Number(2));
         ob[1].0 = 12;
@@ -523,7 +523,7 @@ mod tests {
     #[test]
     fn index_by_range() {
         let mut vec: Vec<Number> = vec![Number(1), Number(2), Number(3), Number(4)];
-        let mut ob = vec.observe();
+        let mut ob = vec.__observe();
         {
             let slice = &mut ob[1..];
             slice[0].0 = 222;

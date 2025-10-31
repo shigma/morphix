@@ -556,7 +556,7 @@ mod tests {
     #[test]
     fn index_by_usize() {
         let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
-        let mut ob = slice.observe();
+        let mut ob = slice.__observe();
         assert_eq!(ob[2], Number(2));
         assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
         **ob[2] = Number(42);
@@ -569,7 +569,7 @@ mod tests {
     #[test]
     fn get_mut() {
         let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
-        let mut ob = slice.observe();
+        let mut ob = slice.__observe();
         assert_eq!(*ob.get_mut(2).unwrap(), Number(2));
         assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
         ***ob.get_mut(2).unwrap() = Number(42);
@@ -582,7 +582,7 @@ mod tests {
     #[test]
     fn swap() {
         let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
-        let mut ob = slice.observe();
+        let mut ob = slice.__observe();
         ob.swap(0, 1);
         assert_eq!(**ob, [Number(1), Number(0), Number(2)]);
         let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
