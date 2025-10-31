@@ -20,7 +20,7 @@ fn main() {
         qux: "hello".to_string(),
     };
 
-    let mutation = observe!(JsonAdapter, |mut foo| {
+    let mutation = observe!(JsonAdapter, |foo| {
         foo.bar.baz += 1;
         foo.qux.push(' ');
         foo.qux += "world";

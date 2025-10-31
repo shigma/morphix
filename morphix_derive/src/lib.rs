@@ -134,11 +134,8 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 /// ```
 #[proc_macro]
 pub fn observe(input: TokenStream) -> TokenStream {
-    match observe::observe(input.into()) {
-        Ok(ts) => ts,
-        Err(errors) => errors.into_iter().map(|error| error.to_compile_error()).collect(),
-    }
-    .into()
+    let input: observe::ObserveInput = syn::parse_macro_input!(input);
+    observe::observe(input).into()
 }
 
 #[cfg(test)]
