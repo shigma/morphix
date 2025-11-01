@@ -74,7 +74,7 @@ impl<'i, const N: usize, O, S> Assignable for ArrayObserver<'i, N, O, S>
 where
     O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
-    type Depth = Succ<Zero>;
+    type Depth = Succ<Succ<Zero>>;
 }
 
 impl<'i, const N: usize, O, S: ?Sized, D, T> Observer<'i> for ArrayObserver<'i, N, O, S, D>

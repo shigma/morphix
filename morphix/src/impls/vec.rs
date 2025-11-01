@@ -52,7 +52,7 @@ impl<'i, O, S> Assignable for VecObserver<'i, O, S>
 where
     O: Observer<'i, InnerDepth = Zero, Head: Sized>,
 {
-    type Depth = Succ<Zero>;
+    type Depth = Succ<Succ<Zero>>;
 }
 
 impl<'i, O, S: ?Sized, D, T> Observer<'i> for VecObserver<'i, O, S, D>
