@@ -26,6 +26,40 @@ impl Parse for ObserveInput {
     }
 }
 
+fn build_output(
+    pat: &syn::Pat,
+    turbofish: &TokenStream,
+    inits: &mut Vec<TokenStream>,
+) -> Result<TokenStream, TokenStream> {
+    match pat {
+        syn::Pat::Ident(syn::PatIdent { ident, .. }) => {
+            inits.push(quote! { let mut #ident = #ident.__observe(); });
+            Ok(quote! {
+                match ::morphix::observe::SerializeObserver::collect #turbofish(&mut #ident) {
+                    Ok(mutation) => mutation,
+                    Err(error) => break 'ob Err(error),
+                }
+            })
+        }
+        syn::Pat::Tuple(syn::PatTuple { elems, .. }) => {
+            let mut outputs = vec![];
+            let mut errors = TokenStream::new();
+            for pat in elems {
+                match build_output(pat, turbofish, inits) {
+                    Ok(output) => outputs.push(output),
+                    Err(error) => errors.extend(error),
+                }
+            }
+            if errors.is_empty() {
+                Ok(quote! { (#(#outputs),*,) })
+            } else {
+                Err(errors)
+            }
+        }
+        _ => Err(syn::Error::new(pat.span(), "only ident or tuple patterns are supported").to_compile_error()),
+    }
+}
+
 pub fn observe(mut input: ObserveInput) -> TokenStream {
     if input.closure.inputs.len() != 1 {
         return syn::Error::new(input.closure.span(), "expect a closure with one argument").to_compile_error();
@@ -37,37 +71,10 @@ pub fn observe(mut input: ObserveInput) -> TokenStream {
         quote! {}
     };
 
-    let (init, output) = match &input.closure.inputs[0] {
-        syn::Pat::Ident(syn::PatIdent { ident, .. }) => (
-            quote! { let mut #ident = #ident.__observe(); },
-            quote! { ::morphix::observe::SerializeObserver::collect #turbofish(&mut #ident) },
-        ),
-        syn::Pat::Tuple(syn::PatTuple { elems, .. }) => {
-            let mut inits = Vec::new();
-            let mut outputs = Vec::new();
-            let mut errors = Vec::new();
-            for pat in elems {
-                match pat {
-                    syn::Pat::Ident(syn::PatIdent { ident, .. }) => {
-                        inits.push(quote! { let mut #ident = #ident.__observe(); });
-                        outputs.push(quote! {
-                            match ::morphix::observe::SerializeObserver::collect #turbofish(&mut #ident) {
-                                Ok(mutation) => mutation,
-                                Err(error) => break 'ob Err(error),
-                            }
-                        });
-                    }
-                    _ => errors.push(syn::Error::new(pat.span(), "expect a closure with ident pattern")),
-                }
-            }
-            if !errors.is_empty() {
-                return errors.into_iter().map(|error| error.to_compile_error()).collect();
-            }
-            (quote! { #(#inits)* }, quote! { Ok((#(#outputs),*,)) })
-        }
-        _ => {
-            return syn::Error::new(input.closure.span(), "expect a closure with ident pattern").to_compile_error();
-        }
+    let mut inits = vec![];
+    let output = match build_output(&input.closure.inputs[0], &turbofish, &mut inits) {
+        Ok(output) => quote! { Ok(#output) },
+        Err(errors) => return errors,
     };
 
     let body = &mut input.closure.body;
@@ -78,7 +85,7 @@ pub fn observe(mut input: ObserveInput) -> TokenStream {
             #[allow(unused_imports)]
             use ::morphix::helper::Assignable;
             use ::morphix::observe::ObserveExt;
-            #init
+            #(#inits)*
             #[allow(clippy::needless_borrow)]
             #body;
             #output
