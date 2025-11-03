@@ -2,7 +2,7 @@ use morphix_derive::Observe;
 use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize)]
-struct Foo<T> {
+pub struct Foo<T> {
     a: T,
 }
 #[rustfmt::skip]
@@ -19,7 +19,7 @@ const _: () = {
 };
 #[rustfmt::skip]
 #[derive(Serialize, Clone, PartialEq)]
-struct Bar<T> {
+pub struct Bar<T> {
     a: T,
 }
 #[rustfmt::skip]

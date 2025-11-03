@@ -2,13 +2,12 @@ use morphix_derive::Observe;
 use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize)]
-struct Foo<T> {
+pub struct Foo<T> {
     a: T,
 }
 #[rustfmt::skip]
 const _: () = {
-    #[allow(private_interfaces)]
-    struct FooObserver<'ob, T, S: ?Sized, N = ::morphix::helper::Zero>
+    pub struct FooObserver<'ob, T, S: ?Sized, N = ::morphix::helper::Zero>
     where
         T: ::morphix::Observe + 'ob,
     {

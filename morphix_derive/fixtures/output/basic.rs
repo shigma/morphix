@@ -2,14 +2,13 @@ use morphix_derive::Observe;
 use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize)]
-struct Foo {
+pub struct Foo {
     a: i32,
     b: String,
 }
 #[rustfmt::skip]
 const _: () = {
-    #[allow(private_interfaces)]
-    struct FooObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
+    pub struct FooObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
         __ptr: ::morphix::observe::ObserverPointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut N>,

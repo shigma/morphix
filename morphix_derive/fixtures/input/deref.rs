@@ -5,7 +5,7 @@ use serde::Serialize;
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-struct Foo {
+pub struct Foo {
     #[observe(deref)]
     a: Qux,
     b: i32,
@@ -27,7 +27,7 @@ impl DerefMut for Foo {
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-struct Bar {
+pub struct Bar {
     #[observe(deref, shallow)]
     a: Qux,
     b: i32,
@@ -49,6 +49,6 @@ impl DerefMut for Bar {
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-struct Qux {
+pub struct Qux {
     a: i32,
 }

@@ -3,7 +3,7 @@ use serde::Serialize;
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-struct Foo {
+pub struct Foo {
     a: i32,
     b: String,
 }

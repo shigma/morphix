@@ -454,7 +454,6 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
 
             quote! {
                 const _: () = {
-                    #[allow(private_interfaces)]
                     #input_vis struct #ob_ident #ob_generics
                     where #ob_struct_predicates {
                         #(#type_fields)*

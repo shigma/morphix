@@ -3,6 +3,6 @@ use serde::Serialize;
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-struct Foo<T> {
+pub struct Foo<T> {
     a: T,
 }

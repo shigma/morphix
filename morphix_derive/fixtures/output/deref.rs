@@ -3,14 +3,13 @@ use morphix_derive::Observe;
 use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize)]
-struct Foo {
+pub struct Foo {
     a: Qux,
     b: i32,
 }
 #[rustfmt::skip]
 const _: () = {
-    #[allow(private_interfaces)]
-    struct FooObserver<'ob, O> {
+    pub struct FooObserver<'ob, O> {
         __phantom: ::std::marker::PhantomData<&'ob mut ()>,
         pub a: O,
         pub b: ::morphix::observe::DefaultObserver<'ob, i32>,
@@ -128,14 +127,13 @@ impl DerefMut for Foo {
 }
 #[rustfmt::skip]
 #[derive(Serialize)]
-struct Bar {
+pub struct Bar {
     a: Qux,
     b: i32,
 }
 #[rustfmt::skip]
 const _: () = {
-    #[allow(private_interfaces)]
-    struct BarObserver<'ob, O> {
+    pub struct BarObserver<'ob, O> {
         __phantom: ::std::marker::PhantomData<&'ob mut ()>,
         pub a: O,
         pub b: ::morphix::observe::DefaultObserver<'ob, i32>,
@@ -253,13 +251,12 @@ impl DerefMut for Bar {
 }
 #[rustfmt::skip]
 #[derive(Serialize)]
-struct Qux {
+pub struct Qux {
     a: i32,
 }
 #[rustfmt::skip]
 const _: () = {
-    #[allow(private_interfaces)]
-    struct QuxObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
+    pub struct QuxObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
         __ptr: ::morphix::observe::ObserverPointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut N>,

@@ -1,4 +1,4 @@
-mod basic;
-mod deref;
-mod generic;
-mod trivial;
+pub mod basic;
+pub mod deref;
+pub mod generic;
+pub mod trivial;

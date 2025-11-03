@@ -4,13 +4,13 @@ use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
 #[observe(shallow)]
-struct Foo<T> {
+pub struct Foo<T> {
     a: T,
 }
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe, Clone, PartialEq)]
 #[observe(snapshot)]
-struct Bar<T> {
+pub struct Bar<T> {
     a: T,
 }
