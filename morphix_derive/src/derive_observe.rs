@@ -149,9 +149,11 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             ..
         }) => {
             let mut deref_fields = vec![];
+            let field_count = named.len();
             for field in named {
                 let field_meta = ObserveMeta::parse_attrs(&field.attrs, &mut errors);
                 let field_ident = field.ident.as_ref().unwrap();
+                let field_name = field_ident.to_string();
                 let mut field_cloned = field.clone();
                 field_cloned.attrs = vec![];
                 let field_span = field_cloned.span();
@@ -208,12 +210,21 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 default_fields.push(quote_spanned! { field_span =>
                     #field_ident: ::std::default::Default::default(),
                 });
-                collect_stmts.push(quote_spanned! { field_span =>
-                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<A>(&mut this.#field_ident)? {
-                        mutation.path.push(stringify!(#field_ident).into());
-                        mutations.push(mutation);
-                    }
-                });
+                if field_count == 1 {
+                    collect_stmts.push(quote_spanned! { field_span =>
+                        if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(&mut this.#field_ident)? {
+                            mutation.path.push(#field_name.into());
+                            return Ok(Some(mutation));
+                        }
+                    });
+                } else {
+                    collect_stmts.push(quote_spanned! { field_span =>
+                        if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(&mut this.#field_ident)? {
+                            mutation.path.push(#field_name.into());
+                            mutations.push(mutation);
+                        }
+                    });
+                }
             }
             if !errors.is_empty() {
                 return errors.into_iter().map(|error| error.to_compile_error()).collect();
@@ -452,6 +463,19 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             let (ob_observer_impl_generics, _, _) = ob_observer_generics.split_for_impl();
             let (ob_assignable_impl_generics, ob_assignable_type_generics, _) = ob_assignable_generics.split_for_impl();
 
+            let serialize_observer_impl = if field_count == 1 {
+                quote! {
+                    #(#collect_stmts)*
+                    Ok(None)
+                }
+            } else {
+                quote! {
+                    let mut mutations = ::std::vec::Vec::with_capacity(#field_count);
+                    #(#collect_stmts)*
+                    Ok(::morphix::Mutation::coalesce(mutations))
+                }
+            };
+
             quote! {
                 const _: () = {
                     #input_vis struct #ob_ident #ob_generics
@@ -506,9 +530,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                             this: &mut Self,
                         ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A>>, A::Error> {
                             #serialize_observer_impl_prefix
-                            let mut mutations = ::std::vec::Vec::new();
-                            #(#collect_stmts)*
-                            Ok(::morphix::Mutation::coalesce(mutations))
+                            #serialize_observer_impl
                         }
                     }
 

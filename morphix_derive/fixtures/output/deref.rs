@@ -85,17 +85,17 @@ const _: () = {
             ::std::option::Option<::morphix::Mutation<A>>,
             A::Error,
         > {
-            let mut mutations = ::std::vec::Vec::new();
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
-                A,
-            >(&mut this.a)? {
-                mutation.path.push(stringify!(a).into());
+            let mut mutations = ::std::vec::Vec::with_capacity(2usize);
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(
+                &mut this.a,
+            )? {
+                mutation.path.push("a".into());
                 mutations.push(mutation);
             }
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
-                A,
-            >(&mut this.b)? {
-                mutation.path.push(stringify!(b).into());
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(
+                &mut this.b,
+            )? {
+                mutation.path.push("b".into());
                 mutations.push(mutation);
             }
             Ok(::morphix::Mutation::coalesce(mutations))
@@ -209,17 +209,17 @@ const _: () = {
             ::std::option::Option<::morphix::Mutation<A>>,
             A::Error,
         > {
-            let mut mutations = ::std::vec::Vec::new();
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
-                A,
-            >(&mut this.a)? {
-                mutation.path.push(stringify!(a).into());
+            let mut mutations = ::std::vec::Vec::with_capacity(2usize);
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(
+                &mut this.a,
+            )? {
+                mutation.path.push("a".into());
                 mutations.push(mutation);
             }
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
-                A,
-            >(&mut this.b)? {
-                mutation.path.push(stringify!(b).into());
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(
+                &mut this.b,
+            )? {
+                mutation.path.push("b".into());
                 mutations.push(mutation);
             }
             Ok(::morphix::Mutation::coalesce(mutations))
@@ -333,14 +333,13 @@ const _: () = {
                     }),
                 );
             }
-            let mut mutations = ::std::vec::Vec::new();
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
-                A,
-            >(&mut this.a)? {
-                mutation.path.push(stringify!(a).into());
-                mutations.push(mutation);
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(
+                &mut this.a,
+            )? {
+                mutation.path.push("a".into());
+                return Ok(Some(mutation));
             }
-            Ok(::morphix::Mutation::coalesce(mutations))
+            Ok(None)
         }
     }
     #[automatically_derived]

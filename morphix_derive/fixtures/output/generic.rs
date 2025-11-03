@@ -107,14 +107,13 @@ const _: () = {
                     }),
                 );
             }
-            let mut mutations = ::std::vec::Vec::new();
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
-                A,
-            >(&mut this.a)? {
-                mutation.path.push(stringify!(a).into());
-                mutations.push(mutation);
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(
+                &mut this.a,
+            )? {
+                mutation.path.push("a".into());
+                return Ok(Some(mutation));
             }
-            Ok(::morphix::Mutation::coalesce(mutations))
+            Ok(None)
         }
     }
     #[automatically_derived]
