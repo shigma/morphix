@@ -77,6 +77,7 @@ macro_rules! impl_fmt {
             where
                 O: std::fmt::$trait,
             {
+                #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     std::fmt::$trait::fmt(&self.inner, f)
                 }
@@ -100,6 +101,7 @@ impl<'i, O> Debug for ForwardObserver<'i, O>
 where
     O: Debug,
 {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("BoxObserver").field(&self.inner).finish()
     }
@@ -112,6 +114,7 @@ where
     D: Unsigned,
     T: PartialEq<U>,
 {
+    #[inline]
     fn eq(&self, other: &U) -> bool {
         AsDeref::<D>::as_deref(&**O::as_ptr(self)).eq(other)
     }
@@ -124,6 +127,7 @@ where
     D: Unsigned,
     T: PartialOrd<U>,
 {
+    #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
         AsDeref::<D>::as_deref(&**O::as_ptr(self)).partial_cmp(other)
     }

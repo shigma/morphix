@@ -164,6 +164,7 @@ where
     S: AsDerefMut<N>,
     H: GeneralHandler<S::Target>,
 {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.handler.on_deref_mut();
         &mut self.ptr
@@ -187,6 +188,7 @@ where
     type OuterDepth = Zero;
     type Head = S;
 
+    #[inline]
     fn observe(value: &'i mut Self::Head) -> Self {
         Self {
             ptr: ObserverPointer::new(value),
@@ -222,6 +224,7 @@ macro_rules! impl_fmt {
                 S: AsDerefMut<N, Target: std::fmt::$trait> + ?Sized,
                 H: GeneralHandler<S::Target>
             {
+                #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     std::fmt::$trait::fmt(self.as_deref(), f)
                 }
@@ -246,6 +249,7 @@ where
     S: AsDerefMut<N, Target: Debug> + ?Sized,
     H: DebugHandler<S::Target>,
 {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple(H::NAME).field(&self.as_deref()).finish()
     }

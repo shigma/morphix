@@ -43,6 +43,7 @@ impl<'i, O, S: ?Sized, D> Deref for VecObserver<'i, O, S, D> {
 }
 
 impl<'i, O, S: ?Sized, D> DerefMut for VecObserver<'i, O, S, D> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
@@ -80,6 +81,7 @@ where
     O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
+    #[inline]
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         unsafe { SliceObserver::collect_unchecked(&mut this.inner) }
     }
@@ -129,6 +131,7 @@ where
     }
 
     /// See [`Vec::truncate`].
+    #[inline]
     pub fn truncate(&mut self, len: usize) {
         if len >= self.__initial_len() {
             Observer::as_inner(self).truncate(len)
@@ -163,6 +166,7 @@ where
     }
 
     /// See [`Vec::insert`].
+    #[inline]
     pub fn insert(&mut self, index: usize, element: T) {
         if index >= self.__initial_len() {
             Observer::as_inner(self).insert(index, element)
@@ -172,6 +176,7 @@ where
     }
 
     /// See [`Vec::remove`].
+    #[inline]
     pub fn remove(&mut self, index: usize) -> T {
         if index >= self.__initial_len() {
             Observer::as_inner(self).remove(index)
@@ -187,6 +192,7 @@ where
     }
 
     /// See [`Vec::pop`].
+    #[inline]
     pub fn pop(&mut self) -> Option<T> {
         if self.as_deref().len() > self.__initial_len() {
             Observer::as_inner(self).pop()
@@ -196,6 +202,7 @@ where
     }
 
     /// See [`Vec::pop_if`].
+    #[inline]
     pub fn pop_if(&mut self, predicate: impl FnOnce(&mut O) -> bool) -> Option<T> {
         let last = self.last_mut()?;
         if predicate(last) { self.pop() } else { None }
@@ -225,6 +232,7 @@ where
     }
 
     /// See [`Vec::clear`].
+    #[inline]
     pub fn clear(&mut self) {
         if self.__initial_len() == 0 {
             Observer::as_inner(self).clear()
@@ -234,6 +242,7 @@ where
     }
 
     /// See [`Vec::split_off`].
+    #[inline]
     pub fn split_off(&mut self, at: usize) -> Vec<T> {
         if at >= self.__initial_len() {
             Observer::as_inner(self).split_off(at)
@@ -243,6 +252,7 @@ where
     }
 
     /// See [`Vec::resize_with`].
+    #[inline]
     pub fn resize_with<F>(&mut self, new_len: usize, f: F)
     where
         F: FnMut() -> T,
@@ -299,6 +309,7 @@ where
     T: Clone + 'i,
 {
     /// See [`Vec::resize`].
+    #[inline]
     pub fn resize(&mut self, new_len: usize, value: T) {
         if new_len >= self.__initial_len() {
             Observer::as_inner(self).resize(new_len, value)

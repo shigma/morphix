@@ -28,18 +28,22 @@ where
 {
     type Item = O;
 
+    #[inline]
     fn as_slice(&self) -> &[O] {
         self
     }
 
+    #[inline]
     fn as_mut_slice(&mut self) -> &mut [O] {
         self
     }
 
+    #[inline]
     fn default() -> Self {
         from_fn(|_| Default::default())
     }
 
+    #[inline]
     fn init_range(&self, _start: usize, _end: usize, _values: &'i mut [<Self::Item as Observer<'i>>::Head]) {
         // No need to re-initialize fixed-size array.
     }
@@ -51,18 +55,22 @@ where
 {
     type Item = O;
 
+    #[inline]
     fn as_slice(&self) -> &[Self::Item] {
         unsafe { &*self.get() }
     }
 
+    #[inline]
     fn as_mut_slice(&mut self) -> &mut [Self::Item] {
         unsafe { &mut *self.get() }
     }
 
+    #[inline]
     fn default() -> Self {
         Default::default()
     }
 
+    #[inline]
     fn init_range(&self, start: usize, end: usize, values: &'i mut [<Self::Item as Observer<'i>>::Head]) {
         let inner = unsafe { &mut *self.get() };
         if end > inner.len() {
@@ -161,6 +169,7 @@ impl<'i, V, S: ?Sized, D> DerefMut for SliceObserver<'i, V, S, D>
 where
     V: ObserverSlice<'i>,
 {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.__mark_replace();
         self.obs = V::default();
@@ -263,6 +272,7 @@ where
         Some(())
     }
 
+    #[inline]
     fn __get<I>(&self, index: I) -> Option<&I::Output>
     where
         I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
@@ -271,6 +281,7 @@ where
         Some(self.obs.as_slice().index(index))
     }
 
+    #[inline]
     fn __get_mut<I>(&mut self, index: I) -> Option<&mut I::Output>
     where
         I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
@@ -286,27 +297,32 @@ where
     }
 
     /// See [`slice::first_mut`].
+    #[inline]
     pub fn first_mut(&mut self) -> Option<&mut O> {
         self.__get_mut(0)
     }
 
     /// See [`slice::split_first_mut`].
+    #[inline]
     pub fn split_first_mut(&mut self) -> Option<(&mut O, &mut [O])> {
         self.__full_mut().split_first_mut()
     }
 
     /// See [`slice::split_last_mut`].
+    #[inline]
     pub fn split_last_mut(&mut self) -> Option<(&mut O, &mut [O])> {
         self.__full_mut().split_last_mut()
     }
 
     /// See [`slice::last_mut`].
+    #[inline]
     pub fn last_mut(&mut self) -> Option<&mut O> {
         let len = self.as_deref().as_ref().len();
         self.__get_mut(len - 1)
     }
 
     /// See [`slice::first_chunk_mut`].
+    #[inline]
     pub fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [O; N]> {
         let len = self.as_deref().as_ref().len();
         if len < N {
@@ -316,16 +332,19 @@ where
     }
 
     /// See [`slice::split_first_chunk_mut`].
+    #[inline]
     pub fn split_first_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [O; N], &mut [O])> {
         self.__full_mut().split_first_chunk_mut()
     }
 
     /// See [`slice::split_last_chunk_mut`].
+    #[inline]
     pub fn split_last_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [O], &mut [O; N])> {
         self.__full_mut().split_last_chunk_mut()
     }
 
     /// See [`slice::last_chunk_mut`].
+    #[inline]
     pub fn last_chunk_mut<const N: usize>(&mut self) -> Option<&mut [O; N]> {
         let len = self.as_deref().as_ref().len();
         if len < N {
@@ -335,11 +354,13 @@ where
     }
 
     /// See [`slice::get_mut`].
+    #[inline]
     pub fn get_mut(&mut self, index: usize) -> Option<&mut O> {
         self.__get_mut(index)
     }
 
     /// See [`slice::swap`].
+    #[inline]
     pub fn swap(&mut self, a: usize, b: usize) {
         Self::as_inner(self).as_mut().swap(a, b);
         self[a].as_deref_mut_coinductive();
@@ -347,41 +368,49 @@ where
     }
 
     /// See [`slice::iter_mut`].
+    #[inline]
     pub fn iter_mut(&mut self) -> IterMut<'_, O> {
         self.__full_mut().iter_mut()
     }
 
     /// See [`slice::chunks_mut`].
+    #[inline]
     pub fn chunks_mut(&mut self, chunk_size: usize) -> ChunksMut<'_, O> {
         self.__full_mut().chunks_mut(chunk_size)
     }
 
     /// See [`slice::chunks_exact_mut`].
+    #[inline]
     pub fn chunks_exact_mut(&mut self, chunk_size: usize) -> ChunksExactMut<'_, O> {
         self.__full_mut().chunks_exact_mut(chunk_size)
     }
 
     /// See [`slice::as_chunks_mut`].
+    #[inline]
     pub fn as_chunks_mut<const N: usize>(&mut self) -> (&mut [[O; N]], &mut [O]) {
         self.__full_mut().as_chunks_mut()
     }
 
     /// See [`slice::as_rchunks_mut`].
+    #[inline]
     pub fn as_rchunks_mut<const N: usize>(&mut self) -> (&mut [O], &mut [[O; N]]) {
         self.__full_mut().as_rchunks_mut()
     }
 
     /// See [`slice::rchunks_mut`].
+    #[inline]
     pub fn rchunks_mut(&mut self, chunk_size: usize) -> RChunksMut<'_, O> {
         self.__full_mut().rchunks_mut(chunk_size)
     }
 
     /// See [`slice::rchunks_exact_mut`].
+    #[inline]
     pub fn rchunks_exact_mut(&mut self, chunk_size: usize) -> RChunksExactMut<'_, O> {
         self.__full_mut().rchunks_exact_mut(chunk_size)
     }
 
     /// See [`slice::chunk_by_mut`].
+    #[inline]
     pub fn chunk_by_mut<F>(&mut self, pred: F) -> ChunkByMut<'_, O, F>
     where
         F: FnMut(&O, &O) -> bool,
@@ -390,16 +419,19 @@ where
     }
 
     /// See [`slice::split_at_mut`].
+    #[inline]
     pub fn split_at_mut(&mut self, mid: usize) -> (&mut [O], &mut [O]) {
         self.__full_mut().split_at_mut(mid)
     }
 
     /// See [`slice::split_at_mut_checked`].
+    #[inline]
     pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut [O], &mut [O])> {
         self.__full_mut().split_at_mut_checked(mid)
     }
 
     /// See [`slice::split_mut`].
+    #[inline]
     pub fn split_mut<F>(&mut self, pred: F) -> SplitMut<'_, O, F>
     where
         F: FnMut(&O) -> bool,
@@ -408,6 +440,7 @@ where
     }
 
     /// See [`slice::split_inclusive_mut`].
+    #[inline]
     pub fn split_inclusive_mut<F>(&mut self, pred: F) -> SplitInclusiveMut<'_, O, F>
     where
         F: FnMut(&O) -> bool,
@@ -416,6 +449,7 @@ where
     }
 
     /// See [`slice::rsplit_mut`].
+    #[inline]
     pub fn rsplit_mut<F>(&mut self, pred: F) -> RSplitMut<'_, O, F>
     where
         F: FnMut(&O) -> bool,
@@ -424,6 +458,7 @@ where
     }
 
     /// See [`slice::splitn_mut`].
+    #[inline]
     pub fn splitn_mut<F>(&mut self, n: usize, pred: F) -> SplitNMut<'_, O, F>
     where
         F: FnMut(&O) -> bool,
@@ -432,6 +467,7 @@ where
     }
 
     /// See [`slice::rsplitn_mut`].
+    #[inline]
     pub fn rsplitn_mut<F>(&mut self, n: usize, pred: F) -> RSplitNMut<'_, O, F>
     where
         F: FnMut(&O) -> bool,

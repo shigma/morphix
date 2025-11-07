@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde_json::json;
 
 #[derive(Serialize, Debug, PartialEq, Observe)]
-pub struct Foo<T> {
+struct Foo<T> {
     bar: Bar,
     qux: T,
 }

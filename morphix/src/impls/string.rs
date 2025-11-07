@@ -156,6 +156,7 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String>,
 {
+    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self.as_deref(), f)
     }

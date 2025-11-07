@@ -44,6 +44,7 @@ impl<'i, O, S: ?Sized, D> Deref for OptionObserver<'i, O, S, D> {
 }
 
 impl<'i, O, S: ?Sized, D> DerefMut for OptionObserver<'i, O, S, D> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.is_mutated = true;
         self.ob = None;
@@ -106,6 +107,7 @@ where
     O: Observer<'i, InnerDepth = Zero>,
     O::Head: Sized,
 {
+    #[inline]
     fn __insert(&mut self, value: O::Head) {
         self.is_mutated = true;
         let inserted = Observer::as_inner(self).insert(value);
@@ -113,6 +115,7 @@ where
     }
 
     /// See [`Option::as_mut`].
+    #[inline]
     pub fn as_mut(&mut self) -> Option<&mut O> {
         if self.as_deref().is_some() && self.ob.is_none() {
             self.ob = Observer::as_inner(self).as_mut().map(O::observe);
@@ -121,6 +124,7 @@ where
     }
 
     /// See [`Option::insert`].
+    #[inline]
     pub fn insert(&mut self, value: O::Head) -> &mut O {
         self.__insert(value);
         self.ob.as_mut().unwrap()
@@ -142,6 +146,7 @@ where
     }
 
     /// See [`Option::get_or_insert_with`].
+    #[inline]
     pub fn get_or_insert_with<F>(&mut self, f: F) -> &mut O
     where
         F: FnOnce() -> O::Head,

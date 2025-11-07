@@ -96,6 +96,7 @@ pub trait Assignable: AsDerefMutCoinductive<Succ<Self::Depth>, Target: Sized> {
     ///
     /// This method is automatically used by the [`observe!`](crate::observe) macro.
     #[doc(hidden)]
+    #[inline]
     fn __assign(&mut self, value: Self::Target) {
         *self.as_deref_mut_coinductive() = value;
     }

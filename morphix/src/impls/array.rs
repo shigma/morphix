@@ -20,21 +20,25 @@ pub struct ArrayObserver<'i, const N: usize, O, S: ?Sized, D = Zero> {
 
 impl<'i, const N: usize, O, S: ?Sized, D> ArrayObserver<'i, N, O, S, D> {
     /// See [`array::as_slice`].
+    #[inline]
     pub fn as_slice(&self) -> &[O] {
         &self.inner.obs
     }
 
     /// See [`array::as_mut_slice`].
+    #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [O] {
         &mut self.inner.obs
     }
 
     /// See [`array::each_ref`].
+    #[inline]
     pub fn each_ref(&self) -> [&O; N] {
         self.inner.obs.each_ref()
     }
 
     /// See [`array::each_mut`].
+    #[inline]
     pub fn each_mut(&mut self) -> [&mut O; N] {
         self.inner.obs.each_mut()
     }
@@ -65,6 +69,7 @@ impl<'i, const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<'i, N, O, S
 where
     O: Default,
 {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
@@ -102,6 +107,7 @@ where
     O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
+    #[inline]
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
         unsafe { SliceObserver::collect_unchecked(&mut this.inner) }
     }
@@ -156,6 +162,7 @@ where
 {
     type Output = I::Output;
 
+    #[inline]
     fn index(&self, index: I) -> &Self::Output {
         &self.inner[index]
     }
@@ -169,6 +176,7 @@ where
     T: 'i,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
+    #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         &mut self.inner[index]
     }

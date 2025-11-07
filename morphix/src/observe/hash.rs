@@ -54,6 +54,7 @@ pub struct HashHandler<H> {
 }
 
 impl<H: Hasher + Default> HashHandler<H> {
+    #[inline]
     fn hash<T: Hash>(value: &T) -> u64 {
         let mut hasher = H::default();
         value.hash(&mut hasher);
