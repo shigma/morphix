@@ -1,4 +1,5 @@
-use morphix::{JsonAdapter, Mutation, MutationKind, Observe, observe};
+use morphix::adapter::Json;
+use morphix::{Mutation, MutationKind, Observe, observe};
 use serde::Serialize;
 use serde_json::json;
 
@@ -20,7 +21,7 @@ fn main() {
         qux: "hello".to_string(),
     };
 
-    let mutation = observe!(JsonAdapter, |foo| {
+    let Json(mutation) = observe!(|foo| {
         foo.bar.baz += 1;
         foo.qux.push(' ');
         foo.qux += "world";

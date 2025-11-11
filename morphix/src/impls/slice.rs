@@ -216,7 +216,7 @@ where
     O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
+    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         let mut mutations = vec![];
         let len = this.as_deref().as_ref().len();
         let initial_len = if let Some(initial_len) = this.mutation.replace(len) {
@@ -572,8 +572,8 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::adapter::Json;
     use crate::observe::{ObserveExt, SerializeObserverExt, ShallowObserver};
-    use crate::{JsonAdapter, MutationKind};
 
     #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
     struct Number(i32);
@@ -594,12 +594,18 @@ mod tests {
         let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
         let mut ob = slice.__observe();
         assert_eq!(ob[2], Number(2));
-        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
+        let Json(mutation) = ob.collect().unwrap();
+        assert!(mutation.is_none());
         **ob[2] = Number(42);
         assert_eq!(ob[2], Number(42));
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.path, vec![(-1).into()].into());
-        assert_eq!(mutation.kind, MutationKind::Replace(json!(Number(42))));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![(-1).into()].into(),
+                kind: MutationKind::Replace(json!(Number(42)))
+            })
+        );
     }
 
     #[test]
@@ -607,12 +613,18 @@ mod tests {
         let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
         let mut ob = slice.__observe();
         assert_eq!(*ob.get_mut(2).unwrap(), Number(2));
-        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
+        let Json(mutation) = ob.collect().unwrap();
+        assert!(mutation.is_none());
         ***ob.get_mut(2).unwrap() = Number(42);
         assert_eq!(*ob.get_mut(2).unwrap(), Number(42));
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.path, vec![(-1).into()].into());
-        assert_eq!(mutation.kind, MutationKind::Replace(json!(Number(42))));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![(-1).into()].into(),
+                kind: MutationKind::Replace(json!(Number(42)))
+            })
+        );
     }
 
     #[test]
@@ -621,10 +633,10 @@ mod tests {
         let mut ob = slice.__observe();
         ob.swap(0, 1);
         assert_eq!(**ob, [Number(1), Number(0), Number(2)]);
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
+        let Json(mutation) = ob.collect().unwrap();
         assert_eq!(
             mutation,
-            Mutation {
+            Some(Mutation {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
@@ -636,7 +648,7 @@ mod tests {
                         kind: MutationKind::Replace(json!(Number(0))),
                     }
                 ]),
-            }
+            })
         );
     }
 }

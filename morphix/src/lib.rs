@@ -1,7 +1,7 @@
 #![allow(rustdoc::private_intra_doc_links)]
 #![doc = include_str!("../README.md")]
 
-mod adapter;
+pub mod adapter;
 mod batch;
 mod error;
 pub mod helper;
@@ -11,10 +11,6 @@ pub mod observe;
 mod path;
 
 pub use adapter::Adapter;
-#[cfg(feature = "json")]
-pub use adapter::json::JsonAdapter;
-#[cfg(feature = "yaml")]
-pub use adapter::yaml::YamlAdapter;
 pub use batch::BatchTree;
 pub use error::MutationError;
 #[cfg(feature = "derive")]

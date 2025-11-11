@@ -76,7 +76,7 @@ const _: () = {
         unsafe fn collect_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<
-            ::std::option::Option<::morphix::Mutation<A>>,
+            ::std::option::Option<::morphix::Mutation<A::Value>>,
             A::Error,
         > {
             if this.__mutated {
@@ -90,15 +90,15 @@ const _: () = {
                 );
             }
             let mut mutations = ::std::vec::Vec::with_capacity(2usize);
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(
-                &mut this.a,
-            )? {
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
+                A,
+            >(&mut this.a)? {
                 mutation.path.push("a".into());
                 mutations.push(mutation);
             }
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(
-                &mut this.b,
-            )? {
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
+                A,
+            >(&mut this.b)? {
                 mutation.path.push("b".into());
                 mutations.push(mutation);
             }

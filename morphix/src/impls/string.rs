@@ -79,7 +79,7 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String> + 'i,
 {
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
+    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         let len = this.as_deref().len();
         Ok(if let Some(initial_len) = this.mutation.replace(len) {
             if len > initial_len {
@@ -202,14 +202,15 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::JsonAdapter;
+    use crate::adapter::Json;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
     fn no_mutation_returns_none() {
         let mut s = String::from("hello");
         let mut ob = s.__observe();
-        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
+        let Json(mutation) = ob.collect().unwrap();
+        assert!(mutation.is_none());
     }
 
     #[test]
@@ -218,8 +219,14 @@ mod tests {
         let mut ob = s.__observe();
         ob.clear();
         ob.push_str("world"); // append after replace should have no effect
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Replace(json!("world")));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Replace(json!("world"))
+            })
+        );
     }
 
     #[test]
@@ -228,8 +235,14 @@ mod tests {
         let mut ob = s.__observe();
         ob.push('b');
         ob.push('c');
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Append(json!("bc")));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Append(json!("bc"))
+            })
+        );
     }
 
     #[test]
@@ -237,8 +250,14 @@ mod tests {
         let mut s = String::from("foo");
         let mut ob = s.__observe();
         ob.push_str("bar");
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Append(json!("bar")));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Append(json!("bar"))
+            })
+        );
     }
 
     #[test]
@@ -246,8 +265,8 @@ mod tests {
         let mut s = String::from("foo");
         let mut ob = s.__observe();
         ob += "bar";
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Append(json!("bar")));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!("bar")));
     }
 
     #[test]
@@ -256,7 +275,8 @@ mod tests {
         let mut ob = s.__observe();
         ob.push_str("");
         ob += "";
-        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
+        let Json(mutation) = ob.collect().unwrap();
+        assert!(mutation.is_none());
     }
 
     #[test]
@@ -265,7 +285,7 @@ mod tests {
         let mut ob = s.__observe();
         ob.push_str("def");
         **ob = String::from("xyz");
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Replace(json!("xyz")));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("xyz")));
     }
 }

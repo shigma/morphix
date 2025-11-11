@@ -8,14 +8,15 @@ use crate::{Adapter, Mutation, MutationError, MutationKind, Path, PathSegment};
 
 /// YAML adapter for morphix mutation serialization.
 ///
-/// `YamlAdapter` implements the [`Adapter`] trait using [`serde_yaml_ng::Value`] for both
+/// `Yaml` implements the [`Adapter`] trait using [`serde_yaml_ng::Value`] for both
 /// [`Replace`](MutationKind::Replace) and [`Append`](MutationKind::Append) operations. This adapter
 /// is available when the `yaml` feature is enabled.
 ///
 /// ## Example
 ///
 /// ```
-/// use morphix::{YamlAdapter, Observe, observe};
+/// use morphix::adapter::Yaml;
+/// use morphix::{Observe, observe};
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize, Observe)]
@@ -31,16 +32,21 @@ use crate::{Adapter, Mutation, MutationError, MutationKind, Path, PathSegment};
 ///     tags: vec!["web".to_string()],
 /// };
 ///
-/// let mutation = observe!(YamlAdapter, |mut config| {
+/// let Yaml(mutation) = observe!(|mut config| {
 ///     config.port = 8081;
 ///     config.tags.push("api".to_string());
 /// }).unwrap();
 /// ```
-pub struct YamlAdapter;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Yaml(pub Option<Mutation<Value>>);
 
-impl Adapter for YamlAdapter {
+impl Adapter for Yaml {
     type Value = Value;
     type Error = Error;
+
+    fn from_mutation(mutation: Option<Mutation<Self::Value>>) -> Self {
+        Yaml(mutation)
+    }
 
     fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error> {
         value.serialize(Serializer)
@@ -48,7 +54,7 @@ impl Adapter for YamlAdapter {
 
     fn apply_mutation(
         mut curr_value: &mut Self::Value,
-        mut mutation: Mutation<Self>,
+        mut mutation: Mutation<Self::Value>,
         path_stack: &mut Path<false>,
     ) -> Result<(), MutationError> {
         let is_replace = matches!(mutation.kind, MutationKind::Replace { .. });

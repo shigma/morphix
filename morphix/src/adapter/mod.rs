@@ -3,9 +3,14 @@ use serde::Serialize;
 use crate::{Mutation, MutationError, Path};
 
 #[cfg(feature = "json")]
-pub mod json;
+mod json;
 #[cfg(feature = "yaml")]
-pub mod yaml;
+mod yaml;
+
+#[cfg(feature = "json")]
+pub use json::Json;
+#[cfg(feature = "yaml")]
+pub use yaml::Yaml;
 
 /// Trait for adapting mutations to different serialization formats.
 ///
@@ -15,55 +20,8 @@ pub mod yaml;
 ///
 /// ## Type Parameters
 ///
-/// - `Replace`: The type used to represent replacement values
-/// - `Append`: The type used to represent append values
-/// - `Error`: The error type returned by serialization / deserialization operations
-///
-/// ## Example
-///
-/// ```
-/// # use std::borrow::Cow;
-/// # use morphix::{Mutation, MutationError, Observe, Path};
-/// use morphix::Adapter;
-/// use serde::Serialize;
-/// use serde_json::value::Serializer;
-/// use serde_json::{Error, Value};
-///
-/// struct JsonAdapter;
-///
-/// impl Adapter for JsonAdapter {
-///     type Value = Value;
-///     type Error = Error;
-///
-///     fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error> {
-///         value.serialize(Serializer)
-///     }
-///
-///     // ... other methods
-///     # fn apply_mutation(
-///     #     old_value: &mut Self::Value,
-///     #     mutation: Mutation<Self>,
-///     #     path_stack: &mut Path<false>,
-///     # ) -> Result<(), MutationError> {
-///     #     unimplemented!()
-///     # }
-///
-///     # fn merge_append(
-///     #     old_value: &mut Self::Value,
-///     #     new_value: Self::Value,
-///     #     path_stack: &mut Path<false>,
-///     # ) -> Result<(), MutationError> {
-///     #     unimplemented!()
-///     # }
-///
-///     # fn get_len(
-///     #     value: &Self::Value,
-///     #     path_stack: &mut Path<false>,
-///     # ) -> Result<usize, MutationError> {
-///     #     unimplemented!()
-///     # }
-/// }
-/// ```
+/// - `Value`: Type used to represent `Replace` and `Append` values.
+/// - `Error`: Error type for serialization / deserialization operations.
 pub trait Adapter: Sized {
     /// Type used to represent `Replace` and `Append` values.
     type Value;
@@ -71,13 +29,16 @@ pub trait Adapter: Sized {
     /// Error type for serialization / deserialization operations.
     type Error;
 
+    /// Constructs the adapter from an optional mutation.
+    fn from_mutation(mutation: Option<Mutation<Self::Value>>) -> Self;
+
     /// Serializes a value into the adapter's Value type.
     fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error>;
 
     /// Applies a [Mutation](crate::Mutation) to an existing value.
     fn apply_mutation(
         old_value: &mut Self::Value,
-        mutation: Mutation<Self>,
+        mutation: Mutation<Self::Value>,
         path_stack: &mut Path<false>,
     ) -> Result<(), MutationError>;
 

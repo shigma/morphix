@@ -85,7 +85,8 @@ pub use snapshot::{SnapshotObserver, SnapshotSpec};
 /// ## Example
 ///
 /// ```
-/// use morphix::{JsonAdapter, Observe, observe};
+/// use morphix::adapter::Json;
+/// use morphix::{Observe, observe};
 /// use serde::Serialize;
 ///
 /// #[derive(Serialize, Observe)]
@@ -94,7 +95,7 @@ pub use snapshot::{SnapshotObserver, SnapshotSpec};
 /// }
 ///
 /// let mut data = MyStruct { field: "value".to_string() };
-/// observe!(JsonAdapter, |mut data| {
+/// observe!(Json, |mut data| {
 ///     // Mutations through observer are tracked
 ///     data.field.push_str(" modified");
 /// });
@@ -289,12 +290,12 @@ pub trait SerializeObserver<'i>: Observer<'i> {
     /// guaranteed to be safe when `collect_unchecked` is called.
     ///
     /// ```ignore
-    /// unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A>>, A::Error> {
+    /// unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
     ///     // Safe to dereference
     ///     collect_mutation(&*this)
     /// }
     /// ```
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error>;
+    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error>;
 
     /// Collects all recorded mutations using the specified adapter.
     ///
@@ -305,26 +306,26 @@ pub trait SerializeObserver<'i>: Observer<'i> {
     /// ## Example
     ///
     /// ```
-    /// use morphix::JsonAdapter;
+    /// use morphix::adapter::Json;
     /// use morphix::observe::{ObserveExt, SerializeObserverExt, ShallowObserver};
     ///
     /// // Normal usage
     /// let mut value = String::from("Hello");
     /// let mut ob = value.__observe();
     /// ob += " world";
-    /// let mutation = ob.collect::<JsonAdapter>().unwrap();
+    /// let Json(mutation) = ob.collect().unwrap();
     /// assert!(mutation.is_some());
     ///
     /// // Safe handling of default-constructed observer
     /// let mut empty: ShallowObserver<i32> = Default::default();
-    /// let result = empty.collect::<JsonAdapter>().unwrap();
-    /// assert_eq!(result, None);   // Returns None instead of panicking
+    /// let Json(mutation) = empty.collect().unwrap();
+    /// assert!(mutation.is_none());
     /// ```
-    fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
+    fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         if ObserverPointer::is_null(Self::as_ptr(this)) {
             return Ok(None);
         }
-        unsafe { Self::collect_unchecked(this) }
+        unsafe { Self::collect_unchecked::<A>(this) }
     }
 }
 
@@ -337,8 +338,8 @@ pub trait SerializeObserverExt<'i>: SerializeObserver<'i> {
     ///
     /// This is a convenience method that calls [`SerializeObserver::collect`].
     #[inline]
-    fn collect<A: Adapter>(&mut self) -> Result<Option<Mutation<A>>, <A>::Error> {
-        SerializeObserver::collect(self)
+    fn collect<A: Adapter>(&mut self) -> Result<A, A::Error> {
+        SerializeObserver::collect::<A>(self).map(A::from_mutation)
     }
 }
 

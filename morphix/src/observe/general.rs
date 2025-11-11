@@ -204,7 +204,7 @@ where
     S: AsDerefMut<N, Target: Serialize> + 'i,
     H: GeneralHandler<S::Target>,
 {
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
+    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         Ok(if this.handler.on_collect(this.as_deref()) {
             Some(Mutation {
                 path: Default::default(),

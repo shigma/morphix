@@ -11,7 +11,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-morphix = { version = "0.3", features = ["json"] }
+morphix = { version = "0.9", features = ["json"] }
 ```
 
 ## Basic Usage
@@ -19,7 +19,8 @@ morphix = { version = "0.3", features = ["json"] }
 ```rust
 use serde::Serialize;
 use serde_json::json;
-use morphix::{JsonAdapter, Mutation, MutationKind, Observe, observe};
+use morphix::adapter::Json;
+use morphix::{Mutation, MutationKind, Observe, observe};
 
 // 1. Define any data structure with `#[derive(Observe)]`.
 #[derive(Serialize, PartialEq, Debug, Observe)]
@@ -39,7 +40,7 @@ let mut foo = Foo {
 };
 
 // 2. Use `observe!` to mutate data and track mutations.
-let mutation = observe!(JsonAdapter, |mut foo| {
+let Json(mutation) = observe!(|mut foo| {
     foo.bar.baz += 1;
     foo.qux.push(' ');
     foo.qux += "world";

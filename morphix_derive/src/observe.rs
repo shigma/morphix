@@ -35,7 +35,7 @@ fn build_output(
         syn::Pat::Ident(syn::PatIdent { ident, .. }) => {
             inits.push(quote! { let mut #ident = #ident.__observe(); });
             Ok(quote! {
-                match ::morphix::observe::SerializeObserver::collect #turbofish(&mut #ident) {
+                match ::morphix::observe::SerializeObserverExt::collect #turbofish(&mut #ident) {
                     Ok(mutation) => mutation,
                     Err(error) => break 'ob Err(error),
                 }

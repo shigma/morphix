@@ -78,7 +78,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 ///
 /// ## Parameters
 ///
-/// - `Adapter` (optional) - adapter to use for serialization (e.g., `JsonAdapter`)
+/// - `Adapter` (optional) - adapter to use for serialization (e.g., `Json`)
 /// - `mut_binding` - binding pattern for the mutable value in the closure
 ///
 /// ## Returns
@@ -94,7 +94,8 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 ///
 /// ```
 /// use serde::Serialize;
-/// use morphix::{JsonAdapter, Observe, observe};
+/// use morphix::adapter::Json;
+/// use morphix::{Observe, observe};
 ///
 /// #[derive(Serialize, Observe)]
 /// struct Point {
@@ -104,7 +105,7 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 ///
 /// let mut point = Point { x: 1.0, y: 2.0 };
 ///
-/// let mutation = observe!(JsonAdapter, |mut point| {
+/// let Json(mutation) = observe!(|mut point| {
 ///     point.x += 1.0;
 ///     point.y *= 2.0;
 /// }).unwrap();
@@ -123,11 +124,12 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 /// #     x: f64,
 /// #     y: f64,
 /// # }
-/// use morphix::{JsonAdapter, Mutation, observe};
+/// use morphix::adapter::Json;
+/// use morphix::{Mutation, observe};
 ///
 /// let mut point = Point { x: 1.0, y: 2.0 };
 ///
-/// let mutation: Option<Mutation<JsonAdapter>> = observe!(|mut point| {
+/// let Json(mutation) = observe!(|mut point| {
 ///     point.x += 1.0;
 ///     point.y *= 2.0;
 /// }).unwrap();

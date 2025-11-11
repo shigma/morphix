@@ -86,14 +86,14 @@ where
     O: SerializeObserver<'i, InnerDepth = Zero>,
     O::Head: Serialize + Sized,
 {
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
+    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         if this.is_mutated && (this.is_initial_some || this.as_deref().is_some()) {
             Ok(Some(Mutation {
                 path: Default::default(),
                 kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
             }))
         } else if let Some(mut ob) = this.ob.take() {
-            SerializeObserver::collect(&mut ob)
+            SerializeObserver::collect::<A>(&mut ob)
         } else {
             Ok(None)
         }
@@ -234,7 +234,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::JsonAdapter;
+    use crate::adapter::Json;
     use crate::impls::string::StringObserver;
     use crate::observe::{DefaultSpec, GeneralObserver, ObserveExt, SerializeObserverExt, ShallowObserver};
 
@@ -256,11 +256,13 @@ mod tests {
     fn no_change_returns_none() {
         let mut opt: Option<Number> = None;
         let mut ob = opt.__observe();
-        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
+        let Json(mutation) = ob.collect().unwrap();
+        assert!(mutation.is_none());
 
         let mut opt = Some(Number(1));
         let mut ob = opt.__observe();
-        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
+        let Json(mutation) = ob.collect().unwrap();
+        assert!(mutation.is_none());
     }
 
     #[test]
@@ -268,27 +270,28 @@ mod tests {
         let mut opt = Some(Number(42));
         let mut ob = opt.__observe();
         **ob = None;
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Replace(json!(null)));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(null)));
 
         let mut opt: Option<Number> = None;
         let mut ob = opt.__observe();
         **ob = Some(Number(42));
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Replace(json!(42)));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(42)));
 
         let mut opt: Option<Number> = None;
         let mut ob = opt.__observe();
         **ob = Some(Number(42));
         **ob = None;
-        assert!(ob.collect::<JsonAdapter>().unwrap().is_none());
+        let Json(mutation) = ob.collect().unwrap();
+        assert!(mutation.is_none());
 
         let mut opt = Some(Number(42));
         let mut ob = opt.__observe();
         **ob = None;
         **ob = Some(Number(42));
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Replace(json!(42)));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(42)));
     }
 
     #[test]
@@ -297,8 +300,8 @@ mod tests {
         let mut ob = opt.__observe();
         let s: &mut StringObserver<_, _> = ob.insert(String::from("99")); // assert type
         *s += "9";
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Replace(json!("999")));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("999")));
     }
 
     #[test]
@@ -306,8 +309,8 @@ mod tests {
         let mut opt = Some(String::from("foo"));
         let mut ob = opt.__observe();
         *ob.as_mut().unwrap() += "bar";
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Append(json!("bar")));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!("bar")));
     }
 
     #[test]
@@ -316,22 +319,22 @@ mod tests {
         let mut opt: Option<Number> = None;
         let mut ob = opt.__observe();
         ob.get_or_insert(Number(5)).0 = 6;
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Replace(json!(6)));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(6)));
 
         // get_or_insert_default
         let mut opt: Option<Number> = None;
         let mut ob = opt.__observe();
         ob.get_or_insert_default().0 = 77;
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Replace(json!(77)));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(77)));
 
         // get_or_insert_with
         let mut opt: Option<Number> = None;
         let mut ob = opt.__observe();
         ob.get_or_insert_with(|| Number(88)).0 = 99;
-        let mutation = ob.collect::<JsonAdapter>().unwrap().unwrap();
-        assert_eq!(mutation.kind, MutationKind::Replace(json!(99)));
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(99)));
     }
 
     #[test]

@@ -212,14 +212,14 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 });
                 if field_count == 1 {
                     collect_stmts.push(quote_spanned! { field_span =>
-                        if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(&mut this.#field_ident)? {
+                        if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<A>(&mut this.#field_ident)? {
                             mutation.path.push(#field_name.into());
                             return Ok(Some(mutation));
                         }
                     });
                 } else {
                     collect_stmts.push(quote_spanned! { field_span =>
-                        if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect(&mut this.#field_ident)? {
+                        if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<A>(&mut this.#field_ident)? {
                             mutation.path.push(#field_name.into());
                             mutations.push(mutation);
                         }
@@ -528,7 +528,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     where #ob_serialize_observer_predicates {
                         unsafe fn collect_unchecked<A: ::morphix::Adapter>(
                             this: &mut Self,
-                        ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A>>, A::Error> {
+                        ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A::Value>>, A::Error> {
                             #serialize_observer_impl_prefix
                             #serialize_observer_impl
                         }

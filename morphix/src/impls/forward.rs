@@ -65,8 +65,8 @@ where
     D: Unsigned,
 {
     #[inline]
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A>>, A::Error> {
-        unsafe { O::collect_unchecked(&mut this.inner) }
+    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+        unsafe { O::collect_unchecked::<A>(&mut this.inner) }
     }
 }
 

@@ -27,10 +27,11 @@ enum BatchSegmentKind {
 /// ## Example
 ///
 /// ```
-/// use morphix::{BatchTree, JsonAdapter, Mutation, MutationKind};
+/// use morphix::adapter::Json;
+/// use morphix::{BatchTree, Mutation, MutationKind};
 /// use serde_json::json;
 ///
-/// let mut batch = BatchTree::<JsonAdapter>::new();
+/// let mut batch = BatchTree::<Json>::new();
 ///
 /// // Load multiple mutations
 /// batch.load(Mutation {
@@ -62,13 +63,13 @@ impl<A: Adapter> BatchTree<A> {
     }
 
     /// Loads a [`Mutation`] into the batch, potentially merging with existing mutations.
-    pub fn load(&mut self, mutation: Mutation<A>) -> Result<(), MutationError> {
+    pub fn load(&mut self, mutation: Mutation<A::Value>) -> Result<(), MutationError> {
         self.load_with_stack(mutation, &mut Default::default())
     }
 
     fn load_with_stack(
         &mut self,
-        mut mutation: Mutation<A>,
+        mut mutation: Mutation<A::Value>,
         path_stack: &mut Path<false>,
     ) -> Result<(), MutationError> {
         let mut batch = self;
@@ -142,7 +143,7 @@ impl<A: Adapter> BatchTree<A> {
     /// - Returns [`None`] if no mutations have been accumulated.
     /// - Returns a single mutation if only one mutation exists.
     /// - Returns a [`Batch`](MutationKind::Batch) mutation if multiple mutations exist.
-    pub fn dump(&mut self) -> Option<Mutation<A>> {
+    pub fn dump(&mut self) -> Option<Mutation<A::Value>> {
         let mut mutations = vec![];
         if let Some((_, children)) = take(&mut self.children) {
             for (segment, mut batch) in children {
@@ -176,14 +177,14 @@ mod test {
     use serde_json::json;
 
     use super::*;
-    use crate::JsonAdapter;
+    use crate::adapter::Json;
 
     #[test]
     fn batch() {
-        let mut batch = BatchTree::<JsonAdapter>::new();
+        let mut batch = BatchTree::<Json>::new();
         assert_eq!(batch.dump(), None);
 
-        let mut batch = BatchTree::<JsonAdapter>::new();
+        let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
                 path: vec!["foo".into(), "bar".into()].into(),
@@ -198,7 +199,7 @@ mod test {
             }),
         );
 
-        let mut batch = BatchTree::<JsonAdapter>::new();
+        let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
                 path: vec!["foo".into(), "bar".into()].into(),
@@ -219,7 +220,7 @@ mod test {
             }),
         );
 
-        let mut batch = BatchTree::<JsonAdapter>::new();
+        let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
                 path: vec!["foo".into(), "bar".into()].into(),
@@ -240,7 +241,7 @@ mod test {
             }),
         );
 
-        let mut batch = BatchTree::<JsonAdapter>::new();
+        let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
                 path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
@@ -261,7 +262,7 @@ mod test {
             }),
         );
 
-        let mut batch = BatchTree::<JsonAdapter>::new();
+        let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
                 path: vec!["foo".into()].into(),
@@ -285,7 +286,7 @@ mod test {
             }),
         );
 
-        let mut batch = BatchTree::<JsonAdapter>::new();
+        let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
                 path: vec!["bar".into()].into(),
@@ -315,7 +316,7 @@ mod test {
             }),
         );
 
-        let mut batch = BatchTree::<JsonAdapter>::new();
+        let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
                 path: vec!["foo".into(), "bar".into()].into(),
@@ -348,7 +349,7 @@ mod test {
 
     #[test]
     fn index_rev() {
-        let mut batch = BatchTree::<JsonAdapter>::new();
+        let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
                 path: vec![(-1).into()].into(),
@@ -390,7 +391,7 @@ mod test {
             }),
         );
 
-        let mut batch = BatchTree::<JsonAdapter>::new();
+        let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
                 path: vec![(-1).into()].into(),
