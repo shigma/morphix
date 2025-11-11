@@ -40,7 +40,7 @@ let mut foo = Foo {
 };
 
 // 2. Use `observe!` to mutate data and track mutations.
-let Json(mutation) = observe!(|mut foo| {
+let Json(mutation) = observe!(foo => {
     foo.bar.baz += 1;
     foo.qux.push(' ');
     foo.qux += "world";
