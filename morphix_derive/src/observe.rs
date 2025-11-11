@@ -68,6 +68,7 @@ fn build_output(pat: &syn::Pat, inits: &mut Vec<TokenStream>) -> Result<TokenStr
             }
         }
         syn::Pat::Type(syn::PatType { pat, .. }) => build_output(pat, inits),
+        syn::Pat::Wild(_) => Ok(quote! { ::morphix::Adapter::from_mutation(None) }),
         _ => Err(syn::Error::new(pat.span(), "only ident or tuple patterns are supported").to_compile_error()),
     }
 }
