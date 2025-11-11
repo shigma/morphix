@@ -25,7 +25,7 @@ use crate::{Adapter, Mutation, MutationError, MutationKind, Path, PathSegment};
 /// }
 ///
 /// let mut data = Data { value: 42 };
-/// let Json(mutation) = observe!(|mut data| {
+/// let Json(mutation) = observe!(data => {
 ///     data.value += 1;
 /// }).unwrap();
 /// ```

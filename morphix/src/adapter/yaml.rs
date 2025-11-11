@@ -32,7 +32,7 @@ use crate::{Adapter, Mutation, MutationError, MutationKind, Path, PathSegment};
 ///     tags: vec!["web".to_string()],
 /// };
 ///
-/// let Yaml(mutation) = observe!(|mut config| {
+/// let Yaml(mutation) = observe!(config => {
 ///     config.port = 8081;
 ///     config.tags.push("api".to_string());
 /// }).unwrap();

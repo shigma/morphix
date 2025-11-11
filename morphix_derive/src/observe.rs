@@ -1,41 +1,52 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::parse::Parse;
-use syn::parse_quote;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
+use syn::{Token, parse_quote};
+
+enum ObserveKind {
+    Closure(#[expect(dead_code)] Token![|], #[expect(dead_code)] Token![|]),
+    Arm(#[expect(dead_code)] Token![=>]),
+}
 
 pub struct ObserveInput {
-    ty: Option<(syn::Type, syn::Token![,])>,
-    closure: syn::ExprClosure,
+    kind: ObserveKind,
+    pat: syn::Pat,
+    body: syn::Expr,
 }
 
 impl Parse for ObserveInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-        if let Ok(ty) = input.parse::<syn::Type>() {
-            let comma = input.parse::<syn::Token![,]>()?;
-            let closure = input.parse::<syn::ExprClosure>()?;
-            Ok(Self {
-                ty: Some((ty, comma)),
-                closure,
-            })
-        } else {
-            let closure = input.parse::<syn::ExprClosure>()?;
-            Ok(Self { ty: None, closure })
+        let or1 = input.parse::<Token![|]>().ok();
+        let mut pat = syn::Pat::parse_single(input)?;
+        if let Ok(colon) = input.parse::<Token![:]>() {
+            let ty: syn::Type = input.parse()?;
+            pat = syn::Pat::Type(syn::PatType {
+                attrs: vec![],
+                pat: Box::new(pat),
+                colon_token: colon,
+                ty: Box::new(ty),
+            });
         }
+        let kind = if let Some(or1) = or1 {
+            let or2 = input.parse::<Token![|]>()?;
+            ObserveKind::Closure(or1, or2)
+        } else {
+            let fat_arrow = input.parse::<Token![=>]>()?;
+            ObserveKind::Arm(fat_arrow)
+        };
+        let body = input.parse()?;
+        Ok(Self { kind, pat, body })
     }
 }
 
-fn build_output(
-    pat: &syn::Pat,
-    turbofish: &TokenStream,
-    inits: &mut Vec<TokenStream>,
-) -> Result<TokenStream, TokenStream> {
+fn build_output(pat: &syn::Pat, inits: &mut Vec<TokenStream>) -> Result<TokenStream, TokenStream> {
     match pat {
         syn::Pat::Ident(syn::PatIdent { ident, .. }) => {
             inits.push(quote! { let mut #ident = #ident.__observe(); });
             Ok(quote! {
-                match ::morphix::observe::SerializeObserverExt::collect #turbofish(&mut #ident) {
+                match ::morphix::observe::SerializeObserverExt::collect(&mut #ident) {
                     Ok(mutation) => mutation,
                     Err(error) => break 'ob Err(error),
                 }
@@ -45,7 +56,7 @@ fn build_output(
             let mut outputs = vec![];
             let mut errors = TokenStream::new();
             for pat in elems {
-                match build_output(pat, turbofish, inits) {
+                match build_output(pat, inits) {
                     Ok(output) => outputs.push(output),
                     Err(error) => errors.extend(error),
                 }
@@ -56,31 +67,23 @@ fn build_output(
                 Err(errors)
             }
         }
+        syn::Pat::Type(syn::PatType { pat, .. }) => build_output(pat, inits),
         _ => Err(syn::Error::new(pat.span(), "only ident or tuple patterns are supported").to_compile_error()),
     }
 }
 
 pub fn observe(mut input: ObserveInput) -> TokenStream {
-    if input.closure.inputs.len() != 1 {
-        return syn::Error::new(input.closure.span(), "expect a closure with one argument").to_compile_error();
-    }
-
-    let turbofish = if let Some((ty, _)) = input.ty {
-        quote! {::<#ty>}
-    } else {
-        quote! {}
-    };
-
     let mut inits = vec![];
-    let output = match build_output(&input.closure.inputs[0], &turbofish, &mut inits) {
+    let pat = &input.pat;
+    let output = match build_output(pat, &mut inits) {
         Ok(output) => quote! { Ok(#output) },
         Err(errors) => return errors,
     };
 
-    let body = &mut input.closure.body;
+    let body = &mut input.body;
     DerefAssign.visit_expr_mut(body);
 
-    quote! {
+    let body = quote! {
         'ob: {
             #[allow(unused_imports)]
             use ::morphix::helper::Assignable;
@@ -90,6 +93,11 @@ pub fn observe(mut input: ObserveInput) -> TokenStream {
             #body;
             #output
         }
+    };
+
+    match input.kind {
+        ObserveKind::Closure(_, _) => quote! { |#pat| #body },
+        ObserveKind::Arm(_) => body,
     }
 }
 

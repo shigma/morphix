@@ -71,26 +71,17 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 ///
 /// ## Syntax
 ///
-/// ```ignore
-/// observe!(Adapter, |mut_binding| { /* mutations */ })
-/// observe!(|mut_binding| { /* mutations */ })     // Type inference
+/// ```
+/// # use morphix::adapter::Json;
+/// # use morphix::observe;
+/// # let mut binding = String::new();
+/// # let Json(mutation) =
+/// observe!(binding => { /* mutations */ }).unwrap();
+/// # let f: &dyn FnOnce(&mut String) -> Result<Json, serde_json::Error> = &
+/// observe!(|binding: &mut String| { /* mutations */ });
 /// ```
 ///
-/// ## Parameters
-///
-/// - `Adapter` (optional) - adapter to use for serialization (e.g., `Json`)
-/// - `mut_binding` - binding pattern for the mutable value in the closure
-///
-/// ## Returns
-///
-/// Returns `Result<Option<Mutation<Adapter>>, Adapter::Error>` where:
-/// - `Ok(None)` - No mutations were made
-/// - `Ok(Some(mutation))` - Contains the collected mutations
-/// - `Err(error)` - Serialization failed
-///
-/// ## Examples
-///
-/// With explicit adapter type:
+/// ## Example
 ///
 /// ```
 /// use serde::Serialize;
@@ -105,34 +96,13 @@ pub fn derive_observe(input: TokenStream) -> TokenStream {
 ///
 /// let mut point = Point { x: 1.0, y: 2.0 };
 ///
-/// let Json(mutation) = observe!(|mut point| {
+/// let Json(mutation) = observe!(point => {
 ///     point.x += 1.0;
 ///     point.y *= 2.0;
 /// }).unwrap();
 ///
 /// assert_eq!(point.x, 2.0);
 /// assert_eq!(point.y, 4.0);
-/// ```
-///
-/// With type inference:
-///
-/// ```
-/// # use serde::Serialize;
-/// # use morphix::Observe;
-/// # #[derive(Serialize, Observe)]
-/// # struct Point {
-/// #     x: f64,
-/// #     y: f64,
-/// # }
-/// use morphix::adapter::Json;
-/// use morphix::{Mutation, observe};
-///
-/// let mut point = Point { x: 1.0, y: 2.0 };
-///
-/// let Json(mutation) = observe!(|mut point| {
-///     point.x += 1.0;
-///     point.y *= 2.0;
-/// }).unwrap();
 /// ```
 #[proc_macro]
 pub fn observe(input: TokenStream) -> TokenStream {

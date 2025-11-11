@@ -95,10 +95,10 @@ pub use snapshot::{SnapshotObserver, SnapshotSpec};
 /// }
 ///
 /// let mut data = MyStruct { field: "value".to_string() };
-/// observe!(Json, |mut data| {
+/// let Json(mutation) = observe!(data => {
 ///     // Mutations through observer are tracked
 ///     data.field.push_str(" modified");
-/// });
+/// }).unwrap();
 /// ```
 pub trait Observe {
     /// Associated observer type.

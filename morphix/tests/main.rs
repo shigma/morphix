@@ -21,7 +21,7 @@ fn main() {
         qux: "hello".to_string(),
     };
 
-    let Json(mutation) = observe!(|foo| {
+    let Json(mutation) = observe!(foo => {
         foo.bar.baz += 1;
         foo.qux.push(' ');
         foo.qux += "world";

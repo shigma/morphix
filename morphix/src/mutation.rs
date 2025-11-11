@@ -73,7 +73,7 @@ impl<V> Mutation<V> {
 ///     tags: vec!["todo".to_string()],
 /// };
 ///
-/// let Json(mutation) = observe!(|mut doc| {
+/// let Json(mutation) = observe!(doc => {
 ///     doc.title = "Final".to_string();      // Replace
 ///     doc.content.push_str(" World");       // Append
 ///     doc.tags.push("done".to_string());    // Append
