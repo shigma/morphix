@@ -103,7 +103,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("BoxObserver").field(&self.inner).finish()
+        f.debug_tuple("ForwardObserver").field(&self.inner).finish()
     }
 }
 
