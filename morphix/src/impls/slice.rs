@@ -79,11 +79,7 @@ where
         let ob_iter = inner[start..end].iter_mut();
         let value_iter = values[start..end].iter_mut();
         for (ob, value) in ob_iter.zip(value_iter) {
-            if ObserverPointer::is_null(O::as_ptr(ob)) {
-                *ob = Observer::observe(value);
-            } else {
-                unsafe { Observer::refresh(ob, value) }
-            }
+            unsafe { Observer::force(ob, value) }
         }
     }
 }

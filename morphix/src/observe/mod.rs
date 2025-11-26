@@ -196,9 +196,10 @@ where
     /// ## Safety
     ///
     /// The caller must ensure that:
-    /// - `this` was constructed via [`observe`](Observer::observe), not default-constructed
-    /// - `value` refers to the same logical value that was passed to [`observe`](Observer::observe)
-    ///   when the observer was created, just potentially at a new memory location
+    /// 1. `this` was constructed via [`observe`](Observer::observe), not default-constructed
+    /// 2. `value` refers to the same logical value that was passed to
+    ///    [`observe`](Observer::observe) when the observer was created, just potentially at a new
+    ///    memory location
     ///
     /// ## Default Implementation
     ///
@@ -285,6 +286,45 @@ where
     /// let observer = ShallowObserver::<i32>::observe(&mut value);
     /// ```
     fn observe(value: &'i mut Self::Head) -> Self;
+
+    /// Forces the observer into a valid state for the given value.
+    ///
+    /// This method ensures the observer is properly associated with the observed value,
+    /// regardless of its current state:
+    /// - If the observer is default-constructed, it initializes the observer via
+    ///   [`observe`](Observer::observe).
+    /// - If the observer is already initialized but points to a different address, it updates the
+    ///   pointer via [`refresh`](Observer::refresh).
+    /// - If the observer already points to the same address, it does nothing.
+    ///
+    /// ## Safety
+    ///
+    /// The caller must ensure that, if the observer is already initialized, `value` must refer to
+    /// the same logical value that was passed to [`observe`](Observer::observe) when the observer
+    /// was created, just potentially at a new memory location.
+    ///
+    /// Note: If the observer is default-constructed, no safety requirements apply since
+    /// [`observe`](Observer::observe) will be called to initialize it.
+    ///
+    /// ## Use Cases
+    ///
+    /// This method is particularly useful in container observers (like
+    /// [`VecObserver`](crate::impls::vec::VecObserver)) where element observers may need to be:
+    /// - Lazily initialized on first access, and
+    /// - Refreshed after container reallocation moves elements in memory.
+    #[inline]
+    unsafe fn force(this: &mut Self, value: &'i mut Self::Head) {
+        match ObserverPointer::get(Self::as_ptr(this)) {
+            None => *this = Self::observe(value),
+            Some(ptr) => {
+                if !std::ptr::eq(ptr, value) {
+                    // SAFETY: The observer was previously initialized via `observe`, and the caller
+                    // guarantees that `value` refers to the same logical value.
+                    unsafe { Self::refresh(this, value) }
+                }
+            }
+        }
+    }
 
     /// Gets a reference to the internal pointer.
     ///

@@ -15,7 +15,7 @@ use std::ops::{Deref, DerefMut};
 /// this break point, enabling chains like: [`VecObserver`](crate::impls::vec::VecObserver) →
 /// `SliceObserver` → `ObserverPointer<[T]>` → [`Vec<T>`] → [`[T]`](std::slice).
 ///
-/// ## Safety Considerations
+/// ## Safety
 ///
 /// This type uses raw pointers internally and relies on several safety invariants:
 ///
@@ -41,6 +41,12 @@ impl<S: ?Sized> ObserverPointer<S> {
     #[inline]
     pub fn new(value: &mut S) -> Self {
         Self(Cell::new(Some(value)))
+    }
+
+    /// Retrieves the internal raw pointer.
+    #[inline]
+    pub fn get(this: &Self) -> Option<*mut S> {
+        this.0.get()
     }
 
     /// Updates the internal pointer to a new reference.
