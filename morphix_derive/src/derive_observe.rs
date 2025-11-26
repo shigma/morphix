@@ -4,13 +4,33 @@ use std::mem::take;
 
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, quote_spanned};
-use syn::parse::Parser;
+use syn::parse::{Parse, Parser};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
 use syn::{parse_quote, parse_quote_spanned};
 
 type WherePredicates = Punctuated<syn::WherePredicate, syn::Token![,]>;
+
+struct MetaArgument {
+    ident: syn::Ident,
+    #[expect(dead_code)]
+    value: Option<(syn::Token![=], syn::Expr)>,
+}
+
+impl Parse for MetaArgument {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let ident: syn::Ident = input.parse()?;
+        let value = if input.peek(syn::Token![=]) {
+            let eq_token: syn::Token![=] = input.parse()?;
+            let expr: syn::Expr = input.parse()?;
+            Some((eq_token, expr))
+        } else {
+            None
+        };
+        Ok(MetaArgument { ident, value })
+    }
+}
 
 struct GeneralImpl {
     ob_ident: syn::Ident,
@@ -22,62 +42,84 @@ struct GeneralImpl {
 struct ObserveMeta {
     general_impl: Option<GeneralImpl>,
     deref: Option<syn::Ident>,
+    flatten: bool,
 }
 
 impl ObserveMeta {
     fn parse_attrs(attrs: &[syn::Attribute], errors: &mut Vec<syn::Error>) -> Self {
         let mut meta = ObserveMeta::default();
         for attr in attrs {
-            if !attr.path().is_ident("observe") {
-                continue;
-            }
-            let syn::Meta::List(meta_list) = &attr.meta else {
-                errors.push(syn::Error::new(
-                    attr.span(),
-                    "the 'observe' attribute must be in the form of #[observe(...)]",
-                ));
-                continue;
-            };
-            let args = match Punctuated::<syn::Ident, syn::Token![,]>::parse_terminated.parse2(meta_list.tokens.clone())
-            {
-                Ok(args) => args,
-                Err(err) => {
-                    errors.push(err);
-                    continue;
-                }
-            };
-            for ident in args {
-                if ident == "hash" {
-                    meta.general_impl = Some(GeneralImpl {
-                        ob_ident: syn::Ident::new("HashObserver", ident.span()),
-                        spec_ident: syn::Ident::new("HashSpec", ident.span()),
-                        bounds: parse_quote! { ::std::hash::Hash },
-                    });
-                } else if ident == "noop" {
-                    meta.general_impl = Some(GeneralImpl {
-                        ob_ident: syn::Ident::new("NoopObserver", ident.span()),
-                        spec_ident: syn::Ident::new("DefaultSpec", ident.span()),
-                        bounds: Default::default(),
-                    });
-                } else if ident == "shallow" {
-                    meta.general_impl = Some(GeneralImpl {
-                        ob_ident: syn::Ident::new("ShallowObserver", ident.span()),
-                        spec_ident: syn::Ident::new("DefaultSpec", ident.span()),
-                        bounds: Default::default(),
-                    });
-                } else if ident == "snapshot" {
-                    meta.general_impl = Some(GeneralImpl {
-                        ob_ident: syn::Ident::new("SnapshotObserver", ident.span()),
-                        spec_ident: syn::Ident::new("SnapshotSpec", ident.span()),
-                        bounds: parse_quote! { ::std::clone::Clone + ::std::cmp::PartialEq },
-                    });
-                } else if ident == "deref" {
-                    meta.deref = Some(ident);
-                } else {
+            if attr.path().is_ident("observe") {
+                let syn::Meta::List(meta_list) = &attr.meta else {
                     errors.push(syn::Error::new(
-                        ident.span(),
-                        "unknown argument, expected 'deref', 'hash', 'noop', 'shallow' or 'snapshot'",
+                        attr.span(),
+                        "the 'observe' attribute must be in the form of #[observe(...)]",
                     ));
+                    continue;
+                };
+                let args =
+                    match Punctuated::<syn::Ident, syn::Token![,]>::parse_terminated.parse2(meta_list.tokens.clone()) {
+                        Ok(args) => args,
+                        Err(err) => {
+                            errors.push(err);
+                            continue;
+                        }
+                    };
+                for ident in args {
+                    if ident == "hash" {
+                        meta.general_impl = Some(GeneralImpl {
+                            ob_ident: syn::Ident::new("HashObserver", ident.span()),
+                            spec_ident: syn::Ident::new("HashSpec", ident.span()),
+                            bounds: parse_quote! { ::std::hash::Hash },
+                        });
+                    } else if ident == "noop" {
+                        meta.general_impl = Some(GeneralImpl {
+                            ob_ident: syn::Ident::new("NoopObserver", ident.span()),
+                            spec_ident: syn::Ident::new("DefaultSpec", ident.span()),
+                            bounds: Default::default(),
+                        });
+                    } else if ident == "shallow" {
+                        meta.general_impl = Some(GeneralImpl {
+                            ob_ident: syn::Ident::new("ShallowObserver", ident.span()),
+                            spec_ident: syn::Ident::new("DefaultSpec", ident.span()),
+                            bounds: Default::default(),
+                        });
+                    } else if ident == "snapshot" {
+                        meta.general_impl = Some(GeneralImpl {
+                            ob_ident: syn::Ident::new("SnapshotObserver", ident.span()),
+                            spec_ident: syn::Ident::new("SnapshotSpec", ident.span()),
+                            bounds: parse_quote! { ::std::clone::Clone + ::std::cmp::PartialEq },
+                        });
+                    } else if ident == "deref" {
+                        meta.deref = Some(ident);
+                    } else {
+                        errors.push(syn::Error::new(
+                            ident.span(),
+                            "unknown argument, expected 'deref', 'hash', 'noop', 'shallow' or 'snapshot'",
+                        ));
+                    }
+                }
+            } else if attr.path().is_ident("serde") {
+                let syn::Meta::List(meta_list) = &attr.meta else {
+                    errors.push(syn::Error::new(
+                        attr.span(),
+                        "the 'serde' attribute must be in the form of #[serde(...)]",
+                    ));
+                    continue;
+                };
+                let args = match Punctuated::<MetaArgument, syn::Token![,]>::parse_terminated
+                    .parse2(meta_list.tokens.clone())
+                {
+                    Ok(args) => args,
+                    Err(err) => {
+                        errors.push(err);
+                        continue;
+                    }
+                };
+                for arg in args {
+                    if arg.ident == "flatten" {
+                        meta.flatten = true;
+                    }
                 }
             }
         }
@@ -210,21 +252,24 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 default_fields.push(quote_spanned! { field_span =>
                     #field_ident: ::std::default::Default::default(),
                 });
-                if field_count == 1 {
-                    collect_stmts.push(quote_spanned! { field_span =>
-                        if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<A>(&mut this.#field_ident)? {
-                            mutation.path.push(#field_name.into());
-                            return Ok(Some(mutation));
-                        }
-                    });
+                let mut mutability = quote! {};
+                let mut body = if field_count == 1 {
+                    quote! { return Ok(Some(mutation)); }
                 } else {
-                    collect_stmts.push(quote_spanned! { field_span =>
-                        if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<A>(&mut this.#field_ident)? {
-                            mutation.path.push(#field_name.into());
-                            mutations.push(mutation);
-                        }
-                    });
+                    quote! { mutations.push(mutation); }
+                };
+                if !field_meta.flatten {
+                    mutability = quote! { mut };
+                    body = quote! {
+                        mutation.path.push(#field_name.into());
+                        #body
+                    };
                 }
+                collect_stmts.push(quote_spanned! { field_span =>
+                    if let Some(#mutability mutation) = ::morphix::observe::SerializeObserver::collect::<A>(&mut this.#field_ident)? {
+                        #body
+                    }
+                });
             }
             if !errors.is_empty() {
                 return errors.into_iter().map(|error| error.to_compile_error()).collect();

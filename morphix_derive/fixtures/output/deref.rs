@@ -5,6 +5,7 @@ use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize)]
 pub struct Foo {
+    #[serde(flatten)]
     a: Qux,
     b: i32,
 }
@@ -87,10 +88,9 @@ const _: () = {
             A::Error,
         > {
             let mut mutations = ::std::vec::Vec::with_capacity(2usize);
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
+            if let Some(mutation) = ::morphix::observe::SerializeObserver::collect::<
                 A,
             >(&mut this.a)? {
-                mutation.path.push("a".into());
                 mutations.push(mutation);
             }
             if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<

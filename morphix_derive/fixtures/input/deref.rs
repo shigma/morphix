@@ -7,6 +7,7 @@ use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
 pub struct Foo {
+    #[serde(flatten)]
     #[observe(deref)]
     a: Qux,
     b: i32,
