@@ -187,6 +187,90 @@ where
     /// The head type of the dereference chain.
     type Head: AsDerefMut<Self::InnerDepth> + ?Sized + 'i;
 
+    /// Refreshes the observer's internal pointer after the observed value has moved.
+    ///
+    /// This method updates the observer's internal pointer to point to the new location
+    /// of the observed value. It is necessary when the observed value is relocated in
+    /// memory (e.g., due to `Vec` reallocation) while the observer remains active.
+    ///
+    /// ## Safety
+    ///
+    /// The caller must ensure that:
+    /// - `this` was constructed via [`observe`](Observer::observe), not default-constructed
+    /// - `value` refers to the same logical value that was passed to [`observe`](Observer::observe)
+    ///   when the observer was created, just potentially at a new memory location
+    ///
+    /// ## Default Implementation
+    ///
+    /// The default implementation updates only the top-level [`ObserverPointer`]. Observers
+    /// that contain nested observers or additional raw pointers must override this method
+    /// to refresh all internal pointers.
+    ///
+    /// ## Example
+    ///
+    /// Implementing [`Observer`] for [`Option<T>`]:
+    ///
+    /// ```
+    /// # use morphix::helper::{AsDerefMut, Unsigned, Zero};
+    /// # use morphix::observe::{Observer, ObserverPointer};
+    /// # use std::marker::PhantomData;
+    ///
+    /// pub struct OptionObserver<'i, O, S: ?Sized, N = Zero> {
+    ///     ptr: ObserverPointer<S>,
+    ///     mutated: bool,
+    ///     ob: Option<O>,
+    ///     phantom: PhantomData<&'i mut N>,
+    /// }
+    ///
+    /// # impl<'i, O, S: ?Sized, N> Default for OptionObserver<'i, O, S, N> {
+    /// #    fn default() -> Self { todo!() }
+    /// # }
+    ///
+    /// # impl<'i, O, S: ?Sized, N> std::ops::Deref for OptionObserver<'i, O, S, N> {
+    /// #     type Target = ObserverPointer<S>;
+    /// #     fn deref(&self) -> &Self::Target { &self.ptr }
+    /// # }
+    ///
+    /// # impl<'i, O, S: ?Sized, N> std::ops::DerefMut for OptionObserver<'i, O, S, N> {
+    /// #     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.ptr }
+    /// # }
+    ///
+    /// impl<'i, O, S: ?Sized, N> Observer<'i> for OptionObserver<'i, O, S, N>
+    /// where
+    ///     N: Unsigned,
+    ///     S: AsDerefMut<N, Target = Option<O::Head>> + 'i,
+    ///     O: Observer<'i, InnerDepth = Zero>,
+    ///     O::Head: Sized,
+    /// {
+    ///     # type InnerDepth = N;
+    ///     # type OuterDepth = Zero;
+    ///     # type Head = S;
+    ///
+    ///     unsafe fn refresh(this: &mut Self, value: &'i mut Self::Head) {
+    ///         // Refresh the outer pointer
+    ///         ObserverPointer::set(Self::as_ptr(this), value);
+    ///
+    ///         // Refresh nested observer if present
+    ///         match (&mut this.ob, value.as_deref_mut()) {
+    ///             (Some(inner), Some(value)) => unsafe { Observer::refresh(inner, value) },
+    ///             (None, None) => {}
+    ///             _ => unreachable!("inconsistent observer state"),
+    ///         }
+    ///     }
+    ///
+    ///     # fn observe(value: &'i mut Self::Head) -> Self { todo!() }
+    /// }
+    /// ```
+    ///
+    /// ## When to Call
+    ///
+    /// This method should be called after any operation that may relocate the observed
+    /// value in memory while the observer is still in use.
+    #[inline]
+    unsafe fn refresh(this: &mut Self, value: &'i mut Self::Head) {
+        ObserverPointer::set(Self::as_ptr(this), value);
+    }
+
     /// Creates a new observer for the given value.
     ///
     /// This is the primary way to create an observer. The observer will track all mutations to the

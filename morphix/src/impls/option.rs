@@ -68,6 +68,16 @@ where
     type Head = S;
 
     #[inline]
+    unsafe fn refresh(this: &mut Self, value: &'i mut Self::Head) {
+        ObserverPointer::set(Self::as_ptr(this), value);
+        match (&mut this.ob, value.as_deref_mut()) {
+            (Some(inner), Some(value)) => unsafe { Observer::refresh(inner, value) },
+            (None, None) => {}
+            _ => unreachable!("inconsistent option observer state"),
+        }
+    }
+
+    #[inline]
     fn observe(value: &'i mut Self::Head) -> Self {
         Self {
             ptr: ObserverPointer::new(value),

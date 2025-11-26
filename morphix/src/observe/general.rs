@@ -55,13 +55,27 @@ pub trait GeneralHandler<T: ?Sized>: Default {
     /// Associated specification type for [`GeneralObserver`].
     type Spec;
 
+    /// Called when the observed value is moved.
+    ///
+    /// ## Safety
+    ///
+    /// See [`Observer::refresh`].
+    #[inline]
+    unsafe fn on_refresh(&mut self, value: &mut T) {
+        let _ = value;
+    }
+
     /// Called when observation begins.
+    ///
+    /// See [`Observer::observe`].
     fn on_observe(value: &mut T) -> Self;
 
     /// Called when the value is accessed through [`DerefMut`].
     fn on_deref_mut(&mut self);
 
     /// Called when collecting changes, returns whether a change occurred.
+    ///
+    /// See [`SerializeObserver::collect`].
     fn on_collect(&self, value: &T) -> bool;
 }
 
@@ -187,6 +201,12 @@ where
     type InnerDepth = N;
     type OuterDepth = Zero;
     type Head = S;
+
+    #[inline]
+    unsafe fn refresh(this: &mut Self, value: &'i mut Self::Head) {
+        ObserverPointer::set(&this.ptr, value);
+        unsafe { this.handler.on_refresh(value.as_deref_mut()) }
+    }
 
     #[inline]
     fn observe(value: &'i mut Self::Head) -> Self {

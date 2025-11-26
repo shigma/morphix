@@ -79,7 +79,11 @@ where
         let ob_iter = inner[start..end].iter_mut();
         let value_iter = values[start..end].iter_mut();
         for (ob, value) in ob_iter.zip(value_iter) {
-            ObserverPointer::set(O::as_ptr(ob), value);
+            if ObserverPointer::is_null(O::as_ptr(ob)) {
+                *ob = Observer::observe(value);
+            } else {
+                unsafe { Observer::refresh(ob, value) }
+            }
         }
     }
 }
@@ -317,8 +321,7 @@ where
     /// See [`slice::last_mut`].
     #[inline]
     pub fn last_mut(&mut self) -> Option<&mut O> {
-        let len = self.as_deref().as_ref().len();
-        self.__get_mut(len - 1)
+        self.__get_mut(..)?.last_mut()
     }
 
     /// See [`slice::first_chunk_mut`].
