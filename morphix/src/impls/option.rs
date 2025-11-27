@@ -13,15 +13,15 @@ use crate::{Adapter, Mutation, MutationKind, Observe};
 /// This observer tracks changes to optional values, including transitions between [`Some`] and
 /// [`None`] states. It provides specialized methods for working with options while maintaining
 /// change tracking.
-pub struct OptionObserver<'i, O, S: ?Sized, D = Zero> {
+pub struct OptionObserver<'ob, O, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
     is_mutated: bool,
     is_initial_some: bool,
     ob: Option<O>,
-    phantom: PhantomData<&'i mut D>,
+    phantom: PhantomData<&'ob mut D>,
 }
 
-impl<'i, O, S: ?Sized, D> Default for OptionObserver<'i, O, S, D> {
+impl<'ob, O, S: ?Sized, D> Default for OptionObserver<'ob, O, S, D> {
     #[inline]
     fn default() -> Self {
         Self {
@@ -34,7 +34,7 @@ impl<'i, O, S: ?Sized, D> Default for OptionObserver<'i, O, S, D> {
     }
 }
 
-impl<'i, O, S: ?Sized, D> Deref for OptionObserver<'i, O, S, D> {
+impl<'ob, O, S: ?Sized, D> Deref for OptionObserver<'ob, O, S, D> {
     type Target = ObserverPointer<S>;
 
     #[inline]
@@ -43,7 +43,7 @@ impl<'i, O, S: ?Sized, D> Deref for OptionObserver<'i, O, S, D> {
     }
 }
 
-impl<'i, O, S: ?Sized, D> DerefMut for OptionObserver<'i, O, S, D> {
+impl<'ob, O, S: ?Sized, D> DerefMut for OptionObserver<'ob, O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.is_mutated = true;
@@ -52,15 +52,15 @@ impl<'i, O, S: ?Sized, D> DerefMut for OptionObserver<'i, O, S, D> {
     }
 }
 
-impl<'i, O, S> Assignable for OptionObserver<'i, O, S> {
+impl<'ob, O, S> Assignable for OptionObserver<'ob, O, S> {
     type Depth = Succ<Zero>;
 }
 
-impl<'i, O, S: ?Sized, D> Observer<'i> for OptionObserver<'i, O, S, D>
+impl<'ob, O, S: ?Sized, D> Observer<'ob> for OptionObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Option<O::Head>> + 'i,
-    O: Observer<'i, InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = Option<O::Head>> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero>,
     O::Head: Sized,
 {
     type InnerDepth = D;
@@ -78,7 +78,7 @@ where
     }
 
     #[inline]
-    fn observe(value: &'i mut Self::Head) -> Self {
+    fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
             ptr: ObserverPointer::new(value),
             is_mutated: false,
@@ -89,11 +89,11 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D> SerializeObserver<'i> for OptionObserver<'i, O, S, D>
+impl<'ob, O, S: ?Sized, D> SerializeObserver<'ob> for OptionObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Option<O::Head>> + 'i,
-    O: SerializeObserver<'i, InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = Option<O::Head>> + 'ob,
+    O: SerializeObserver<'ob, InnerDepth = Zero>,
     O::Head: Serialize + Sized,
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
@@ -110,11 +110,11 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D> OptionObserver<'i, O, S, D>
+impl<'ob, O, S: ?Sized, D> OptionObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Option<O::Head>> + 'i,
-    O: Observer<'i, InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = Option<O::Head>> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero>,
     O::Head: Sized,
 {
     #[inline]
@@ -168,7 +168,7 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D> Debug for OptionObserver<'i, O, S, D>
+impl<'ob, O, S: ?Sized, D> Debug for OptionObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target: Debug>,
@@ -179,7 +179,7 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, U: ?Sized> PartialEq<U> for OptionObserver<'i, O, S, D>
+impl<'ob, O, S: ?Sized, D, U: ?Sized> PartialEq<U> for OptionObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target: PartialEq<U>>,
@@ -190,7 +190,7 @@ where
     }
 }
 
-impl<'i, O, S: ?Sized, D, U: ?Sized> PartialOrd<U> for OptionObserver<'i, O, S, D>
+impl<'ob, O, S: ?Sized, D, U: ?Sized> PartialOrd<U> for OptionObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target: PartialOrd<U>>,
@@ -205,12 +205,12 @@ impl<T> Observe for Option<T>
 where
     T: Observe + OptionObserveImpl<T::Spec>,
 {
-    type Observer<'i, S, D>
-        = <T as OptionObserveImpl<T::Spec>>::Observer<'i, S, D>
+    type Observer<'ob, S, D>
+        = <T as OptionObserveImpl<T::Spec>>::Observer<'ob, S, D>
     where
-        Self: 'i,
+        Self: 'ob,
         D: Unsigned,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = T::Spec;
 }
@@ -219,23 +219,23 @@ where
 #[doc(hidden)]
 pub trait OptionObserveImpl<Spec> {
     /// The observer type for [`Option<T>`] with the given specification.
-    type Observer<'i, S, D>: Observer<'i, Head = S, InnerDepth = D>
+    type Observer<'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
     where
-        Self: 'i,
+        Self: 'ob,
         D: Unsigned,
-        S: AsDerefMut<D, Target = Option<Self>> + ?Sized + 'i;
+        S: AsDerefMut<D, Target = Option<Self>> + ?Sized + 'ob;
 }
 
 impl<T> OptionObserveImpl<DefaultSpec> for T
 where
     T: Observe<Spec = DefaultSpec>,
 {
-    type Observer<'i, S, D>
-        = OptionObserver<'i, T::Observer<'i, T, Zero>, S, D>
+    type Observer<'ob, S, D>
+        = OptionObserver<'ob, T::Observer<'ob, T, Zero>, S, D>
     where
-        T: 'i,
+        T: 'ob,
         D: Unsigned,
-        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'i;
+        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
 }
 
 #[cfg(test)]
@@ -252,12 +252,12 @@ mod tests {
     struct Number(i32);
 
     impl Observe for Number {
-        type Observer<'i, S, D>
-            = ShallowObserver<'i, S, D>
+        type Observer<'ob, S, D>
+            = ShallowObserver<'ob, S, D>
         where
-            Self: 'i,
+            Self: 'ob,
             D: Unsigned,
-            S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
+            S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
         type Spec = DefaultSpec;
     }

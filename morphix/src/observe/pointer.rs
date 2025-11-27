@@ -19,7 +19,7 @@ use std::ops::{Deref, DerefMut};
 ///
 /// This type uses raw pointers internally and relies on several safety invariants:
 ///
-/// 1. **Lifetime tracking**: The lifetime `'i` in observers ensures the pointed-to value remains
+/// 1. **Lifetime tracking**: The lifetime `'ob` in observers ensures the pointed-to value remains
 ///    valid for the observer's lifetime
 /// 2. **Initialization**: Pointers must be properly initialized via [`new`](ObserverPointer::new)
 ///    before dereferencing
@@ -81,10 +81,10 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// These invariants are automatically maintained when using [`ObserverPointer`] within the
     /// observer infrastructure, but must be manually verified if called directly.
     #[inline]
-    pub unsafe fn as_ref<'i>(this: &Self) -> &'i S {
+    pub unsafe fn as_ref<'ob>(this: &Self) -> &'ob S {
         let ptr = this.0.get().expect("Observed pointer should not be null");
         // SAFETY: The caller guarantees the pointer is valid and properly aligned,
-        // and that the lifetime 'i does not outlive the original value.
+        // and that the lifetime 'ob does not outlive the original value.
         unsafe { &*ptr }
     }
 
@@ -101,11 +101,11 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// These invariants are automatically maintained when using [`ObserverPointer`] within the
     /// observer infrastructure, but must be manually verified if called directly.
     #[inline]
-    pub unsafe fn as_mut<'i>(this: &Self) -> &'i mut S {
+    pub unsafe fn as_mut<'ob>(this: &Self) -> &'ob mut S {
         let ptr = this.0.get().expect("Observed pointer should not be null");
         // SAFETY: The caller guarantees exclusive access to the pointed value,
         // that the pointer is valid and properly aligned, and that the lifetime
-        // 'i does not outlive the original value.
+        // 'ob does not outlive the original value.
         unsafe { &mut *ptr }
     }
 }

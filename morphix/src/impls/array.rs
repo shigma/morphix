@@ -14,11 +14,11 @@ use crate::{Adapter, Mutation, Observe};
 /// `ArrayObserver` provides element-level change tracking for fixed-size arrays by building on
 /// [`SliceObserver`]. It tracks modifications to individual array elements through indexing
 /// operations.
-pub struct ArrayObserver<'i, const N: usize, O, S: ?Sized, D = Zero> {
-    inner: SliceObserver<'i, [O; N], S, D>,
+pub struct ArrayObserver<'ob, const N: usize, O, S: ?Sized, D = Zero> {
+    inner: SliceObserver<'ob, [O; N], S, D>,
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D> ArrayObserver<'i, N, O, S, D> {
+impl<'ob, const N: usize, O, S: ?Sized, D> ArrayObserver<'ob, N, O, S, D> {
     /// See [`array::as_slice`].
     #[inline]
     pub fn as_slice(&self) -> &[O] {
@@ -44,9 +44,9 @@ impl<'i, const N: usize, O, S: ?Sized, D> ArrayObserver<'i, N, O, S, D> {
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D> Default for ArrayObserver<'i, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D> Default for ArrayObserver<'ob, N, O, S, D>
 where
-    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+    O: Observer<'ob, InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
     fn default() -> Self {
@@ -56,8 +56,8 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D> Deref for ArrayObserver<'i, N, O, S, D> {
-    type Target = SliceObserver<'i, [O; N], S, D>;
+impl<'ob, const N: usize, O, S: ?Sized, D> Deref for ArrayObserver<'ob, N, O, S, D> {
+    type Target = SliceObserver<'ob, [O; N], S, D>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -65,7 +65,7 @@ impl<'i, const N: usize, O, S: ?Sized, D> Deref for ArrayObserver<'i, N, O, S, D
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<'i, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<'ob, N, O, S, D>
 where
     O: Default,
 {
@@ -75,25 +75,25 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S> Assignable for ArrayObserver<'i, N, O, S>
+impl<'ob, const N: usize, O, S> Assignable for ArrayObserver<'ob, N, O, S>
 where
-    O: Observer<'i, InnerDepth = Zero, Head: Sized>,
+    O: Observer<'ob, InnerDepth = Zero, Head: Sized>,
 {
     type Depth = Succ<Succ<Zero>>;
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T> Observer<'i> for ArrayObserver<'i, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D, T> Observer<'ob> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    S: AsDerefMut<D, Target = [T; N]> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
 {
     type InnerDepth = D;
     type OuterDepth = Succ<Zero>;
     type Head = S;
 
     #[inline]
-    fn observe(value: &'i mut Self::Head) -> Self {
+    fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
             inner: SliceObserver::<[O; N], S, D>::observe(value),
         }
@@ -105,11 +105,11 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T> SerializeObserver<'i> for ArrayObserver<'i, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D, T> SerializeObserver<'ob> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'i,
-    O: SerializeObserver<'i, InnerDepth = Zero, Head = T>,
+    S: AsDerefMut<D, Target = [T; N]> + 'ob,
+    O: SerializeObserver<'ob, InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
     #[inline]
@@ -118,11 +118,11 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T> Debug for ArrayObserver<'i, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D, T> Debug for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
     T: Debug,
 {
     #[inline]
@@ -131,11 +131,11 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T, U> PartialEq<U> for ArrayObserver<'i, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D, T, U> PartialEq<U> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
     [T; N]: PartialEq<U>,
 {
     #[inline]
@@ -144,11 +144,11 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T, U> PartialOrd<U> for ArrayObserver<'i, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D, T, U> PartialOrd<U> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'i, InnerDepth = Zero, Head = T>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
     [T; N]: PartialOrd<U>,
 {
     #[inline]
@@ -157,12 +157,12 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T, I> Index<I> for ArrayObserver<'i, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D, T, I> Index<I> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T> + 'i,
-    T: 'i,
+    S: AsDerefMut<D, Target = Vec<T>> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    T: 'ob,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
     type Output = I::Output;
@@ -173,12 +173,12 @@ where
     }
 }
 
-impl<'i, const N: usize, O, S: ?Sized, D, T, I> IndexMut<I> for ArrayObserver<'i, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D, T, I> IndexMut<I> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'i,
-    O: Observer<'i, InnerDepth = Zero, Head = T> + 'i,
-    T: 'i,
+    S: AsDerefMut<D, Target = Vec<T>> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    T: 'ob,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
     #[inline]
@@ -188,12 +188,12 @@ where
 }
 
 impl<T: Observe, const N: usize> Observe for [T; N] {
-    type Observer<'i, S, D>
-        = ArrayObserver<'i, N, T::Observer<'i, T, Zero>, S, D>
+    type Observer<'ob, S, D>
+        = ArrayObserver<'ob, N, T::Observer<'ob, T, Zero>, S, D>
     where
-        Self: 'i,
+        Self: 'ob,
         D: Unsigned,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }

@@ -45,7 +45,7 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 /// 1. **Hash collisions**: Different values might have the same hash (though rare)
 /// 2. **Performance**: For small types, hashing might be slower than
 ///    [`ShallowObserver`](super::ShallowObserver)
-pub type HashObserver<'i, S, D = Zero, H = DefaultHasher> = GeneralObserver<'i, HashHandler<H>, S, D>;
+pub type HashObserver<'ob, S, D = Zero, H = DefaultHasher> = GeneralObserver<'ob, HashHandler<H>, S, D>;
 
 #[derive(Default)]
 pub struct HashHandler<H> {
@@ -97,10 +97,10 @@ impl<T> OptionObserveImpl<HashSpec> for T
 where
     T: Hash + Observe<Spec = HashSpec>,
 {
-    type Observer<'i, S, D>
-        = HashObserver<'i, S, D>
+    type Observer<'ob, S, D>
+        = HashObserver<'ob, S, D>
     where
-        T: 'i,
+        T: 'ob,
         D: Unsigned,
-        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'i;
+        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
 }

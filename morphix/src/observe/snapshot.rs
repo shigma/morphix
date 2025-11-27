@@ -48,7 +48,7 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 ///
 /// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use `SnapshotObserver` as their default
 /// implementation since they're cheap to clone and compare.
-pub type SnapshotObserver<'i, S, D = Zero> = GeneralObserver<'i, SnapshotHandler<<S as AsDeref<D>>::Target>, S, D>;
+pub type SnapshotObserver<'ob, S, D = Zero> = GeneralObserver<'ob, SnapshotHandler<<S as AsDeref<D>>::Target>, S, D>;
 
 pub struct SnapshotHandler<T> {
     snapshot: MaybeUninit<T>,
@@ -99,12 +99,12 @@ macro_rules! impl_observe {
     ($($ty:ty),* $(,)?) => {
         $(
             impl Observe for $ty {
-                type Observer<'i, S, D>
-                    = SnapshotObserver<'i, S, D>
+                type Observer<'ob, S, D>
+                    = SnapshotObserver<'ob, S, D>
                 where
-                    Self: 'i,
+                    Self: 'ob,
                     D: Unsigned,
-                    S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
+                    S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
                 type Spec = SnapshotSpec;
             }
@@ -123,10 +123,10 @@ impl<T> OptionObserveImpl<SnapshotSpec> for T
 where
     T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
 {
-    type Observer<'i, S, D>
-        = SnapshotObserver<'i, S, D>
+    type Observer<'ob, S, D>
+        = SnapshotObserver<'ob, S, D>
     where
-        T: 'i,
+        T: 'ob,
         D: Unsigned,
-        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'i;
+        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
 }

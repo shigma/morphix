@@ -49,7 +49,7 @@ use crate::{Adapter, Mutation, MutationKind};
 ///     }
 /// }
 ///
-/// type ShallowObserver<'i, T> = GeneralObserver<'i, T, ShallowHandler>;
+/// type ShallowObserver<'ob, T> = GeneralObserver<'ob, T, ShallowHandler>;
 /// ```
 pub trait GeneralHandler<T: ?Sized>: Default {
     /// Associated specification type for [`GeneralObserver`].
@@ -143,13 +143,13 @@ pub trait DebugHandler<T: ?Sized>: GeneralHandler<T> {
 /// - [`NoopObserver`](super::NoopObserver) - Ignores all changes
 /// - [`HashObserver`](super::HashObserver) - Compares hash values to detect changes
 /// - [`SnapshotObserver`](super::SnapshotObserver) - Compares cloned snapshots to detect changes
-pub struct GeneralObserver<'i, H, S: ?Sized, N = Zero> {
+pub struct GeneralObserver<'ob, H, S: ?Sized, N = Zero> {
     ptr: ObserverPointer<S>,
     handler: H,
-    phantom: PhantomData<&'i mut N>,
+    phantom: PhantomData<&'ob mut N>,
 }
 
-impl<'i, H, S: ?Sized, N> Default for GeneralObserver<'i, H, S, N>
+impl<'ob, H, S: ?Sized, N> Default for GeneralObserver<'ob, H, S, N>
 where
     H: Default,
 {
@@ -163,7 +163,7 @@ where
     }
 }
 
-impl<'i, H, S: ?Sized, N> Deref for GeneralObserver<'i, H, S, N> {
+impl<'ob, H, S: ?Sized, N> Deref for GeneralObserver<'ob, H, S, N> {
     type Target = ObserverPointer<S>;
 
     #[inline]
@@ -172,7 +172,7 @@ impl<'i, H, S: ?Sized, N> Deref for GeneralObserver<'i, H, S, N> {
     }
 }
 
-impl<'i, H, S: ?Sized, N> DerefMut for GeneralObserver<'i, H, S, N>
+impl<'ob, H, S: ?Sized, N> DerefMut for GeneralObserver<'ob, H, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N>,
@@ -185,17 +185,17 @@ where
     }
 }
 
-impl<'i, H, S> Assignable for GeneralObserver<'i, H, S>
+impl<'ob, H, S> Assignable for GeneralObserver<'ob, H, S>
 where
     H: GeneralHandler<S>,
 {
     type Depth = Succ<Zero>;
 }
 
-impl<'i, H, S: ?Sized, N> Observer<'i> for GeneralObserver<'i, H, S, N>
+impl<'ob, H, S: ?Sized, N> Observer<'ob> for GeneralObserver<'ob, H, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N> + 'i,
+    S: AsDerefMut<N> + 'ob,
     H: GeneralHandler<S::Target>,
 {
     type InnerDepth = N;
@@ -209,7 +209,7 @@ where
     }
 
     #[inline]
-    fn observe(value: &'i mut Self::Head) -> Self {
+    fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
             ptr: ObserverPointer::new(value),
             handler: H::on_observe(value.as_deref_mut()),
@@ -218,10 +218,10 @@ where
     }
 }
 
-impl<'i, H, S: ?Sized, N> SerializeObserver<'i> for GeneralObserver<'i, H, S, N>
+impl<'ob, H, S: ?Sized, N> SerializeObserver<'ob> for GeneralObserver<'ob, H, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target: Serialize> + 'i,
+    S: AsDerefMut<N, Target: Serialize> + 'ob,
     H: GeneralHandler<S::Target>,
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
@@ -239,7 +239,7 @@ where
 macro_rules! impl_fmt {
     ($($trait:ident),* $(,)?) => {
         $(
-            impl<'i, H, S, N: Unsigned> std::fmt::$trait for GeneralObserver<'i, H, S, N>
+            impl<'ob, H, S, N: Unsigned> std::fmt::$trait for GeneralObserver<'ob, H, S, N>
             where
                 S: AsDerefMut<N, Target: std::fmt::$trait> + ?Sized,
                 H: GeneralHandler<S::Target>
@@ -264,7 +264,7 @@ impl_fmt! {
     UpperHex,
 }
 
-impl<'i, H, S, N: Unsigned> Debug for GeneralObserver<'i, H, S, N>
+impl<'ob, H, S, N: Unsigned> Debug for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: Debug> + ?Sized,
     H: DebugHandler<S::Target>,
@@ -275,7 +275,7 @@ where
     }
 }
 
-impl<'i, H, S, N: Unsigned, I> std::ops::Index<I> for GeneralObserver<'i, H, S, N>
+impl<'ob, H, S, N: Unsigned, I> std::ops::Index<I> for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: std::ops::Index<I>> + ?Sized,
     H: GeneralHandler<S::Target>,
@@ -288,7 +288,7 @@ where
     }
 }
 
-impl<'i, H, S, N: Unsigned, I> std::ops::IndexMut<I> for GeneralObserver<'i, H, S, N>
+impl<'ob, H, S, N: Unsigned, I> std::ops::IndexMut<I> for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: std::ops::IndexMut<I>> + ?Sized,
     H: GeneralHandler<S::Target>,
@@ -299,7 +299,7 @@ where
     }
 }
 
-impl<'i, H, S, N: Unsigned, U: ?Sized> PartialEq<U> for GeneralObserver<'i, H, S, N>
+impl<'ob, H, S, N: Unsigned, U: ?Sized> PartialEq<U> for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: PartialEq<U>> + ?Sized,
     H: GeneralHandler<S::Target>,
@@ -310,7 +310,7 @@ where
     }
 }
 
-impl<'i, H, S, N: Unsigned, U: ?Sized> PartialOrd<U> for GeneralObserver<'i, H, S, N>
+impl<'ob, H, S, N: Unsigned, U: ?Sized> PartialOrd<U> for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: PartialOrd<U>> + ?Sized,
     H: GeneralHandler<S::Target>,
@@ -324,7 +324,7 @@ where
 macro_rules! impl_assign_ops {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
-            impl<'i, H, S, N: Unsigned, U> std::ops::$trait<U> for GeneralObserver<'i, H, S, N>
+            impl<'ob, H, S, N: Unsigned, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, N>
             where
                 S: AsDerefMut<N, Target: std::ops::$trait<U>> + ?Sized,
                 H: GeneralHandler<S::Target>,
@@ -354,7 +354,7 @@ impl_assign_ops! {
 macro_rules! impl_ops_copy {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
-            impl<'i, H, S, N: Unsigned, U> std::ops::$trait<U> for GeneralObserver<'i, H, S, N>
+            impl<'ob, H, S, N: Unsigned, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, N>
             where
                 S: AsDerefMut<N, Target: std::ops::$trait<U> + Copy> + ?Sized,
                 H: GeneralHandler<S::Target>,
@@ -383,7 +383,7 @@ impl_ops_copy! {
     Shr => shr,
 }
 
-impl<'i, H, S, N: Unsigned> std::ops::Neg for GeneralObserver<'i, H, S, N>
+impl<'ob, H, S, N: Unsigned> std::ops::Neg for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: std::ops::Neg + Copy> + ?Sized,
     H: GeneralHandler<S::Target>,
@@ -396,7 +396,7 @@ where
     }
 }
 
-impl<'i, H, S, N: Unsigned> std::ops::Not for GeneralObserver<'i, H, S, N>
+impl<'ob, H, S, N: Unsigned> std::ops::Not for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: std::ops::Not + Copy> + ?Sized,
     H: GeneralHandler<S::Target>,

@@ -72,7 +72,7 @@ pub use snapshot::{SnapshotObserver, SnapshotSpec};
 /// Types implementing `Observe` can be wrapped in [`Observer`]s that track mutations. The trait is
 /// typically derived using the `#[derive(Observe)]` macro and used in `observe!` macros.
 ///
-/// A single type `T` may have many possible [`Observer<'i, Target = T>`] implementations in
+/// A single type `T` may have many possible [`Observer<'ob, Target = T>`] implementations in
 /// theory, each with different change-tracking strategies. The `Observe` trait selects one
 /// of these as the default observer to be used by `#[derive(Observe)]` and other generic code
 /// that needs an observer for `T`.
@@ -105,11 +105,11 @@ pub trait Observe {
     ///
     /// This associated type specifies the *default* observer implementation for the type, when used
     /// in contexts where an [`Observe`] implementation is required.
-    type Observer<'i, S, D>: Observer<'i, Head = S, InnerDepth = D>
+    type Observer<'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
     where
-        Self: 'i,
+        Self: 'ob,
         D: Unsigned,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'i;
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     /// Associated specification type for this observable.
     ///
@@ -151,7 +151,7 @@ pub trait ObserveExt: Observe {
     /// This is a convenience method that calls [`Observer::observe`] with the appropriate type
     /// parameters automatically inferred.
     #[inline]
-    fn __observe<'i>(&'i mut self) -> Self::Observer<'i, Self, Zero> {
+    fn __observe<'ob>(&'ob mut self) -> Self::Observer<'ob, Self, Zero> {
         Observer::observe(self)
     }
 }
@@ -174,7 +174,7 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 ///
 /// See the [module documentation](self) for more details about how observers work with dereference
 /// chains.
-pub trait Observer<'i>: Default
+pub trait Observer<'ob>: Default
 where
     Self: AsDerefMutCoinductive<Succ<Self::OuterDepth>, Target = ObserverPointer<Self::Head>>,
 {
@@ -185,7 +185,7 @@ where
     type OuterDepth: Unsigned;
 
     /// The head type of the dereference chain.
-    type Head: AsDerefMut<Self::InnerDepth> + ?Sized + 'i;
+    type Head: AsDerefMut<Self::InnerDepth> + ?Sized + 'ob;
 
     /// Creates a new observer for the given value.
     ///
@@ -200,7 +200,7 @@ where
     /// let mut value = 42;
     /// let observer = ShallowObserver::<i32>::observe(&mut value);
     /// ```
-    fn observe(value: &'i mut Self::Head) -> Self;
+    fn observe(value: &'ob mut Self::Head) -> Self;
 
     /// Refreshes the observer's internal pointer after the observed value has moved.
     ///
@@ -225,38 +225,38 @@ where
     /// # use morphix::observe::{Observer, ObserverPointer};
     /// # use std::marker::PhantomData;
     ///
-    /// pub struct OptionObserver<'i, O, S: ?Sized, N = Zero> {
+    /// pub struct OptionObserver<'ob, O, S: ?Sized, N = Zero> {
     ///     ptr: ObserverPointer<S>,
     ///     mutated: bool,
     ///     ob: Option<O>,
-    ///     phantom: PhantomData<&'i mut N>,
+    ///     phantom: PhantomData<&'ob mut N>,
     /// }
     ///
-    /// # impl<'i, O, S: ?Sized, N> Default for OptionObserver<'i, O, S, N> {
+    /// # impl<'ob, O, S: ?Sized, N> Default for OptionObserver<'ob, O, S, N> {
     /// #    fn default() -> Self { todo!() }
     /// # }
     ///
-    /// # impl<'i, O, S: ?Sized, N> std::ops::Deref for OptionObserver<'i, O, S, N> {
+    /// # impl<'ob, O, S: ?Sized, N> std::ops::Deref for OptionObserver<'ob, O, S, N> {
     /// #     type Target = ObserverPointer<S>;
     /// #     fn deref(&self) -> &Self::Target { &self.ptr }
     /// # }
     ///
-    /// # impl<'i, O, S: ?Sized, N> std::ops::DerefMut for OptionObserver<'i, O, S, N> {
+    /// # impl<'ob, O, S: ?Sized, N> std::ops::DerefMut for OptionObserver<'ob, O, S, N> {
     /// #     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.ptr }
     /// # }
     ///
-    /// impl<'i, O, S: ?Sized, N> Observer<'i> for OptionObserver<'i, O, S, N>
+    /// impl<'ob, O, S: ?Sized, N> Observer<'ob> for OptionObserver<'ob, O, S, N>
     /// where
     ///     N: Unsigned,
-    ///     S: AsDerefMut<N, Target = Option<O::Head>> + 'i,
-    ///     O: Observer<'i, InnerDepth = Zero>,
+    ///     S: AsDerefMut<N, Target = Option<O::Head>> + 'ob,
+    ///     O: Observer<'ob, InnerDepth = Zero>,
     ///     O::Head: Sized,
     /// {
     ///     # type InnerDepth = N;
     ///     # type OuterDepth = Zero;
     ///     # type Head = S;
     ///
-    ///     unsafe fn refresh(this: &mut Self, value: &'i mut Self::Head) {
+    ///     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
     ///         // Refresh the outer pointer
     ///         ObserverPointer::set(Self::as_ptr(this), value);
     ///
@@ -268,7 +268,7 @@ where
     ///         }
     ///     }
     ///
-    ///     # fn observe(value: &'i mut Self::Head) -> Self { todo!() }
+    ///     # fn observe(value: &'ob mut Self::Head) -> Self { todo!() }
     /// }
     /// ```
     ///
@@ -303,7 +303,7 @@ where
     /// [`VecObserver`](crate::impls::vec::VecObserver)) where element observers may need to be:
     /// - Lazily initialized on first access, and
     /// - Refreshed after container reallocation moves elements in memory.
-    unsafe fn force(this: &mut Self, value: &'i mut Self::Head) {
+    unsafe fn force(this: &mut Self, value: &'ob mut Self::Head) {
         match ObserverPointer::get(Self::as_ptr(this)) {
             None => *this = Self::observe(value),
             Some(ptr) => {
@@ -335,9 +335,9 @@ where
     /// This method is primarily used internally by observer implementations when they need
     /// to perform operations on the observed value without recording them as changes.
     #[inline]
-    fn as_inner<'j>(this: &Self) -> &'j mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
+    fn as_inner<'i>(this: &Self) -> &'i mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
     where
-        'i: 'j,
+        'ob: 'i,
     {
         let head = unsafe { ObserverPointer::as_mut(Self::as_ptr(this)) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
@@ -360,7 +360,7 @@ where
     /// Implementing [`Vec::pop`] for a [`VecObserver`](crate::impls::vec::VecObserver):
     ///
     /// ```ignore
-    /// impl VecObserver<'i> {
+    /// impl VecObserver<'ob> {
     ///     pub fn pop(&mut self) -> Option<T> {
     ///         if self.as_deref().len() > self.initial_len() {
     ///             // If the current length exceeds the initial length, the pop operation can be
@@ -374,9 +374,9 @@ where
     /// }
     /// ```
     #[inline]
-    fn track_inner<'j>(this: &mut Self) -> &'j mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
+    fn track_inner<'i>(this: &mut Self) -> &'i mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
     where
-        'i: 'j,
+        'ob: 'i,
     {
         let head = unsafe { ObserverPointer::as_mut(this.as_deref_mut_coinductive()) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
@@ -387,7 +387,7 @@ where
 ///
 /// This trait extends [`Observer`] with the ability to collect and serialize mutations using a
 /// specific [`Adapter`].
-pub trait SerializeObserver<'i>: Observer<'i> {
+pub trait SerializeObserver<'ob>: Observer<'ob> {
     /// Collects all recorded mutations (unsafe version).
     ///
     /// ## Safety
@@ -450,7 +450,7 @@ pub trait SerializeObserver<'i>: Observer<'i> {
 ///
 /// This trait is automatically implemented for all types that implement [`SerializeObserver`] and
 /// provides convenient methods that don't require turbofish syntax.
-pub trait SerializeObserverExt<'i>: SerializeObserver<'i> {
+pub trait SerializeObserverExt<'ob>: SerializeObserver<'ob> {
     /// Collects mutations using the specified adapter.
     ///
     /// This is a convenience method that calls [`SerializeObserver::collect`].
@@ -460,7 +460,7 @@ pub trait SerializeObserverExt<'i>: SerializeObserver<'i> {
     }
 }
 
-impl<'i, T: SerializeObserver<'i>> SerializeObserverExt<'i> for T {}
+impl<'ob, T: SerializeObserver<'ob>> SerializeObserverExt<'ob> for T {}
 
 /// Default observation specification.
 ///
@@ -474,4 +474,4 @@ impl<'i, T: SerializeObserver<'i>> SerializeObserverExt<'i> for T {}
 pub struct DefaultSpec;
 
 #[doc(hidden)]
-pub type DefaultObserver<'i, T, S = T, D = Zero> = <T as Observe>::Observer<'i, S, D>;
+pub type DefaultObserver<'ob, T, S = T, D = Zero> = <T as Observe>::Observer<'ob, S, D>;

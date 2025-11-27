@@ -11,12 +11,12 @@ use crate::{Adapter, Mutation, Observe};
 /// This observer wraps the inner type's observer and forwards all operations to it, maintaining
 /// proper dereference chains for pointer types.
 #[derive(Default)]
-pub struct ForwardObserver<'i, O> {
+pub struct ForwardObserver<'ob, O> {
     inner: O,
-    phantom: PhantomData<&'i mut ()>,
+    phantom: PhantomData<&'ob mut ()>,
 }
 
-impl<'i, O> Deref for ForwardObserver<'i, O> {
+impl<'ob, O> Deref for ForwardObserver<'ob, O> {
     type Target = O;
 
     #[inline]
@@ -25,23 +25,23 @@ impl<'i, O> Deref for ForwardObserver<'i, O> {
     }
 }
 
-impl<'i, O> DerefMut for ForwardObserver<'i, O> {
+impl<'ob, O> DerefMut for ForwardObserver<'ob, O> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<'i, O> Assignable for ForwardObserver<'i, O>
+impl<'ob, O> Assignable for ForwardObserver<'ob, O>
 where
-    O: Observer<'i>,
+    O: Observer<'ob>,
 {
     type Depth = Succ<O::OuterDepth>;
 }
 
-impl<'i, O, D> Observer<'i> for ForwardObserver<'i, O>
+impl<'ob, O, D> Observer<'ob> for ForwardObserver<'ob, O>
 where
-    O: Observer<'i, InnerDepth = Succ<D>>,
+    O: Observer<'ob, InnerDepth = Succ<D>>,
     O::Head: AsDerefMut<D>,
     D: Unsigned,
 {
@@ -50,7 +50,7 @@ where
     type Head = O::Head;
 
     #[inline]
-    fn observe(value: &'i mut Self::Head) -> Self {
+    fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
             inner: O::observe(value),
             phantom: PhantomData,
@@ -63,9 +63,9 @@ where
     }
 }
 
-impl<'i, O, D> SerializeObserver<'i> for ForwardObserver<'i, O>
+impl<'ob, O, D> SerializeObserver<'ob> for ForwardObserver<'ob, O>
 where
-    O: SerializeObserver<'i, InnerDepth = Succ<D>>,
+    O: SerializeObserver<'ob, InnerDepth = Succ<D>>,
     O::Head: AsDerefMut<D>,
     D: Unsigned,
 {
@@ -78,7 +78,7 @@ where
 macro_rules! impl_fmt {
     ($($trait:ident),* $(,)?) => {
         $(
-            impl<'i, O> std::fmt::$trait for ForwardObserver<'i, O>
+            impl<'ob, O> std::fmt::$trait for ForwardObserver<'ob, O>
             where
                 O: std::fmt::$trait,
             {
@@ -102,7 +102,7 @@ impl_fmt! {
     UpperHex,
 }
 
-impl<'i, O> Debug for ForwardObserver<'i, O>
+impl<'ob, O> Debug for ForwardObserver<'ob, O>
 where
     O: Debug,
 {
@@ -112,9 +112,9 @@ where
     }
 }
 
-impl<'i, O, D, T: ?Sized, U: ?Sized> PartialEq<U> for ForwardObserver<'i, O>
+impl<'ob, O, D, T: ?Sized, U: ?Sized> PartialEq<U> for ForwardObserver<'ob, O>
 where
-    O: Observer<'i, InnerDepth = Succ<D>>,
+    O: Observer<'ob, InnerDepth = Succ<D>>,
     O::Head: AsDerefMut<D, Target = T>,
     D: Unsigned,
     T: PartialEq<U>,
@@ -125,9 +125,9 @@ where
     }
 }
 
-impl<'i, O, D, T: ?Sized, U: ?Sized> PartialOrd<U> for ForwardObserver<'i, O>
+impl<'ob, O, D, T: ?Sized, U: ?Sized> PartialOrd<U> for ForwardObserver<'ob, O>
 where
-    O: Observer<'i, InnerDepth = Succ<D>>,
+    O: Observer<'ob, InnerDepth = Succ<D>>,
     O::Head: AsDerefMut<D, Target = T>,
     D: Unsigned,
     T: PartialOrd<U>,
@@ -142,11 +142,11 @@ impl<U> Observe for Box<U>
 where
     U: Observe,
 {
-    type Observer<'i, S, D>
-        = ForwardObserver<'i, U::Observer<'i, S, Succ<D>>>
+    type Observer<'ob, S, D>
+        = ForwardObserver<'ob, U::Observer<'ob, S, Succ<D>>>
     where
-        Self: 'i,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'i,
+        Self: 'ob,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob,
         D: Unsigned;
 
     type Spec = DefaultSpec;
@@ -156,11 +156,11 @@ impl<U> Observe for &mut U
 where
     U: Observe,
 {
-    type Observer<'i, S, D>
-        = ForwardObserver<'i, U::Observer<'i, S, Succ<D>>>
+    type Observer<'ob, S, D>
+        = ForwardObserver<'ob, U::Observer<'ob, S, Succ<D>>>
     where
-        Self: 'i,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'i,
+        Self: 'ob,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob,
         D: Unsigned;
 
     type Spec = DefaultSpec;
