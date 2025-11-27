@@ -173,6 +173,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
         };
     }
 
+    let ob_name = format!("{}Observer", input_ident);
     let ob_ident = format_ident!("{}Observer", input_ident);
     let input_vis = &input.vis;
 
@@ -181,10 +182,12 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
     let mut default_fields = vec![];
     let mut refresh_stmts = vec![];
     let mut collect_stmts = vec![];
+    let mut debug_chain = quote! {};
     let mut ob_extra_predicates = WherePredicates::default();
     let mut ob_struct_extra_predicates = WherePredicates::default();
     let mut input_observe_observer_predicates = WherePredicates::default();
     let mut ob_default_extra_predicates = WherePredicates::default();
+    let mut ob_debug_extra_predicates = WherePredicates::default();
     let mut ob_serialize_observer_extra_predicates = WherePredicates::default();
     match &input.data {
         syn::Data::Struct(syn::DataStruct {
@@ -218,6 +221,9 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     ob_default_extra_predicates.push(parse_quote_spanned! { field_span =>
                         #inner: ::std::default::Default
                     });
+                    ob_debug_extra_predicates.push(parse_quote_spanned! { field_span =>
+                        #inner: ::std::fmt::Debug
+                    });
                     quote! { #inner }
                 } else {
                     inst_fields.push(quote_spanned! { field_span =>
@@ -245,6 +251,9 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                             #ob_field_ty: ::morphix::observe::SerializeObserver<#ob_lt>
                         });
                     }
+                    ob_debug_extra_predicates.push(parse_quote_spanned! { field_span =>
+                        #ob_field_ty: ::std::fmt::Debug
+                    });
                     refresh_stmts.push(quote_spanned! { field_span =>
                         ::morphix::observe::Observer::refresh(&mut this.#field_ident, &mut __value.#field_ident);
                     });
@@ -255,6 +264,9 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 });
                 default_fields.push(quote_spanned! { field_span =>
                     #field_ident: ::std::default::Default::default(),
+                });
+                debug_chain.extend(quote_spanned! { field_span =>
+                    .field(#field_name, &self.#field_ident)
                 });
                 let mut mutability = quote! {};
                 let mut body = if field_count == 1 {
@@ -497,6 +509,9 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 input_observer_type_generics = quote! { <#(#ob_type_arguments),*> };
             }
 
+            let mut ob_debug_predicates = ob_predicates.clone();
+            ob_debug_predicates.extend(ob_debug_extra_predicates);
+
             let mut ob_observer_predicates = ob_predicates.clone();
             ob_observer_predicates.extend(ob_observer_extra_predicates);
             let mut ob_serialize_observer_predicates = ob_predicates.clone();
@@ -596,6 +611,15 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                         ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A::Value>>, A::Error> {
                             #serialize_observer_impl_prefix
                             #serialize_observer_impl
+                        }
+                    }
+
+                    #[automatically_derived]
+                    impl #ob_impl_generics ::std::fmt::Debug
+                    for #ob_ident #ob_type_generics
+                    where #ob_debug_predicates {
+                        fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+                            f.debug_struct(#ob_name) #debug_chain .finish()
                         }
                     }
 

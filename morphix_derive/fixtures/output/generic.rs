@@ -125,6 +125,16 @@ const _: () = {
         }
     }
     #[automatically_derived]
+    impl<'ob, T, S: ?Sized, N> ::std::fmt::Debug for FooObserver<'ob, T, S, N>
+    where
+        T: ::morphix::Observe,
+        ::morphix::observe::DefaultObserver<'ob, T>: ::std::fmt::Debug,
+    {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+            f.debug_struct("FooObserver").field("a", &self.a).finish()
+        }
+    }
+    #[automatically_derived]
     impl<T> ::morphix::Observe for Foo<T>
     where
         T: ::morphix::Observe,
