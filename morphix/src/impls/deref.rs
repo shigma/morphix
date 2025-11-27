@@ -11,12 +11,12 @@ use crate::{Adapter, Mutation, Observe};
 /// This observer wraps the inner type's observer and forwards all operations to it, maintaining
 /// proper dereference chains for pointer types.
 #[derive(Default)]
-pub struct ForwardObserver<'ob, O> {
+pub struct DerefObserver<'ob, O> {
     inner: O,
     phantom: PhantomData<&'ob mut ()>,
 }
 
-impl<'ob, O> Deref for ForwardObserver<'ob, O> {
+impl<'ob, O> Deref for DerefObserver<'ob, O> {
     type Target = O;
 
     #[inline]
@@ -25,21 +25,21 @@ impl<'ob, O> Deref for ForwardObserver<'ob, O> {
     }
 }
 
-impl<'ob, O> DerefMut for ForwardObserver<'ob, O> {
+impl<'ob, O> DerefMut for DerefObserver<'ob, O> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<'ob, O> Assignable for ForwardObserver<'ob, O>
+impl<'ob, O> Assignable for DerefObserver<'ob, O>
 where
     O: Observer<'ob>,
 {
     type Depth = Succ<O::OuterDepth>;
 }
 
-impl<'ob, O, D> Observer<'ob> for ForwardObserver<'ob, O>
+impl<'ob, O, D> Observer<'ob> for DerefObserver<'ob, O>
 where
     O: Observer<'ob, InnerDepth = Succ<D>>,
     O::Head: AsDerefMut<D>,
@@ -63,7 +63,7 @@ where
     }
 }
 
-impl<'ob, O, D> SerializeObserver<'ob> for ForwardObserver<'ob, O>
+impl<'ob, O, D> SerializeObserver<'ob> for DerefObserver<'ob, O>
 where
     O: SerializeObserver<'ob, InnerDepth = Succ<D>>,
     O::Head: AsDerefMut<D>,
@@ -78,7 +78,7 @@ where
 macro_rules! impl_fmt {
     ($($trait:ident),* $(,)?) => {
         $(
-            impl<'ob, O> std::fmt::$trait for ForwardObserver<'ob, O>
+            impl<'ob, O> std::fmt::$trait for DerefObserver<'ob, O>
             where
                 O: std::fmt::$trait,
             {
@@ -102,17 +102,17 @@ impl_fmt! {
     UpperHex,
 }
 
-impl<'ob, O> Debug for ForwardObserver<'ob, O>
+impl<'ob, O> Debug for DerefObserver<'ob, O>
 where
     O: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("ForwardObserver").field(&self.inner).finish()
+        f.debug_tuple("DerefObserver").field(&self.inner).finish()
     }
 }
 
-impl<'ob, O, D, T: ?Sized, U: ?Sized> PartialEq<U> for ForwardObserver<'ob, O>
+impl<'ob, O, D, T: ?Sized, U: ?Sized> PartialEq<U> for DerefObserver<'ob, O>
 where
     O: Observer<'ob, InnerDepth = Succ<D>>,
     O::Head: AsDerefMut<D, Target = T>,
@@ -125,7 +125,7 @@ where
     }
 }
 
-impl<'ob, O, D, T: ?Sized, U: ?Sized> PartialOrd<U> for ForwardObserver<'ob, O>
+impl<'ob, O, D, T: ?Sized, U: ?Sized> PartialOrd<U> for DerefObserver<'ob, O>
 where
     O: Observer<'ob, InnerDepth = Succ<D>>,
     O::Head: AsDerefMut<D, Target = T>,
@@ -143,7 +143,7 @@ where
     U: Observe,
 {
     type Observer<'ob, S, D>
-        = ForwardObserver<'ob, U::Observer<'ob, S, Succ<D>>>
+        = DerefObserver<'ob, U::Observer<'ob, S, Succ<D>>>
     where
         Self: 'ob,
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob,
@@ -157,7 +157,7 @@ where
     U: Observe,
 {
     type Observer<'ob, S, D>
-        = ForwardObserver<'ob, U::Observer<'ob, S, Succ<D>>>
+        = DerefObserver<'ob, U::Observer<'ob, S, Succ<D>>>
     where
         Self: 'ob,
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob,
