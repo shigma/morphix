@@ -72,6 +72,11 @@ where
             inner: SliceObserver::<UnsafeCell<Vec<O>>, S, Succ<D>>::observe(value),
         }
     }
+
+    #[inline]
+    unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
+        unsafe { SliceObserver::refresh(&mut this.inner, value) }
+    }
 }
 
 impl<'i, O, S: ?Sized, D, T> SerializeObserver<'i> for VecObserver<'i, O, S, D>

@@ -56,6 +56,11 @@ where
             phantom: PhantomData,
         }
     }
+
+    #[inline]
+    unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
+        unsafe { O::refresh(&mut this.inner, value) }
+    }
 }
 
 impl<'i, O, D> SerializeObserver<'i> for ForwardObserver<'i, O>

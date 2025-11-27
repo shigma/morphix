@@ -187,6 +187,21 @@ where
     /// The head type of the dereference chain.
     type Head: AsDerefMut<Self::InnerDepth> + ?Sized + 'i;
 
+    /// Creates a new observer for the given value.
+    ///
+    /// This is the primary way to create an observer. The observer will track all mutations to the
+    /// provided value.
+    ///
+    /// ## Example
+    ///
+    /// ```
+    /// use morphix::observe::{Observer, ShallowObserver};
+    ///
+    /// let mut value = 42;
+    /// let observer = ShallowObserver::<i32>::observe(&mut value);
+    /// ```
+    fn observe(value: &'i mut Self::Head) -> Self;
+
     /// Refreshes the observer's internal pointer after the observed value has moved.
     ///
     /// This method updates the observer's internal pointer to point to the new location
@@ -200,12 +215,6 @@ where
     /// 2. `value` refers to the same logical value that was passed to
     ///    [`observe`](Observer::observe) when the observer was created, just potentially at a new
     ///    memory location
-    ///
-    /// ## Default Implementation
-    ///
-    /// The default implementation updates only the top-level [`ObserverPointer`]. Observers
-    /// that contain nested observers or additional raw pointers must override this method
-    /// to refresh all internal pointers.
     ///
     /// ## Example
     ///
@@ -267,25 +276,7 @@ where
     ///
     /// This method should be called after any operation that may relocate the observed
     /// value in memory while the observer is still in use.
-    #[inline]
-    unsafe fn refresh(this: &mut Self, value: &'i mut Self::Head) {
-        ObserverPointer::set(Self::as_ptr(this), value);
-    }
-
-    /// Creates a new observer for the given value.
-    ///
-    /// This is the primary way to create an observer. The observer will track all mutations to the
-    /// provided value.
-    ///
-    /// ## Example
-    ///
-    /// ```
-    /// use morphix::observe::{Observer, ShallowObserver};
-    ///
-    /// let mut value = 42;
-    /// let observer = ShallowObserver::<i32>::observe(&mut value);
-    /// ```
-    fn observe(value: &'i mut Self::Head) -> Self;
+    unsafe fn refresh(this: &mut Self, value: &mut Self::Head);
 
     /// Forces the observer into a valid state for the given value.
     ///
@@ -312,7 +303,6 @@ where
     /// [`VecObserver`](crate::impls::vec::VecObserver)) where element observers may need to be:
     /// - Lazily initialized on first access, and
     /// - Refreshed after container reallocation moves elements in memory.
-    #[inline]
     unsafe fn force(this: &mut Self, value: &'i mut Self::Head) {
         match ObserverPointer::get(Self::as_ptr(this)) {
             None => *this = Self::observe(value),
@@ -329,6 +319,7 @@ where
     /// Gets a reference to the internal pointer.
     ///
     /// This is primarily used internally by observer implementations.
+    #[inline]
     fn as_ptr(this: &Self) -> &ObserverPointer<Self::Head> {
         this.as_deref_coinductive()
     }
@@ -343,6 +334,7 @@ where
     ///
     /// This method is primarily used internally by observer implementations when they need
     /// to perform operations on the observed value without recording them as changes.
+    #[inline]
     fn as_inner<'j>(this: &Self) -> &'j mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
     where
         'i: 'j,
@@ -381,6 +373,7 @@ where
     ///     }
     /// }
     /// ```
+    #[inline]
     fn track_inner<'j>(this: &mut Self) -> &'j mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
     where
         'i: 'j,

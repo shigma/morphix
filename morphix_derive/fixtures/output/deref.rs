@@ -70,6 +70,13 @@ const _: () = {
                 b: ::morphix::observe::Observer::observe(&mut __value.b),
             }
         }
+        unsafe fn refresh(this: &mut Self, value: &mut O::Head) {
+            unsafe {
+                ::morphix::observe::Observer::refresh(&mut this.a, value);
+                let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(value);
+                ::morphix::observe::Observer::refresh(&mut this.b, &mut __value.b);
+            }
+        }
     }
     #[automatically_derived]
     impl<'ob, O, N> ::morphix::observe::SerializeObserver<'ob> for FooObserver<'ob, O>
@@ -193,6 +200,13 @@ const _: () = {
                 b: ::morphix::observe::Observer::observe(&mut __value.b),
             }
         }
+        unsafe fn refresh(this: &mut Self, value: &mut O::Head) {
+            unsafe {
+                ::morphix::observe::Observer::refresh(&mut this.a, value);
+                let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(value);
+                ::morphix::observe::Observer::refresh(&mut this.b, &mut __value.b);
+            }
+        }
     }
     #[automatically_derived]
     impl<'ob, O, N> ::morphix::observe::SerializeObserver<'ob> for BarObserver<'ob, O>
@@ -300,13 +314,6 @@ const _: () = {
         type Head = S;
         type InnerDepth = N;
         type OuterDepth = ::morphix::helper::Zero;
-        unsafe fn refresh(this: &mut Self, value: &'ob mut S) {
-            ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
-            let __value = value.as_deref_mut();
-            unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
-            }
-        }
         fn observe(value: &'ob mut S) -> Self {
             let __ptr = ::morphix::observe::ObserverPointer::new(value);
             let __value = value.as_deref_mut();
@@ -315,6 +322,13 @@ const _: () = {
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
                 a: ::morphix::observe::Observer::observe(&mut __value.a),
+            }
+        }
+        unsafe fn refresh(this: &mut Self, value: &mut S) {
+            ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
+            let __value = value.as_deref_mut();
+            unsafe {
+                ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
             }
         }
     }

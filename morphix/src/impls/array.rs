@@ -98,6 +98,11 @@ where
             inner: SliceObserver::<[O; N], S, D>::observe(value),
         }
     }
+
+    #[inline]
+    unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
+        unsafe { SliceObserver::refresh(&mut this.inner, value) }
+    }
 }
 
 impl<'i, const N: usize, O, S: ?Sized, D, T> SerializeObserver<'i> for ArrayObserver<'i, N, O, S, D>

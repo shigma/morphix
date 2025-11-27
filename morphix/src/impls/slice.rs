@@ -205,6 +205,11 @@ where
             phantom: PhantomData,
         }
     }
+
+    #[inline]
+    unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
+        ObserverPointer::set(Self::as_ptr(this), value);
+    }
 }
 
 impl<'i, V, S: ?Sized, D, O, T> SerializeObserver<'i> for SliceObserver<'i, V, S, D>

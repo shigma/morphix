@@ -72,6 +72,11 @@ where
             phantom: PhantomData,
         }
     }
+
+    #[inline]
+    unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
+        ObserverPointer::set(Self::as_ptr(this), value);
+    }
 }
 
 impl<'i, S: ?Sized, D> SerializeObserver<'i> for StringObserver<'i, S, D>

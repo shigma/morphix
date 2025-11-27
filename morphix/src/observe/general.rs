@@ -203,7 +203,7 @@ where
     type Head = S;
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, value: &'i mut Self::Head) {
+    unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
         ObserverPointer::set(&this.ptr, value);
         unsafe { this.handler.on_refresh(value.as_deref_mut()) }
     }

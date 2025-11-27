@@ -54,14 +54,6 @@ const _: () = {
         type Head = S;
         type InnerDepth = N;
         type OuterDepth = ::morphix::helper::Zero;
-        unsafe fn refresh(this: &mut Self, value: &'ob mut S) {
-            ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
-            let __value = value.as_deref_mut();
-            unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
-                ::morphix::observe::Observer::refresh(&mut this.b, &mut __value.b);
-            }
-        }
         fn observe(value: &'ob mut S) -> Self {
             let __ptr = ::morphix::observe::ObserverPointer::new(value);
             let __value = value.as_deref_mut();
@@ -71,6 +63,14 @@ const _: () = {
                 __phantom: ::std::marker::PhantomData,
                 a: ::morphix::observe::Observer::observe(&mut __value.a),
                 b: ::morphix::observe::Observer::observe(&mut __value.b),
+            }
+        }
+        unsafe fn refresh(this: &mut Self, value: &mut S) {
+            ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
+            let __value = value.as_deref_mut();
+            unsafe {
+                ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
+                ::morphix::observe::Observer::refresh(&mut this.b, &mut __value.b);
             }
         }
     }

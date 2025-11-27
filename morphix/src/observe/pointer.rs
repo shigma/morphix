@@ -56,7 +56,7 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// any existing `ObserverPointer` instances pointing to those elements become invalid.
     /// This method allows updating those pointers to point to the elements' new locations.
     #[inline]
-    pub fn set(this: &Self, value: &mut S) {
+    pub fn set(this: &Self, value: *mut S) {
         this.0.set(Some(value));
     }
 

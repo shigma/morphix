@@ -245,6 +245,9 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                             #ob_field_ty: ::morphix::observe::SerializeObserver<#ob_lt>
                         });
                     }
+                    refresh_stmts.push(quote_spanned! { field_span =>
+                        ::morphix::observe::Observer::refresh(&mut this.#field_ident, &mut __value.#field_ident);
+                    });
                     ob_field_ty
                 };
                 type_fields.push(quote_spanned! { field_span =>
@@ -252,9 +255,6 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 });
                 default_fields.push(quote_spanned! { field_span =>
                     #field_ident: ::std::default::Default::default(),
-                });
-                refresh_stmts.push(quote_spanned! { field_span =>
-                    ::morphix::observe::Observer::refresh(&mut this.#field_ident, &mut __value.#field_ident);
                 });
                 let mut mutability = quote! {};
                 let mut body = if field_count == 1 {
@@ -366,14 +366,6 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                     type InnerDepth = #depth;
                     type OuterDepth = ::morphix::helper::Zero;
 
-                    unsafe fn refresh(this: &mut Self, value: &#ob_lt mut #head) {
-                        ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
-                        let __value = value.as_deref_mut();
-                        unsafe {
-                            #(#refresh_stmts)*
-                        }
-                    }
-
                     fn observe(value: &#ob_lt mut #head) -> Self {
                         let __ptr = ::morphix::observe::ObserverPointer::new(value);
                         let __value = value.as_deref_mut();
@@ -382,6 +374,14 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                             __mutated: false,
                             __phantom: ::std::marker::PhantomData,
                             #(#inst_fields)*
+                        }
+                    }
+
+                    unsafe fn refresh(this: &mut Self, value: &mut #head) {
+                        ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
+                        let __value = value.as_deref_mut();
+                        unsafe {
+                            #(#refresh_stmts)*
                         }
                     }
                 };
@@ -476,6 +476,14 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                         Self {
                             __phantom: ::std::marker::PhantomData,
                             #(#inst_fields)*
+                        }
+                    }
+
+                    unsafe fn refresh(this: &mut Self, value: &mut #inner::Head) {
+                        unsafe {
+                            ::morphix::observe::Observer::refresh(&mut this.#field_ident, value);
+                            let __value = ::morphix::helper::AsDerefMut::<#depth>::as_deref_mut(value);
+                            #(#refresh_stmts)*
                         }
                     }
                 };
