@@ -300,6 +300,13 @@ const _: () = {
         type Head = S;
         type InnerDepth = N;
         type OuterDepth = ::morphix::helper::Zero;
+        unsafe fn refresh(this: &mut Self, value: &'ob mut S) {
+            ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
+            let __value = value.as_deref_mut();
+            unsafe {
+                ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
+            }
+        }
         fn observe(value: &'ob mut S) -> Self {
             let __ptr = ::morphix::observe::ObserverPointer::new(value);
             let __value = value.as_deref_mut();
