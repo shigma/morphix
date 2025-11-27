@@ -2,7 +2,7 @@
 
 use proc_macro::TokenStream;
 
-mod derive_observe;
+mod derive;
 mod observe;
 
 /// Derive the [`Observe`](morphix::Observe) trait for structs to enable mutation tracking.
@@ -60,7 +60,7 @@ mod observe;
 #[proc_macro_derive(Observe, attributes(observe))]
 pub fn derive_observe(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = syn::parse_macro_input!(input);
-    derive_observe::derive_observe(input).into()
+    derive::derive_observe(input).into()
 }
 
 /// Observe and collect mutations within a closure.
@@ -142,11 +142,7 @@ mod test {
             let output_path = Path::new(output_dir).join(path);
             let input = read_to_string(input_path).unwrap().parse().unwrap();
             let mut ctx = Context::new();
-            ctx.register_proc_macro_derive(
-                "Observe".into(),
-                crate::derive_observe::derive_observe,
-                vec!["observe".into()],
-            );
+            ctx.register_proc_macro_derive("Observe".into(), crate::derive::derive_observe, vec!["observe".into()]);
             let actual = unparse(&syn::parse2(ctx.transform(input)).unwrap());
             let expect_result = read_to_string(&output_path);
             if let Ok(expect) = &expect_result

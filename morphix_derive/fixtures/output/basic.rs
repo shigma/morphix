@@ -124,11 +124,7 @@ const _: () = {
         type Spec = ::morphix::observe::DefaultSpec;
     }
     #[automatically_derived]
-    impl<'ob, S: ?Sized, N> ::std::fmt::Debug for FooObserver<'ob, S, N>
-    where
-        ::morphix::observe::DefaultObserver<'ob, i32>: ::std::fmt::Debug,
-        ::morphix::observe::DefaultObserver<'ob, String>: ::std::fmt::Debug,
-    {
+    impl<'ob, S: ?Sized, N> ::std::fmt::Debug for FooObserver<'ob, S, N> {
         fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
             f.debug_struct("FooObserver")
                 .field("a", &self.a)
