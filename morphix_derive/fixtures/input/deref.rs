@@ -8,7 +8,7 @@ use serde::Serialize;
 #[derive(Serialize, Observe)]
 pub struct Foo {
     #[serde(flatten)]
-    #[observe(deref)]
+    #[morphix(deref)]
     a: Qux,
     b: i32,
 }
@@ -30,7 +30,7 @@ impl DerefMut for Foo {
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
 pub struct Bar {
-    #[observe(deref, shallow)]
+    #[morphix(deref, shallow)]
     a: Qux,
     b: i32,
 }

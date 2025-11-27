@@ -18,7 +18,7 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 ///
 /// ## Derive Usage
 ///
-/// Can be used via the `#[observe(hash)]` attribute in derive macros:
+/// Can be used via the `#[morphix(hash)]` attribute in derive macros:
 ///
 /// ```
 /// # use morphix::Observe;
@@ -27,7 +27,7 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 /// # struct LargeConfig;
 /// #[derive(Serialize, Hash, Observe)]
 /// struct MyStruct {
-///     #[observe(hash)]
+///     #[morphix(hash)]
 ///     config: LargeConfig,    // Large struct where hashing is cheaper than cloning
 /// }
 /// ```

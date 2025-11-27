@@ -9,7 +9,7 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 ///
 /// ## Derive Usage
 ///
-/// Can be used via the `#[observe(shallow)]` attribute in derive macros:
+/// Can be used via the `#[morphix(shallow)]` attribute in derive macros:
 ///
 /// ```
 /// # use morphix::Observe;
@@ -18,7 +18,7 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 /// # struct ExternalType;
 /// #[derive(Serialize, Observe)]
 /// struct MyStruct {
-///     #[observe(shallow)]
+///     #[morphix(shallow)]
 ///     external_data: ExternalType,    // ExternalType doesn't implement Observe
 /// }
 /// ```

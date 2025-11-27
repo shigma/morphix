@@ -8,7 +8,7 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 ///
 /// ## Derive Usage
 ///
-/// Can be used via the `#[observe(noop)]` attribute in derive macros:
+/// Can be used via the `#[morphix(noop)]` attribute in derive macros:
 ///
 /// ```
 /// # use morphix::Observe;
@@ -16,7 +16,7 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 /// #[derive(Serialize, Observe)]
 /// struct MyStruct {
 ///     important_field: String,
-///     #[observe(noop)]
+///     #[morphix(noop)]
 ///     cache: String,      // Changes to cache are not tracked
 /// }
 /// ```

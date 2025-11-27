@@ -57,12 +57,12 @@ impl ObserveMeta {
     pub fn parse_attrs(attrs: &[syn::Attribute], errors: &mut TokenStream, position: MetaPosition) -> Self {
         let mut meta = ObserveMeta::default();
         for attr in attrs {
-            if attr.path().is_ident("observe") {
+            if attr.path().is_ident("morphix") {
                 let syn::Meta::List(meta_list) = &attr.meta else {
                     errors.extend(
                         syn::Error::new(
                             attr.span(),
-                            "the 'observe' attribute must be in the form of #[observe(...)]",
+                            "the 'morphix' attribute must be in the form of #[morphix(...)]",
                         )
                         .to_compile_error(),
                     );

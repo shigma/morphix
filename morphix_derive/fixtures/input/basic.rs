@@ -6,7 +6,7 @@ use serde::Serialize;
 
 #[rustfmt::skip]
 #[derive(Debug, Serialize, Observe)]
-#[observe(derive(Debug, Display))]
+#[morphix(derive(Debug, Display))]
 pub struct Foo {
     a: i32,
     b: String,

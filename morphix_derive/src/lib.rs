@@ -20,14 +20,14 @@ mod observe;
 /// ## Customizing Behavior
 ///
 /// If a field type `T` does not implement `Observe`, or you need an alternative observer
-/// implementation, you can customize this via the `#[observe(...)]` field attribute inside a
+/// implementation, you can customize this via the `#[morphix(...)]` field attribute inside a
 /// `#[derive(Observe)]` struct:
 ///
-/// - `#[observe(hash)]` — use [`HashObserver`](morphix::observe::HashObserver) for this field
-/// - `#[observe(noop)]` — use [`NoopObserver`](morphix::observe::NoopObserver) for this field
-/// - `#[observe(shallow)]` — use [`ShallowObserver`](morphix::observe::ShallowObserver) for this
+/// - `#[morphix(hash)]` — use [`HashObserver`](morphix::observe::HashObserver) for this field
+/// - `#[morphix(noop)]` — use [`NoopObserver`](morphix::observe::NoopObserver) for this field
+/// - `#[morphix(shallow)]` — use [`ShallowObserver`](morphix::observe::ShallowObserver) for this
 ///   field
-/// - `#[observe(snapshot)]` — use [`SnapshotObserver`](morphix::observe::SnapshotObserver) for this
+/// - `#[morphix(snapshot)]` — use [`SnapshotObserver`](morphix::observe::SnapshotObserver) for this
 ///   field
 ///
 /// These attributes allow you to override the default `Observer` type that would otherwise come
@@ -44,10 +44,10 @@ mod observe;
 ///     name: String,         // StringObserver
 ///     age: i32,             // SnapshotObserver<i32>
 ///
-///     #[observe(noop)]
+///     #[morphix(noop)]
 ///     cache: String,        // Not tracked
 ///
-///     #[observe(shallow)]
+///     #[morphix(shallow)]
 ///     metadata: Metadata,   // ShallowObserver<Metadata>
 /// }
 ///
@@ -57,7 +57,7 @@ mod observe;
 ///     updated_at: String,
 /// }
 /// ```
-#[proc_macro_derive(Observe, attributes(observe))]
+#[proc_macro_derive(Observe, attributes(morphix))]
 pub fn derive_observe(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = syn::parse_macro_input!(input);
     derive::derive_observe(input).into()
@@ -142,7 +142,7 @@ mod test {
             let output_path = Path::new(output_dir).join(path);
             let input = read_to_string(input_path).unwrap().parse().unwrap();
             let mut ctx = Context::new();
-            ctx.register_proc_macro_derive("Observe".into(), crate::derive::derive_observe, vec!["observe".into()]);
+            ctx.register_proc_macro_derive("Observe".into(), crate::derive::derive_observe, vec!["morphix".into()]);
             let actual = unparse(&syn::parse2(ctx.transform(input)).unwrap());
             let expect_result = read_to_string(&output_path);
             if let Ok(expect) = &expect_result

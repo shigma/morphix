@@ -19,7 +19,7 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 ///
 /// ## Derive Usage
 ///
-/// Can be used via the `#[observe(snapshot)]` attribute in derive macros:
+/// Can be used via the `#[morphix(snapshot)]` attribute in derive macros:
 ///
 /// ```
 /// # use morphix::Observe;
@@ -30,9 +30,9 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 /// # struct BitFlags;
 /// #[derive(Serialize, Clone, PartialEq, Observe)]
 /// struct MyStruct {
-///     #[observe(snapshot)]
+///     #[morphix(snapshot)]
 ///     id: Uuid,           // Cheap to clone and compare
-///     #[observe(snapshot)]
+///     #[morphix(snapshot)]
 ///     flags: BitFlags,    // Small Copy type
 /// }
 /// ```

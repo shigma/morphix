@@ -46,7 +46,7 @@
 //!
 //! ## Usage
 //!
-//! Most users will interact with this module through attributes like `#[observe(shallow)]` for
+//! Most users will interact with this module through attributes like `#[morphix(shallow)]` for
 //! field-level control. Direct use of types from this module is typically only needed for advanced
 //! use cases.
 
