@@ -1,8 +1,9 @@
+use ::std::fmt::Display;
 #[allow(unused_imports)]
 use morphix_derive::Observe;
 use serde::Serialize;
 #[rustfmt::skip]
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct Foo {
     a: i32,
     b: String,
@@ -114,6 +115,15 @@ const _: () = {
         }
     }
     #[automatically_derived]
+    impl ::morphix::Observe for Foo {
+        type Observer<'ob, S, N> = FooObserver<'ob, S, N>
+        where
+            Self: 'ob,
+            N: ::morphix::helper::Unsigned,
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+        type Spec = ::morphix::observe::DefaultSpec;
+    }
+    #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::fmt::Debug for FooObserver<'ob, S, N>
     where
         ::morphix::observe::DefaultObserver<'ob, i32>: ::std::fmt::Debug,
@@ -127,12 +137,19 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl ::morphix::Observe for Foo {
-        type Observer<'ob, S, N> = FooObserver<'ob, S, N>
-        where
-            Self: 'ob,
-            N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
-        type Spec = ::morphix::observe::DefaultSpec;
+    impl<'ob, S: ?Sized, N> ::std::fmt::Display for FooObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDerefMut<N, Target = Foo> + 'ob,
+        N: ::morphix::helper::Unsigned,
+    {
+        #[inline]
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            ::std::fmt::Display::fmt(self.as_deref(), f)
+        }
     }
 };
+impl Display for Foo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Foo {{ a: {}, b: {} }}", self.a, self.b)
+    }
+}

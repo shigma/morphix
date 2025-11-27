@@ -110,19 +110,6 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, O> ::std::fmt::Debug for FooObserver<'ob, O>
-    where
-        O: ::std::fmt::Debug,
-        ::morphix::observe::DefaultObserver<'ob, i32>: ::std::fmt::Debug,
-    {
-        fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-            f.debug_struct("FooObserver")
-                .field("a", &self.a)
-                .field("b", &self.b)
-                .finish()
-        }
-    }
-    #[automatically_derived]
     impl ::morphix::Observe for Foo {
         type Observer<'ob, S, N> = FooObserver<
             'ob,
@@ -254,19 +241,6 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, O> ::std::fmt::Debug for BarObserver<'ob, O>
-    where
-        O: ::std::fmt::Debug,
-        ::morphix::observe::DefaultObserver<'ob, i32>: ::std::fmt::Debug,
-    {
-        fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-            f.debug_struct("BarObserver")
-                .field("a", &self.a)
-                .field("b", &self.b)
-                .finish()
-        }
-    }
-    #[automatically_derived]
     impl ::morphix::Observe for Bar {
         type Observer<'ob, S, N> = BarObserver<
             'ob,
@@ -388,15 +362,6 @@ const _: () = {
                 return Ok(Some(mutation));
             }
             Ok(None)
-        }
-    }
-    #[automatically_derived]
-    impl<'ob, S: ?Sized, N> ::std::fmt::Debug for QuxObserver<'ob, S, N>
-    where
-        ::morphix::observe::DefaultObserver<'ob, i32>: ::std::fmt::Debug,
-    {
-        fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-            f.debug_struct("QuxObserver").field("a", &self.a).finish()
         }
     }
     #[automatically_derived]
