@@ -6,8 +6,9 @@ use serde::Serialize;
 #[derive(Serialize, Observe)]
 pub enum Foo<S, T> where T: Clone {
     A(S),
-    B {
+    B(S, T),
+    C {
         bar: T,
     },
-    C,
+    D,
 }

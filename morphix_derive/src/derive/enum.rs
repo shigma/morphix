@@ -14,7 +14,7 @@ use crate::derive::{GenericsAllocator, GenericsDetector};
 pub fn derive_observe_for_enum(
     input: &syn::DeriveInput,
     variants: &Punctuated<syn::Variant, syn::Token![,]>,
-    _input_meta: &ObserveMeta,
+    input_meta: &ObserveMeta,
 ) -> TokenStream {
     let input_ident = &input.ident;
     // let ob_name = format!("{}Observer", input_ident);
@@ -39,7 +39,19 @@ pub fn derive_observe_for_enum(
     let mut ob_field_tys = HashMap::new();
     for variant in variants {
         let variant_ident = &variant.ident;
+        let variant_name = variant.ident.to_string();
         let mut ob_variant = variant.clone();
+        let push_tag = if let Some(expr) = &input_meta.content {
+            quote! {
+                mutation.path.push(#expr.into());
+            }
+        } else if input_meta.untagged || input_meta.tag.is_some() {
+            quote! {}
+        } else {
+            quote! {
+                mutation.path.push(#variant_name.into());
+            }
+        };
         match &mut ob_variant.fields {
             syn::Fields::Named(fields_named) => {
                 let mut idents = vec![];
@@ -88,13 +100,21 @@ pub fn derive_observe_for_enum(
                 let variant_collect_expr = match fields_named.named.len() {
                     0 => quote! { Ok(None) },
                     1 => quote! {
-                        ::morphix::observe::SerializeObserver::collect::<A>(#(#idents),*)
+                        match ::morphix::observe::SerializeObserver::collect::<A>(#(#idents),*) {
+                            Ok(Some(mut mutation)) => {
+                                mutation.path.push(#(#segments.into()),*);
+                                #push_tag
+                                Ok(Some(mutation))
+                            },
+                            result => result,
+                        }
                     },
                     n => quote! {{
                         let mut mutations = ::std::vec::Vec::with_capacity(#n);
                         #(
                             if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<A>(#idents)? {
                                 mutation.path.push(#segments.into());
+                                #push_tag
                                 mutations.push(mutation);
                             }
                         )*
@@ -148,14 +168,26 @@ pub fn derive_observe_for_enum(
                 });
                 let variant_collect_expr = match fields_unnamed.unnamed.len() {
                     0 => quote! { Ok(None) },
-                    1 => quote! {
-                        ::morphix::observe::SerializeObserver::collect::<A>(#(#ob_idents),*)
+                    1 => match push_tag.is_empty() {
+                        true => quote! {
+                            ::morphix::observe::SerializeObserver::collect::<A>(#(#ob_idents),*)
+                        },
+                        false => quote! {
+                            match ::morphix::observe::SerializeObserver::collect::<A>(#(#ob_idents),*) {
+                                Ok(Some(mut mutation)) => {
+                                    #push_tag
+                                    Ok(Some(mutation))
+                                },
+                                result => result,
+                            }
+                        },
                     },
                     n => quote! {{
                         let mut mutations = ::std::vec::Vec::with_capacity(#n);
                         #(
                             if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<A>(#ob_idents)? {
                                 mutation.path.push(#segments.into());
+                                #push_tag
                                 mutations.push(mutation);
                             }
                         )*
@@ -181,6 +213,9 @@ pub fn derive_observe_for_enum(
         ty_variants.extend(quote! {
             #ob_variant,
         });
+    }
+    if !errors.is_empty() {
+        return errors;
     }
 
     let inconsistent_state = format!("inconsistent state for {ob_ident}");

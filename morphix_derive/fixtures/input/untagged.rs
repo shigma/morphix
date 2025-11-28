@@ -6,9 +6,10 @@ use serde::Serialize;
 #[derive(Serialize, Observe)]
 #[serde(untagged)]
 pub enum Foo {
-    A(u32, u32),
-    B {
+    A(u32),
+    B(u32, u32),
+    C {
         bar: String,
     },
-    C,
+    D,
 }

@@ -5,9 +5,10 @@ use serde::Serialize;
 #[derive(Serialize)]
 #[serde(untagged)]
 pub enum Foo {
-    A(u32, u32),
-    B { bar: String },
-    C,
+    A(u32),
+    B(u32, u32),
+    C { bar: String },
+    D,
 }
 #[rustfmt::skip]
 const _: () = {
@@ -18,41 +19,46 @@ const _: () = {
         __variant: ::std::mem::MaybeUninit<FooObserverVariant<'ob>>,
     }
     pub enum FooObserverVariant<'ob> {
-        A(
+        A(::morphix::observe::DefaultObserver<'ob, u32>),
+        B(
             ::morphix::observe::DefaultObserver<'ob, u32>,
             ::morphix::observe::DefaultObserver<'ob, u32>,
         ),
-        B { bar: ::morphix::observe::DefaultObserver<'ob, String> },
-        C,
+        C { bar: ::morphix::observe::DefaultObserver<'ob, String> },
+        D,
     }
     impl<'ob> FooObserverVariant<'ob> {
         fn observe(value: &'ob mut Foo) -> Self {
             match value {
-                Foo::A(v0, v1) => {
-                    Self::A(
+                Foo::A(v0) => Self::A(::morphix::observe::Observer::observe(v0)),
+                Foo::B(v0, v1) => {
+                    Self::B(
                         ::morphix::observe::Observer::observe(v0),
                         ::morphix::observe::Observer::observe(v1),
                     )
                 }
-                Foo::B { bar } => {
-                    Self::B {
+                Foo::C { bar } => {
+                    Self::C {
                         bar: ::morphix::observe::Observer::observe(bar),
                     }
                 }
-                Foo::C => Self::C,
+                Foo::D => Self::D,
             }
         }
         unsafe fn refresh(&mut self, value: &mut Foo) {
             unsafe {
                 match (self, value) {
-                    (Self::A(u0, u1), Foo::A(v0, v1)) => {
+                    (Self::A(u0), Foo::A(v0)) => {
+                        ::morphix::observe::Observer::refresh(u0, v0)
+                    }
+                    (Self::B(u0, u1), Foo::B(v0, v1)) => {
                         ::morphix::observe::Observer::refresh(u0, v0);
                         ::morphix::observe::Observer::refresh(u1, v1)
                     }
-                    (Self::B { bar: u0 }, Foo::B { bar: v0 }) => {
+                    (Self::C { bar: u0 }, Foo::C { bar: v0 }) => {
                         ::morphix::observe::Observer::refresh(u0, v0)
                     }
-                    (Self::C, Foo::C) => {}
+                    (Self::D, Foo::D) => {}
                     _ => panic!("inconsistent state for FooObserver"),
                 }
             }
@@ -64,7 +70,8 @@ const _: () = {
             A::Error,
         > {
             match self {
-                Self::A(u0, u1) => {
+                Self::A(u0) => ::morphix::observe::SerializeObserver::collect::<A>(u0),
+                Self::B(u0, u1) => {
                     let mut mutations = ::std::vec::Vec::with_capacity(2usize);
                     if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
                         A,
@@ -80,10 +87,16 @@ const _: () = {
                     }
                     Ok(::morphix::Mutation::coalesce(mutations))
                 }
-                Self::B { bar } => {
-                    ::morphix::observe::SerializeObserver::collect::<A>(bar)
+                Self::C { bar } => {
+                    match ::morphix::observe::SerializeObserver::collect::<A>(bar) {
+                        Ok(Some(mut mutation)) => {
+                            mutation.path.push("bar".into());
+                            Ok(Some(mutation))
+                        }
+                        result => result,
+                    }
                 }
-                Self::C => Ok(None),
+                Self::D => Ok(None),
             }
         }
     }

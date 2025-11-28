@@ -7,7 +7,6 @@ use syn::spanned::Spanned;
 pub struct MetaArgument {
     ident: syn::Ident,
     inner: Option<(syn::token::Paren, Punctuated<MetaArgument, syn::Token![,]>)>,
-    #[expect(dead_code)]
     value: Option<(syn::Token![=], syn::Expr)>,
 }
 
@@ -50,6 +49,9 @@ pub struct ObserveMeta {
     pub general_impl: Option<GeneralImpl>,
     pub deref: Option<syn::Ident>,
     pub flatten: bool,
+    pub untagged: bool,
+    pub tag: Option<syn::Expr>,
+    pub content: Option<syn::Expr>,
     pub derive: Vec<syn::Ident>,
 }
 
@@ -163,6 +165,17 @@ impl ObserveMeta {
                 for arg in args {
                     if arg.ident == "flatten" {
                         meta.flatten = true;
+                    } else if arg.ident == "untagged" {
+                        meta.untagged = true;
+                    } else if arg.ident == "tag" {
+                        if let Some((_, expr)) = arg.value {
+                            meta.tag = Some(expr);
+                        }
+                    } else if arg.ident == "content" {
+                        // no-collapse
+                        if let Some((_, expr)) = arg.value {
+                            meta.content = Some(expr);
+                        }
                     }
                 }
             }
