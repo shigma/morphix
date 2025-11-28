@@ -11,6 +11,7 @@ use syn::visit::Visit;
 
 use crate::derive::meta::{GeneralImpl, MetaPosition, ObserveMeta};
 
+mod r#enum;
 mod meta;
 mod r#struct;
 
@@ -63,6 +64,9 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
             ..
         }) => r#struct::derive_observe_for_struct_fields(&input, named, &input_meta),
+        syn::Data::Enum(syn::DataEnum { variants, .. }) => {
+            r#enum::derive_observe_for_enum(&input, variants, &input_meta)
+        }
         _ => syn::Error::new(input.span(), "Observe can only be derived for named structs").to_compile_error(),
     }
 }
