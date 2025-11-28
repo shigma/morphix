@@ -41,6 +41,7 @@ pub fn derive_observe_for_enum(
         let variant_ident = &variant.ident;
         let variant_name = variant.ident.to_string();
         let mut ob_variant = variant.clone();
+        take(&mut ob_variant.attrs);
         let push_tag = if let Some(expr) = &input_meta.content {
             quote! {
                 mutation.path.push(#expr.into());
