@@ -1,0 +1,228 @@
+#[allow(unused_imports)]
+use morphix_derive::Observe;
+use serde::Serialize;
+#[rustfmt::skip]
+#[derive(Serialize)]
+pub enum Foo<S, T>
+where
+    T: Clone,
+{
+    A(S),
+    B { bar: T },
+    C,
+}
+#[rustfmt::skip]
+const _: () = {
+    pub struct FooObserver<'ob, S, T, _S: ?Sized, N = ::morphix::helper::Zero>
+    where
+        T: Clone,
+        S: ::morphix::Observe + 'ob,
+        T: ::morphix::Observe + 'ob,
+    {
+        __ptr: ::morphix::observe::ObserverPointer<_S>,
+        __mutated: bool,
+        __phantom: ::std::marker::PhantomData<&'ob mut N>,
+        __variant: ::std::mem::MaybeUninit<FooObserverVariant<'ob, S, T>>,
+    }
+    pub enum FooObserverVariant<'ob, S, T>
+    where
+        T: Clone,
+        S: ::morphix::Observe + 'ob,
+        T: ::morphix::Observe + 'ob,
+    {
+        A(::morphix::observe::DefaultObserver<'ob, S>),
+        B { bar: ::morphix::observe::DefaultObserver<'ob, T> },
+        C,
+    }
+    impl<'ob, S, T> FooObserverVariant<'ob, S, T>
+    where
+        T: Clone,
+        S: ::morphix::Observe + 'ob,
+        T: ::morphix::Observe + 'ob,
+    {
+        fn observe(value: &'ob mut Foo<S, T>) -> Self {
+            match value {
+                Foo::A(v0) => Self::A(::morphix::observe::Observer::observe(v0)),
+                Foo::B { bar } => {
+                    Self::B {
+                        bar: ::morphix::observe::Observer::observe(bar),
+                    }
+                }
+                Foo::C => Self::C,
+            }
+        }
+        unsafe fn refresh(&mut self, value: &mut Foo<S, T>) {
+            unsafe {
+                match (self, value) {
+                    (Self::A(u0), Foo::A(v0)) => {
+                        ::morphix::observe::Observer::refresh(u0, v0)
+                    }
+                    (Self::B { bar: u0 }, Foo::B { bar: v0 }) => {
+                        ::morphix::observe::Observer::refresh(u0, v0)
+                    }
+                    (Self::C, Foo::C) => {}
+                    _ => panic!("inconsistent state for FooObserver"),
+                }
+            }
+        }
+        fn collect<A: ::morphix::Adapter>(
+            &mut self,
+        ) -> ::std::result::Result<
+            ::std::option::Option<::morphix::Mutation<A::Value>>,
+            A::Error,
+        >
+        where
+            ::morphix::observe::DefaultObserver<
+                'ob,
+                T,
+            >: ::morphix::observe::SerializeObserver<'ob>,
+            ::morphix::observe::DefaultObserver<
+                'ob,
+                S,
+            >: ::morphix::observe::SerializeObserver<'ob>,
+        {
+            match self {
+                Self::A(u0) => ::morphix::observe::SerializeObserver::collect::<A>(u0),
+                Self::B { bar } => {
+                    ::morphix::observe::SerializeObserver::collect::<A>(bar)
+                }
+                Self::C => Ok(None),
+            }
+        }
+    }
+    #[automatically_derived]
+    impl<'ob, S, T, _S: ?Sized, N> ::std::default::Default
+    for FooObserver<'ob, S, T, _S, N>
+    where
+        T: Clone,
+        S: ::morphix::Observe,
+        T: ::morphix::Observe,
+    {
+        fn default() -> Self {
+            Self {
+                __ptr: ::std::default::Default::default(),
+                __mutated: false,
+                __phantom: ::std::marker::PhantomData,
+                __variant: ::std::mem::MaybeUninit::uninit(),
+            }
+        }
+    }
+    #[automatically_derived]
+    impl<'ob, S, T, _S: ?Sized, N> ::std::ops::Deref for FooObserver<'ob, S, T, _S, N>
+    where
+        T: Clone,
+        S: ::morphix::Observe,
+        T: ::morphix::Observe,
+    {
+        type Target = ::morphix::observe::ObserverPointer<_S>;
+        fn deref(&self) -> &Self::Target {
+            &self.__ptr
+        }
+    }
+    #[automatically_derived]
+    impl<'ob, S, T, _S: ?Sized, N> ::std::ops::DerefMut for FooObserver<'ob, S, T, _S, N>
+    where
+        T: Clone,
+        S: ::morphix::Observe,
+        T: ::morphix::Observe,
+    {
+        fn deref_mut(&mut self) -> &mut Self::Target {
+            &mut self.__ptr
+        }
+    }
+    #[automatically_derived]
+    impl<'ob, S, T, _S> ::morphix::helper::Assignable for FooObserver<'ob, S, T, _S>
+    where
+        T: Clone,
+        S: ::morphix::Observe,
+        T: ::morphix::Observe,
+    {
+        type Depth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+    }
+    #[automatically_derived]
+    impl<'ob, S, T, _S: ?Sized, N> ::morphix::observe::Observer<'ob>
+    for FooObserver<'ob, S, T, _S, N>
+    where
+        T: Clone,
+        S: ::morphix::Observe,
+        T: ::morphix::Observe,
+        _S: ::morphix::helper::AsDerefMut<N, Target = Foo<S, T>> + 'ob,
+        N: ::morphix::helper::Unsigned,
+    {
+        type Head = _S;
+        type InnerDepth = N;
+        type OuterDepth = ::morphix::helper::Zero;
+        fn observe(value: &'ob mut _S) -> Self {
+            let __ptr = ::morphix::observe::ObserverPointer::new(value);
+            let __value = value.as_deref_mut();
+            Self {
+                __ptr,
+                __mutated: false,
+                __phantom: ::std::marker::PhantomData,
+                __variant: ::std::mem::MaybeUninit::new(
+                    FooObserverVariant::observe(__value),
+                ),
+            }
+        }
+        unsafe fn refresh(this: &mut Self, value: &mut _S) {
+            ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
+            let __value = value.as_deref_mut();
+            unsafe { this.__variant.assume_init_mut().refresh(__value) }
+        }
+    }
+    #[automatically_derived]
+    impl<'ob, S, T, _S: ?Sized, N> ::morphix::observe::SerializeObserver<'ob>
+    for FooObserver<'ob, S, T, _S, N>
+    where
+        Foo<S, T>: ::serde::Serialize,
+        T: Clone,
+        S: ::morphix::Observe,
+        T: ::morphix::Observe,
+        _S: ::morphix::helper::AsDerefMut<N, Target = Foo<S, T>> + 'ob,
+        N: ::morphix::helper::Unsigned,
+        ::morphix::observe::DefaultObserver<
+            'ob,
+            T,
+        >: ::morphix::observe::SerializeObserver<'ob>,
+        ::morphix::observe::DefaultObserver<
+            'ob,
+            S,
+        >: ::morphix::observe::SerializeObserver<'ob>,
+    {
+        unsafe fn collect_unchecked<A: ::morphix::Adapter>(
+            this: &mut Self,
+        ) -> ::std::result::Result<
+            ::std::option::Option<::morphix::Mutation<A::Value>>,
+            A::Error,
+        > {
+            if this.__mutated {
+                return Ok(
+                    Some(::morphix::Mutation {
+                        path: ::morphix::Path::new(),
+                        kind: ::morphix::MutationKind::Replace(
+                            A::serialize_value(this.as_deref())?,
+                        ),
+                    }),
+                );
+            }
+            unsafe { this.__variant.assume_init_mut() }.collect::<A>()
+        }
+    }
+    #[automatically_derived]
+    impl<S, T> ::morphix::Observe for Foo<S, T>
+    where
+        Self: ::serde::Serialize,
+        T: Clone,
+        S: ::morphix::Observe,
+        T: ::morphix::Observe,
+    {
+        type Observer<'ob, _S, N> = FooObserver<'ob, S, T, _S, N>
+        where
+            Self: 'ob,
+            S: 'ob,
+            T: 'ob,
+            N: ::morphix::helper::Unsigned,
+            _S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+        type Spec = ::morphix::observe::DefaultSpec;
+    }
+};

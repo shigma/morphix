@@ -53,7 +53,6 @@ pub fn derive_observe_for_struct_fields(
         field_cloned.attrs = vec![];
         let field_span = field_cloned.span();
         let field_ty = &field.ty;
-        let field_trivial = !GenericsDetector::detect(field_ty, &input.generics);
         let ob_field_ty = if let Some(span) = field_meta.deref {
             let ob_field_ty = match &field_meta.general_impl {
                 None => quote_spanned! { field_span =>
@@ -75,6 +74,7 @@ pub fn derive_observe_for_struct_fields(
             });
             quote! { #inner }
         } else {
+            let field_trivial = !GenericsDetector::detect(field_ty, &input.generics);
             inst_fields.push(quote_spanned! { field_span =>
                 #field_ident: ::morphix::observe::Observer::observe(&mut __value.#field_ident),
             });
