@@ -35,7 +35,7 @@ const _: () = {
     }
     impl<'ob, 'i> FooObserverVariant<'ob, 'i>
     where
-        &'i mut String: ::morphix::Observe + 'ob,
+        &'i mut String: ::morphix::Observe,
     {
         fn observe(value: &'ob mut Foo<'i>) -> Self {
             match value {

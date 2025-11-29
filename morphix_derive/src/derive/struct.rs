@@ -7,7 +7,7 @@ use syn::spanned::Spanned;
 use syn::visit::Visit;
 use syn::{parse_quote, parse_quote_spanned};
 
-use crate::derive::meta::{GeneralImpl, MetaPosition, ObserveMeta};
+use crate::derive::meta::{AttributeKind, DeriveKind, GeneralImpl, ObserveMeta};
 use crate::derive::{GenericsAllocator, GenericsDetector};
 
 type WherePredicates = Punctuated<syn::WherePredicate, syn::Token![,]>;
@@ -46,7 +46,7 @@ pub fn derive_observe_for_struct_fields(
     let mut deref_fields = vec![];
     let field_count = fields.len();
     for field in fields {
-        let field_meta = ObserveMeta::parse_attrs(&field.attrs, &mut errors, MetaPosition::Field);
+        let field_meta = ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Struct);
         let field_ident = field.ident.as_ref().unwrap();
         let field_name = field_ident.to_string();
         let mut field_cloned = field.clone();
@@ -123,7 +123,7 @@ pub fn derive_observe_for_struct_fields(
         } else {
             quote! { mutations.push(mutation); }
         };
-        if !field_meta.flatten {
+        if !field_meta.serde.flatten {
             mutability = quote! { mut };
             body = quote! {
                 mutation.path.push(#field_name.into());
@@ -474,7 +474,7 @@ pub fn derive_observe_for_struct_fields(
     };
 
     for derive_ident in &input_meta.derive {
-        if derive_ident == "Debug" {
+        if derive_ident.is_ident("Debug") {
             output.extend(quote! {
                 #[automatically_derived]
                 impl #ob_impl_generics ::std::fmt::Debug
@@ -485,7 +485,7 @@ pub fn derive_observe_for_struct_fields(
                     }
                 }
             });
-        } else if derive_ident == "Display" {
+        } else if derive_ident.is_ident("Display") {
             output.extend(quote! {
                 #[automatically_derived]
                 impl #ob_impl_generics ::std::fmt::Display

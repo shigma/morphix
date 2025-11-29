@@ -9,7 +9,7 @@ use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
 
-use crate::derive::meta::{GeneralImpl, MetaPosition, ObserveMeta};
+use crate::derive::meta::{AttributeKind, DeriveKind, GeneralImpl, ObserveMeta};
 
 mod r#enum;
 mod meta;
@@ -17,7 +17,16 @@ mod r#struct;
 
 pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
     let mut errors = quote! {};
-    let input_meta = ObserveMeta::parse_attrs(&input.attrs, &mut errors, MetaPosition::Struct);
+    let input_meta = ObserveMeta::parse_attrs(
+        &input.attrs,
+        &mut errors,
+        AttributeKind::Item,
+        match &input.data {
+            syn::Data::Struct(_) => DeriveKind::Struct,
+            syn::Data::Enum(_) => DeriveKind::Enum,
+            syn::Data::Union(_) => DeriveKind::Union,
+        },
+    );
     if !errors.is_empty() {
         return errors;
     }

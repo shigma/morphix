@@ -7,8 +7,8 @@ pub enum Foo<S, T>
 where
     T: Clone,
 {
-    A(S),
-    B(S, T),
+    A(u32),
+    B(u32, S),
     C { bar: T },
     D,
 }
@@ -31,10 +31,10 @@ const _: () = {
         S: ::morphix::Observe + 'ob,
         T: ::morphix::Observe + 'ob,
     {
-        A(::morphix::observe::DefaultObserver<'ob, S>),
+        A(::morphix::observe::DefaultObserver<'ob, u32>),
         B(
+            ::morphix::observe::DefaultObserver<'ob, u32>,
             ::morphix::observe::DefaultObserver<'ob, S>,
-            ::morphix::observe::DefaultObserver<'ob, T>,
         ),
         C { bar: ::morphix::observe::DefaultObserver<'ob, T> },
         D,
@@ -42,8 +42,8 @@ const _: () = {
     impl<'ob, S, T> FooObserverVariant<'ob, S, T>
     where
         T: Clone,
-        S: ::morphix::Observe + 'ob,
-        T: ::morphix::Observe + 'ob,
+        S: ::morphix::Observe,
+        T: ::morphix::Observe,
     {
         fn observe(value: &'ob mut Foo<S, T>) -> Self {
             match value {
@@ -89,11 +89,11 @@ const _: () = {
         where
             ::morphix::observe::DefaultObserver<
                 'ob,
-                T,
+                S,
             >: ::morphix::observe::SerializeObserver<'ob>,
             ::morphix::observe::DefaultObserver<
                 'ob,
-                S,
+                T,
             >: ::morphix::observe::SerializeObserver<'ob>,
         {
             match self {
@@ -230,11 +230,11 @@ const _: () = {
         N: ::morphix::helper::Unsigned,
         ::morphix::observe::DefaultObserver<
             'ob,
-            T,
+            S,
         >: ::morphix::observe::SerializeObserver<'ob>,
         ::morphix::observe::DefaultObserver<
             'ob,
-            S,
+            T,
         >: ::morphix::observe::SerializeObserver<'ob>,
     {
         unsafe fn collect_unchecked<A: ::morphix::Adapter>(

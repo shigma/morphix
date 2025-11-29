@@ -1,14 +1,13 @@
-use std::collections::HashMap;
 use std::mem::take;
 
 use proc_macro2::TokenStream;
-use quote::{ToTokens, format_ident, quote};
+use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
 use syn::{parse_quote, parse_quote_spanned};
 
-use crate::derive::meta::{GeneralImpl, MetaPosition, ObserveMeta};
+use crate::derive::meta::{AttributeKind, DeriveKind, GeneralImpl, ObserveMeta};
 use crate::derive::{GenericsAllocator, GenericsDetector};
 
 pub fn derive_observe_for_enum(
@@ -35,18 +34,18 @@ pub fn derive_observe_for_enum(
     let mut variant_collect_arms = quote! {};
 
     let mut errors = quote! {};
-    let mut field_tys = HashMap::new();
-    let mut ob_field_tys = HashMap::new();
+    let mut field_tys = vec![];
+    let mut ob_field_tys = vec![];
     for variant in variants {
         let variant_ident = &variant.ident;
         let variant_name = variant.ident.to_string();
         let mut ob_variant = variant.clone();
         take(&mut ob_variant.attrs);
-        let push_tag = if let Some(expr) = &input_meta.content {
+        let push_tag = if let Some(expr) = &input_meta.serde.content {
             quote! {
                 mutation.path.push(#expr.into());
             }
-        } else if input_meta.untagged || input_meta.tag.is_some() {
+        } else if input_meta.serde.untagged || input_meta.serde.tag.is_some() {
             quote! {}
         } else {
             quote! {
@@ -61,7 +60,8 @@ pub fn derive_observe_for_enum(
                 let mut value_idents = vec![];
                 let mut observe_exprs = vec![];
                 for (index, field) in fields_named.named.iter_mut().enumerate() {
-                    let field_meta = ObserveMeta::parse_attrs(&field.attrs, &mut errors, MetaPosition::Field);
+                    let field_meta =
+                        ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Enum);
                     let field_span = field.span();
                     let field_ident = &field.ident;
                     let field_trivial = !GenericsDetector::detect(&field.ty, &input.generics);
@@ -85,8 +85,8 @@ pub fn derive_observe_for_enum(
                         },
                     };
                     if !field_trivial {
-                        field_tys.insert(field_ty.to_token_stream().to_string(), quote! { #field_ty });
-                        ob_field_tys.insert(ob_field_ty.to_token_stream().to_string(), quote! { #ob_field_ty });
+                        field_tys.push(quote! { #field_ty });
+                        ob_field_tys.push(quote! { #ob_field_ty });
                     }
                     field.ty = ob_field_ty;
                 }
@@ -132,7 +132,8 @@ pub fn derive_observe_for_enum(
                 let mut segments = vec![];
                 let mut observe_exprs = vec![];
                 for (index, field) in fields_unnamed.unnamed.iter_mut().enumerate() {
-                    let field_meta = ObserveMeta::parse_attrs(&field.attrs, &mut errors, MetaPosition::Field);
+                    let field_meta =
+                        ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Enum);
                     let field_span = field.span();
                     let field_trivial = !GenericsDetector::detect(&field.ty, &input.generics);
                     let field_ty = &field.ty;
@@ -154,8 +155,8 @@ pub fn derive_observe_for_enum(
                         },
                     };
                     if !field_trivial {
-                        field_tys.insert(field_ty.to_token_stream().to_string(), quote! { #field_ty });
-                        ob_field_tys.insert(ob_field_ty.to_token_stream().to_string(), quote! { #ob_field_ty });
+                        field_tys.push(quote! { #field_ty });
+                        ob_field_tys.push(quote! { #ob_field_ty });
                     }
                     field.ty = ob_field_ty;
                 }
@@ -261,14 +262,6 @@ pub fn derive_observe_for_enum(
         }
     };
 
-    let mut input_observe_predicates = input_predicates.clone();
-    if !input_trivial {
-        input_observe_predicates.push(parse_quote! { Self: ::serde::Serialize });
-    }
-
-    let field_tys = field_tys.into_values().collect::<Vec<_>>();
-    let ob_field_tys = ob_field_tys.into_values().collect::<Vec<_>>();
-
     let output = quote! {
         #input_vis struct #ob_ident #ob_generics
         where
@@ -292,7 +285,7 @@ pub fn derive_observe_for_enum(
         impl #ob_variant_impl_generics #ob_variant_ident #ob_variant_type_generics
         where
             #(#input_predicates,)*
-            #(#field_tys: ::morphix::Observe + #ob_lt),*
+            #(#field_tys: ::morphix::Observe),*
         {
             fn observe(value: &#ob_lt mut #input_ident #input_type_generics) -> Self {
                 match value {
