@@ -16,7 +16,7 @@ use crate::{Adapter, Mutation, MutationKind, Observe, PathSegment};
 
 pub trait ObserverSlice<'ob> {
     type Item: Observer<'ob, InnerDepth = Zero, Head: Sized>;
-    fn default() -> Self;
+    fn uninit() -> Self;
     fn as_slice(&self) -> &[Self::Item];
     fn as_mut_slice(&mut self) -> &mut [Self::Item];
     fn init_range(&self, start: usize, end: usize, values: &'ob mut [<Self::Item as Observer<'ob>>::Head]);
@@ -39,8 +39,8 @@ where
     }
 
     #[inline]
-    fn default() -> Self {
-        from_fn(|_| Default::default())
+    fn uninit() -> Self {
+        from_fn(|_| O::uninit())
     }
 
     #[inline]
@@ -66,7 +66,7 @@ where
     }
 
     #[inline]
-    fn default() -> Self {
+    fn uninit() -> Self {
         Default::default()
     }
 
@@ -74,7 +74,7 @@ where
     fn init_range(&self, start: usize, end: usize, values: &'ob mut [<Self::Item as Observer<'ob>>::Head]) {
         let inner = unsafe { &mut *self.get() };
         if end > inner.len() {
-            inner.resize_with(end, Default::default);
+            inner.resize_with(end, O::uninit);
         }
         let ob_iter = inner[start..end].iter_mut();
         let value_iter = values[start..end].iter_mut();
@@ -141,21 +141,6 @@ impl<'ob, V, S: ?Sized, D> SliceObserver<'ob, V, S, D> {
     }
 }
 
-impl<'ob, V, S: ?Sized, D> Default for SliceObserver<'ob, V, S, D>
-where
-    V: ObserverSlice<'ob>,
-{
-    #[inline]
-    fn default() -> Self {
-        Self {
-            ptr: ObserverPointer::default(),
-            obs: V::default(),
-            mutation: None,
-            phantom: PhantomData,
-        }
-    }
-}
-
 impl<'ob, V, S: ?Sized, D> Deref for SliceObserver<'ob, V, S, D> {
     type Target = ObserverPointer<S>;
 
@@ -172,7 +157,7 @@ where
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.__mark_replace();
-        self.obs = V::default();
+        self.obs = V::uninit();
         &mut self.ptr
     }
 }
@@ -197,10 +182,20 @@ where
     type Head = S;
 
     #[inline]
+    fn uninit() -> Self {
+        Self {
+            ptr: ObserverPointer::default(),
+            obs: V::uninit(),
+            mutation: None,
+            phantom: PhantomData,
+        }
+    }
+
+    #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
             ptr: ObserverPointer::new(value),
-            obs: V::default(),
+            obs: V::uninit(),
             mutation: Some(value.as_deref().as_ref().len()),
             phantom: PhantomData,
         }

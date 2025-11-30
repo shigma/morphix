@@ -21,19 +21,6 @@ pub struct OptionObserver<'ob, O, S: ?Sized, D = Zero> {
     phantom: PhantomData<&'ob mut D>,
 }
 
-impl<'ob, O, S: ?Sized, D> Default for OptionObserver<'ob, O, S, D> {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            ptr: ObserverPointer::default(),
-            is_mutated: false,
-            is_initial_some: false,
-            ob: None,
-            phantom: PhantomData,
-        }
-    }
-}
-
 impl<'ob, O, S: ?Sized, D> Deref for OptionObserver<'ob, O, S, D> {
     type Target = ObserverPointer<S>;
 
@@ -66,6 +53,17 @@ where
     type InnerDepth = D;
     type OuterDepth = Zero;
     type Head = S;
+
+    #[inline]
+    fn uninit() -> Self {
+        Self {
+            ptr: ObserverPointer::default(),
+            is_mutated: false,
+            is_initial_some: false,
+            ob: None,
+            phantom: PhantomData,
+        }
+    }
 
     #[inline]
     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {

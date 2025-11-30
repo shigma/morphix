@@ -149,20 +149,6 @@ pub struct GeneralObserver<'ob, H, S: ?Sized, N = Zero> {
     phantom: PhantomData<&'ob mut N>,
 }
 
-impl<'ob, H, S: ?Sized, N> Default for GeneralObserver<'ob, H, S, N>
-where
-    H: Default,
-{
-    #[inline]
-    fn default() -> Self {
-        Self {
-            ptr: ObserverPointer::default(),
-            handler: H::default(),
-            phantom: PhantomData,
-        }
-    }
-}
-
 impl<'ob, H, S: ?Sized, N> Deref for GeneralObserver<'ob, H, S, N> {
     type Target = ObserverPointer<S>;
 
@@ -201,6 +187,15 @@ where
     type InnerDepth = N;
     type OuterDepth = Zero;
     type Head = S;
+
+    #[inline]
+    fn uninit() -> Self {
+        Self {
+            ptr: ObserverPointer::default(),
+            handler: H::default(),
+            phantom: PhantomData,
+        }
+    }
 
     #[inline]
     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {

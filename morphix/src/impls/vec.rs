@@ -21,18 +21,6 @@ pub struct VecObserver<'ob, O, S: ?Sized, D = Zero> {
     inner: SliceObserver<'ob, UnsafeCell<Vec<O>>, S, Succ<D>>,
 }
 
-impl<'ob, O, S: ?Sized, D> Default for VecObserver<'ob, O, S, D>
-where
-    O: Observer<'ob, InnerDepth = Zero, Head: Sized>,
-{
-    #[inline]
-    fn default() -> Self {
-        Self {
-            inner: Default::default(),
-        }
-    }
-}
-
 impl<'ob, O, S: ?Sized, D> Deref for VecObserver<'ob, O, S, D> {
     type Target = SliceObserver<'ob, UnsafeCell<Vec<O>>, S, Succ<D>>;
 
@@ -65,6 +53,13 @@ where
     type InnerDepth = D;
     type OuterDepth = Succ<Zero>;
     type Head = S;
+
+    #[inline]
+    fn uninit() -> Self {
+        Self {
+            inner: SliceObserver::uninit(),
+        }
+    }
 
     #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {

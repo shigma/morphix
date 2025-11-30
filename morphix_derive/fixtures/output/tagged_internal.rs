@@ -76,18 +76,6 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, const N: usize, S: ?Sized, _N> ::std::default::Default
-    for FooObserver<'ob, N, S, _N> {
-        fn default() -> Self {
-            Self {
-                __ptr: ::std::default::Default::default(),
-                __mutated: false,
-                __phantom: ::std::marker::PhantomData,
-                __variant: ::std::mem::MaybeUninit::uninit(),
-            }
-        }
-    }
-    #[automatically_derived]
     impl<'ob, const N: usize, S: ?Sized, _N> ::std::ops::Deref
     for FooObserver<'ob, N, S, _N> {
         type Target = ::morphix::observe::ObserverPointer<S>;
@@ -117,6 +105,14 @@ const _: () = {
         type Head = S;
         type InnerDepth = _N;
         type OuterDepth = ::morphix::helper::Zero;
+        fn uninit() -> Self {
+            Self {
+                __ptr: ::morphix::observe::ObserverPointer::default(),
+                __mutated: false,
+                __phantom: ::std::marker::PhantomData,
+                __variant: ::std::mem::MaybeUninit::uninit(),
+            }
+        }
         fn observe(value: &'ob mut S) -> Self {
             let __ptr = ::morphix::observe::ObserverPointer::new(value);
             let __value = value.as_deref_mut();

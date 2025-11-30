@@ -321,23 +321,6 @@ pub fn derive_observe_for_enum(
         }
 
         #[automatically_derived]
-        impl #ob_impl_generics ::std::default::Default
-        for #ob_ident #ob_type_generics
-        where
-            #(#input_predicates,)*
-            #(#field_tys: ::morphix::Observe,)*
-        {
-            fn default() -> Self {
-                Self {
-                    __ptr: ::std::default::Default::default(),
-                    __mutated: false,
-                    __phantom: ::std::marker::PhantomData,
-                    __variant: ::std::mem::MaybeUninit::uninit(),
-                }
-            }
-        }
-
-        #[automatically_derived]
         impl #ob_impl_generics ::std::ops::Deref
         for #ob_ident #ob_type_generics
         where
@@ -384,6 +367,15 @@ pub fn derive_observe_for_enum(
             type Head = #head;
             type InnerDepth = #depth;
             type OuterDepth = ::morphix::helper::Zero;
+
+            fn uninit() -> Self {
+                Self {
+                    __ptr: ::morphix::observe::ObserverPointer::default(),
+                    __mutated: false,
+                    __phantom: ::std::marker::PhantomData,
+                    __variant: ::std::mem::MaybeUninit::uninit(),
+                }
+            }
 
             fn observe(value: &#ob_lt mut #head) -> Self {
                 let __ptr = ::morphix::observe::ObserverPointer::new(value);

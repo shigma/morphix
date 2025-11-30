@@ -174,7 +174,7 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 ///
 /// See the [module documentation](self) for more details about how observers work with dereference
 /// chains.
-pub trait Observer<'ob>: Default
+pub trait Observer<'ob>: Sized
 where
     Self: AsDerefMutCoinductive<Succ<Self::OuterDepth>, Target = ObserverPointer<Self::Head>>,
 {
@@ -186,6 +186,19 @@ where
 
     /// The head type of the dereference chain.
     type Head: AsDerefMut<Self::InnerDepth> + ?Sized + 'ob;
+
+    /// Creates an uninitialized observer.
+    ///
+    /// The returned observer is not associated with any value and must be initialized via
+    /// [`observe`](Observer::observe) or [`force`](Observer::force) before use. Attempting to
+    /// dereference an uninitialized observer results in *undefined behavior*.
+    ///
+    /// ## Use Cases
+    ///
+    /// This method is useful for:
+    /// - Pre-allocating observer storage in containers before values are known
+    /// - Creating placeholder observers that will be lazily initialized
+    fn uninit() -> Self;
 
     /// Creates a new observer for the given value.
     ///
@@ -211,10 +224,10 @@ where
     /// ## Safety
     ///
     /// The caller must ensure that:
-    /// 1. `this` was constructed via [`observe`](Observer::observe), not default-constructed
-    /// 2. `value` refers to the same logical value that was passed to
-    ///    [`observe`](Observer::observe) when the observer was created, just potentially at a new
-    ///    memory location
+    /// 1. `this` was properly initialized via [`observe`](Observer::observe) or
+    ///    [`force`](Observer::force)
+    /// 2. `value` refers to the same logical value with which the observer was initialized, just
+    ///    potentially at a new memory location
     ///
     /// ## Example
     ///
@@ -268,6 +281,7 @@ where
     ///         }
     ///     }
     ///
+    ///     # fn uninit() -> Self { todo!() }
     ///     # fn observe(value: &'ob mut Self::Head) -> Self { todo!() }
     /// }
     /// ```
@@ -282,7 +296,7 @@ where
     ///
     /// This method ensures the observer is properly associated with the observed value,
     /// regardless of its current state:
-    /// - If the observer is default-constructed, it initializes the observer via
+    /// - If the observer is uninitialized, it initializes the observer via
     ///   [`observe`](Observer::observe).
     /// - If the observer is already initialized but points to a different address, it updates the
     ///   pointer via [`refresh`](Observer::refresh).
@@ -294,7 +308,7 @@ where
     /// the same logical value that was passed to [`observe`](Observer::observe) when the observer
     /// was created, just potentially at a new memory location.
     ///
-    /// Note: If the observer is default-constructed, no safety requirements apply since
+    /// Note: If the observer is uninitialized, no safety requirements apply since
     /// [`observe`](Observer::observe) will be called to initialize it.
     ///
     /// ## Use Cases
@@ -393,7 +407,7 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
     /// ## Safety
     ///
     /// This method assumes the observer contains a valid (non-null) pointer. Calling this on a
-    /// default-constructed observer results in *undefined behavior*.
+    /// uninitialized observer results in *undefined behavior*.
     ///
     /// Most users should call [`collect`](SerializeObserver::collect) instead, which includes a
     /// null pointer check.
@@ -424,7 +438,7 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
     ///
     /// ```
     /// use morphix::adapter::Json;
-    /// use morphix::observe::{ObserveExt, SerializeObserverExt, ShallowObserver};
+    /// use morphix::observe::{ObserveExt, Observer, SerializeObserverExt, ShallowObserver};
     ///
     /// // Normal usage
     /// let mut value = String::from("Hello");
@@ -433,8 +447,8 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
     /// let Json(mutation) = ob.collect().unwrap();
     /// assert!(mutation.is_some());
     ///
-    /// // Safe handling of default-constructed observer
-    /// let mut empty: ShallowObserver<i32> = Default::default();
+    /// // Safe handling of uninitialized observer
+    /// let mut empty: ShallowObserver<i32> = ShallowObserver::uninit();
     /// let Json(mutation) = empty.collect().unwrap();
     /// assert!(mutation.is_none());
     /// ```

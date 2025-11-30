@@ -30,7 +30,7 @@ pub fn derive_observe_for_struct_fields(
 
     let mut type_fields = vec![];
     let mut inst_fields = vec![];
-    let mut default_fields = vec![];
+    let mut uninit_fields = vec![];
     let mut refresh_stmts = vec![];
     let mut collect_stmts = vec![];
     let mut debug_chain = quote! {};
@@ -90,8 +90,8 @@ pub fn derive_observe_for_struct_fields(
         type_fields.push(quote_spanned! { field_span =>
             pub #field_ident: #ob_field_ty,
         });
-        default_fields.push(quote_spanned! { field_span =>
-            #field_ident: ::std::default::Default::default(),
+        uninit_fields.push(quote_spanned! { field_span =>
+            #field_ident: ::morphix::observe::Observer::uninit(),
         });
         debug_chain.extend(quote_spanned! { field_span =>
             .field(#field_name, &self.#field_ident)
@@ -136,7 +136,6 @@ pub fn derive_observe_for_struct_fields(
     let assignable_impl;
     let observer_impl;
     let serialize_observer_impl_prefix;
-    let ob_default_predicates;
     let ob_assignable_predicates;
     let ob_observer_predicates;
     let input_observe_predicates;
@@ -148,7 +147,6 @@ pub fn derive_observe_for_struct_fields(
         ob_generics
             .params
             .push(parse_quote! { #depth = ::morphix::helper::Zero });
-        ob_default_predicates = quote! {};
         ob_assignable_generics = input_generics.clone();
         ob_assignable_generics.params.insert(0, parse_quote! { #ob_lt });
         ob_assignable_generics.params.push(parse_quote! { #head });
@@ -171,15 +169,6 @@ pub fn derive_observe_for_struct_fields(
             },
         );
 
-        default_fields.insert(
-            0,
-            quote! {
-                __ptr: ::std::default::Default::default(),
-                __mutated: false,
-                __phantom: ::std::marker::PhantomData,
-            },
-        );
-
         deref_ident = format_ident!("Deref");
         deref_target = quote! { ::morphix::observe::ObserverPointer<#head> };
         deref_expr = quote! { self.__ptr };
@@ -192,6 +181,15 @@ pub fn derive_observe_for_struct_fields(
             type Head = #head;
             type InnerDepth = #depth;
             type OuterDepth = ::morphix::helper::Zero;
+
+            fn uninit() -> Self {
+                Self {
+                    __ptr: ::morphix::observe::ObserverPointer::default(),
+                    __mutated: false,
+                    __phantom: ::std::marker::PhantomData,
+                    #(#uninit_fields)*
+                }
+            }
 
             fn observe(value: &#ob_lt mut #head) -> Self {
                 let __ptr = ::morphix::observe::ObserverPointer::new(value);
@@ -262,7 +260,6 @@ pub fn derive_observe_for_struct_fields(
             .collect();
         ob_generics.params.insert(0, parse_quote! { #ob_lt });
         ob_generics.params.push(parse_quote! { #inner });
-        ob_default_predicates = quote! { #inner: ::std::default::Default, };
         ob_assignable_generics = ob_generics.clone();
         ob_assignable_predicates = quote! {
             #inner: ::morphix::observe::Observer<#ob_lt>,
@@ -282,13 +279,6 @@ pub fn derive_observe_for_struct_fields(
             },
         );
 
-        default_fields.insert(
-            0,
-            quote! {
-                __phantom: ::std::marker::PhantomData,
-            },
-        );
-
         deref_ident = syn::Ident::new("Deref", meta_deref_ident.span());
         deref_target = quote! { #inner };
         deref_expr = quote! { self.#field_ident };
@@ -301,6 +291,13 @@ pub fn derive_observe_for_struct_fields(
             type Head = #inner::Head;
             type InnerDepth = #depth;
             type OuterDepth = ::morphix::helper::Succ<#inner::OuterDepth>;
+
+            fn uninit() -> Self {
+                Self {
+                    __phantom: ::std::marker::PhantomData,
+                    #(#uninit_fields)*
+                }
+            }
 
             fn observe(value: &#ob_lt mut #inner::Head) -> Self {
                 let __inner = ::morphix::observe::Observer::observe(unsafe { &mut *(value as *mut #inner::Head) });
@@ -371,21 +368,6 @@ pub fn derive_observe_for_struct_fields(
             #(#field_tys: ::morphix::Observe + #ob_lt),*
         {
             #(#type_fields)*
-        }
-
-        #[automatically_derived]
-        impl #ob_impl_generics ::std::default::Default
-        for #ob_ident #ob_type_generics
-        where
-            #(#input_predicates,)*
-            #ob_default_predicates
-            #(#field_tys: ::morphix::Observe,)*
-        {
-            fn default() -> Self {
-                Self {
-                    #(#default_fields)*
-                }
-            }
         }
 
         #[automatically_derived]
@@ -493,7 +475,6 @@ pub fn derive_observe_for_struct_fields(
                 {
                     #[inline]
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        // TODO: why this cannot be replaced with as_inner()?
                         let head = &**::morphix::observe::Observer::as_ptr(self);
                         let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
                         ::std::fmt::Display::fmt(value, f)

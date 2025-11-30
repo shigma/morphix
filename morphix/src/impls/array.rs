@@ -44,18 +44,6 @@ impl<'ob, const N: usize, O, S: ?Sized, D> ArrayObserver<'ob, N, O, S, D> {
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D> Default for ArrayObserver<'ob, N, O, S, D>
-where
-    O: Observer<'ob, InnerDepth = Zero, Head: Sized>,
-{
-    #[inline]
-    fn default() -> Self {
-        Self {
-            inner: Default::default(),
-        }
-    }
-}
-
 impl<'ob, const N: usize, O, S: ?Sized, D> Deref for ArrayObserver<'ob, N, O, S, D> {
     type Target = SliceObserver<'ob, [O; N], S, D>;
 
@@ -65,10 +53,7 @@ impl<'ob, const N: usize, O, S: ?Sized, D> Deref for ArrayObserver<'ob, N, O, S,
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<'ob, N, O, S, D>
-where
-    O: Default,
-{
+impl<'ob, const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<'ob, N, O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
@@ -91,6 +76,13 @@ where
     type InnerDepth = D;
     type OuterDepth = Succ<Zero>;
     type Head = S;
+
+    #[inline]
+    fn uninit() -> Self {
+        Self {
+            inner: SliceObserver::uninit(),
+        }
+    }
 
     #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {

@@ -23,17 +23,6 @@ impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D> {
     }
 }
 
-impl<'ob, S: ?Sized, D> Default for StringObserver<'ob, S, D> {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            ptr: ObserverPointer::default(),
-            mutation: None,
-            phantom: PhantomData,
-        }
-    }
-}
-
 impl<'ob, S: ?Sized, D> Deref for StringObserver<'ob, S, D> {
     type Target = ObserverPointer<S>;
 
@@ -63,6 +52,15 @@ where
     type InnerDepth = D;
     type OuterDepth = Zero;
     type Head = S;
+
+    #[inline]
+    fn uninit() -> Self {
+        Self {
+            ptr: ObserverPointer::default(),
+            mutation: None,
+            phantom: PhantomData,
+        }
+    }
 
     #[inline]
     fn observe(value: &mut Self::Head) -> Self {

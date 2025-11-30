@@ -10,7 +10,6 @@ use crate::{Adapter, Mutation, Observe};
 ///
 /// This observer wraps the inner type's observer and forwards all operations to it, maintaining
 /// proper dereference chains for pointer types.
-#[derive(Default)]
 pub struct DerefObserver<'ob, O> {
     inner: O,
     phantom: PhantomData<&'ob mut ()>,
@@ -48,6 +47,14 @@ where
     type OuterDepth = Succ<O::OuterDepth>;
     type InnerDepth = D;
     type Head = O::Head;
+
+    #[inline]
+    fn uninit() -> Self {
+        Self {
+            inner: O::uninit(),
+            phantom: PhantomData,
+        }
+    }
 
     #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {
