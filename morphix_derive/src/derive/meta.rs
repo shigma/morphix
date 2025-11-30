@@ -66,7 +66,7 @@ pub struct ObserveMeta {
     pub general_impl: Option<GeneralImpl>,
     pub deref: Option<syn::Ident>,
     pub serde: SerdeMeta,
-    pub derive: Vec<syn::Path>,
+    pub derive: (Vec<syn::Ident>, Vec<syn::Path>),
 }
 
 impl ObserveMeta {
@@ -129,8 +129,9 @@ impl ObserveMeta {
                 );
                 return;
             };
+            self.derive.0.push(arg.ident);
             match Punctuated::<syn::Path, syn::Token![,]>::parse_terminated.parse2(derive_args) {
-                Ok(paths) => self.derive.extend(paths),
+                Ok(paths) => self.derive.1.extend(paths),
                 Err(error) => errors.extend(error.to_compile_error()),
             };
         } else {

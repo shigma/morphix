@@ -8,7 +8,7 @@ use syn::visit::Visit;
 use syn::{parse_quote, parse_quote_spanned};
 
 use crate::derive::meta::{AttributeKind, DeriveKind, GeneralImpl, ObserveMeta};
-use crate::derive::{GenericsAllocator, GenericsDetector};
+use crate::derive::{FMT_TRAITS, GenericsAllocator, GenericsDetector};
 
 pub fn derive_observe_for_enum(
     input: &syn::DeriveInput,
@@ -62,12 +62,14 @@ pub fn derive_observe_for_enum(
                 for (index, field) in fields_named.named.iter_mut().enumerate() {
                     let field_meta =
                         ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Enum);
-                    let field_span = field.span();
+                    let mut field_cloned = field.clone();
+                    field_cloned.attrs = vec![];
+                    let field_span = field_cloned.span();
                     let field_ident = &field.ident;
                     let field_trivial = !GenericsDetector::detect(&field.ty, &input.generics);
                     let field_ty = &field.ty;
-                    let ob_ident = syn::Ident::new(&format!("u{}", index), field.span());
-                    let value_ident = syn::Ident::new(&format!("v{}", index), field.span());
+                    let ob_ident = syn::Ident::new(&format!("u{}", index), field_span);
+                    let value_ident = syn::Ident::new(&format!("v{}", index), field_span);
                     ob_idents.push(quote! { #ob_ident });
                     value_idents.push(quote! { #value_ident });
                     idents.push(quote! { #field_ident });
@@ -134,11 +136,13 @@ pub fn derive_observe_for_enum(
                 for (index, field) in fields_unnamed.unnamed.iter_mut().enumerate() {
                     let field_meta =
                         ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Enum);
-                    let field_span = field.span();
+                    let mut field_cloned = field.clone();
+                    field_cloned.attrs = vec![];
+                    let field_span = field_cloned.span();
                     let field_trivial = !GenericsDetector::detect(&field.ty, &input.generics);
                     let field_ty = &field.ty;
-                    let ob_ident = syn::Ident::new(&format!("u{}", index), field.span());
-                    let value_ident = syn::Ident::new(&format!("v{}", index), field.span());
+                    let ob_ident = syn::Ident::new(&format!("u{}", index), field_span);
+                    let value_ident = syn::Ident::new(&format!("v{}", index), field_span);
                     ob_idents.push(quote! { #ob_ident });
                     value_idents.push(quote! { #value_ident });
                     let segment = format!("{index}");
@@ -231,12 +235,10 @@ pub fn derive_observe_for_enum(
 
     let mut ob_variant_generics = input_generics.clone();
     ob_variant_generics.params.insert(0, parse_quote! { #ob_lt });
-    let (ob_variant_impl_generics, ob_variant_type_generics, _) = ob_variant_generics.split_for_impl();
 
     let mut ob_assignable_generics = input_generics.clone();
     ob_assignable_generics.params.insert(0, parse_quote! { #ob_lt });
     ob_assignable_generics.params.push(parse_quote! { #head });
-    let (ob_assignable_impl_generics, ob_assignable_type_generics, _) = ob_assignable_generics.split_for_impl();
 
     let mut ob_generics = input_generics.clone();
     ob_generics.params.insert(0, parse_quote! { #ob_lt });
@@ -244,17 +246,20 @@ pub fn derive_observe_for_enum(
     ob_generics
         .params
         .push(parse_quote! { #depth = ::morphix::helper::Zero });
+
     let (ob_impl_generics, ob_type_generics, _) = ob_generics.split_for_impl();
+    let (ob_variant_impl_generics, ob_variant_type_generics, _) = ob_variant_generics.split_for_impl();
+    let (ob_assignable_impl_generics, ob_assignable_type_generics, _) = ob_assignable_generics.split_for_impl();
 
     let input_trivial = input.generics.params.is_empty();
-    let input_serialize_predicate = if input_trivial {
+    let input_serialize_predicates = if input_trivial {
         quote! {}
     } else {
         quote! {
             #input_ident #input_type_generics: ::serde::Serialize,
         }
     };
-    let self_serialize_predicate = if input_trivial {
+    let self_serialize_predicates = if input_trivial {
         quote! {}
     } else {
         quote! {
@@ -262,7 +267,10 @@ pub fn derive_observe_for_enum(
         }
     };
 
-    let output = quote! {
+    let derive_idents = &input_meta.derive.0;
+
+    let mut output = quote! {
+        #(#[::std::prelude::v1::#derive_idents()])*
         #input_vis struct #ob_ident #ob_generics
         where
             #(#input_predicates,)*
@@ -399,7 +407,7 @@ pub fn derive_observe_for_enum(
         impl #ob_impl_generics ::morphix::observe::SerializeObserver<#ob_lt>
         for #ob_ident #ob_type_generics
         where
-            #input_serialize_predicate
+            #input_serialize_predicates
             #(#input_predicates,)*
             #(#field_tys: ::morphix::Observe,)*
             #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics> + #ob_lt,
@@ -423,7 +431,7 @@ pub fn derive_observe_for_enum(
         impl #input_impl_generics ::morphix::Observe
         for #input_ident #input_type_generics
         where
-            #self_serialize_predicate
+            #self_serialize_predicates
             #(#input_predicates,)*
             #(#field_tys: ::morphix::Observe,)*
         {
@@ -437,6 +445,28 @@ pub fn derive_observe_for_enum(
             type Spec = ::morphix::observe::DefaultSpec;
         }
     };
+
+    for path in &input_meta.derive.1 {
+        // We just assume what the user wants is one of the standard formatting traits.
+        if FMT_TRAITS.iter().any(|name| path.is_ident(name)) {
+            output.extend(quote! {
+                #[automatically_derived]
+                impl #ob_impl_generics ::std::fmt::#path
+                for #ob_ident #ob_type_generics
+                where
+                    #(#input_predicates,)*
+                    #(#field_tys: ::morphix::Observe,)*
+                    #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics> + #ob_lt,
+                    #depth: ::morphix::helper::Unsigned,
+                {
+                    #[inline]
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        ::std::fmt::#path::fmt(self.as_deref(), f)
+                    }
+                }
+            });
+        }
+    }
 
     quote! {
         const _: () = {

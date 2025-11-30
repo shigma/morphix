@@ -15,6 +15,10 @@ mod r#enum;
 mod meta;
 mod r#struct;
 
+pub const FMT_TRAITS: &[&str] = &[
+    "Binary", "Display", "LowerExp", "LowerHex", "Octal", "Pointer", "UpperExp", "UpperHex",
+];
+
 pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
     let mut errors = quote! {};
     let input_meta = ObserveMeta::parse_attrs(

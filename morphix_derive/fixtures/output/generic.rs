@@ -92,12 +92,12 @@ const _: () = {
     where
         Foo<T>: ::serde::Serialize,
         T: ::morphix::Observe,
+        S: ::morphix::helper::AsDerefMut<N, Target = Foo<T>> + 'ob,
+        N: ::morphix::helper::Unsigned,
         ::morphix::observe::DefaultObserver<
             'ob,
             T,
         >: ::morphix::observe::SerializeObserver<'ob>,
-        S: ::morphix::helper::AsDerefMut<N, Target = Foo<T>> + 'ob,
-        N: ::morphix::helper::Unsigned,
     {
         unsafe fn collect_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
@@ -127,13 +127,13 @@ const _: () = {
     #[automatically_derived]
     impl<T> ::morphix::Observe for Foo<T>
     where
-        T: ::morphix::Observe,
         Self: ::serde::Serialize,
+        T: ::morphix::Observe,
     {
         type Observer<'ob, S, N> = FooObserver<'ob, T, S, N>
         where
-            T: 'ob,
             Self: 'ob,
+            T: 'ob,
             N: ::morphix::helper::Unsigned,
             S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;

@@ -1,3 +1,4 @@
+use ::std::fmt::Display;
 #[allow(unused_imports)]
 use morphix_derive::Observe;
 use serde::Serialize;
@@ -12,6 +13,7 @@ pub enum Foo {
 }
 #[rustfmt::skip]
 const _: () = {
+    #[::std::prelude::v1::derive()]
     pub struct FooObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
         __ptr: ::morphix::observe::ObserverPointer<S>,
         __mutated: bool,
@@ -190,4 +192,25 @@ const _: () = {
             S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
+    #[automatically_derived]
+    impl<'ob, S: ?Sized, N> ::std::fmt::Display for FooObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDerefMut<N, Target = Foo> + 'ob,
+        N: ::morphix::helper::Unsigned,
+    {
+        #[inline]
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            ::std::fmt::Display::fmt(self.as_deref(), f)
+        }
+    }
 };
+impl Display for Foo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Foo::A(a) => write!(f, "Foo::A({})", a),
+            Foo::B(a, b) => write!(f, "Foo::B({}, {})", a, b),
+            Foo::C { bar } => write!(f, "Foo::C {{ bar: {} }}", bar),
+            Foo::D => write!(f, "Foo::D"),
+        }
+    }
+}

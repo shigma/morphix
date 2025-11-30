@@ -6,22 +6,22 @@ use serde::Serialize;
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-pub struct Foo {
+pub struct Foo<T> {
     #[serde(flatten)]
     #[morphix(deref)]
-    a: Qux,
+    a: Vec<T>,
     b: i32,
 }
 
-impl Deref for Foo {
-    type Target = Qux;
+impl<T> Deref for Foo<T> {
+    type Target = Vec<T>;
 
     fn deref(&self) -> &Self::Target {
         &self.a
     }
 }
 
-impl DerefMut for Foo {
+impl<T> DerefMut for Foo<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.a
     }
