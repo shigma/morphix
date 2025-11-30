@@ -140,7 +140,9 @@ const _: () = {
     {
         #[inline]
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            ::std::fmt::Display::fmt(self.as_deref(), f)
+            let head = &**::morphix::observe::Observer::as_ptr(self);
+            let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
+            ::std::fmt::Display::fmt(value, f)
         }
     }
 };

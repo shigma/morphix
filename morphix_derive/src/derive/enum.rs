@@ -8,7 +8,7 @@ use syn::visit::Visit;
 use syn::{parse_quote, parse_quote_spanned};
 
 use crate::derive::meta::{AttributeKind, DeriveKind, GeneralImpl, ObserveMeta};
-use crate::derive::{FMT_TRAITS, GenericsAllocator, GenericsDetector};
+use crate::derive::{FMT_TRAITS, GenericsDetector, GenericsVisitor};
 
 pub fn derive_observe_for_enum(
     input: &syn::DeriveInput,
@@ -22,11 +22,11 @@ pub fn derive_observe_for_enum(
     let ob_variant_ident = format_ident!("{}ObserverVariant", input_ident);
     let input_vis = &input.vis;
 
-    let mut generics_allocator = GenericsAllocator::default();
-    generics_allocator.visit_derive_input(input);
-    let head = generics_allocator.allocate_ty(parse_quote!(S));
-    let depth = generics_allocator.allocate_ty(parse_quote!(N));
-    let ob_lt = generics_allocator.allocate_lt(parse_quote!('ob));
+    let mut generics_visitor = GenericsVisitor::default();
+    generics_visitor.visit_derive_input(input);
+    let head = generics_visitor.allocate_ty(parse_quote!(S));
+    let depth = generics_visitor.allocate_ty(parse_quote!(N));
+    let ob_lt = generics_visitor.allocate_lt(parse_quote!('ob));
 
     let mut ty_variants = quote! {};
     let mut variant_observe_arms = quote! {};

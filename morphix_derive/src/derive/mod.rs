@@ -42,11 +42,11 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
     }) = input_meta.general_impl
     {
         let input_ident = &input.ident;
-        let mut generics_allocator = GenericsAllocator::default();
-        generics_allocator.visit_derive_input(&input);
-        let head = generics_allocator.allocate_ty(parse_quote!(S));
-        let depth = generics_allocator.allocate_ty(parse_quote!(N));
-        let ob_lt = generics_allocator.allocate_lt(parse_quote!('ob));
+        let mut generics_visitor = GenericsVisitor::default();
+        generics_visitor.visit_derive_input(&input);
+        let head = generics_visitor.allocate_ty(parse_quote!(S));
+        let depth = generics_visitor.allocate_ty(parse_quote!(N));
+        let ob_lt = generics_visitor.allocate_lt(parse_quote!('ob));
         let mut where_predicates = match take(&mut input.generics.where_clause) {
             Some(where_clause) => where_clause.predicates,
             None => Default::default(),
@@ -85,12 +85,20 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
 }
 
 #[derive(Default)]
-struct GenericsAllocator<'i> {
+struct GenericsVisitor<'i> {
     ty_idents: HashSet<Cow<'i, syn::Ident>>,
     lt_idents: HashSet<Cow<'i, syn::Ident>>,
 }
 
-impl<'i> GenericsAllocator<'i> {
+impl<'i> GenericsVisitor<'i> {
+    fn contains_ty(&self, ident: &syn::Ident) -> bool {
+        self.ty_idents.contains(&Cow::Borrowed(ident))
+    }
+
+    fn contains_lt(&self, lifetime: &syn::Lifetime) -> bool {
+        self.lt_idents.contains(&Cow::Borrowed(&lifetime.ident))
+    }
+
     fn allocate_ty(&mut self, ident: syn::Ident) -> syn::Ident {
         let mut ident: Cow<'i, syn::Ident> = Cow::Owned(ident);
         while !self.ty_idents.insert(ident.clone()) {
@@ -111,7 +119,7 @@ impl<'i> GenericsAllocator<'i> {
     }
 }
 
-impl<'i, 'ast: 'i> Visit<'ast> for GenericsAllocator<'i> {
+impl<'i, 'ast: 'i> Visit<'ast> for GenericsVisitor<'i> {
     fn visit_path(&mut self, path: &'ast syn::Path) {
         if let Some(ident) = path.get_ident() {
             self.ty_idents.insert(Cow::Borrowed(ident));
