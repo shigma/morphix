@@ -1,11 +1,14 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
+use crate::observe::{
+    DefaultSpec, HashObserver, HashSpec, Observer, ObserverPointer, SerializeObserver, SnapshotObserver, SnapshotSpec,
+};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
 /// Observer implementation for [`Option`].
@@ -214,8 +217,7 @@ where
 }
 
 /// Helper trait for selecting appropriate observer implementations for [`Option<T>`].
-#[doc(hidden)]
-pub trait OptionObserveImpl<Spec> {
+trait OptionObserveImpl<Spec> {
     /// The observer type for [`Option<T>`] with the given specification.
     type Observer<'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
     where
@@ -230,6 +232,30 @@ where
 {
     type Observer<'ob, S, D>
         = OptionObserver<'ob, T::Observer<'ob, T, Zero>, S, D>
+    where
+        T: 'ob,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
+}
+
+impl<T> OptionObserveImpl<HashSpec> for T
+where
+    T: Hash + Observe<Spec = HashSpec>,
+{
+    type Observer<'ob, S, D>
+        = HashObserver<'ob, S, D>
+    where
+        T: 'ob,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
+}
+
+impl<T> OptionObserveImpl<SnapshotSpec> for T
+where
+    T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
+{
+    type Observer<'ob, S, D>
+        = SnapshotObserver<'ob, S, D>
     where
         T: 'ob,
         D: Unsigned,

@@ -1,10 +1,8 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 
-use crate::Observe;
 use crate::helper::Zero;
-use crate::impls::option::OptionObserveImpl;
-use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
+use crate::observe::{DebugHandler, GeneralHandler, GeneralObserver};
 
 /// A general observer that uses hash comparison to detect changes.
 ///
@@ -92,15 +90,3 @@ impl<T: Hash, H: Hasher + Default> DebugHandler<T> for HashHandler<H> {
 /// used as the [`Spec`](crate::Observe::Spec) for a type `T`, it affects certain wrapper
 /// type observations, such as [`Option<T>`].
 pub struct HashSpec;
-
-impl<T> OptionObserveImpl<HashSpec> for T
-where
-    T: Hash + Observe<Spec = HashSpec>,
-{
-    type Observer<'ob, S, D>
-        = HashObserver<'ob, S, D>
-    where
-        T: 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
-}

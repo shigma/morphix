@@ -2,7 +2,6 @@ use std::mem::MaybeUninit;
 
 use crate::Observe;
 use crate::helper::{AsDeref, Zero};
-use crate::impls::option::OptionObserveImpl;
 use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
@@ -117,16 +116,4 @@ impl_observe! {
     ::core::net::IpAddr, ::core::net::Ipv4Addr, ::core::net::Ipv6Addr,
     ::core::net::SocketAddr, ::core::net::SocketAddrV4, ::core::net::SocketAddrV6,
     ::core::time::Duration, ::std::time::SystemTime,
-}
-
-impl<T> OptionObserveImpl<SnapshotSpec> for T
-where
-    T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
-{
-    type Observer<'ob, S, D>
-        = SnapshotObserver<'ob, S, D>
-    where
-        T: 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
 }
