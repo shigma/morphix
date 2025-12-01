@@ -21,7 +21,7 @@ pub const FMT_TRAITS: &[&str] = &[
 
 pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
     let mut errors = quote! {};
-    let input_meta = ObserveMeta::parse_attrs(
+    let mut input_meta = ObserveMeta::parse_attrs(
         &input.attrs,
         &mut errors,
         AttributeKind::Item,
@@ -33,6 +33,19 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
     );
     if !errors.is_empty() {
         return errors;
+    }
+
+    if input_meta.general_impl.is_none() {
+        // no collapse
+        if let syn::Data::Struct(syn::DataStruct { fields, .. }) = &input.data
+            && fields.is_empty()
+        {
+            input_meta.general_impl = Some(GeneralImpl {
+                ob_ident: format_ident!("NoopObserver"),
+                spec_ident: format_ident!("DefaultSpec"),
+                bounds: Default::default(),
+            });
+        }
     }
 
     if let Some(GeneralImpl {

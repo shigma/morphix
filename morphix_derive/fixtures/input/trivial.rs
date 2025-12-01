@@ -15,3 +15,7 @@ pub struct Foo<T> {
 pub struct Bar<T> {
     a: T,
 }
+
+#[rustfmt::skip]
+#[derive(Serialize, Observe)]
+pub struct NoopStruct {}

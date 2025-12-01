@@ -38,3 +38,18 @@ const _: () = {
         type Spec = ::morphix::observe::SnapshotSpec;
     }
 };
+#[rustfmt::skip]
+#[derive(Serialize)]
+pub struct NoopStruct {}
+#[rustfmt::skip]
+const _: () = {
+    #[automatically_derived]
+    impl ::morphix::Observe for NoopStruct {
+        type Observer<'ob, S, N> = ::morphix::observe::NoopObserver<'ob, S, N>
+        where
+            Self: 'ob,
+            N: ::morphix::helper::Unsigned,
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+        type Spec = ::morphix::observe::DefaultSpec;
+    }
+};
