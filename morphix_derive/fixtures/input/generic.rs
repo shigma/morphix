@@ -10,6 +10,7 @@ pub struct Foo<'i, T, const N: usize> {
     a: &'i mut [T; N],
 }
 
+#[rustfmt::skip]
 fn serialize_mut_array<T, S, const N: usize>(a: &&mut [T; N], serializer: S) -> Result<S::Ok, S::Error>
 where
     T: Serialize,

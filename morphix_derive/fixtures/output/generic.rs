@@ -151,7 +151,11 @@ const _: () = {
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };
-fn serialize_mut_array<T, S, const N: usize>(a: &&mut [T; N], serializer: S) -> Result<S::Ok, S::Error>
+#[rustfmt::skip]
+fn serialize_mut_array<T, S, const N: usize>(
+    a: &&mut [T; N],
+    serializer: S,
+) -> Result<S::Ok, S::Error>
 where
     T: Serialize,
     S: serde::Serializer,

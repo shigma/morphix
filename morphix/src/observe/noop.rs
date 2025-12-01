@@ -1,4 +1,5 @@
-use crate::helper::Zero;
+use crate::Observe;
+use crate::helper::{AsDerefMut, Unsigned, Zero};
 use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver};
 
 /// A general observer that never reports changes.
@@ -50,4 +51,15 @@ impl<T> GeneralHandler<T> for NoopHandler {
 
 impl<T> DebugHandler<T> for NoopHandler {
     const NAME: &'static str = "NoopObserver";
+}
+
+impl Observe for () {
+    type Observer<'ob, S, D>
+        = NoopObserver<'ob, S, D>
+    where
+        Self: 'ob,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+    type Spec = DefaultSpec;
 }

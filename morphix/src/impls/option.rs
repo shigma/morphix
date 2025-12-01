@@ -217,7 +217,7 @@ where
 }
 
 /// Helper trait for selecting appropriate observer implementations for [`Option<T>`].
-trait OptionObserveImpl<Spec> {
+pub trait OptionObserveImpl<Spec> {
     /// The observer type for [`Option<T>`] with the given specification.
     type Observer<'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
     where
