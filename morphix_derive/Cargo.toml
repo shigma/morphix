@@ -17,7 +17,7 @@ default = []
 proc-macro = true
 
 [[test]]
-name = "input"
+name = "fixtures"
 path = "fixtures/mod.rs"
 
 [dependencies]

@@ -4,6 +4,16 @@ use serde::Serialize;
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-pub struct Foo<T> {
-    a: T,
+#[serde(bound = "T: Serialize")]
+pub struct Foo<'i, T, const N: usize> {
+    #[serde(serialize_with = "serialize_mut_array")]
+    a: &'i mut [T; N],
+}
+
+fn serialize_mut_array<T, S, const N: usize>(a: &&mut [T; N], serializer: S) -> Result<S::Ok, S::Error>
+where
+    T: Serialize,
+    S: serde::Serializer,
+{
+    <[_]>::serialize(&**a, serializer)
 }
