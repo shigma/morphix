@@ -57,6 +57,7 @@ mod general;
 mod hash;
 mod noop;
 mod pointer;
+mod r#ref;
 mod shallow;
 mod snapshot;
 
@@ -64,6 +65,7 @@ pub use general::{DebugHandler, GeneralHandler, GeneralObserver};
 pub use hash::{HashObserver, HashSpec};
 pub use noop::NoopObserver;
 pub use pointer::ObserverPointer;
+pub use r#ref::RefObserve;
 pub use shallow::ShallowObserver;
 pub use snapshot::{SnapshotObserver, SnapshotSpec};
 
