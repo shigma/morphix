@@ -54,6 +54,7 @@ use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Succ, Unsigned, 
 use crate::{Adapter, Mutation};
 
 mod general;
+#[cfg(feature = "hash")]
 mod hash;
 mod noop;
 mod pointer;
@@ -62,10 +63,11 @@ mod shallow;
 mod snapshot;
 
 pub use general::{DebugHandler, GeneralHandler, GeneralObserver};
+#[cfg(feature = "hash")]
 pub use hash::{HashObserver, HashSpec};
 pub use noop::NoopObserver;
 pub use pointer::ObserverPointer;
-pub use r#ref::RefObserve;
+pub use r#ref::{RefObserve, RefObserver};
 pub use shallow::ShallowObserver;
 pub use snapshot::{SnapshotObserver, SnapshotSpec};
 

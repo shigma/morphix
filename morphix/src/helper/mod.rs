@@ -29,8 +29,8 @@ pub use unsigned::{Succ, Unsigned, Zero};
 ///
 /// Rust doesn't allow overloading the assignment operator (`=`). This creates a problem for
 /// observers: when you write `observer.field = value`, you want to assign to the observed field,
-/// not replace the observer itself. While [`DerefMut`](std::ops::DerefMut) handles most operations,
-/// it doesn't work for direct assignment due to Rust's assignment semantics.
+/// not replace the observer itself. While [`DerefMut`] handles most operations, it doesn't work for
+/// direct assignment due to Rust's assignment semantics.
 ///
 /// ## Autoref-based Specialization
 ///
@@ -68,9 +68,9 @@ pub use unsigned::{Succ, Unsigned, Zero};
 ///
 /// 2. **Do not implement `Assignable` for types other than `&mut T` and
 ///    [`Observer`](crate::observe::Observer) types**. Implementing `Assignable` for other
-///    [`DerefMut`](std::ops::DerefMut) types (like [`Box`], [`MutexGuard`](std::sync::MutexGuard),
-///    etc.) may cause unexpected behavior in the [`observe!`](crate::observe!) macro, as it would
-///    interfere with the autoref-based specialization mechanism.
+///    [`DerefMut`] types (like [`Box`], [`MutexGuard`](std::sync::MutexGuard), etc.) may cause
+///    unexpected behavior in the [`observe!`](crate::observe!) macro, as it would interfere with
+///    the autoref-based specialization mechanism.
 ///
 /// ## Example
 ///

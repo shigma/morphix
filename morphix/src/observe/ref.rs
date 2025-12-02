@@ -1,10 +1,6 @@
-use std::hash::Hash;
-
 use crate::Observe;
 use crate::helper::{AsDeref, AsDerefMut, Succ, Unsigned};
-use crate::observe::{
-    DefaultSpec, GeneralHandler, GeneralObserver, HashObserver, HashSpec, Observer, SnapshotObserver, SnapshotSpec,
-};
+use crate::observe::{DefaultSpec, GeneralHandler, GeneralObserver, Observer, SnapshotObserver, SnapshotSpec};
 
 /// A general observer implementation for reference types.
 ///
@@ -88,6 +84,7 @@ where
     type Spec = T::Spec;
 }
 
+/// Helper trait for selecting appropriate observer implementations for `&&T`.
 pub trait RefObserveImpl<'b, Spec> {
     type Observer<'a, 'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
     where
@@ -123,18 +120,25 @@ where
         S: AsDerefMut<D, Target = &'a &'b Self> + ?Sized + 'ob;
 }
 
-impl<'b, T: ?Sized> RefObserveImpl<'b, HashSpec> for T
-where
-    T: Hash + RefObserve<Spec = HashSpec>,
-{
-    type Observer<'a, 'ob, S, D>
-        = HashObserver<'ob, S, D>
+#[cfg(feature = "hash")]
+const _: () = {
+    use std::hash::Hash;
+
+    use crate::observe::{HashObserver, HashSpec};
+
+    impl<'b, T: ?Sized> RefObserveImpl<'b, HashSpec> for T
     where
-        Self: 'b + 'ob,
-        'b: 'a,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = &'a &'b Self> + ?Sized + 'ob;
-}
+        T: Hash + RefObserve<Spec = HashSpec>,
+    {
+        type Observer<'a, 'ob, S, D>
+            = HashObserver<'ob, S, D>
+        where
+            Self: 'b + 'ob,
+            'b: 'a,
+            D: Unsigned,
+            S: AsDerefMut<D, Target = &'a &'b Self> + ?Sized + 'ob;
+    }
+};
 
 pub struct RefHandler<'a, T: ?Sized> {
     ptr: Option<&'a T>,

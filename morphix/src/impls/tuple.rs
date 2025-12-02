@@ -1,4 +1,3 @@
-use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
@@ -6,7 +5,7 @@ use serde::Serialize;
 
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::observe::{
-    DefaultSpec, HashObserver, HashSpec, Observer, ObserverPointer, SerializeObserver, SnapshotObserver, SnapshotSpec,
+    DefaultSpec, Observer, ObserverPointer, RefObserver, SerializeObserver, SnapshotObserver, SnapshotSpec,
 };
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
@@ -119,14 +118,19 @@ where
     type Spec = T::Spec;
 }
 
-/// Helper trait for selecting appropriate observer implementations for [`Option<T>`].
+/// Helper trait for selecting appropriate observer implementations for `(T,)`.
 pub trait TupleObserveImpl<Spec> {
-    /// The observer type for [`Option<T>`] with the given specification.
     type Observer<'ob, S, N>: Observer<'ob, Head = S, InnerDepth = N>
     where
         Self: 'ob,
         N: Unsigned,
         S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
+
+    type RefObserver<'a, 'ob, S, N>: Observer<'ob, Head = S, InnerDepth = N>
+    where
+        Self: 'a + 'ob,
+        N: Unsigned,
+        S: AsDerefMut<N, Target = &'a (Self,)> + ?Sized + 'ob;
 }
 
 impl<T> TupleObserveImpl<DefaultSpec> for T
@@ -139,19 +143,40 @@ where
         T: 'ob,
         N: Unsigned,
         S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
+
+    type RefObserver<'a, 'ob, S, N>
+        = RefObserver<'a, 'ob, S, N>
+    where
+        Self: 'a + 'ob,
+        N: Unsigned,
+        S: AsDerefMut<N, Target = &'a (Self,)> + ?Sized + 'ob;
 }
 
-impl<T> TupleObserveImpl<HashSpec> for T
-where
-    T: Hash + Observe<Spec = HashSpec>,
-{
-    type Observer<'ob, S, N>
-        = HashObserver<'ob, S, N>
+#[cfg(feature = "hash")]
+const _: () = {
+    use std::hash::Hash;
+
+    use crate::observe::{HashObserver, HashSpec};
+
+    impl<T> TupleObserveImpl<HashSpec> for T
     where
-        Self: 'ob,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
-}
+        T: Hash + Observe<Spec = HashSpec>,
+    {
+        type Observer<'ob, S, N>
+            = HashObserver<'ob, S, N>
+        where
+            Self: 'ob,
+            N: Unsigned,
+            S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
+
+        type RefObserver<'a, 'ob, S, N>
+            = HashObserver<'ob, S, N>
+        where
+            Self: 'a + 'ob,
+            N: Unsigned,
+            S: AsDerefMut<N, Target = &'a (Self,)> + ?Sized + 'ob;
+    }
+};
 
 impl<T> TupleObserveImpl<SnapshotSpec> for T
 where
@@ -163,6 +188,13 @@ where
         Self: 'ob,
         N: Unsigned,
         S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
+
+    type RefObserver<'a, 'ob, S, N>
+        = SnapshotObserver<'ob, S, N>
+    where
+        Self: 'a + 'ob,
+        N: Unsigned,
+        S: AsDerefMut<N, Target = &'a (Self,)> + ?Sized + 'ob;
 }
 
 macro_rules! tuple_observer {

@@ -35,7 +35,7 @@ pub trait Adapter: Sized {
     /// Serializes a value into the adapter's Value type.
     fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error>;
 
-    /// Applies a [Mutation](crate::Mutation) to an existing value.
+    /// Applies a [Mutation] to an existing value.
     fn apply_mutation(
         old_value: &mut Self::Value,
         mutation: Mutation<Self::Value>,

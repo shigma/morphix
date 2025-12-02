@@ -13,9 +13,13 @@ documentation = "https://docs.rs/morphix"
 [features]
 default = ["derive"]
 derive = ["dep:morphix_derive"]
-full = ["derive", "json", "yaml"]
+full = ["derive", "hash", "json", "yaml"]
+hash = []
 json = ["dep:serde_json"]
 yaml = ["dep:serde_yaml_ng"]
+
+[package.metadata.docs.rs]
+all-features = true
 
 [dependencies]
 morphix_derive = { version = "0.11.2", path = "../morphix_derive", optional = true }
