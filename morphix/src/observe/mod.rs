@@ -185,7 +185,7 @@ where
     type OuterDepth: Unsigned;
 
     /// The head type of the dereference chain.
-    type Head: AsDerefMut<Self::InnerDepth> + ?Sized + 'ob;
+    type Head: AsDeref<Self::InnerDepth> + ?Sized + 'ob;
 
     /// Creates an uninitialized observer.
     ///
@@ -352,6 +352,7 @@ where
     fn as_inner<'i>(this: &Self) -> &'i mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
     where
         'ob: 'i,
+        Self::Head: AsDerefMut<Self::InnerDepth>,
     {
         let head = unsafe { ObserverPointer::as_mut(Self::as_ptr(this)) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
@@ -391,6 +392,7 @@ where
     fn track_inner<'i>(this: &mut Self) -> &'i mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
     where
         'ob: 'i,
+        Self::Head: AsDerefMut<Self::InnerDepth>,
     {
         let head = unsafe { ObserverPointer::as_mut(this.as_deref_mut_coinductive()) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)

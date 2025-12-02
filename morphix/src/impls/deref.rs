@@ -42,7 +42,7 @@ where
 impl<'ob, O, D> Observer<'ob> for DerefObserver<'ob, O>
 where
     O: Observer<'ob, InnerDepth = Succ<D>>,
-    O::Head: AsDerefMut<D>,
+    O::Head: AsDeref<D>,
     D: Unsigned,
 {
     type OuterDepth = Succ<O::OuterDepth>;
@@ -74,7 +74,7 @@ where
 impl<'ob, O, D> SerializeObserver<'ob> for DerefObserver<'ob, O>
 where
     O: SerializeObserver<'ob, InnerDepth = Succ<D>>,
-    O::Head: AsDerefMut<D>,
+    O::Head: AsDeref<D>,
     D: Unsigned,
 {
     #[inline]
@@ -123,7 +123,7 @@ where
 impl<'ob, O, D, T: ?Sized, U: ?Sized> PartialEq<U> for DerefObserver<'ob, O>
 where
     O: Observer<'ob, InnerDepth = Succ<D>>,
-    O::Head: AsDerefMut<D, Target = T>,
+    O::Head: AsDeref<D, Target = T>,
     D: Unsigned,
     T: PartialEq<U>,
 {
@@ -136,7 +136,7 @@ where
 impl<'ob, O, D, T: ?Sized, U: ?Sized> PartialOrd<U> for DerefObserver<'ob, O>
 where
     O: Observer<'ob, InnerDepth = Succ<D>>,
-    O::Head: AsDerefMut<D, Target = T>,
+    O::Head: AsDeref<D, Target = T>,
     D: Unsigned,
     T: PartialOrd<U>,
 {
@@ -146,12 +146,12 @@ where
     }
 }
 
-impl<U> Observe for Box<U>
+impl<T> Observe for Box<T>
 where
-    U: Observe,
+    T: Observe,
 {
     type Observer<'ob, S, D>
-        = DerefObserver<'ob, U::Observer<'ob, S, Succ<D>>>
+        = DerefObserver<'ob, T::Observer<'ob, S, Succ<D>>>
     where
         Self: 'ob,
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob,
@@ -160,12 +160,12 @@ where
     type Spec = DefaultSpec;
 }
 
-impl<U> Observe for &mut U
+impl<T> Observe for &mut T
 where
-    U: Observe,
+    T: Observe,
 {
     type Observer<'ob, S, D>
-        = DerefObserver<'ob, U::Observer<'ob, S, Succ<D>>>
+        = DerefObserver<'ob, T::Observer<'ob, S, Succ<D>>>
     where
         Self: 'ob,
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob,
