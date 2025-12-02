@@ -262,7 +262,8 @@ pub fn derive_observe_for_struct_fields(
         ob_generics.params.push(parse_quote! { #inner });
         ob_assignable_generics = ob_generics.clone();
         ob_assignable_predicates = quote! {
-            #inner: ::morphix::observe::Observer<#ob_lt>,
+            #inner: ::morphix::observe::Observer<#ob_lt, InnerDepth = ::morphix::helper::Succ<::morphix::helper::Zero>>,
+            #inner::Head: Sized,
         };
         ob_observer_generics.params.insert(0, parse_quote! { #ob_lt });
         ob_observer_generics.params.push(parse_quote! { #inner });
@@ -284,7 +285,7 @@ pub fn derive_observe_for_struct_fields(
         deref_expr = quote! { self.#field_ident };
 
         assignable_impl = quote! {
-            type Depth = ::morphix::helper::Succ<#inner::OuterDepth>;
+            type Depth = ::morphix::helper::Succ<::morphix::helper::Succ<#inner::OuterDepth>>;
         };
 
         observer_impl = quote! {

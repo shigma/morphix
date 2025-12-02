@@ -32,9 +32,13 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, O> ::morphix::helper::Assignable for FooObserver<'ob, O>
     where
-        O: ::morphix::observe::Observer<'ob>,
+        O: ::morphix::observe::Observer<
+            'ob,
+            InnerDepth = ::morphix::helper::Succ<::morphix::helper::Zero>,
+        >,
+        O::Head: Sized,
     {
-        type Depth = ::morphix::helper::Succ<O::OuterDepth>;
+        type Depth = ::morphix::helper::Succ<::morphix::helper::Succ<O::OuterDepth>>;
     }
     #[automatically_derived]
     impl<'ob, T, O, N> ::morphix::observe::Observer<'ob> for FooObserver<'ob, O>
@@ -166,9 +170,13 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, O> ::morphix::helper::Assignable for BarObserver<'ob, O>
     where
-        O: ::morphix::observe::Observer<'ob>,
+        O: ::morphix::observe::Observer<
+            'ob,
+            InnerDepth = ::morphix::helper::Succ<::morphix::helper::Zero>,
+        >,
+        O::Head: Sized,
     {
-        type Depth = ::morphix::helper::Succ<O::OuterDepth>;
+        type Depth = ::morphix::helper::Succ<::morphix::helper::Succ<O::OuterDepth>>;
     }
     #[automatically_derived]
     impl<'ob, O, N> ::morphix::observe::Observer<'ob> for BarObserver<'ob, O>

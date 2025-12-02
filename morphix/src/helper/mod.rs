@@ -18,6 +18,8 @@
 pub mod deref;
 pub mod unsigned;
 
+use std::ops::{Deref, DerefMut};
+
 pub use deref::{AsDeref, AsDerefCoinductive, AsDerefMut, AsDerefMutCoinductive};
 pub use unsigned::{Succ, Unsigned, Zero};
 
@@ -89,7 +91,7 @@ pub use unsigned::{Succ, Unsigned, Zero};
 ///     type Depth = Zero;
 /// }
 /// ```
-pub trait Assignable: AsDerefMutCoinductive<Succ<Self::Depth>, Target: Sized> {
+pub trait Assignable: AsDerefMutCoinductive<Self::Depth, Target: DerefMut<Target: Sized>> {
     type Depth: Unsigned;
 
     /// Internal method for assignment operations.
@@ -97,8 +99,8 @@ pub trait Assignable: AsDerefMutCoinductive<Succ<Self::Depth>, Target: Sized> {
     /// This method is automatically used by the [`observe!`](crate::observe) macro.
     #[doc(hidden)]
     #[inline]
-    fn __assign(&mut self, value: Self::Target) {
-        *self.as_deref_mut_coinductive() = value;
+    fn __assign(&mut self, value: <Self::Target as Deref>::Target) {
+        **self.as_deref_mut_coinductive() = value;
     }
 }
 

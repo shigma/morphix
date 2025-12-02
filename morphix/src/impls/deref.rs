@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
-use crate::helper::{AsDeref, AsDerefMut, Assignable, Succ, Unsigned};
+use crate::helper::{AsDeref, AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
@@ -33,9 +33,10 @@ impl<'ob, O> DerefMut for DerefObserver<'ob, O> {
 
 impl<'ob, O> Assignable for DerefObserver<'ob, O>
 where
-    O: Observer<'ob>,
+    O: Observer<'ob, InnerDepth = Succ<Zero>>,
+    O::Head: Sized,
 {
-    type Depth = Succ<O::OuterDepth>;
+    type Depth = Succ<Succ<O::OuterDepth>>;
 }
 
 impl<'ob, O, D> Observer<'ob> for DerefObserver<'ob, O>
@@ -171,4 +172,46 @@ where
         D: Unsigned;
 
     type Spec = DefaultSpec;
+}
+
+#[cfg(test)]
+mod test {
+    use serde_json::json;
+
+    use crate::MutationKind;
+    use crate::adapter::Json;
+    use crate::observe::{ObserveExt, SerializeObserverExt};
+
+    #[test]
+    fn test_deref_method() {
+        let mut value = Box::new(String::from("Hello, World!"));
+        let mut ob = value.__observe();
+        assert_eq!(*ob, "Hello, World!");
+
+        ob.push_str("\n");
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!("\n")));
+    }
+
+    #[test]
+    fn test_deref_replace() {
+        let mut value = Box::new(String::from("Hello, World!"));
+        let mut ob = value.__observe();
+        assert_eq!(*ob, "Hello, World!");
+
+        ****ob = String::from("42");
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("42")));
+    }
+
+    #[test]
+    fn test_deref_assign() {
+        let mut value = Box::new(String::from("Hello, World!"));
+        let mut ob = value.__observe();
+        assert_eq!(*ob, "Hello, World!");
+
+        ****ob = String::from("42");
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("42")));
+    }
 }
