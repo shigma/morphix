@@ -64,6 +64,7 @@ mod snapshot;
 
 pub use general::{DebugHandler, GeneralHandler, GeneralObserver};
 #[cfg(feature = "hash")]
+#[cfg_attr(docsrs, doc(cfg(feature = "hash")))]
 pub use hash::{HashObserver, HashSpec};
 pub use noop::NoopObserver;
 pub use pointer::ObserverPointer;

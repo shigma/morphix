@@ -8,8 +8,10 @@ mod json;
 mod yaml;
 
 #[cfg(feature = "json")]
+#[cfg_attr(docsrs, doc(cfg(feature = "json")))]
 pub use json::Json;
 #[cfg(feature = "yaml")]
+#[cfg_attr(docsrs, doc(cfg(feature = "yaml")))]
 pub use yaml::Yaml;
 
 /// Trait for adapting mutations to different serialization formats.
