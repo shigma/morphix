@@ -68,6 +68,7 @@ pub use general::{DebugHandler, GeneralHandler, GeneralObserver};
 pub use hash::{HashObserver, HashSpec};
 pub use noop::NoopObserver;
 pub use pointer::ObserverPointer;
+pub(crate) use r#ref::spec_impl_ref_observe;
 pub use r#ref::{RefObserve, RefObserver};
 pub use shallow::ShallowObserver;
 pub use snapshot::{SnapshotObserver, SnapshotSpec};

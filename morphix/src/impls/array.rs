@@ -7,7 +7,7 @@ use serde::Serialize;
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceIndexImpl, SliceObserver};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
-use crate::{Adapter, Mutation, Observe};
+use crate::{Adapter, Mutation, Observe, spec_impl_ref_observe};
 
 /// Observer implementation for [array](core::array).
 ///
@@ -188,4 +188,11 @@ impl<T: Observe, const N: usize> Observe for [T; N] {
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
+}
+
+spec_impl_ref_observe! {
+    ArrayRefObserveImpl,
+    [Self; LEN],
+    [T; LEN],
+    const LEN: usize,
 }

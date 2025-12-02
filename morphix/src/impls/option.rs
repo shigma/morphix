@@ -5,10 +5,8 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
-use crate::observe::{
-    DefaultSpec, Observer, ObserverPointer, RefObserver, SerializeObserver, SnapshotObserver, SnapshotSpec,
-};
-use crate::{Adapter, Mutation, MutationKind, Observe};
+use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver, SnapshotObserver, SnapshotSpec};
+use crate::{Adapter, Mutation, MutationKind, Observe, spec_impl_ref_observe};
 
 /// Observer implementation for [`Option`].
 ///
@@ -215,6 +213,8 @@ where
     type Spec = T::Spec;
 }
 
+spec_impl_ref_observe!(OptionRefObserveImpl, Option<Self>, Option<T>);
+
 /// Helper trait for selecting appropriate observer implementations for [`Option<T>`].
 pub trait OptionObserveImpl<Spec> {
     type Observer<'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
@@ -222,12 +222,6 @@ pub trait OptionObserveImpl<Spec> {
         Self: 'ob,
         D: Unsigned,
         S: AsDerefMut<D, Target = Option<Self>> + ?Sized + 'ob;
-
-    type RefObserver<'a, 'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
-    where
-        Self: 'a + 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = &'a Option<Self>> + ?Sized + 'ob;
 }
 
 impl<T> OptionObserveImpl<DefaultSpec> for T
@@ -240,13 +234,6 @@ where
         Self: 'ob,
         D: Unsigned,
         S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
-
-    type RefObserver<'a, 'ob, S, D>
-        = RefObserver<'a, 'ob, S, D>
-    where
-        Self: 'a + 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = &'a Option<T>> + ?Sized + 'ob;
 }
 
 #[cfg(feature = "hash")]
@@ -265,13 +252,6 @@ const _: () = {
             T: 'ob,
             D: Unsigned,
             S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
-
-        type RefObserver<'a, 'ob, S, D>
-            = HashObserver<'ob, S, D>
-        where
-            Self: 'a + 'ob,
-            D: Unsigned,
-            S: AsDerefMut<D, Target = &'a Option<T>> + ?Sized + 'ob;
     }
 };
 
@@ -285,13 +265,6 @@ where
         T: 'ob,
         D: Unsigned,
         S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
-
-    type RefObserver<'a, 'ob, S, D>
-        = SnapshotObserver<'ob, S, D>
-    where
-        Self: 'a + 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = &'a Option<T>> + ?Sized + 'ob;
 }
 
 #[cfg(test)]

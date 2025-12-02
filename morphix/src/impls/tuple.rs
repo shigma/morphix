@@ -4,10 +4,8 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
-use crate::observe::{
-    DefaultSpec, Observer, ObserverPointer, RefObserver, SerializeObserver, SnapshotObserver, SnapshotSpec,
-};
-use crate::{Adapter, Mutation, MutationKind, Observe};
+use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver, SnapshotObserver, SnapshotSpec};
+use crate::{Adapter, Mutation, MutationKind, Observe, spec_impl_ref_observe};
 
 pub struct TupleObserver<'ob, O, S: ?Sized, N = Zero> {
     ptr: ObserverPointer<S>,
@@ -118,6 +116,8 @@ where
     type Spec = T::Spec;
 }
 
+spec_impl_ref_observe!(TupleRefObserveImpl, (Self,), (T,));
+
 /// Helper trait for selecting appropriate observer implementations for `(T,)`.
 pub trait TupleObserveImpl<Spec> {
     type Observer<'ob, S, N>: Observer<'ob, Head = S, InnerDepth = N>
@@ -125,12 +125,6 @@ pub trait TupleObserveImpl<Spec> {
         Self: 'ob,
         N: Unsigned,
         S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
-
-    type RefObserver<'a, 'ob, S, N>: Observer<'ob, Head = S, InnerDepth = N>
-    where
-        Self: 'a + 'ob,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = &'a (Self,)> + ?Sized + 'ob;
 }
 
 impl<T> TupleObserveImpl<DefaultSpec> for T
@@ -143,13 +137,6 @@ where
         T: 'ob,
         N: Unsigned,
         S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
-
-    type RefObserver<'a, 'ob, S, N>
-        = RefObserver<'a, 'ob, S, N>
-    where
-        Self: 'a + 'ob,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = &'a (Self,)> + ?Sized + 'ob;
 }
 
 #[cfg(feature = "hash")]
@@ -168,13 +155,6 @@ const _: () = {
             Self: 'ob,
             N: Unsigned,
             S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
-
-        type RefObserver<'a, 'ob, S, N>
-            = HashObserver<'ob, S, N>
-        where
-            Self: 'a + 'ob,
-            N: Unsigned,
-            S: AsDerefMut<N, Target = &'a (Self,)> + ?Sized + 'ob;
     }
 };
 
@@ -188,13 +168,6 @@ where
         Self: 'ob,
         N: Unsigned,
         S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
-
-    type RefObserver<'a, 'ob, S, N>
-        = SnapshotObserver<'ob, S, N>
-    where
-        Self: 'a + 'ob,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = &'a (Self,)> + ?Sized + 'ob;
 }
 
 macro_rules! tuple_observer {
