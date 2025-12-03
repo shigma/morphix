@@ -298,6 +298,51 @@ mod test {
     }
 
     #[test]
+    fn apply_truncate() {
+        let mut value = json!("Hello, World!");
+        Json::mutate(
+            &mut value,
+            Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Truncate(8),
+            },
+            &mut Default::default(),
+        )
+        .unwrap();
+        assert_eq!(value, json!("Hello"));
+
+        let mut value = json!("我是谁");
+        Json::mutate(
+            &mut value,
+            Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Truncate(2),
+            },
+            &mut Default::default(),
+        )
+        .unwrap();
+        assert_eq!(value, json!("我"));
+
+        let error = Json::mutate(
+            &mut json!("Hello, World!"),
+            Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Truncate(20),
+            },
+            &mut Default::default(),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error,
+            MutationError::TruncateError {
+                path: vec![].into(),
+                actual_len: 13,
+                truncate_len: 20,
+            }
+        );
+    }
+
+    #[test]
     fn apply_batch() {
         let mut value = json!({"a": {"b": {"c": {}}}});
         Json::mutate(

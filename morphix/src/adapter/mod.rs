@@ -157,7 +157,7 @@ pub trait Adapter: Sized {
                 if remaining > 0 {
                     return Err(MutationError::TruncateError {
                         path: take(path_stack),
-                        actual_len: remaining + truncate_len,
+                        actual_len: truncate_len - remaining,
                         truncate_len,
                     });
                 }
