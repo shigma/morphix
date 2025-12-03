@@ -19,5 +19,4 @@ pub use error::MutationError;
 pub use morphix_derive::{Observe, observe};
 pub use mutation::{Mutation, MutationKind};
 pub use observe::Observe;
-pub(crate) use observe::spec_impl_ref_observe;
 pub use path::{Path, PathSegment};

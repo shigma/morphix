@@ -72,10 +72,10 @@ where
 
 impl<'b, T: ?Sized> RefObserve for &'b T
 where
-    T: RefObserve + RefObserveImpl<'b, T::Spec>,
+    T: RefObserve + RefObserveImpl<T::Spec>,
 {
     type Observer<'a, 'ob, S, D>
-        = <T as RefObserveImpl<'b, T::Spec>>::Observer<'a, 'ob, S, D>
+        = <T as RefObserveImpl<T::Spec>>::Observer<'a, 'b, 'ob, S, D>
     where
         Self: 'a + 'ob,
         D: Unsigned,
@@ -85,8 +85,8 @@ where
 }
 
 /// Helper trait for selecting appropriate observer implementations for `&&T`.
-pub trait RefObserveImpl<'b, Spec> {
-    type Observer<'a, 'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
+pub trait RefObserveImpl<Spec> {
+    type Observer<'a, 'b, 'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
     where
         Self: 'b + 'ob,
         'b: 'a,
@@ -94,11 +94,11 @@ pub trait RefObserveImpl<'b, Spec> {
         S: AsDerefMut<D, Target = &'a &'b Self> + ?Sized + 'ob;
 }
 
-impl<'b, T: ?Sized> RefObserveImpl<'b, DefaultSpec> for T
+impl<T: ?Sized> RefObserveImpl<DefaultSpec> for T
 where
     T: RefObserve<Spec = DefaultSpec>,
 {
-    type Observer<'a, 'ob, S, D>
+    type Observer<'a, 'b, 'ob, S, D>
         = RefObserver<'a, 'ob, S, D>
     where
         Self: 'b + 'ob,
@@ -107,11 +107,11 @@ where
         S: AsDerefMut<D, Target = &'a &'b Self> + ?Sized + 'ob;
 }
 
-impl<'b, T: ?Sized> RefObserveImpl<'b, SnapshotSpec> for T
+impl<T: ?Sized> RefObserveImpl<SnapshotSpec> for T
 where
     T: PartialEq + RefObserve<Spec = SnapshotSpec>,
 {
-    type Observer<'a, 'ob, S, D>
+    type Observer<'a, 'b, 'ob, S, D>
         = SnapshotObserver<'ob, S, D>
     where
         Self: 'b + 'ob,
@@ -126,11 +126,11 @@ const _: () = {
 
     use crate::observe::{HashObserver, HashSpec};
 
-    impl<'b, T: ?Sized> RefObserveImpl<'b, HashSpec> for T
+    impl<T: ?Sized> RefObserveImpl<HashSpec> for T
     where
         T: Hash + RefObserve<Spec = HashSpec>,
     {
-        type Observer<'a, 'ob, S, D>
+        type Observer<'a, 'b, 'ob, S, D>
             = HashObserver<'ob, S, D>
         where
             Self: 'b + 'ob,
@@ -139,78 +139,6 @@ const _: () = {
             S: AsDerefMut<D, Target = &'a &'b Self> + ?Sized + 'ob;
     }
 };
-
-macro_rules! spec_impl_ref_observe {
-    ($helper:ident, $ty_self:ty, $ty_t:ty $(, const $arg:ident: $arg_ty:ty)* $(,)?) => {
-        impl<T $(, const $arg: $arg_ty)*> $crate::observe::RefObserve for $ty_t
-        where
-            T: $crate::observe::RefObserve + $helper<T::Spec>,
-        {
-            type Observer<'a, 'ob, S, D>
-                = <T as $helper<T::Spec>>::Observer<'a, 'ob, S, D $(, $arg)*>
-            where
-                Self: 'a + 'ob,
-                D: Unsigned,
-                S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
-
-            type Spec = T::Spec;
-        }
-
-        pub trait $helper<Spec> {
-            type Observer<'a, 'ob, S, D $(, const $arg: $arg_ty)*>:
-                $crate::observe::Observer<'ob, Head = S, InnerDepth = D>
-            where
-                Self: 'a + 'ob,
-                D: Unsigned,
-                S: AsDerefMut<D, Target = &'a $ty_self> + ?Sized + 'ob;
-        }
-
-        impl<T> $helper<$crate::observe::DefaultSpec> for T
-        where
-            T: Observe<Spec = $crate::observe::DefaultSpec>,
-        {
-            type Observer<'a, 'ob, S, D $(, const $arg: $arg_ty)*>
-                = $crate::observe::RefObserver<'a, 'ob, S, D>
-            where
-                Self: 'a + 'ob,
-                D: Unsigned,
-                S: AsDerefMut<D, Target = &'a $ty_self> + ?Sized + 'ob;
-        }
-
-        #[cfg(feature = "hash")]
-        const _: () = {
-            use std::hash::Hash;
-
-            use crate::observe::{HashObserver, HashSpec};
-
-            impl<T> $helper<HashSpec> for T
-            where
-                T: Hash + Observe<Spec = HashSpec>,
-            {
-                type Observer<'a, 'ob, S, D $(, const $arg: $arg_ty)*>
-                    = HashObserver<'ob, S, D>
-                where
-                    Self: 'a + 'ob,
-                    D: Unsigned,
-                    S: AsDerefMut<D, Target = &'a $ty_self> + ?Sized + 'ob;
-            }
-        };
-
-        impl<T> $helper<$crate::observe::SnapshotSpec> for T
-        where
-            T: Clone + PartialEq + Observe<Spec = $crate::observe::SnapshotSpec>,
-        {
-            type Observer<'a, 'ob, S, D $(, const $arg: $arg_ty)*>
-                = $crate::observe::SnapshotObserver<'ob, S, D>
-            where
-                Self: 'a + 'ob,
-                D: Unsigned,
-                S: AsDerefMut<D, Target = &'a $ty_self> + ?Sized + 'ob;
-        }
-    };
-}
-
-pub(crate) use spec_impl_ref_observe;
 
 pub struct RefHandler<'a, T: ?Sized> {
     ptr: Option<&'a T>,

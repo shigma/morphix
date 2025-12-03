@@ -4,9 +4,10 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
+use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver, SnapshotObserver, SnapshotSpec};
-use crate::{Adapter, Mutation, MutationKind, Observe, spec_impl_ref_observe};
+use crate::observe::{Observer, ObserverPointer, SerializeObserver};
+use crate::{Adapter, Mutation, MutationKind, Observe};
 
 /// Observer implementation for [`Option`].
 ///
@@ -199,73 +200,8 @@ where
     }
 }
 
-impl<T> Observe for Option<T>
-where
-    T: Observe + OptionObserveImpl<T::Spec>,
-{
-    type Observer<'ob, S, D>
-        = <T as OptionObserveImpl<T::Spec>>::Observer<'ob, S, D>
-    where
-        Self: 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
-
-    type Spec = T::Spec;
-}
-
+spec_impl_observe!(OptionObserveImpl, Option<Self>, Option<T>, OptionObserver);
 spec_impl_ref_observe!(OptionRefObserveImpl, Option<Self>, Option<T>);
-
-/// Helper trait for selecting appropriate observer implementations for [`Option<T>`].
-pub trait OptionObserveImpl<Spec> {
-    type Observer<'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
-    where
-        Self: 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = Option<Self>> + ?Sized + 'ob;
-}
-
-impl<T> OptionObserveImpl<DefaultSpec> for T
-where
-    T: Observe<Spec = DefaultSpec>,
-{
-    type Observer<'ob, S, D>
-        = OptionObserver<'ob, T::Observer<'ob, T, Zero>, S, D>
-    where
-        Self: 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
-}
-
-#[cfg(feature = "hash")]
-const _: () = {
-    use std::hash::Hash;
-
-    use crate::observe::{HashObserver, HashSpec};
-
-    impl<T> OptionObserveImpl<HashSpec> for T
-    where
-        T: Hash + Observe<Spec = HashSpec>,
-    {
-        type Observer<'ob, S, D>
-            = HashObserver<'ob, S, D>
-        where
-            T: 'ob,
-            D: Unsigned,
-            S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
-    }
-};
-
-impl<T> OptionObserveImpl<SnapshotSpec> for T
-where
-    T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
-{
-    type Observer<'ob, S, D>
-        = SnapshotObserver<'ob, S, D>
-    where
-        T: 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = Option<T>> + ?Sized + 'ob;
-}
 
 #[cfg(test)]
 mod tests {

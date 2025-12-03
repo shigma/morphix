@@ -4,10 +4,11 @@ use std::slice::SliceIndex;
 
 use serde::Serialize;
 
+use crate::helper::macros::spec_impl_ref_observe;
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceIndexImpl, SliceObserver};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
-use crate::{Adapter, Mutation, Observe, spec_impl_ref_observe};
+use crate::{Adapter, Mutation, Observe};
 
 /// Observer implementation for [array](core::array).
 ///
@@ -192,7 +193,7 @@ impl<T: Observe, const N: usize> Observe for [T; N] {
 
 spec_impl_ref_observe! {
     ArrayRefObserveImpl,
-    [Self; LEN],
-    [T; LEN],
-    const LEN: usize,
+    [Self; N],
+    [T; N],
+    const N: usize,
 }

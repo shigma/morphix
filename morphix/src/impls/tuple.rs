@@ -3,18 +3,19 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
+use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver, SnapshotObserver, SnapshotSpec};
-use crate::{Adapter, Mutation, MutationKind, Observe, spec_impl_ref_observe};
+use crate::observe::{DefaultSpec, Observer, ObserverPointer, RefObserve, RefObserver, SerializeObserver};
+use crate::{Adapter, Mutation, MutationKind, Observe};
 
-pub struct TupleObserver<'ob, O, S: ?Sized, N = Zero> {
+pub struct TupleObserver<'ob, O, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
     inner: (O,),
     mutated: bool,
-    phantom: PhantomData<&'ob mut N>,
+    phantom: PhantomData<&'ob mut D>,
 }
 
-impl<'ob, O, S: ?Sized, N> Deref for TupleObserver<'ob, O, S, N> {
+impl<'ob, O, S: ?Sized, D> Deref for TupleObserver<'ob, O, S, D> {
     type Target = ObserverPointer<S>;
 
     #[inline]
@@ -23,7 +24,7 @@ impl<'ob, O, S: ?Sized, N> Deref for TupleObserver<'ob, O, S, N> {
     }
 }
 
-impl<'ob, O, S: ?Sized, N> DerefMut for TupleObserver<'ob, O, S, N> {
+impl<'ob, O, S: ?Sized, D> DerefMut for TupleObserver<'ob, O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.mutated = true;
@@ -35,14 +36,14 @@ impl<'ob, O, S> Assignable for TupleObserver<'ob, O, S> {
     type Depth = Succ<Zero>;
 }
 
-impl<'ob, O, S: ?Sized, N> Observer<'ob> for TupleObserver<'ob, O, S, N>
+impl<'ob, O, S: ?Sized, D> Observer<'ob> for TupleObserver<'ob, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = (O::Head,)> + 'ob,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = (O::Head,)> + 'ob,
     O: Observer<'ob, InnerDepth = Zero>,
     O::Head: Sized,
 {
-    type InnerDepth = N;
+    type InnerDepth = D;
     type OuterDepth = Zero;
     type Head = S;
 
@@ -78,10 +79,10 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, N> SerializeObserver<'ob> for TupleObserver<'ob, O, S, N>
+impl<'ob, O, S: ?Sized, D> SerializeObserver<'ob> for TupleObserver<'ob, O, S, D>
 where
-    N: Unsigned,
-    S: AsDerefMut<N, Target = (O::Head,)> + 'ob,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = (O::Head,)> + 'ob,
     O: SerializeObserver<'ob, InnerDepth = Zero>,
     O::Head: Serialize + Sized,
 {
@@ -102,84 +103,19 @@ where
     }
 }
 
-impl<T> Observe for (T,)
-where
-    T: Observe + TupleObserveImpl<T::Spec>,
-{
-    type Observer<'ob, S, N>
-        = <T as TupleObserveImpl<T::Spec>>::Observer<'ob, S, N>
-    where
-        Self: 'ob,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = Self> + ?Sized + 'ob;
-
-    type Spec = T::Spec;
-}
-
+spec_impl_observe!(OptionObserveImpl, (Self,), (T,), TupleObserver);
 spec_impl_ref_observe!(TupleRefObserveImpl, (Self,), (T,));
-
-/// Helper trait for selecting appropriate observer implementations for `(T,)`.
-pub trait TupleObserveImpl<Spec> {
-    type Observer<'ob, S, N>: Observer<'ob, Head = S, InnerDepth = N>
-    where
-        Self: 'ob,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
-}
-
-impl<T> TupleObserveImpl<DefaultSpec> for T
-where
-    T: Observe<Spec = DefaultSpec>,
-{
-    type Observer<'ob, S, N>
-        = TupleObserver<'ob, T::Observer<'ob, T, Zero>, S, N>
-    where
-        T: 'ob,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
-}
-
-#[cfg(feature = "hash")]
-const _: () = {
-    use std::hash::Hash;
-
-    use crate::observe::{HashObserver, HashSpec};
-
-    impl<T> TupleObserveImpl<HashSpec> for T
-    where
-        T: Hash + Observe<Spec = HashSpec>,
-    {
-        type Observer<'ob, S, N>
-            = HashObserver<'ob, S, N>
-        where
-            Self: 'ob,
-            N: Unsigned,
-            S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
-    }
-};
-
-impl<T> TupleObserveImpl<SnapshotSpec> for T
-where
-    T: Clone + PartialEq + Observe<Spec = SnapshotSpec>,
-{
-    type Observer<'ob, S, N>
-        = SnapshotObserver<'ob, S, N>
-    where
-        Self: 'ob,
-        N: Unsigned,
-        S: AsDerefMut<N, Target = (Self,)> + ?Sized + 'ob;
-}
 
 macro_rules! tuple_observer {
     ($ty:ident, $len:literal; $($o:ident, $t:ident, $n:tt);*) => {
-        pub struct $ty<'ob, $($o,)* S: ?Sized, N = Zero> {
+        pub struct $ty<'ob, $($o,)* S: ?Sized, D = Zero> {
             ptr: ObserverPointer<S>,
             inner: ($($o,)*),
             mutated: bool,
-            phantom: PhantomData<&'ob mut N>,
+            phantom: PhantomData<&'ob mut D>,
         }
 
-        impl<'ob, $($o,)* S: ?Sized, N> Deref for $ty<'ob, $($o,)* S, N> {
+        impl<'ob, $($o,)* S: ?Sized, D> Deref for $ty<'ob, $($o,)* S, D> {
             type Target = ObserverPointer<S>;
 
             #[inline]
@@ -188,7 +124,7 @@ macro_rules! tuple_observer {
             }
         }
 
-        impl<'ob, $($o,)* S: ?Sized, N> DerefMut for $ty<'ob, $($o,)* S, N> {
+        impl<'ob, $($o,)* S: ?Sized, D> DerefMut for $ty<'ob, $($o,)* S, D> {
             #[inline]
             fn deref_mut(&mut self) -> &mut Self::Target {
                 self.mutated = true;
@@ -200,13 +136,13 @@ macro_rules! tuple_observer {
             type Depth = Succ<Zero>;
         }
 
-        impl<'ob, $($o,)* S: ?Sized, N> Observer<'ob> for $ty<'ob, $($o,)* S, N>
+        impl<'ob, $($o,)* S: ?Sized, D> Observer<'ob> for $ty<'ob, $($o,)* S, D>
         where
-            N: Unsigned,
-            S: AsDerefMut<N, Target = ($($o::Head,)*)> + 'ob,
+            D: Unsigned,
+            S: AsDerefMut<D, Target = ($($o::Head,)*)> + 'ob,
             $($o: Observer<'ob, InnerDepth = Zero, Head: Sized>,)*
         {
-            type InnerDepth = N;
+            type InnerDepth = D;
             type OuterDepth = Zero;
             type Head = S;
 
@@ -242,10 +178,10 @@ macro_rules! tuple_observer {
             }
         }
 
-        impl<'ob, $($o,)* S: ?Sized, N> SerializeObserver<'ob> for $ty<'ob, $($o,)* S, N>
+        impl<'ob, $($o,)* S: ?Sized, D> SerializeObserver<'ob> for $ty<'ob, $($o,)* S, D>
         where
-            N: Unsigned,
-            S: AsDerefMut<N, Target = ($($o::Head,)*)> + 'ob,
+            D: Unsigned,
+            S: AsDerefMut<D, Target = ($($o::Head,)*)> + 'ob,
             $($o: SerializeObserver<'ob, InnerDepth = Zero, Head: Serialize + Sized>,)*
         {
             #[inline]
@@ -271,12 +207,26 @@ macro_rules! tuple_observer {
         where
             $($t: Observe,)*
         {
-            type Observer<'ob, S, N>
-                = $ty<'ob, $($t::Observer<'ob, $t, Zero>,)* S, N>
+            type Observer<'ob, S, D>
+                = $ty<'ob, $($t::Observer<'ob, $t, Zero>,)* S, D>
             where
                 Self: 'ob,
-                N: Unsigned,
-                S: AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+                D: Unsigned,
+                S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+            type Spec = DefaultSpec;
+        }
+
+        impl<$($t,)*> RefObserve for ($($t,)*)
+        where
+            $($t: RefObserve,)*
+        {
+            type Observer<'a, 'ob, S, D>
+                = RefObserver<'a, 'ob, S, D>
+            where
+                Self: 'a + 'ob,
+                D: Unsigned,
+                S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
 
             type Spec = DefaultSpec;
         }

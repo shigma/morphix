@@ -16,6 +16,7 @@
 //! versions without notice. Use at your own risk.
 
 pub mod deref;
+pub(crate) mod macros;
 pub mod unsigned;
 
 use std::ops::{Deref, DerefMut};
