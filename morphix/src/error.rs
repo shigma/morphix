@@ -11,6 +11,13 @@ pub enum MutationError {
     IndexError { path: Path<false> },
     /// Mutation could not be performed at the specified path.
     OperationError { path: Path<false> },
+    /// Error applying a truncate operation.
+    #[cfg(feature = "truncate")]
+    TruncateError {
+        path: Path<false>,
+        actual_len: usize,
+        truncate_len: usize,
+    },
 }
 
 impl Display for MutationError {
@@ -21,6 +28,16 @@ impl Display for MutationError {
             }
             Self::OperationError { path } => {
                 write!(f, "operation could not be performed at {path}")
+            }
+            Self::TruncateError {
+                path,
+                actual_len,
+                truncate_len,
+            } => {
+                write!(
+                    f,
+                    "cannot truncate at {path}: actual length {actual_len} is less than truncate length {truncate_len}"
+                )
             }
         }
     }

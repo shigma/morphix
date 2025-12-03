@@ -12,11 +12,12 @@ documentation = "https://docs.rs/morphix"
 
 [features]
 append = []
-default = ["append", "derive"]
+default = ["append", "derive", "truncate"]
 derive = ["dep:morphix_derive"]
-full = ["derive", "hash", "json", "yaml"]
+full = ["append", "derive", "hash", "json", "truncate", "yaml"]
 hash = []
 json = ["dep:serde_json"]
+truncate = []
 yaml = ["dep:serde_yaml_ng"]
 
 [package.metadata.docs.rs]

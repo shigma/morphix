@@ -10,6 +10,8 @@ enum BatchMutationKind<A: Adapter> {
     Replace(A::Value),
     #[cfg(feature = "append")]
     Append(A::Value, usize),
+    #[cfg(feature = "truncate")]
+    Truncate(usize),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -121,13 +123,21 @@ impl<A: Adapter> BatchTree<A> {
             MutationKind::Append(append_value) => {
                 let append_len = A::get_len(&append_value, path_stack)?;
                 match &mut batch.kind {
+                    BatchMutationKind::Replace(_) => unreachable!(),
+                    BatchMutationKind::None => batch.kind = BatchMutationKind::Append(append_value, append_len),
                     BatchMutationKind::Append(value, len) => {
                         *len += append_len;
                         A::merge_append(value, append_value, path_stack)?;
                     }
-                    BatchMutationKind::Replace(_) => unreachable!(),
-                    BatchMutationKind::None => batch.kind = BatchMutationKind::Append(append_value, append_len),
+                    #[cfg(feature = "truncate")]
+                    BatchMutationKind::Truncate(truncate_len) => {
+                        todo!()
+                    }
                 }
+            }
+            #[cfg(feature = "truncate")]
+            MutationKind::Truncate(truncate_len) => {
+                todo!()
             }
             MutationKind::Batch(mutations) => {
                 let len = path_stack.len();
@@ -157,6 +167,7 @@ impl<A: Adapter> BatchTree<A> {
             }
         }
         match take(&mut self.kind) {
+            BatchMutationKind::None => {}
             BatchMutationKind::Replace(value) => {
                 mutations.push(Mutation {
                     path: vec![].into(),
@@ -170,7 +181,13 @@ impl<A: Adapter> BatchTree<A> {
                     kind: MutationKind::Append(value),
                 });
             }
-            BatchMutationKind::None => {}
+            #[cfg(feature = "truncate")]
+            BatchMutationKind::Truncate(truncate_len) => {
+                mutations.push(Mutation {
+                    path: vec![].into(),
+                    kind: MutationKind::Truncate(truncate_len),
+                });
+            }
         }
         Mutation::coalesce(mutations)
     }

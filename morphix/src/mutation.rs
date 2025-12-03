@@ -138,6 +138,10 @@ pub enum MutationKind<T> {
     #[cfg_attr(docsrs, doc(cfg(feature = "append")))]
     Append(T),
 
+    #[cfg(feature = "truncate")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "truncate")))]
+    Truncate(usize),
+
     /// `Batch` combines multiple mutations that occurred during a single observation period. This
     /// is automatically created when multiple independent changes are detected.
     ///

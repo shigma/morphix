@@ -91,6 +91,10 @@ impl Adapter for Yaml {
             MutationKind::Append(value) => {
                 Self::merge_append(curr_value, value, path_stack)?;
             }
+            #[cfg(feature = "truncate")]
+            MutationKind::Truncate(truncate_len) => {
+                Self::apply_truncate(curr_value, truncate_len, path_stack)?;
+            }
             MutationKind::Batch(mutations) => {
                 let len = path_stack.len();
                 for mutation in mutations {
@@ -119,6 +123,33 @@ impl Adapter for Yaml {
             _ => return Err(MutationError::OperationError { path: take(path_stack) }),
         }
         Ok(())
+    }
+
+    #[cfg(feature = "truncate")]
+    fn apply_truncate(
+        value: &mut Self::Value,
+        truncate_len: usize,
+        path_stack: &mut Path<false>,
+    ) -> Result<(), MutationError> {
+        match value {
+            Value::String(_str) => {
+                todo!()
+            }
+            Value::Sequence(vec) => {
+                let actual_len = vec.len();
+                if actual_len >= truncate_len {
+                    vec.truncate(actual_len - truncate_len);
+                    Ok(())
+                } else {
+                    Err(MutationError::TruncateError {
+                        path: take(path_stack),
+                        actual_len,
+                        truncate_len,
+                    })
+                }
+            }
+            _ => Err(MutationError::OperationError { path: take(path_stack) }),
+        }
     }
 
     fn get_len(value: &Self::Value, path_stack: &mut Path<false>) -> Result<usize, MutationError> {

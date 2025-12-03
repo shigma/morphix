@@ -52,5 +52,12 @@ pub trait Adapter: Sized {
         path_stack: &mut Path<false>,
     ) -> Result<(), MutationError>;
 
+    #[cfg(feature = "truncate")]
+    fn apply_truncate(
+        value: &mut Self::Value,
+        truncate_len: usize,
+        path_stack: &mut Path<false>,
+    ) -> Result<(), MutationError>;
+
     fn get_len(value: &Self::Value, path_stack: &mut Path<false>) -> Result<usize, MutationError>;
 }
