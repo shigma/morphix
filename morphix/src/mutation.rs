@@ -134,6 +134,8 @@ pub enum MutationKind<T> {
     /// foo.vec.push(1);            // Append to .vec
     /// foo.vec.extend(iter);       // Append to .vec
     /// ```
+    #[cfg(feature = "append")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "append")))]
     Append(T),
 
     /// `Batch` combines multiple mutations that occurred during a single observation period. This

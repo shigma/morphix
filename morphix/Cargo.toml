@@ -11,7 +11,8 @@ repository = "https://github.com/shigma/morphix"
 documentation = "https://docs.rs/morphix"
 
 [features]
-default = ["derive"]
+append = []
+default = ["append", "derive"]
 derive = ["dep:morphix_derive"]
 full = ["derive", "hash", "json", "yaml"]
 hash = []

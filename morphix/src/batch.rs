@@ -8,6 +8,7 @@ enum BatchMutationKind<A: Adapter> {
     #[default]
     None,
     Replace(A::Value),
+    #[cfg(feature = "append")]
     Append(A::Value, usize),
 }
 
@@ -80,6 +81,7 @@ impl<A: Adapter> BatchTree<A> {
         while let Some(mut segment) = mutation.path.pop() {
             // We cannot avoid clone here because `BTreeMap::entry` requires owned key.
             path_stack.push(segment.clone());
+            #[cfg(feature = "append")]
             if let PathSegment::NegIndex(index) = &mut segment
                 && let BatchMutationKind::Append(value, len) = &mut batch.kind
             {
@@ -115,6 +117,7 @@ impl<A: Adapter> BatchTree<A> {
                 batch.kind = BatchMutationKind::Replace(value);
                 take(&mut batch.children);
             }
+            #[cfg(feature = "append")]
             MutationKind::Append(append_value) => {
                 let append_len = A::get_len(&append_value, path_stack)?;
                 match &mut batch.kind {
@@ -160,6 +163,7 @@ impl<A: Adapter> BatchTree<A> {
                     kind: MutationKind::Replace(value),
                 });
             }
+            #[cfg(feature = "append")]
             BatchMutationKind::Append(value, _) => {
                 mutations.push(Mutation {
                     path: vec![].into(),

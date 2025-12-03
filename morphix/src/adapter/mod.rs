@@ -45,6 +45,7 @@ pub trait Adapter: Sized {
     ) -> Result<(), MutationError>;
 
     /// Merges one append value into another.
+    #[cfg(feature = "append")]
     fn merge_append(
         old_value: &mut Self::Value,
         append_value: Self::Value,

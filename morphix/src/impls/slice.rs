@@ -219,21 +219,19 @@ where
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         let mut mutations = vec![];
         let len = this.as_deref().as_ref().len();
-        let initial_len = if let Some(initial_len) = this.mutation.replace(len) {
-            if len > initial_len {
-                mutations.push(Mutation {
-                    path: Default::default(),
-                    kind: MutationKind::Append(A::serialize_value(&this.as_deref().as_ref()[initial_len..])?),
-                });
-            }
-            initial_len
-        } else {
-            mutations.push(Mutation {
+        let Some(initial_len) = this.mutation.replace(len) else {
+            return Ok(Some(Mutation {
                 path: Default::default(),
                 kind: MutationKind::Replace(A::serialize_value(this.as_deref().as_ref())?),
-            });
-            0
+            }));
         };
+        #[cfg(feature = "append")]
+        if len > initial_len {
+            mutations.push(Mutation {
+                path: Default::default(),
+                kind: MutationKind::Append(A::serialize_value(&this.as_deref().as_ref()[initial_len..])?),
+            });
+        }
         for (index, observer) in this.obs.as_mut_slice().iter_mut().take(initial_len).enumerate() {
             if let Some(mut mutation) = SerializeObserver::collect::<A>(observer)? {
                 mutation.path.push(PathSegment::NegIndex(len - index));

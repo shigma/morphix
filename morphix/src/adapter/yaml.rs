@@ -87,6 +87,7 @@ impl Adapter for Yaml {
             MutationKind::Replace(value) => {
                 *curr_value = value;
             }
+            #[cfg(feature = "append")]
             MutationKind::Append(value) => {
                 Self::merge_append(curr_value, value, path_stack)?;
             }
@@ -102,6 +103,7 @@ impl Adapter for Yaml {
         Ok(())
     }
 
+    #[cfg(feature = "append")]
     fn merge_append(
         old_value: &mut Self::Value,
         new_value: Self::Value,

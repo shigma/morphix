@@ -84,21 +84,20 @@ where
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         let len = this.as_deref().len();
-        Ok(if let Some(initial_len) = this.mutation.replace(len) {
-            if len > initial_len {
-                Some(Mutation {
-                    path: Default::default(),
-                    kind: MutationKind::Append(A::serialize_value(&this.as_deref()[initial_len..])?),
-                })
-            } else {
-                None
-            }
-        } else {
-            Some(Mutation {
+        let Some(initial_len) = this.mutation.replace(len) else {
+            return Ok(Some(Mutation {
                 path: Default::default(),
                 kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
-            })
-        })
+            }));
+        };
+        #[cfg(feature = "append")]
+        if len > initial_len {
+            return Ok(Some(Mutation {
+                path: Default::default(),
+                kind: MutationKind::Append(A::serialize_value(&this.as_deref()[initial_len..])?),
+            }));
+        }
+        Ok(None)
     }
 }
 
