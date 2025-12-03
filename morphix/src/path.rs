@@ -5,16 +5,16 @@ use std::ops::{Deref, DerefMut};
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PathSegment {
     String(Cow<'static, str>),
-    PosIndex(usize),
-    NegIndex(usize),
+    Positive(usize),
+    Negative(usize),
 }
 
 impl From<isize> for PathSegment {
     fn from(n: isize) -> Self {
         if n >= 0 {
-            Self::PosIndex(n as usize)
+            Self::Positive(n as usize)
         } else {
-            Self::NegIndex(-n as usize)
+            Self::Negative(-n as usize)
         }
     }
 }
@@ -41,8 +41,8 @@ impl Display for PathSegment {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PathSegment::String(s) => write!(f, ".{s}"),
-            PathSegment::PosIndex(n) => write!(f, "[{n}]"),
-            PathSegment::NegIndex(n) => write!(f, "[-{n}]"),
+            PathSegment::Positive(n) => write!(f, "[{n}]"),
+            PathSegment::Negative(n) => write!(f, "[-{n}]"),
         }
     }
 }

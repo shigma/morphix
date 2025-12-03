@@ -31,6 +31,8 @@ pub trait Adapter: Sized {
     /// Error type for serialization / deserialization operations.
     type Error;
 
+    type IntoValues: ExactSizeIterator<Item = Self::Value>;
+
     /// Constructs the adapter from an optional mutation.
     fn from_mutation(mutation: Option<Mutation<Self::Value>>) -> Self;
 
@@ -57,7 +59,11 @@ pub trait Adapter: Sized {
         value: &mut Self::Value,
         truncate_len: usize,
         path_stack: &mut Path<false>,
-    ) -> Result<(), MutationError>;
+    ) -> Result<Option<usize>, MutationError>;
+
+    fn into_values(value: Self::Value) -> Option<Self::IntoValues>;
+
+    fn from_values(values: Self::IntoValues) -> Self::Value;
 
     fn get_len(value: &Self::Value, path_stack: &mut Path<false>) -> Result<usize, MutationError>;
 }

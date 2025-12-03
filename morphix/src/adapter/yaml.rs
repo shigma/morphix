@@ -43,6 +43,7 @@ pub struct Yaml(pub Option<Mutation<Value>>);
 impl Adapter for Yaml {
     type Value = Value;
     type Error = Error;
+    type IntoValues = std::vec::IntoIter<Self::Value>;
 
     fn from_mutation(mutation: Option<Mutation<Self::Value>>) -> Self {
         Yaml(mutation)
@@ -61,8 +62,8 @@ impl Adapter for Yaml {
 
         while let Some(key) = mutation.path.pop() {
             let next_value = match (curr_value, &key) {
-                (Value::Sequence(vec), PathSegment::PosIndex(index)) => vec.get_mut(*index),
-                (Value::Sequence(vec), PathSegment::NegIndex(index)) => {
+                (Value::Sequence(vec), PathSegment::Positive(index)) => vec.get_mut(*index),
+                (Value::Sequence(vec), PathSegment::Negative(index)) => {
                     vec.len().checked_sub(*index).and_then(|i| vec.get_mut(i))
                 }
                 (Value::Mapping(map), PathSegment::String(key)) => {
@@ -93,7 +94,13 @@ impl Adapter for Yaml {
             }
             #[cfg(feature = "truncate")]
             MutationKind::Truncate(truncate_len) => {
-                Self::apply_truncate(curr_value, truncate_len, path_stack)?;
+                if let Some(actual_len) = Self::apply_truncate(curr_value, truncate_len, path_stack)? {
+                    return Err(MutationError::TruncateError {
+                        path: take(path_stack),
+                        actual_len,
+                        truncate_len,
+                    });
+                }
             }
             MutationKind::Batch(mutations) => {
                 let len = path_stack.len();
@@ -130,7 +137,7 @@ impl Adapter for Yaml {
         value: &mut Self::Value,
         truncate_len: usize,
         path_stack: &mut Path<false>,
-    ) -> Result<(), MutationError> {
+    ) -> Result<Option<usize>, MutationError> {
         match value {
             Value::String(_str) => {
                 todo!()
@@ -139,20 +146,28 @@ impl Adapter for Yaml {
                 let actual_len = vec.len();
                 if actual_len >= truncate_len {
                     vec.truncate(actual_len - truncate_len);
-                    Ok(())
+                    Ok(None)
                 } else {
-                    Err(MutationError::TruncateError {
-                        path: take(path_stack),
-                        actual_len,
-                        truncate_len,
-                    })
+                    Ok(Some(actual_len))
                 }
             }
             _ => Err(MutationError::OperationError { path: take(path_stack) }),
         }
     }
 
+    fn into_values(value: Self::Value) -> Option<Self::IntoValues> {
+        match value {
+            Value::Sequence(vec) => Some(vec.into_iter()),
+            _ => None,
+        }
+    }
+
+    fn from_values(values: Self::IntoValues) -> Self::Value {
+        Value::Sequence(values.collect())
+    }
+
     fn get_len(value: &Self::Value, path_stack: &mut Path<false>) -> Result<usize, MutationError> {
+        // FIXME: str should have char length instead of byte length
         match value {
             Value::String(str) => Ok(str.len()),
             Value::Sequence(vec) => Ok(vec.len()),

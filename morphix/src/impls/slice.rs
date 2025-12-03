@@ -234,7 +234,7 @@ where
         }
         for (index, observer) in this.obs.as_mut_slice().iter_mut().take(initial_len).enumerate() {
             if let Some(mut mutation) = SerializeObserver::collect::<A>(observer)? {
-                mutation.path.push(PathSegment::NegIndex(len - index));
+                mutation.path.push(PathSegment::Negative(len - index));
                 mutations.push(mutation);
             }
         }

@@ -17,8 +17,8 @@ enum BatchMutationKind<A: Adapter> {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum BatchSegmentKind {
     String,
-    PosIndex,
-    NegIndex,
+    Positive,
+    Negative,
 }
 
 /// A batch collector for aggregating and optimizing multiple mutations.
@@ -75,31 +75,39 @@ impl<A: Adapter> BatchTree<A> {
         mut mutation: Mutation<A::Value>,
         path_stack: &mut Path<false>,
     ) -> Result<(), MutationError> {
-        let mut batch = self;
-        if let BatchMutationKind::Replace(value) = &mut batch.kind {
+        if let BatchMutationKind::Replace(value) = &mut self.kind {
             A::apply_mutation(value, mutation, path_stack)?;
             return Ok(());
         }
+
+        let mut batch = self;
         while let Some(mut segment) = mutation.path.pop() {
             // We cannot avoid clone here because `BTreeMap::entry` requires owned key.
             path_stack.push(segment.clone());
-            #[cfg(feature = "append")]
-            if let PathSegment::NegIndex(index) = &mut segment
-                && let BatchMutationKind::Append(value, len) = &mut batch.kind
-            {
-                if *index <= *len {
-                    mutation.path.push(segment);
-                    path_stack.pop();
-                    A::apply_mutation(value, mutation, path_stack)?;
-                    return Ok(());
-                } else {
-                    *index -= *len;
+            if let PathSegment::Negative(index) = &mut segment {
+                match &mut batch.kind {
+                    #[cfg(feature = "append")]
+                    BatchMutationKind::Append(value, len) => {
+                        if *index <= *len {
+                            mutation.path.push(segment);
+                            path_stack.pop();
+                            A::apply_mutation(value, mutation, path_stack)?;
+                            return Ok(());
+                        } else {
+                            *index -= *len;
+                        }
+                    }
+                    #[cfg(feature = "truncate")]
+                    BatchMutationKind::Truncate(truncate_len) => {
+                        *index += *truncate_len;
+                    }
+                    _ => {}
                 }
             }
             let new_segment_kind = match &segment {
                 PathSegment::String(_) => BatchSegmentKind::String,
-                PathSegment::PosIndex(_) => BatchSegmentKind::PosIndex,
-                PathSegment::NegIndex(_) => BatchSegmentKind::NegIndex,
+                PathSegment::Positive(_) => BatchSegmentKind::Positive,
+                PathSegment::Negative(_) => BatchSegmentKind::Negative,
             };
             let (old_segment_kind, map) = batch
                 .children
@@ -117,28 +125,9 @@ impl<A: Adapter> BatchTree<A> {
         match mutation.kind {
             MutationKind::Replace(value) => {
                 batch.kind = BatchMutationKind::Replace(value);
-                take(&mut batch.children);
+                batch.children.take();
             }
-            #[cfg(feature = "append")]
-            MutationKind::Append(append_value) => {
-                let append_len = A::get_len(&append_value, path_stack)?;
-                match &mut batch.kind {
-                    BatchMutationKind::Replace(_) => unreachable!(),
-                    BatchMutationKind::None => batch.kind = BatchMutationKind::Append(append_value, append_len),
-                    BatchMutationKind::Append(value, len) => {
-                        *len += append_len;
-                        A::merge_append(value, append_value, path_stack)?;
-                    }
-                    #[cfg(feature = "truncate")]
-                    BatchMutationKind::Truncate(truncate_len) => {
-                        todo!()
-                    }
-                }
-            }
-            #[cfg(feature = "truncate")]
-            MutationKind::Truncate(truncate_len) => {
-                todo!()
-            }
+
             MutationKind::Batch(mutations) => {
                 let len = path_stack.len();
                 for mutation in mutations {
@@ -146,8 +135,98 @@ impl<A: Adapter> BatchTree<A> {
                     path_stack.truncate(len);
                 }
             }
+
+            #[cfg(feature = "append")]
+            MutationKind::Append(value) => {
+                let append_len = A::get_len(&value, path_stack)?;
+                if append_len == 0 {
+                    return Ok(());
+                }
+                match &mut batch.kind {
+                    BatchMutationKind::None => batch.kind = BatchMutationKind::Append(value, append_len),
+                    BatchMutationKind::Replace(_) => unreachable!(),
+                    BatchMutationKind::Append(old_value, old_len) => {
+                        *old_len += append_len;
+                        A::merge_append(old_value, value, path_stack)?;
+                    }
+                    #[cfg(feature = "truncate")]
+                    BatchMutationKind::Truncate(truncate_len) => {
+                        let Some(mut values) = A::into_values(value) else {
+                            return Err(MutationError::OperationError { path: take(path_stack) });
+                        };
+                        let (old_segment_kind, children) = batch
+                            .children
+                            .get_or_insert_with(|| (BatchSegmentKind::Negative, BTreeMap::new()));
+                        if *old_segment_kind != BatchSegmentKind::Negative {
+                            return Err(MutationError::IndexError { path: take(path_stack) });
+                        }
+                        while *truncate_len > 0
+                            && let Some(value) = values.next()
+                        {
+                            children.insert(
+                                PathSegment::Negative(*truncate_len),
+                                BatchTree {
+                                    kind: BatchMutationKind::Replace(value),
+                                    children: None,
+                                },
+                            );
+                            *truncate_len -= 1;
+                        }
+                        if *truncate_len > 0 {
+                            return Ok(());
+                        }
+                        let append_len = values.len();
+                        if append_len == 0 {
+                            batch.kind = BatchMutationKind::None;
+                        } else {
+                            batch.kind = BatchMutationKind::Append(A::from_values(values), append_len);
+                        }
+                    }
+                }
+            }
+
+            #[cfg(feature = "truncate")]
+            MutationKind::Truncate(mut truncate_len) => {
+                if truncate_len == 0 {
+                    return Ok(());
+                }
+                match &mut batch.kind {
+                    BatchMutationKind::None => batch.kind = BatchMutationKind::Truncate(truncate_len),
+                    BatchMutationKind::Replace(_) => unreachable!(),
+                    #[cfg(feature = "append")]
+                    BatchMutationKind::Append(value, old_len) => {
+                        if A::apply_truncate(value, truncate_len, path_stack)?.is_some() {
+                            truncate_len -= *old_len;
+                            batch.kind = BatchMutationKind::Truncate(truncate_len);
+                            batch.apply_truncate(truncate_len, path_stack)?;
+                        } else if *old_len == truncate_len {
+                            batch.kind = BatchMutationKind::None;
+                        }
+                    }
+                    BatchMutationKind::Truncate(old_len) => {
+                        *old_len += truncate_len;
+                        let truncate_len = *old_len;
+                        batch.apply_truncate(truncate_len, path_stack)?;
+                    }
+                }
+            }
         }
 
+        Ok(())
+    }
+
+    fn apply_truncate(&mut self, truncate_len: usize, path_stack: &mut Path<false>) -> Result<(), MutationError> {
+        if let Some((kind, children)) = &mut self.children {
+            if *kind != BatchSegmentKind::Negative {
+                return Err(MutationError::IndexError { path: take(path_stack) });
+            }
+            children.retain(|segment, _| {
+                let PathSegment::Negative(index) = segment else {
+                    unreachable!()
+                };
+                *index > truncate_len
+            });
+        }
         Ok(())
     }
 
