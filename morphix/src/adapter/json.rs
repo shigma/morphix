@@ -1,10 +1,8 @@
-use std::mem::take;
-
 use serde::Serialize;
 use serde_json::value::Serializer;
 use serde_json::{Error, Value};
 
-use crate::{Adapter, Mutation, MutationError, Path, PathSegment};
+use crate::{Adapter, Mutation, PathSegment};
 
 /// JSON adapter for morphix mutation serialization.
 ///
@@ -35,7 +33,6 @@ pub struct Json(pub Option<Mutation<Value>>);
 impl Adapter for Json {
     type Value = Value;
     type Error = Error;
-    type IntoValues = std::vec::IntoIter<Self::Value>;
 
     fn from_mutation(mutation: Option<Mutation<Self::Value>>) -> Self {
         Json(mutation)
@@ -67,81 +64,53 @@ impl Adapter for Json {
     }
 
     #[cfg(feature = "append")]
-    fn apply_append(
-        value: &mut Self::Value,
-        append_value: Self::Value,
-        path_stack: &mut Path<false>,
-    ) -> Result<usize, MutationError> {
+    fn append(value: &mut Self::Value, append_value: Self::Value) -> Option<usize> {
         match (value, append_value) {
             (Value::String(lhs), Value::String(rhs)) => {
                 let len = rhs.chars().count();
                 *lhs += &rhs;
-                Ok(len)
+                Some(len)
             }
             (Value::Array(lhs), Value::Array(rhs)) => {
                 let len = rhs.len();
                 lhs.extend(rhs);
-                Ok(len)
+                Some(len)
             }
-            _ => Err(MutationError::OperationError { path: take(path_stack) }),
-        }
-    }
-
-    #[cfg(feature = "truncate")]
-    fn apply_truncate(
-        value: &mut Self::Value,
-        mut truncate_len: usize,
-        path_stack: &mut Path<false>,
-    ) -> Result<Option<usize>, MutationError> {
-        match value {
-            Value::String(str) => {
-                let mut chars = str.char_indices();
-                let mut byte_len = str.len();
-                let mut char_len = 0;
-                while truncate_len > 0
-                    && let Some((index, _)) = chars.next_back()
-                {
-                    truncate_len -= 1;
-                    byte_len = index;
-                    char_len += 1;
-                }
-                if truncate_len > 0 {
-                    Ok(Some(char_len))
-                } else {
-                    str.truncate(byte_len);
-                    Ok(None)
-                }
-            }
-            Value::Array(vec) => {
-                let actual_len = vec.len();
-                if actual_len >= truncate_len {
-                    vec.truncate(actual_len - truncate_len);
-                    Ok(None)
-                } else {
-                    Ok(Some(actual_len))
-                }
-            }
-            _ => Err(MutationError::OperationError { path: take(path_stack) }),
-        }
-    }
-
-    fn into_values(value: Self::Value) -> Option<std::vec::IntoIter<Self::Value>> {
-        match value {
-            Value::Array(vec) => Some(vec.into_iter()),
             _ => None,
         }
     }
 
-    fn from_values(values: Self::IntoValues) -> Self::Value {
-        Value::Array(values.collect())
+    #[cfg(feature = "append")]
+    fn len(value: &Self::Value) -> Option<usize> {
+        match value {
+            Value::String(str) => Some(str.chars().count()),
+            Value::Array(vec) => Some(vec.len()),
+            _ => None,
+        }
     }
 
-    fn len(value: &Self::Value, path_stack: &mut Path<false>) -> Result<usize, MutationError> {
-        // FIXME: str should have char length instead of byte length
+    #[cfg(feature = "truncate")]
+    fn truncate(value: &mut Self::Value, mut truncate_len: usize) -> Option<usize> {
         match value {
-            Value::String(str) => Ok(str.len()),
-            Value::Array(vec) => Ok(vec.len()),
-            _ => Err(MutationError::OperationError { path: take(path_stack) }),
+            Value::String(str) => {
+                let mut chars = str.char_indices();
+                let mut new_len = str.len();
+                while truncate_len > 0
+                    && let Some((index, _)) = chars.next_back()
+                {
+                    truncate_len -= 1;
+                    new_len = index;
+                }
+                str.truncate(new_len);
+                Some(truncate_len)
+            }
+            Value::Array(vec) => {
+                let actual_len = vec.len();
+                let new_len = actual_len.saturating_sub(truncate_len);
+                vec.truncate(new_len);
+                Some(truncate_len.saturating_sub(actual_len))
+            }
+            _ => None,
         }
     }
 }
@@ -156,7 +125,7 @@ mod test {
     #[test]
     fn apply_set() {
         let mut value = json!({"a": 1});
-        Json::apply_mutation(
+        Json::mutate(
             &mut value,
             Mutation {
                 path: vec![].into(),
@@ -168,7 +137,7 @@ mod test {
         assert_eq!(value, json!({}));
 
         let mut value = json!({});
-        Json::apply_mutation(
+        Json::mutate(
             &mut value,
             Mutation {
                 path: vec!["a".into()].into(),
@@ -180,7 +149,7 @@ mod test {
         assert_eq!(value, json!({"a": 1}));
 
         let mut value = json!({"a": 1});
-        Json::apply_mutation(
+        Json::mutate(
             &mut value,
             Mutation {
                 path: vec!["a".into()].into(),
@@ -191,7 +160,7 @@ mod test {
         .unwrap();
         assert_eq!(value, json!({"a": 2}));
 
-        let error = Json::apply_mutation(
+        let error = Json::mutate(
             &mut json!({}),
             Mutation {
                 path: vec!["a".into(), "b".into()].into(),
@@ -207,7 +176,7 @@ mod test {
             }
         );
 
-        let error = Json::apply_mutation(
+        let error = Json::mutate(
             &mut json!({"a": 1}),
             Mutation {
                 path: vec!["a".into(), "b".into()].into(),
@@ -223,7 +192,7 @@ mod test {
             }
         );
 
-        let error = Json::apply_mutation(
+        let error = Json::mutate(
             &mut json!({"a": []}),
             Mutation {
                 path: vec!["a".into(), "b".into()].into(),
@@ -240,7 +209,7 @@ mod test {
         );
 
         let mut value = json!({"a": {}});
-        Json::apply_mutation(
+        Json::mutate(
             &mut value,
             Mutation {
                 path: vec!["a".into(), "b".into()].into(),
@@ -255,7 +224,7 @@ mod test {
     #[test]
     fn apply_append() {
         let mut value = json!("2");
-        Json::apply_mutation(
+        Json::mutate(
             &mut value,
             Mutation {
                 path: vec![].into(),
@@ -267,7 +236,7 @@ mod test {
         assert_eq!(value, json!("234"));
 
         let mut value = json!([2]);
-        Json::apply_mutation(
+        Json::mutate(
             &mut value,
             Mutation {
                 path: vec![].into(),
@@ -278,7 +247,7 @@ mod test {
         .unwrap();
         assert_eq!(value, json!([2, "3", "4"]));
 
-        let error = Json::apply_mutation(
+        let error = Json::mutate(
             &mut json!(""),
             Mutation {
                 path: vec![].into(),
@@ -294,7 +263,7 @@ mod test {
             }
         );
 
-        let error = Json::apply_mutation(
+        let error = Json::mutate(
             &mut json!({}),
             Mutation {
                 path: vec![].into(),
@@ -305,7 +274,7 @@ mod test {
         .unwrap_err();
         assert_eq!(error, MutationError::OperationError { path: vec![].into() });
 
-        let error = Json::apply_mutation(
+        let error = Json::mutate(
             &mut json!([]),
             Mutation {
                 path: vec![].into(),
@@ -316,7 +285,7 @@ mod test {
         .unwrap_err();
         assert_eq!(error, MutationError::OperationError { path: vec![].into() });
 
-        let error = Json::apply_mutation(
+        let error = Json::mutate(
             &mut json!(""),
             Mutation {
                 path: vec![].into(),
@@ -331,7 +300,7 @@ mod test {
     #[test]
     fn apply_batch() {
         let mut value = json!({"a": {"b": {"c": {}}}});
-        Json::apply_mutation(
+        Json::mutate(
             &mut value,
             Mutation {
                 path: vec![].into(),
@@ -343,7 +312,7 @@ mod test {
         assert_eq!(value, json!({"a": {"b": {"c": {}}}}));
 
         let mut value = json!({"a": {"b": {"c": "1"}}});
-        let error = Json::apply_mutation(
+        let error = Json::mutate(
             &mut value,
             Mutation {
                 path: vec!["a".into(), "d".into()].into(),
@@ -360,7 +329,7 @@ mod test {
         );
 
         let mut value = json!({"a": {"b": {"c": "1"}}});
-        Json::apply_mutation(
+        Json::mutate(
             &mut value,
             Mutation {
                 path: vec!["a".into()].into(),

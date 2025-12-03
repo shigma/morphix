@@ -91,12 +91,12 @@ pub enum MutationKind<T> {
     /// ```
     /// # #[derive(Default)]
     /// # struct Foo {
-    /// #   a: FooA,
+    /// #   a: A,
     /// #   num: i32,
     /// #   vec: Vec<i32>,
     /// # }
     /// # #[derive(Default)]
-    /// # struct FooA {
+    /// # struct A {
     /// #   b: i32,
     /// # }
     /// # let mut foo = Foo::default();
@@ -120,11 +120,11 @@ pub enum MutationKind<T> {
     /// ```
     /// # #[derive(Default)]
     /// # struct Foo {
-    /// #   a: FooA,
+    /// #   a: A,
     /// #   vec: Vec<i32>,
     /// # }
     /// # #[derive(Default)]
-    /// # struct FooA {
+    /// # struct A {
     /// #   b: String,
     /// # }
     /// # let mut foo = Foo::default();
@@ -138,6 +138,27 @@ pub enum MutationKind<T> {
     #[cfg_attr(docsrs, doc(cfg(feature = "append")))]
     Append(T),
 
+    /// `Truncate` represents removing elements from the end of a string or vector. This is more
+    /// efficient than [`Replace`](MutationKind::Replace) because only the truncation length needs
+    /// to be serialized and transmitted.
+    ///
+    /// ## Examples
+    /// ```
+    /// # #[derive(Default)]
+    /// # struct Foo {
+    /// #   a: A,
+    /// #   vec: Vec<i32>,
+    /// # }
+    /// # #[derive(Default)]
+    /// # struct A {
+    /// #   b: String,
+    /// # }
+    /// let mut foo = Foo {
+    ///     a: A { b: "Hello, World!".to_string() },
+    ///     vec: vec![1, 2, 3, 4, 5],
+    /// };
+    /// foo.a.b.truncate(5);        // Truncate 8 chars from .a.b
+    /// foo.vec.truncate(2);        // Truncate 3 elements from .vec
     #[cfg(feature = "truncate")]
     #[cfg_attr(docsrs, doc(cfg(feature = "truncate")))]
     Truncate(usize),
