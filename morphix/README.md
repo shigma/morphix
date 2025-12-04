@@ -106,5 +106,9 @@ Multiple mutations combined into a single operation.
 ## Features
 
 - `derive` (default): Enables the Observe derive macro
-- `json`: Includes JSON serialization support via `serde_json`
-- `yaml`: Includes YAML serialization support via `serde_yaml_ng`
+- Mutation kinds:
+  - `append` (default): Enables `Append` mutation kind
+  - `truncate` (default): Enables `Truncate` mutation kind
+- Adapters:
+  - `json`: Includes JSON serialization support via `serde_json`
+  - `yaml`: Includes YAML serialization support via `serde_yaml_ng`

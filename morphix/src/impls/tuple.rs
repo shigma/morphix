@@ -103,7 +103,7 @@ where
     }
 }
 
-spec_impl_observe!(OptionObserveImpl, (Self,), (T,), TupleObserver);
+spec_impl_observe!(TupleObserveImpl, (Self,), (T,), TupleObserver);
 spec_impl_ref_observe!(TupleRefObserveImpl, (Self,), (T,));
 
 macro_rules! tuple_observer {

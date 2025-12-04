@@ -1,3 +1,9 @@
+//! Adapters for serializing mutations to different formats.
+//!
+//! This module provides the [`Adapter`] trait and implementations for various serialization
+//! formats. Adapters bridge the gap between morphix's internal mutation representation and
+//! external formats like JSON or YAML.
+
 use std::mem::take;
 
 use serde::Serialize;
