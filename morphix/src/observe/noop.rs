@@ -32,7 +32,7 @@ pub type NoopObserver<'ob, S, D = Zero> = GeneralObserver<'ob, NoopHandler, S, D
 #[derive(Default)]
 pub struct NoopHandler;
 
-impl<T> GeneralHandler<T> for NoopHandler {
+impl<T: ?Sized> GeneralHandler<T> for NoopHandler {
     type Spec = DefaultSpec;
 
     #[inline]
@@ -49,7 +49,7 @@ impl<T> GeneralHandler<T> for NoopHandler {
     }
 }
 
-impl<T> DebugHandler<T> for NoopHandler {
+impl<T: ?Sized> DebugHandler<T> for NoopHandler {
     const NAME: &'static str = "NoopObserver";
 }
 

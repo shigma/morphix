@@ -53,14 +53,14 @@ pub struct HashHandler<H> {
 
 impl<H: Hasher + Default> HashHandler<H> {
     #[inline]
-    fn hash<T: Hash>(value: &T) -> u64 {
+    fn hash<T: Hash + ?Sized>(value: &T) -> u64 {
         let mut hasher = H::default();
         value.hash(&mut hasher);
         hasher.finish()
     }
 }
 
-impl<T: Hash, H: Hasher + Default> GeneralHandler<T> for HashHandler<H> {
+impl<T: Hash + ?Sized, H: Hasher + Default> GeneralHandler<T> for HashHandler<H> {
     type Spec = HashSpec;
 
     #[inline]
@@ -80,7 +80,7 @@ impl<T: Hash, H: Hasher + Default> GeneralHandler<T> for HashHandler<H> {
     }
 }
 
-impl<T: Hash, H: Hasher + Default> DebugHandler<T> for HashHandler<H> {
+impl<T: Hash + ?Sized, H: Hasher + Default> DebugHandler<T> for HashHandler<H> {
     const NAME: &'static str = "HashObserver";
 }
 

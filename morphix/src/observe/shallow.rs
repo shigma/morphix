@@ -1,4 +1,5 @@
-use crate::helper::Zero;
+use crate::Observe;
+use crate::helper::{AsDerefMut, Unsigned, Zero};
 use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver};
 
 /// A general observer that tracks any mutation access as a change.
@@ -42,7 +43,7 @@ pub struct ShallowHandler {
     mutated: bool,
 }
 
-impl<T> GeneralHandler<T> for ShallowHandler {
+impl<T: ?Sized> GeneralHandler<T> for ShallowHandler {
     type Spec = DefaultSpec;
 
     #[inline]
@@ -61,6 +62,17 @@ impl<T> GeneralHandler<T> for ShallowHandler {
     }
 }
 
-impl<T> DebugHandler<T> for ShallowHandler {
+impl<T: ?Sized> DebugHandler<T> for ShallowHandler {
     const NAME: &'static str = "ShallowObserver";
+}
+
+impl Observe for str {
+    type Observer<'ob, S, D>
+        = ShallowObserver<'ob, S, D>
+    where
+        Self: 'ob,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+    type Spec = DefaultSpec;
 }
