@@ -108,21 +108,22 @@ where
                 kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
             }));
         };
+        let mut mutations = Vec::with_capacity(2);
         #[cfg(feature = "truncate")]
         if truncate_len > 0 {
-            return Ok(Some(Mutation {
+            mutations.push(Mutation {
                 path: Default::default(),
                 kind: MutationKind::Truncate(truncate_len),
-            }));
+            });
         }
         #[cfg(feature = "append")]
         if len > start_index {
-            return Ok(Some(Mutation {
+            mutations.push(Mutation {
                 path: Default::default(),
                 kind: MutationKind::Append(A::serialize_value(&this.as_deref()[start_index..])?),
-            }));
+            });
         }
-        Ok(None)
+        Ok(Mutation::coalesce(mutations))
     }
 }
 
@@ -490,5 +491,56 @@ mod tests {
         **ob = String::from("xyz");
         let Json(mutation) = ob.collect().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("xyz")));
+    }
+
+    #[test]
+    fn truncate() {
+        let mut s = String::from("你好，世界！");
+        let mut ob = s.__observe();
+        ob.truncate("你好".len());
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Truncate(4));
+    }
+
+    #[test]
+    fn pop_as_truncate() {
+        let mut s = String::from("你好，世界！");
+        let mut ob = s.__observe();
+        ob.pop();
+        ob.pop();
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Truncate(2));
+    }
+
+    #[test]
+    fn pop_after_append() {
+        let mut s = String::from("你好！");
+        let mut ob = s.__observe();
+        ob.push_str("世界！");
+        ob.pop();
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!("世界")));
+    }
+
+    #[test]
+    fn append_after_pop() {
+        let mut s = String::from("你好，世界！");
+        let mut ob = s.__observe();
+        ob.pop();
+        ob.push('~');
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(
+            mutation.unwrap().kind,
+            MutationKind::Batch(vec![
+                Mutation {
+                    path: Default::default(),
+                    kind: MutationKind::Truncate(1),
+                },
+                Mutation {
+                    path: Default::default(),
+                    kind: MutationKind::Append(json!("~")),
+                },
+            ])
+        );
     }
 }
