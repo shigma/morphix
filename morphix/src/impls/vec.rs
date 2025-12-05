@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use crate::helper::macros::untracked_methods;
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
-use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver};
+use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver, TruncateAppend};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
@@ -19,11 +19,11 @@ use crate::{Adapter, Mutation, Observe};
 /// mutations and append operations. It builds on [`SliceObserver`] for element tracking while
 /// adding specialized support for dynamic operations.
 pub struct VecObserver<'ob, O, S: ?Sized, D = Zero> {
-    inner: SliceObserver<'ob, UnsafeCell<Vec<O>>, S, Succ<D>>,
+    inner: SliceObserver<'ob, UnsafeCell<Vec<O>>, TruncateAppend, S, Succ<D>>,
 }
 
 impl<'ob, O, S: ?Sized, D> Deref for VecObserver<'ob, O, S, D> {
-    type Target = SliceObserver<'ob, UnsafeCell<Vec<O>>, S, Succ<D>>;
+    type Target = SliceObserver<'ob, UnsafeCell<Vec<O>>, TruncateAppend, S, Succ<D>>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -65,7 +65,7 @@ where
     #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
-            inner: SliceObserver::<UnsafeCell<Vec<O>>, S, Succ<D>>::observe(value),
+            inner: SliceObserver::<UnsafeCell<Vec<O>>, TruncateAppend, S, Succ<D>>::observe(value),
         }
     }
 
@@ -92,7 +92,8 @@ impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    T: 'ob,
 {
     untracked_methods! { Vec =>
         pub fn reserve(&mut self, additional: usize);
@@ -102,8 +103,23 @@ where
         pub fn shrink_to_fit(&mut self);
         pub fn shrink_to(&mut self, min_capacity: usize);
     }
+
+    /// See [`Vec::as_slice`].
+    #[inline]
+    pub fn as_slice(&self) -> &[O] {
+        self.__force();
+        self.inner.obs.as_slice()
+    }
+
+    /// See [`Vec::as_mut_slice`].
+    #[inline]
+    pub fn as_mut_slice(&mut self) -> &mut [O] {
+        self.__force();
+        self.inner.obs.as_mut_slice()
+    }
 }
 
+#[cfg(feature = "append")]
 impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
@@ -111,75 +127,125 @@ where
     O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
 {
-    /// See [`Vec::truncate`].
     #[inline]
-    pub fn truncate(&mut self, len: usize) {
-        if len >= self.__initial_len() {
-            Observer::as_inner(self).truncate(len)
-        } else {
-            Observer::track_inner(self).truncate(len)
+    pub(super) fn __append_index(&mut self) -> usize {
+        match &self.inner.mutation {
+            Some(m) => m.append_index,
+            None => 0,
         }
     }
 
-    /// See [`Vec::as_slice`].
-    #[inline]
-    pub fn as_slice(&self) -> &[O] {
-        self.inner.obs.as_slice()
-    }
-
-    /// See [`Vec::as_mut_slice`].
-    #[inline]
-    pub fn as_mut_slice(&mut self) -> &mut [O] {
-        self.inner.obs.as_mut_slice()
-    }
-
-    /// See [`Vec::swap_remove`].
-    pub fn swap_remove(&mut self, index: usize) -> T {
-        let initial_len = self.__initial_len();
-        if self.as_deref().len() <= initial_len {
-            Observer::track_inner(self).swap_remove(index)
-        } else {
-            if index < initial_len {
-                self[index].as_deref_mut_coinductive();
-            }
-            Observer::as_inner(self).swap_remove(index)
-        }
+    untracked_methods! { Vec =>
+        pub fn push(&mut self, value: T);
+        pub fn append(&mut self, other: &mut Vec<T>);
     }
 
     /// See [`Vec::insert`].
     #[inline]
     pub fn insert(&mut self, index: usize, element: T) {
-        if index >= self.__initial_len() {
+        if index >= self.__append_index() {
             Observer::as_inner(self).insert(index, element)
         } else {
             Observer::track_inner(self).insert(index, element)
         }
     }
+}
+
+#[cfg(any(feature = "append", feature = "truncate"))]
+impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    T: 'ob,
+{
+    #[inline]
+    fn __mark_truncate(&mut self, append_index: usize) {
+        let mutation = self.mutation.as_mut().unwrap();
+        mutation.truncate_len += mutation.append_index - append_index;
+        mutation.append_index = append_index;
+    }
+
+    /// See [`Vec::clear`].
+    #[inline]
+    pub fn clear(&mut self) {
+        if self.__append_index() == 0 {
+            Observer::as_inner(self).clear()
+        } else {
+            Observer::track_inner(self).clear()
+        }
+    }
 
     /// See [`Vec::remove`].
-    #[inline]
     pub fn remove(&mut self, index: usize) -> T {
-        if index >= self.__initial_len() {
+        let append_index = self.__append_index();
+        if index >= append_index {
+            Observer::as_inner(self).remove(index)
+        } else if index + 1 == append_index && cfg!(feature = "truncate") {
+            self.__mark_truncate(index);
             Observer::as_inner(self).remove(index)
         } else {
             Observer::track_inner(self).remove(index)
         }
     }
 
-    /// See [`Vec::push`].
-    #[inline]
-    pub fn push(&mut self, value: T) {
-        Observer::as_inner(self).push(value);
+    /// See [`Vec::swap_remove`].
+    pub fn swap_remove(&mut self, index: usize) -> T {
+        let append_index = self.__append_index();
+        if self.as_deref().len() <= append_index {
+            Observer::track_inner(self).swap_remove(index)
+        } else {
+            if index < append_index {
+                self[index].as_deref_mut_coinductive();
+            }
+            Observer::as_inner(self).swap_remove(index)
+        }
     }
 
     /// See [`Vec::pop`].
-    #[inline]
     pub fn pop(&mut self) -> Option<T> {
-        if self.as_deref().len() > self.__initial_len() {
-            Observer::as_inner(self).pop()
-        } else {
-            Observer::track_inner(self).pop()
+        let append_index = self.__append_index();
+        let len = self.as_deref().len();
+        if len > append_index {
+            return Observer::as_inner(self).pop();
         }
+        if len == 0 {
+            return None;
+        }
+        if len == 1 || cfg!(not(feature = "truncate")) {
+            return Observer::track_inner(self).pop();
+        }
+        let value = Observer::as_inner(self).pop().unwrap();
+        let mutation = self.mutation.as_mut().unwrap();
+        mutation.truncate_len += 1;
+        mutation.append_index -= 1;
+        Some(value)
+    }
+
+    /// See [`Vec::truncate`].
+    pub fn truncate(&mut self, len: usize) {
+        let append_index = self.__append_index();
+        if len >= append_index {
+            return Observer::as_inner(self).truncate(len);
+        }
+        if len == 0 || cfg!(not(feature = "truncate")) {
+            return Observer::track_inner(self).truncate(len);
+        }
+        self.__mark_truncate(len);
+        Observer::as_inner(self).truncate(len)
+    }
+
+    /// See [`Vec::split_off`].
+    pub fn split_off(&mut self, at: usize) -> Vec<T> {
+        let append_index = self.__append_index();
+        if at >= append_index {
+            return Observer::as_inner(self).split_off(at);
+        }
+        if at == 0 || cfg!(not(feature = "truncate")) {
+            return Observer::track_inner(self).split_off(at);
+        }
+        self.__mark_truncate(at);
+        Observer::as_inner(self).split_off(at)
     }
 
     /// See [`Vec::pop_if`].
@@ -187,12 +253,6 @@ where
     pub fn pop_if(&mut self, predicate: impl FnOnce(&mut O) -> bool) -> Option<T> {
         let last = self.last_mut()?;
         if predicate(last) { self.pop() } else { None }
-    }
-
-    /// See [`Vec::append`].
-    #[inline]
-    pub fn append(&mut self, other: &mut Vec<T>) {
-        Observer::as_inner(self).append(other);
     }
 
     /// See [`Vec::drain`].
@@ -205,30 +265,10 @@ where
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= self.__initial_len() {
+        if start_index >= self.__append_index() {
             Observer::as_inner(self).drain(range)
         } else {
             Observer::track_inner(self).drain(range)
-        }
-    }
-
-    /// See [`Vec::clear`].
-    #[inline]
-    pub fn clear(&mut self) {
-        if self.__initial_len() == 0 {
-            Observer::as_inner(self).clear()
-        } else {
-            Observer::track_inner(self).clear()
-        }
-    }
-
-    /// See [`Vec::split_off`].
-    #[inline]
-    pub fn split_off(&mut self, at: usize) -> Vec<T> {
-        if at >= self.__initial_len() {
-            Observer::as_inner(self).split_off(at)
-        } else {
-            Observer::track_inner(self).split_off(at)
         }
     }
 
@@ -238,7 +278,7 @@ where
     where
         F: FnMut() -> T,
     {
-        if new_len >= self.__initial_len() {
+        if new_len >= self.__append_index() {
             Observer::as_inner(self).resize_with(new_len, f)
         } else {
             Observer::track_inner(self).resize_with(new_len, f)
@@ -256,7 +296,7 @@ where
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= self.__initial_len() {
+        if start_index >= self.__append_index() {
             Observer::as_inner(self).splice(range, replace_with)
         } else {
             Observer::track_inner(self).splice(range, replace_with)
@@ -274,7 +314,7 @@ where
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= self.__initial_len() {
+        if start_index >= self.__append_index() {
             Observer::as_inner(self).extract_if(range, filter)
         } else {
             Observer::track_inner(self).extract_if(range, filter)
@@ -282,6 +322,22 @@ where
     }
 }
 
+#[cfg(feature = "append")]
+impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    T: Clone + 'ob,
+{
+    untracked_methods! { Vec =>
+        pub fn extend_from_slice(&mut self, other: &[T]);
+        pub fn extend_from_within<R>(&mut self, src: R)
+        where { R: RangeBounds<usize> };
+    }
+}
+
+#[cfg(any(feature = "append", feature = "truncate"))]
 impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
@@ -292,26 +348,15 @@ where
     /// See [`Vec::resize`].
     #[inline]
     pub fn resize(&mut self, new_len: usize, value: T) {
-        if new_len >= self.__initial_len() {
+        if new_len >= self.__append_index() {
             Observer::as_inner(self).resize(new_len, value)
         } else {
             Observer::track_inner(self).resize(new_len, value)
         }
     }
-
-    /// See [`Vec::extend_from_slice`].
-    #[inline]
-    pub fn extend_from_slice(&mut self, other: &[T]) {
-        Observer::as_inner(self).extend_from_slice(other);
-    }
-
-    /// See [`Vec::extend_from_within`].
-    #[inline]
-    pub fn extend_from_within<R: RangeBounds<usize>>(&mut self, range: R) {
-        Observer::as_inner(self).extend_from_within(range);
-    }
 }
 
+#[cfg(feature = "append")]
 impl<'ob, O, S: ?Sized, D, T, U> Extend<U> for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,

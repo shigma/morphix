@@ -20,7 +20,7 @@ pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
 }
 
 struct TruncateAppend {
-    pub start_index: usize,  // byte index
+    pub append_index: usize, // byte index
     pub truncate_len: usize, // char count
 }
 
@@ -75,7 +75,7 @@ where
         Self {
             ptr: ObserverPointer::new(value),
             mutation: Some(TruncateAppend {
-                start_index: value.as_deref().len(),
+                append_index: value.as_deref().len(),
                 truncate_len: 0,
             }),
             phantom: PhantomData,
@@ -95,19 +95,19 @@ where
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         let len = this.as_deref().len();
-        let Some(TruncateAppend {
-            start_index,
-            truncate_len,
-        }) = this.mutation.replace(TruncateAppend {
-            start_index: len,
+        let Some(truncate_append) = this.mutation.replace(TruncateAppend {
+            append_index: len,
             truncate_len: 0,
-        })
-        else {
+        }) else {
             return Ok(Some(Mutation {
                 path: Default::default(),
                 kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
             }));
         };
+        let TruncateAppend {
+            append_index,
+            truncate_len,
+        } = truncate_append;
         let mut mutations = Vec::with_capacity(2);
         #[cfg(feature = "truncate")]
         if truncate_len > 0 {
@@ -117,35 +117,13 @@ where
             });
         }
         #[cfg(feature = "append")]
-        if len > start_index {
+        if len > append_index {
             mutations.push(Mutation {
                 path: Default::default(),
-                kind: MutationKind::Append(A::serialize_value(&this.as_deref()[start_index..])?),
+                kind: MutationKind::Append(A::serialize_value(&this.as_deref()[append_index..])?),
             });
         }
         Ok(Mutation::coalesce(mutations))
-    }
-}
-
-impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = String> + 'ob,
-{
-    #[inline]
-    fn __start_index(&mut self) -> usize {
-        match &mut self.mutation {
-            Some(m) => m.start_index,
-            None => 0,
-        }
-    }
-
-    #[inline]
-    fn __mark_truncate(&mut self, range: Range<usize>) {
-        let count = self.as_deref()[range.clone()].chars().count();
-        let mutation = self.mutation.as_mut().unwrap();
-        mutation.truncate_len += count;
-        mutation.start_index = range.start;
     }
 }
 
@@ -170,6 +148,14 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String> + 'ob,
 {
+    #[inline]
+    fn __append_index(&mut self) -> usize {
+        match &mut self.mutation {
+            Some(m) => m.append_index,
+            None => 0,
+        }
+    }
+
     untracked_methods! { String =>
         pub fn push(&mut self, c: char);
         pub fn push_str(&mut self, s: &str);
@@ -180,7 +166,7 @@ where
     /// See [`String::insert`].
     #[inline]
     pub fn insert(&mut self, idx: usize, ch: char) {
-        if idx >= self.__start_index() {
+        if idx >= self.__append_index() {
             Observer::as_inner(self).insert(idx, ch)
         } else {
             Observer::track_inner(self).insert(idx, ch)
@@ -190,7 +176,7 @@ where
     /// See [`String::insert_str`].
     #[inline]
     pub fn insert_str(&mut self, idx: usize, string: &str) {
-        if idx >= self.__start_index() {
+        if idx >= self.__append_index() {
             Observer::as_inner(self).insert_str(idx, string)
         } else {
             Observer::track_inner(self).insert_str(idx, string)
@@ -204,31 +190,45 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String> + 'ob,
 {
-    /// See [`String::remove`].
     #[inline]
-    pub fn remove(&mut self, idx: usize) -> char {
-        if idx >= self.__start_index() {
-            Observer::as_inner(self).remove(idx)
-        } else {
-            Observer::track_inner(self).remove(idx)
-        }
+    fn __mark_truncate(&mut self, range: Range<usize>) {
+        let count = self.as_deref()[range.clone()].chars().count();
+        let mutation = self.mutation.as_mut().unwrap();
+        mutation.truncate_len += count;
+        mutation.append_index = range.start;
     }
 
     /// See [`String::clear`].
     #[inline]
     pub fn clear(&mut self) {
-        if self.__start_index() == 0 {
+        if self.__append_index() == 0 {
             Observer::as_inner(self).clear()
         } else {
             Observer::track_inner(self).clear()
         }
     }
 
+    /// See [`String::remove`].
+    pub fn remove(&mut self, idx: usize) -> char {
+        let char = Observer::as_inner(self).remove(idx);
+        let append_index = self.__append_index();
+        if idx >= append_index {
+            // no-op
+        } else if cfg!(feature = "truncate") && idx + char.len_utf8() == append_index {
+            let mutation = self.mutation.as_mut().unwrap();
+            mutation.truncate_len += 1;
+            mutation.append_index = idx;
+        } else {
+            self.__mark_replace();
+        }
+        char
+    }
+
     /// See [`String::pop`].
     pub fn pop(&mut self) -> Option<char> {
-        let start_index = self.__start_index();
+        let append_index = self.__append_index();
         let len = self.as_deref().len();
-        if len > start_index {
+        if len > append_index {
             return Observer::as_inner(self).pop();
         }
         if len == 0 {
@@ -240,33 +240,33 @@ where
         let char = Observer::as_inner(self).pop().unwrap();
         let mutation = self.mutation.as_mut().unwrap();
         mutation.truncate_len += 1;
-        mutation.start_index -= char.len_utf8();
+        mutation.append_index -= char.len_utf8();
         Some(char)
     }
 
     /// See [`String::truncate`].
     pub fn truncate(&mut self, len: usize) {
-        let start_index = self.__start_index();
-        if len >= start_index {
+        let append_index = self.__append_index();
+        if len >= append_index {
             return Observer::as_inner(self).truncate(len);
         }
         if len == 0 || cfg!(not(feature = "truncate")) {
             return Observer::track_inner(self).truncate(len);
         }
-        self.__mark_truncate(len..start_index);
+        self.__mark_truncate(len..append_index);
         Observer::as_inner(self).truncate(len)
     }
 
     /// See [`String::split_off`].
     pub fn split_off(&mut self, at: usize) -> String {
-        let start_index = self.__start_index();
-        if at >= start_index {
+        let append_index = self.__append_index();
+        if at >= append_index {
             return Observer::as_inner(self).split_off(at);
         }
         if at == 0 || cfg!(not(feature = "truncate")) {
             return Observer::track_inner(self).split_off(at);
         }
-        self.__mark_truncate(at..start_index);
+        self.__mark_truncate(at..append_index);
         Observer::as_inner(self).split_off(at)
     }
 
@@ -280,7 +280,7 @@ where
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= self.__start_index() {
+        if start_index >= self.__append_index() {
             Observer::as_inner(self).drain(range)
         } else {
             Observer::track_inner(self).drain(range)
@@ -292,27 +292,27 @@ where
     where
         R: RangeBounds<usize>,
     {
-        let start_index = self.__start_index();
-        let start_bound = match range.start_bound() {
+        let append_index = self.__append_index();
+        let start_index = match range.start_bound() {
             Bound::Included(&n) => n,
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_bound >= start_index {
+        if start_index >= append_index {
             return Observer::as_inner(self).replace_range(range, replace_with);
         }
-        if start_bound == 0 || cfg!(not(feature = "truncate")) {
+        if start_index == 0 || cfg!(not(feature = "truncate")) {
             return Observer::track_inner(self).replace_range(range, replace_with);
         }
-        let end_bound = match range.end_bound() {
+        let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
             Bound::Excluded(&n) => n,
             Bound::Unbounded => self.as_deref().len(),
         };
-        if end_bound < start_index {
+        if end_index < append_index {
             return Observer::track_inner(self).replace_range(range, replace_with);
         }
-        self.__mark_truncate(start_bound..start_index);
+        self.__mark_truncate(start_index..append_index);
         Observer::as_inner(self).replace_range(range, replace_with);
     }
 }
@@ -542,5 +542,24 @@ mod tests {
                 },
             ])
         );
+    }
+
+    #[test]
+    fn remove_before_append_index() {
+        let mut s = String::from("你好，世界！");
+        let mut ob = s.__observe();
+        assert_eq!(ob.remove("你好".len()), '，');
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("你好世界！")));
+    }
+
+    #[test]
+    fn remove_at_append_index() {
+        let mut s = String::from("你好，世界！");
+        let mut ob = s.__observe();
+        assert_eq!(ob.remove("你好，世界".len()), '！');
+        assert_eq!(ob.remove("你好，世".len()), '界');
+        let Json(mutation) = ob.collect().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Truncate(2));
     }
 }

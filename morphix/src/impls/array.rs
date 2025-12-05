@@ -6,9 +6,36 @@ use serde::Serialize;
 
 use crate::helper::macros::spec_impl_ref_observe;
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
-use crate::impls::slice::{SliceIndexImpl, SliceObserver};
+use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
+
+impl<'ob, O, const N: usize> ObserverSlice<'ob> for [O; N]
+where
+    O: Observer<'ob, InnerDepth = Zero, Head: Sized>,
+{
+    type Item = O;
+
+    #[inline]
+    fn as_slice(&self) -> &[O] {
+        self
+    }
+
+    #[inline]
+    fn as_mut_slice(&mut self) -> &mut [O] {
+        self
+    }
+
+    #[inline]
+    fn uninit() -> Self {
+        std::array::from_fn(|_| O::uninit())
+    }
+
+    #[inline]
+    fn init_range(&self, _start: usize, _end: usize, _values: &'ob mut [<Self::Item as Observer<'ob>>::Head]) {
+        // No need to re-initialize fixed-size array.
+    }
+}
 
 /// Observer implementation for [array](core::array).
 ///
@@ -16,37 +43,47 @@ use crate::{Adapter, Mutation, Observe};
 /// [`SliceObserver`]. It tracks modifications to individual array elements through indexing
 /// operations.
 pub struct ArrayObserver<'ob, const N: usize, O, S: ?Sized, D = Zero> {
-    inner: SliceObserver<'ob, [O; N], S, D>,
+    inner: SliceObserver<'ob, [O; N], (), S, D>,
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D> ArrayObserver<'ob, N, O, S, D> {
+impl<'ob, const N: usize, O, S: ?Sized, D, T> ArrayObserver<'ob, N, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = [T; N]> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    T: 'ob,
+{
     /// See [`array::as_slice`].
     #[inline]
     pub fn as_slice(&self) -> &[O] {
-        &self.inner.obs
+        self.inner.__force();
+        self.inner.obs.as_slice()
     }
 
     /// See [`array::as_mut_slice`].
     #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [O] {
-        &mut self.inner.obs
+        self.inner.__force();
+        self.inner.obs.as_mut_slice()
     }
 
     /// See [`array::each_ref`].
     #[inline]
     pub fn each_ref(&self) -> [&O; N] {
+        self.inner.__force();
         self.inner.obs.each_ref()
     }
 
     /// See [`array::each_mut`].
     #[inline]
     pub fn each_mut(&mut self) -> [&mut O; N] {
+        self.inner.__force();
         self.inner.obs.each_mut()
     }
 }
 
 impl<'ob, const N: usize, O, S: ?Sized, D> Deref for ArrayObserver<'ob, N, O, S, D> {
-    type Target = SliceObserver<'ob, [O; N], S, D>;
+    type Target = SliceObserver<'ob, [O; N], (), S, D>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -88,7 +125,7 @@ where
     #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
-            inner: SliceObserver::<[O; N], S, D>::observe(value),
+            inner: SliceObserver::<[O; N], (), S, D>::observe(value),
         }
     }
 
