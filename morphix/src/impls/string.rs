@@ -226,21 +226,18 @@ where
 
     /// See [`String::pop`].
     pub fn pop(&mut self) -> Option<char> {
+        let char = Observer::as_inner(self).pop()?;
         let append_index = self.__append_index();
         let len = self.as_deref().len();
-        if len > append_index {
-            return Observer::as_inner(self).pop();
+        if len >= append_index {
+            // no-op
+        } else if cfg!(feature = "truncate") && len + char.len_utf8() == append_index {
+            let mutation = self.mutation.as_mut().unwrap();
+            mutation.truncate_len += 1;
+            mutation.append_index = len;
+        } else {
+            self.__mark_replace();
         }
-        if len == 0 {
-            return None;
-        }
-        if len == 1 || cfg!(not(feature = "truncate")) {
-            return Observer::track_inner(self).pop();
-        }
-        let char = Observer::as_inner(self).pop().unwrap();
-        let mutation = self.mutation.as_mut().unwrap();
-        mutation.truncate_len += 1;
-        mutation.append_index -= char.len_utf8();
         Some(char)
     }
 
@@ -250,7 +247,7 @@ where
         if len >= append_index {
             return Observer::as_inner(self).truncate(len);
         }
-        if len == 0 || cfg!(not(feature = "truncate")) {
+        if cfg!(not(feature = "truncate")) || len == 0 {
             return Observer::track_inner(self).truncate(len);
         }
         self.__mark_truncate(len..append_index);
@@ -263,7 +260,7 @@ where
         if at >= append_index {
             return Observer::as_inner(self).split_off(at);
         }
-        if at == 0 || cfg!(not(feature = "truncate")) {
+        if cfg!(not(feature = "truncate")) || at == 0 {
             return Observer::track_inner(self).split_off(at);
         }
         self.__mark_truncate(at..append_index);
@@ -275,16 +272,28 @@ where
     where
         R: RangeBounds<usize>,
     {
+        let append_index = self.__append_index();
         let start_index = match range.start_bound() {
             Bound::Included(&n) => n,
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= self.__append_index() {
-            Observer::as_inner(self).drain(range)
-        } else {
-            Observer::track_inner(self).drain(range)
+        if start_index >= append_index {
+            return Observer::as_inner(self).drain(range);
         }
+        if cfg!(not(feature = "truncate")) || start_index == 0 {
+            return Observer::track_inner(self).drain(range);
+        }
+        let end_index = match range.end_bound() {
+            Bound::Included(&n) => n + 1,
+            Bound::Excluded(&n) => n,
+            Bound::Unbounded => self.as_deref().len(),
+        };
+        if end_index < append_index {
+            return Observer::track_inner(self).drain(range);
+        }
+        self.__mark_truncate(start_index..append_index);
+        Observer::track_inner(self).drain(range)
     }
 
     /// See [`String::replace_range`].
@@ -301,7 +310,7 @@ where
         if start_index >= append_index {
             return Observer::as_inner(self).replace_range(range, replace_with);
         }
-        if start_index == 0 || cfg!(not(feature = "truncate")) {
+        if cfg!(not(feature = "truncate")) || start_index == 0 {
             return Observer::track_inner(self).replace_range(range, replace_with);
         }
         let end_index = match range.end_bound() {

@@ -178,74 +178,45 @@ where
 
     /// See [`Vec::remove`].
     pub fn remove(&mut self, index: usize) -> T {
+        let value = Observer::as_inner(self).remove(index);
         let append_index = self.__append_index();
         if index >= append_index {
-            Observer::as_inner(self).remove(index)
-        } else if index + 1 == append_index && cfg!(feature = "truncate") {
+            // no-op
+        } else if cfg!(feature = "truncate") && index + 1 == append_index {
             self.__mark_truncate(index);
-            Observer::as_inner(self).remove(index)
         } else {
-            Observer::track_inner(self).remove(index)
+            self.__mark_replace();
         }
+        value
     }
 
     /// See [`Vec::swap_remove`].
     pub fn swap_remove(&mut self, index: usize) -> T {
+        let value = Observer::as_inner(self).remove(index);
         let append_index = self.__append_index();
-        if self.as_deref().len() <= append_index {
-            Observer::track_inner(self).swap_remove(index)
+        if index >= append_index {
+            // no-op
+        } else if cfg!(feature = "truncate") && index + 1 == append_index {
+            self.__mark_truncate(index);
         } else {
-            if index < append_index {
-                self[index].as_deref_mut_coinductive();
-            }
-            Observer::as_inner(self).swap_remove(index)
+            self.__mark_replace();
         }
+        value
     }
 
     /// See [`Vec::pop`].
     pub fn pop(&mut self) -> Option<T> {
+        let value = Observer::as_inner(self).pop()?;
         let append_index = self.__append_index();
         let len = self.as_deref().len();
-        if len > append_index {
-            return Observer::as_inner(self).pop();
-        }
-        if len == 0 {
-            return None;
-        }
-        if len == 1 || cfg!(not(feature = "truncate")) {
-            return Observer::track_inner(self).pop();
-        }
-        let value = Observer::as_inner(self).pop().unwrap();
-        let mutation = self.mutation.as_mut().unwrap();
-        mutation.truncate_len += 1;
-        mutation.append_index -= 1;
-        Some(value)
-    }
-
-    /// See [`Vec::truncate`].
-    pub fn truncate(&mut self, len: usize) {
-        let append_index = self.__append_index();
         if len >= append_index {
-            return Observer::as_inner(self).truncate(len);
+            // no-op
+        } else if cfg!(feature = "truncate") && len + 1 == append_index {
+            self.__mark_truncate(len);
+        } else {
+            self.__mark_replace();
         }
-        if len == 0 || cfg!(not(feature = "truncate")) {
-            return Observer::track_inner(self).truncate(len);
-        }
-        self.__mark_truncate(len);
-        Observer::as_inner(self).truncate(len)
-    }
-
-    /// See [`Vec::split_off`].
-    pub fn split_off(&mut self, at: usize) -> Vec<T> {
-        let append_index = self.__append_index();
-        if at >= append_index {
-            return Observer::as_inner(self).split_off(at);
-        }
-        if at == 0 || cfg!(not(feature = "truncate")) {
-            return Observer::track_inner(self).split_off(at);
-        }
-        self.__mark_truncate(at);
-        Observer::as_inner(self).split_off(at)
+        Some(value)
     }
 
     /// See [`Vec::pop_if`].
@@ -255,21 +226,31 @@ where
         if predicate(last) { self.pop() } else { None }
     }
 
-    /// See [`Vec::drain`].
-    pub fn drain<R>(&mut self, range: R) -> Drain<'_, T>
-    where
-        R: RangeBounds<usize>,
-    {
-        let start_index = match range.start_bound() {
-            Bound::Included(&n) => n,
-            Bound::Excluded(&n) => n + 1,
-            Bound::Unbounded => 0,
-        };
-        if start_index >= self.__append_index() {
-            Observer::as_inner(self).drain(range)
+    /// See [`Vec::truncate`].
+    pub fn truncate(&mut self, len: usize) {
+        Observer::as_inner(self).truncate(len);
+        let append_index = self.__append_index();
+        if len >= append_index {
+            // no-op
+        } else if cfg!(feature = "truncate") && len > 0 {
+            self.__mark_truncate(len);
         } else {
-            Observer::track_inner(self).drain(range)
+            self.__mark_replace();
         }
+    }
+
+    /// See [`Vec::split_off`].
+    pub fn split_off(&mut self, at: usize) -> Vec<T> {
+        let vec = Observer::as_inner(self).split_off(at);
+        let append_index = self.__append_index();
+        if at >= append_index {
+            // no-op
+        } else if cfg!(feature = "truncate") && at > 0 {
+            self.__mark_truncate(at);
+        } else {
+            self.__mark_replace();
+        }
+        vec
     }
 
     /// See [`Vec::resize_with`].
@@ -278,11 +259,44 @@ where
     where
         F: FnMut() -> T,
     {
-        if new_len >= self.__append_index() {
-            Observer::as_inner(self).resize_with(new_len, f)
+        Observer::as_inner(self).resize_with(new_len, f);
+        let append_index = self.__append_index();
+        if new_len >= append_index {
+            // no-op
+        } else if cfg!(feature = "truncate") && new_len > 0 {
+            self.__mark_truncate(new_len);
         } else {
-            Observer::track_inner(self).resize_with(new_len, f)
+            self.__mark_replace();
         }
+    }
+
+    /// See [`Vec::drain`].
+    pub fn drain<R>(&mut self, range: R) -> Drain<'_, T>
+    where
+        R: RangeBounds<usize>,
+    {
+        let append_index = self.__append_index();
+        let start_index = match range.start_bound() {
+            Bound::Included(&n) => n,
+            Bound::Excluded(&n) => n + 1,
+            Bound::Unbounded => 0,
+        };
+        if start_index >= append_index {
+            return Observer::as_inner(self).drain(range);
+        }
+        if cfg!(not(feature = "truncate")) || start_index == 0 {
+            return Observer::track_inner(self).drain(range);
+        }
+        let end_index = match range.end_bound() {
+            Bound::Included(&n) => n + 1,
+            Bound::Excluded(&n) => n,
+            Bound::Unbounded => self.as_deref().len(),
+        };
+        if end_index < append_index {
+            return Observer::track_inner(self).drain(range);
+        }
+        self.__mark_truncate(start_index);
+        Observer::track_inner(self).drain(range)
     }
 
     /// See [`Vec::splice`].
@@ -291,16 +305,28 @@ where
         R: RangeBounds<usize>,
         I: IntoIterator<Item = T>,
     {
+        let append_index = self.__append_index();
         let start_index = match range.start_bound() {
             Bound::Included(&n) => n,
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= self.__append_index() {
-            Observer::as_inner(self).splice(range, replace_with)
-        } else {
-            Observer::track_inner(self).splice(range, replace_with)
+        if start_index >= append_index {
+            return Observer::as_inner(self).splice(range, replace_with);
         }
+        if cfg!(not(feature = "truncate")) || start_index == 0 {
+            return Observer::track_inner(self).splice(range, replace_with);
+        }
+        let end_index = match range.end_bound() {
+            Bound::Included(&n) => n + 1,
+            Bound::Excluded(&n) => n,
+            Bound::Unbounded => self.as_deref().len(),
+        };
+        if end_index < append_index {
+            return Observer::track_inner(self).splice(range, replace_with);
+        }
+        self.__mark_truncate(start_index);
+        Observer::as_inner(self).splice(range, replace_with)
     }
 
     /// See [`Vec::extract_if`].
@@ -309,16 +335,28 @@ where
         F: FnMut(&mut T) -> bool,
         R: RangeBounds<usize>,
     {
+        let append_index = self.__append_index();
         let start_index = match range.start_bound() {
             Bound::Included(&n) => n,
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= self.__append_index() {
-            Observer::as_inner(self).extract_if(range, filter)
-        } else {
-            Observer::track_inner(self).extract_if(range, filter)
+        if start_index >= append_index {
+            return Observer::as_inner(self).extract_if(range, filter);
         }
+        if cfg!(not(feature = "truncate")) || start_index == 0 {
+            return Observer::track_inner(self).extract_if(range, filter);
+        }
+        let end_index = match range.end_bound() {
+            Bound::Included(&n) => n + 1,
+            Bound::Excluded(&n) => n,
+            Bound::Unbounded => self.as_deref().len(),
+        };
+        if end_index < append_index {
+            return Observer::track_inner(self).extract_if(range, filter);
+        }
+        self.__mark_truncate(start_index);
+        Observer::as_inner(self).extract_if(range, filter)
     }
 }
 
@@ -348,10 +386,14 @@ where
     /// See [`Vec::resize`].
     #[inline]
     pub fn resize(&mut self, new_len: usize, value: T) {
-        if new_len >= self.__append_index() {
-            Observer::as_inner(self).resize(new_len, value)
+        Observer::as_inner(self).resize(new_len, value);
+        let append_index = self.__append_index();
+        if new_len >= append_index {
+            // no-op
+        } else if cfg!(feature = "truncate") && new_len > 0 {
+            self.__mark_truncate(new_len);
         } else {
-            Observer::track_inner(self).resize(new_len, value)
+            self.__mark_replace();
         }
     }
 }
