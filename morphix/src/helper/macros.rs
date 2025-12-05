@@ -136,12 +136,13 @@ macro_rules! spec_impl_ref_observe {
 
 macro_rules! untracked_methods {
     ($type:ident => $(
-        pub fn $name:ident(&mut self $(, $arg:ident: $arg_ty:ty)*) $(-> $ret:ty)?;
+        // Wrap {} around where clauses for easier parsing
+        pub fn $name:ident $(<$($gen:tt),*>)? (&mut self $(, $arg:ident: $arg_ty:ty)*) $(-> $ret:ty)? $(where { $($where:tt)+ })?;
     )*) => {
         $(
             #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`].")]
             #[inline]
-            pub fn $name(&mut self $(, $arg: $arg_ty)*) $(-> $ret)? {
+            pub fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $(-> $ret)? $(where $($where)+)? {
                 Observer::as_inner(self).$name($($arg),*)
             }
         )*

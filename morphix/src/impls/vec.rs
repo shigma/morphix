@@ -7,6 +7,7 @@ use std::vec::{Drain, ExtractIf, Splice};
 
 use serde::Serialize;
 
+use crate::helper::macros::untracked_methods;
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
@@ -91,45 +92,25 @@ impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+{
+    untracked_methods! { Vec =>
+        pub fn reserve(&mut self, additional: usize);
+        pub fn reserve_exact(&mut self, additional: usize);
+        pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
+        pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError>;
+        pub fn shrink_to_fit(&mut self);
+        pub fn shrink_to(&mut self, min_capacity: usize);
+    }
+}
+
+impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>> + 'ob,
     O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
 {
-    /// See [`Vec::reserve`].
-    #[inline]
-    pub fn reserve(&mut self, additional: usize) {
-        Observer::as_inner(self).reserve(additional);
-    }
-
-    /// See [`Vec::reserve_exact`].
-    #[inline]
-    pub fn reserve_exact(&mut self, additional: usize) {
-        Observer::as_inner(self).reserve_exact(additional);
-    }
-
-    /// See [`Vec::try_reserve`].
-    #[inline]
-    pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError> {
-        Observer::as_inner(self).try_reserve(additional)
-    }
-
-    /// See [`Vec::try_reserve_exact`].
-    #[inline]
-    pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError> {
-        Observer::as_inner(self).try_reserve_exact(additional)
-    }
-
-    /// See [`Vec::shrink_to_fit`].
-    #[inline]
-    pub fn shrink_to_fit(&mut self) {
-        Observer::as_inner(self).shrink_to_fit();
-    }
-
-    /// See [`Vec::shrink_to`].
-    #[inline]
-    pub fn shrink_to(&mut self, min_capacity: usize) {
-        Observer::as_inner(self).shrink_to(min_capacity);
-    }
-
     /// See [`Vec::truncate`].
     #[inline]
     pub fn truncate(&mut self, len: usize) {

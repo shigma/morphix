@@ -1,7 +1,7 @@
 use std::collections::TryReserveError;
 use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
-use std::ops::{AddAssign, Bound, Deref, DerefMut, RangeBounds};
+use std::ops::{AddAssign, Bound, Deref, DerefMut, Range, RangeBounds};
 use std::string::Drain;
 
 use crate::helper::macros::untracked_methods;
@@ -138,6 +138,14 @@ where
             None => 0,
         }
     }
+
+    #[inline]
+    fn __mark_truncate(&mut self, range: Range<usize>) {
+        let count = self.as_deref()[range.clone()].chars().count();
+        let mutation = self.mutation.as_mut().unwrap();
+        mutation.truncate_len += count;
+        mutation.start_index = range.start;
+    }
 }
 
 impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D>
@@ -161,25 +169,11 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String> + 'ob,
 {
-    /// See [`String::push`].
-    #[inline]
-    pub fn push(&mut self, c: char) {
-        Observer::as_inner(self).push(c);
-    }
-
-    /// See [`String::push_str`].
-    #[inline]
-    pub fn push_str(&mut self, s: &str) {
-        Observer::as_inner(self).push_str(s);
-    }
-
-    /// See [`String::extend_from_within`].
-    #[inline]
-    pub fn extend_from_within<R>(&mut self, src: R)
-    where
-        R: RangeBounds<usize>,
-    {
-        Observer::as_inner(self).extend_from_within(src);
+    untracked_methods! { String =>
+        pub fn push(&mut self, c: char);
+        pub fn push_str(&mut self, s: &str);
+        pub fn extend_from_within<R>(&mut self, src: R)
+        where { R: RangeBounds<usize> };
     }
 
     /// See [`String::insert`].
@@ -258,10 +252,7 @@ where
         if len == 0 || cfg!(not(feature = "truncate")) {
             return Observer::track_inner(self).truncate(len);
         }
-        let count = self.as_deref()[len..start_index].chars().count();
-        let mutation = self.mutation.as_mut().unwrap();
-        mutation.truncate_len += count;
-        mutation.start_index = len;
+        self.__mark_truncate(len..start_index);
         Observer::as_inner(self).truncate(len)
     }
 
@@ -274,10 +265,7 @@ where
         if at == 0 || cfg!(not(feature = "truncate")) {
             return Observer::track_inner(self).split_off(at);
         }
-        let count = self.as_deref()[at..start_index].chars().count();
-        let mutation = self.mutation.as_mut().unwrap();
-        mutation.truncate_len += count;
-        mutation.start_index = at;
+        self.__mark_truncate(at..start_index);
         Observer::as_inner(self).split_off(at)
     }
 
@@ -323,10 +311,7 @@ where
         if end_bound < start_index {
             return Observer::track_inner(self).replace_range(range, replace_with);
         }
-        let count = self.as_deref()[start_bound..start_index].chars().count();
-        let mutation = self.mutation.as_mut().unwrap();
-        mutation.truncate_len += count;
-        mutation.start_index = start_bound;
+        self.__mark_truncate(start_bound..start_index);
         Observer::as_inner(self).replace_range(range, replace_with);
     }
 }
