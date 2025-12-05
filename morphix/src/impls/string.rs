@@ -1,7 +1,10 @@
+use std::collections::TryReserveError;
 use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
-use std::ops::{AddAssign, Deref, DerefMut};
+use std::ops::{AddAssign, Bound, Deref, DerefMut, RangeBounds};
+use std::string::Drain;
 
+use crate::helper::macros::untracked_methods;
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
@@ -12,8 +15,13 @@ use crate::{Adapter, Mutation, MutationKind, Observe};
 /// from complete replacements for efficiency.
 pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
-    mutation: Option<usize>,
+    mutation: Option<TruncateAppend>,
     phantom: PhantomData<&'ob mut D>,
+}
+
+struct TruncateAppend {
+    pub start_index: usize,  // byte index
+    pub truncate_len: usize, // char count
 }
 
 impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D> {
@@ -66,7 +74,10 @@ where
     fn observe(value: &mut Self::Head) -> Self {
         Self {
             ptr: ObserverPointer::new(value),
-            mutation: Some(value.as_deref().len()),
+            mutation: Some(TruncateAppend {
+                start_index: value.as_deref().len(),
+                truncate_len: 0,
+            }),
             phantom: PhantomData,
         }
     }
@@ -84,17 +95,31 @@ where
 {
     unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         let len = this.as_deref().len();
-        let Some(initial_len) = this.mutation.replace(len) else {
+        let Some(TruncateAppend {
+            start_index,
+            truncate_len,
+        }) = this.mutation.replace(TruncateAppend {
+            start_index: len,
+            truncate_len: 0,
+        })
+        else {
             return Ok(Some(Mutation {
                 path: Default::default(),
                 kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
             }));
         };
-        #[cfg(feature = "append")]
-        if len > initial_len {
+        #[cfg(feature = "truncate")]
+        if truncate_len > 0 {
             return Ok(Some(Mutation {
                 path: Default::default(),
-                kind: MutationKind::Append(A::serialize_value(&this.as_deref()[initial_len..])?),
+                kind: MutationKind::Truncate(truncate_len),
+            }));
+        }
+        #[cfg(feature = "append")]
+        if len > start_index {
+            return Ok(Some(Mutation {
+                path: Default::default(),
+                kind: MutationKind::Append(A::serialize_value(&this.as_deref()[start_index..])?),
             }));
         }
         Ok(None)
@@ -104,7 +129,37 @@ where
 impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D>
 where
     D: Unsigned,
+    S: AsDerefMut<D, Target = String> + 'ob,
+{
+    #[inline]
+    fn __start_index(&mut self) -> usize {
+        match &mut self.mutation {
+            Some(m) => m.start_index,
+            None => 0,
+        }
+    }
+}
+
+impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D>
+where
+    D: Unsigned,
     S: AsDerefMut<D, Target = String>,
+{
+    untracked_methods! { String =>
+        pub fn reserve(&mut self, additional: usize);
+        pub fn reserve_exact(&mut self, additional: usize);
+        pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
+        pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError>;
+        pub fn shrink_to_fit(&mut self);
+        pub fn shrink_to(&mut self, min_capacity: usize);
+    }
+}
+
+#[cfg(feature = "append")]
+impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String> + 'ob,
 {
     /// See [`String::push`].
     #[inline]
@@ -117,19 +172,180 @@ where
     pub fn push_str(&mut self, s: &str) {
         Observer::as_inner(self).push_str(s);
     }
+
+    /// See [`String::extend_from_within`].
+    #[inline]
+    pub fn extend_from_within<R>(&mut self, src: R)
+    where
+        R: RangeBounds<usize>,
+    {
+        Observer::as_inner(self).extend_from_within(src);
+    }
+
+    /// See [`String::insert`].
+    #[inline]
+    pub fn insert(&mut self, idx: usize, ch: char) {
+        if idx >= self.__start_index() {
+            Observer::as_inner(self).insert(idx, ch)
+        } else {
+            Observer::track_inner(self).insert(idx, ch)
+        }
+    }
+
+    /// See [`String::insert_str`].
+    #[inline]
+    pub fn insert_str(&mut self, idx: usize, string: &str) {
+        if idx >= self.__start_index() {
+            Observer::as_inner(self).insert_str(idx, string)
+        } else {
+            Observer::track_inner(self).insert_str(idx, string)
+        }
+    }
+}
+
+#[cfg(any(feature = "truncate", feature = "append"))]
+impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String> + 'ob,
+{
+    /// See [`String::remove`].
+    #[inline]
+    pub fn remove(&mut self, idx: usize) -> char {
+        if idx >= self.__start_index() {
+            Observer::as_inner(self).remove(idx)
+        } else {
+            Observer::track_inner(self).remove(idx)
+        }
+    }
+
+    /// See [`String::clear`].
+    #[inline]
+    pub fn clear(&mut self) {
+        if self.__start_index() == 0 {
+            Observer::as_inner(self).clear()
+        } else {
+            Observer::track_inner(self).clear()
+        }
+    }
+
+    /// See [`String::pop`].
+    pub fn pop(&mut self) -> Option<char> {
+        let start_index = self.__start_index();
+        let len = self.as_deref().len();
+        if len > start_index {
+            return Observer::as_inner(self).pop();
+        }
+        if len == 0 {
+            return None;
+        }
+        if len == 1 || cfg!(not(feature = "truncate")) {
+            return Observer::track_inner(self).pop();
+        }
+        let char = Observer::as_inner(self).pop().unwrap();
+        let mutation = self.mutation.as_mut().unwrap();
+        mutation.truncate_len += 1;
+        mutation.start_index -= char.len_utf8();
+        Some(char)
+    }
+
+    /// See [`String::truncate`].
+    pub fn truncate(&mut self, len: usize) {
+        let start_index = self.__start_index();
+        if len >= start_index {
+            return Observer::as_inner(self).truncate(len);
+        }
+        if len == 0 || cfg!(not(feature = "truncate")) {
+            return Observer::track_inner(self).truncate(len);
+        }
+        let count = self.as_deref()[len..start_index].chars().count();
+        let mutation = self.mutation.as_mut().unwrap();
+        mutation.truncate_len += count;
+        mutation.start_index = len;
+        Observer::as_inner(self).truncate(len)
+    }
+
+    /// See [`String::split_off`].
+    pub fn split_off(&mut self, at: usize) -> String {
+        let start_index = self.__start_index();
+        if at >= start_index {
+            return Observer::as_inner(self).split_off(at);
+        }
+        if at == 0 || cfg!(not(feature = "truncate")) {
+            return Observer::track_inner(self).split_off(at);
+        }
+        let count = self.as_deref()[at..start_index].chars().count();
+        let mutation = self.mutation.as_mut().unwrap();
+        mutation.truncate_len += count;
+        mutation.start_index = at;
+        Observer::as_inner(self).split_off(at)
+    }
+
+    /// See [`String::drain`].
+    pub fn drain<R>(&mut self, range: R) -> Drain<'_>
+    where
+        R: RangeBounds<usize>,
+    {
+        let start_index = match range.start_bound() {
+            Bound::Included(&n) => n,
+            Bound::Excluded(&n) => n + 1,
+            Bound::Unbounded => 0,
+        };
+        if start_index >= self.__start_index() {
+            Observer::as_inner(self).drain(range)
+        } else {
+            Observer::track_inner(self).drain(range)
+        }
+    }
+
+    /// See [`String::replace_range`].
+    pub fn replace_range<R>(&mut self, range: R, replace_with: &str)
+    where
+        R: RangeBounds<usize>,
+    {
+        let start_index = self.__start_index();
+        let start_bound = match range.start_bound() {
+            Bound::Included(&n) => n,
+            Bound::Excluded(&n) => n + 1,
+            Bound::Unbounded => 0,
+        };
+        if start_bound >= start_index {
+            return Observer::as_inner(self).replace_range(range, replace_with);
+        }
+        if start_bound == 0 || cfg!(not(feature = "truncate")) {
+            return Observer::track_inner(self).replace_range(range, replace_with);
+        }
+        let end_bound = match range.end_bound() {
+            Bound::Included(&n) => n + 1,
+            Bound::Excluded(&n) => n,
+            Bound::Unbounded => self.as_deref().len(),
+        };
+        if end_bound < start_index {
+            return Observer::track_inner(self).replace_range(range, replace_with);
+        }
+        let count = self.as_deref()[start_bound..start_index].chars().count();
+        let mutation = self.mutation.as_mut().unwrap();
+        mutation.truncate_len += count;
+        mutation.start_index = start_bound;
+        Observer::as_inner(self).replace_range(range, replace_with);
+    }
 }
 
 impl<'ob, S: ?Sized, D> AddAssign<&str> for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = String>,
+    S: AsDerefMut<D, Target = String> + 'ob,
 {
     #[inline]
     fn add_assign(&mut self, rhs: &str) {
+        #[cfg(feature = "append")]
         self.push_str(rhs);
+        #[cfg(not(feature = "append"))]
+        Observer::track_inner(self).add_assign(rhs);
     }
 }
 
+#[cfg(feature = "append")]
 impl<'ob, S: ?Sized, D, U> Extend<U> for StringObserver<'ob, S, D>
 where
     D: Unsigned,

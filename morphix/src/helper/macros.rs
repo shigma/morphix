@@ -134,4 +134,18 @@ macro_rules! spec_impl_ref_observe {
     };
 }
 
-pub(crate) use {spec_impl_observe, spec_impl_ref_observe};
+macro_rules! untracked_methods {
+    ($type:ident => $(
+        pub fn $name:ident(&mut self $(, $arg:ident: $arg_ty:ty)*) $(-> $ret:ty)?;
+    )*) => {
+        $(
+            #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`].")]
+            #[inline]
+            pub fn $name(&mut self $(, $arg: $arg_ty)*) $(-> $ret)? {
+                Observer::as_inner(self).$name($($arg),*)
+            }
+        )*
+    };
+}
+
+pub(crate) use {spec_impl_observe, spec_impl_ref_observe, untracked_methods};
