@@ -7,10 +7,10 @@ use std::vec::{Drain, ExtractIf, Splice};
 
 use serde::Serialize;
 
-use crate::helper::macros::untracked_methods;
+use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver, TruncateAppend};
-use crate::observe::{DefaultSpec, Observer, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
 /// Observer implementation for [`Vec`].
@@ -491,6 +491,10 @@ impl<T: Observe> Observe for Vec<T> {
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
+}
+
+default_impl_ref_observe! {
+    impl [T: RefObserve] RefObserve for Vec<T> ;
 }
 
 #[cfg(test)]

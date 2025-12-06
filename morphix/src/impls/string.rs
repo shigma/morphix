@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use std::ops::{AddAssign, Bound, Deref, DerefMut, Range, RangeBounds};
 use std::string::Drain;
 
-use crate::helper::macros::untracked_methods;
+use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
 use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
@@ -408,6 +408,10 @@ impl Observe for String {
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
+}
+
+default_impl_ref_observe! {
+    impl RefObserve for String;
 }
 
 #[cfg(test)]

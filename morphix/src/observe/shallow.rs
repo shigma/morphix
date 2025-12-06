@@ -66,13 +66,30 @@ impl<T: ?Sized> DebugHandler<T> for ShallowHandler {
     const NAME: &'static str = "ShallowObserver";
 }
 
-impl Observe for str {
-    type Observer<'ob, S, D>
-        = ShallowObserver<'ob, S, D>
-    where
-        Self: 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+macro_rules! impl_observe {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl Observe for $ty {
+                type Observer<'ob, S, D>
+                    = ShallowObserver<'ob, S, D>
+                where
+                    Self: 'ob,
+                    D: Unsigned,
+                    S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
-    type Spec = DefaultSpec;
+                type Spec = DefaultSpec;
+            }
+        )*
+    };
 }
+
+impl_observe! {
+    str,
+}
+
+#[cfg(not(any(feature = "truncate", feature = "append")))]
+const _: () = {
+    impl_observe! {
+        String
+    }
+};

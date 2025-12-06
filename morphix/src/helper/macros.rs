@@ -134,6 +134,23 @@ macro_rules! spec_impl_ref_observe {
     };
 }
 
+macro_rules! default_impl_ref_observe {
+    ($(impl $([$($gen:tt)*])? RefObserve for $ty:ty $(where { $($where:tt)+ })?;)*) => {
+        $(
+            impl $(<$($gen)*>)? $crate::observe::RefObserve for $ty {
+                type Observer<'a, 'ob, S, D>
+                    = $crate::observe::RefObserver<'a, 'ob, S, D>
+                where
+                    Self: 'a + 'ob,
+                    D: Unsigned,
+                    S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
+
+                type Spec = $crate::observe::DefaultSpec;
+            }
+        )*
+    };
+}
+
 macro_rules! untracked_methods {
     ($type:ident => $(
         // Wrap {} around where clauses for easier parsing
@@ -149,4 +166,4 @@ macro_rules! untracked_methods {
     };
 }
 
-pub(crate) use {spec_impl_observe, spec_impl_ref_observe, untracked_methods};
+pub(crate) use {default_impl_ref_observe, spec_impl_observe, spec_impl_ref_observe, untracked_methods};
