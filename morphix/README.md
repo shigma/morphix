@@ -99,6 +99,15 @@ foo.vec.push(1);            // Append to .vec
 foo.vec.extend(iter);       // Append to .vec
 ```
 
+### Truncate
+
+Optimized for truncating strings and vectors:
+
+```rs
+foo.a.b.truncate(5);        // Truncate 5 chars from .a.b
+foo.vec.pop();              // Truncate 1 element from .vec
+```
+
 ### Batch
 
 Multiple mutations combined into a single operation.

@@ -158,7 +158,7 @@ pub enum MutationKind<T> {
     ///     vec: vec![1, 2, 3, 4, 5],
     /// };
     /// foo.a.b.truncate(5);        // Truncate 8 chars from .a.b
-    /// foo.vec.truncate(2);        // Truncate 3 elements from .vec
+    /// foo.vec.pop();              // Truncate 1 element from .vec
     #[cfg(feature = "truncate")]
     #[cfg_attr(docsrs, doc(cfg(feature = "truncate")))]
     Truncate(usize),
