@@ -10,10 +10,10 @@
 //! - [`AsNormalized`] - Enables consistent operations between observers and normal references via
 //!   autoref-based specialization
 
-mod deref;
+pub mod deref;
 pub(crate) mod macros;
-mod normalized;
-mod unsigned;
+pub mod normalized;
+pub mod unsigned;
 
 pub use deref::{AsDeref, AsDerefCoinductive, AsDerefMut, AsDerefMutCoinductive};
 pub use normalized::AsNormalized;

@@ -7,8 +7,8 @@ use crate::{Adapter, Mutation, PathSegment};
 /// YAML adapter for morphix mutation serialization.
 ///
 /// `Yaml` implements the [`Adapter`] trait using [`serde_yaml_ng::Value`] for both
-/// [`Replace`](MutationKind::Replace) and [`Append`](MutationKind::Append) operations. This adapter
-/// is available when the `yaml` feature is enabled.
+/// [`Replace`](crate::MutationKind::Replace) and [`Append`](crate::MutationKind::Append)
+/// operations. This adapter is available when the `yaml` feature is enabled.
 ///
 /// ## Example
 ///

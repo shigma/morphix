@@ -1,3 +1,5 @@
+//! Type-level representation of unsigned natural numbers.
+
 use std::marker::PhantomData;
 
 mod private {

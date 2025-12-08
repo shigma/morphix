@@ -1,4 +1,4 @@
-//! Helper trait enabling consistent operations between observers and normal references in
+//! Enabling consistent operations between observers and normal references in
 //! [`observe!`](crate::observe!) macro via autoref-based specialization.
 //!
 //! ## Background

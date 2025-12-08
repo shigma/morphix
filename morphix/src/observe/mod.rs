@@ -420,13 +420,13 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
     ///
     /// This method extracts all recorded mutations, serializes them, and resets the observer's
     /// internal state. After calling this method, the observer begins tracking mutations afresh,
-    /// meaning an immediate subsequent call to `flush` will return [`Ok(None)`].
+    /// meaning an immediate subsequent call to `flush` will return `Ok(None)`.
     ///
     /// ## Returns
     ///
-    /// - [`Ok(Some(mutation))`](Ok): The serialized mutations if any were recorded
-    /// - [`Ok(None)`](Ok): If no mutations were recorded, or if the observer is uninitialized
-    /// - [`Err`]: If serialization fails
+    /// - `Ok(Some(mutation))`: The serialized mutations if any were recorded
+    /// - `Ok(None)`: If no mutations were recorded, or if the observer is uninitialized
+    /// - `Err`: If serialization fails
     ///
     /// ## Example
     ///
