@@ -5,7 +5,7 @@ use std::ops::{AddAssign, Bound, Deref, DerefMut, Range, RangeBounds};
 use std::string::Drain;
 
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
-use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
@@ -48,8 +48,8 @@ impl<'ob, S: ?Sized, D> DerefMut for StringObserver<'ob, S, D> {
     }
 }
 
-impl<'ob, S> Assignable for StringObserver<'ob, S> {
-    type Depth = Succ<Zero>;
+impl<'ob, S: ?Sized, D> AsNormalized for StringObserver<'ob, S, D> {
+    type OuterDepth = Succ<Zero>;
 }
 
 impl<'ob, S: ?Sized, D> Observer<'ob> for StringObserver<'ob, S, D>
@@ -58,7 +58,6 @@ where
     S: AsDerefMut<D, Target = String> + 'ob,
 {
     type InnerDepth = D;
-    type OuterDepth = Zero;
     type Head = S;
 
     #[inline]

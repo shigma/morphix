@@ -397,7 +397,7 @@ pub fn derive_observe_for_struct_fields(
         }
 
         #[automatically_derived]
-        impl #ob_assignable_impl_generics ::morphix::helper::Assignable
+        impl #ob_assignable_impl_generics ::morphix::helper::AsNormalized
         for #ob_ident #ob_assignable_type_generics
         where
             #(#input_predicates,)*

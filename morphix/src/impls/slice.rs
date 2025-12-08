@@ -9,7 +9,7 @@ use std::slice::{
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe, PathSegment};
 
@@ -172,11 +172,11 @@ where
     }
 }
 
-impl<'ob, V, M, S> Assignable for SliceObserver<'ob, V, M, S>
+impl<'ob, V, M, S: ?Sized, D> AsNormalized for SliceObserver<'ob, V, M, S, D>
 where
     V: ObserverSlice<'ob>,
 {
-    type Depth = Succ<Zero>;
+    type OuterDepth = Succ<Zero>;
 }
 
 impl<'ob, V, M, S: ?Sized, D, O, T> Observer<'ob> for SliceObserver<'ob, V, M, S, D>
@@ -189,7 +189,6 @@ where
     O: Observer<'ob, InnerDepth = Zero, Head = T>,
 {
     type InnerDepth = D;
-    type OuterDepth = Zero;
     type Head = S;
 
     #[inline]

@@ -87,7 +87,7 @@ pub fn observe(mut input: ObserveInput) -> TokenStream {
     let body = quote! {
         'ob: {
             #[allow(unused_imports)]
-            use ::morphix::helper::Assignable;
+            use ::morphix::helper::AsNormalized;
             use ::morphix::observe::ObserveExt;
             #(#inits)*
             #[allow(clippy::needless_borrow)]
@@ -110,7 +110,7 @@ impl VisitMut for DerefAssign {
             let left = &expr_assign.left;
             let right = &expr_assign.right;
             *expr = parse_quote! {
-                (&mut #left).__assign(#right)
+                **(&mut #left).as_normalized_mut() = #right
             };
         }
         syn::visit_mut::visit_expr_mut(self, expr);

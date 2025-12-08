@@ -116,8 +116,8 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S> ::morphix::helper::Assignable for FooObserver<'ob, S> {
-        type Depth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+    impl<'ob, S> ::morphix::helper::AsNormalized for FooObserver<'ob, S> {
+        type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer<'ob> for FooObserver<'ob, S, N>

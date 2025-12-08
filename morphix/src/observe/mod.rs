@@ -35,7 +35,7 @@
 //! field-level control. Direct use of types from this module is typically only needed for advanced
 //! use cases.
 
-use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Unsigned, Zero};
 use crate::{Adapter, Mutation};
 
 mod general;
@@ -166,13 +166,11 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 /// chains.
 pub trait Observer<'ob>: Sized
 where
-    Self: AsDerefMutCoinductive<Succ<Self::OuterDepth>, Target = ObserverPointer<Self::Head>>,
+    Self: AsNormalized<Target = ObserverPointer<Self::Head>>,
+    Self: AsDerefMutCoinductive<Self::OuterDepth>,
 {
     /// Type-level number of dereferences from `Head` to the observed type.
     type InnerDepth: Unsigned;
-
-    /// Type-level number of dereferences from `Self` to [`ObserverPointer<Head>`] minus one.
-    type OuterDepth: Unsigned;
 
     /// The head type of the dereference chain.
     type Head: AsDeref<Self::InnerDepth> + ?Sized + 'ob;

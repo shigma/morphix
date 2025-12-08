@@ -30,7 +30,7 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, O> ::morphix::helper::Assignable for FooObserver<'ob, O>
+    impl<'ob, O> ::morphix::helper::AsNormalized for FooObserver<'ob, O>
     where
         O: ::morphix::observe::Observer<
             'ob,
@@ -38,7 +38,7 @@ const _: () = {
         >,
         O::Head: Sized,
     {
-        type Depth = ::morphix::helper::Succ<::morphix::helper::Succ<O::OuterDepth>>;
+        type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Succ<O::OuterDepth>>;
     }
     #[automatically_derived]
     impl<'ob, T, O, N> ::morphix::observe::Observer<'ob> for FooObserver<'ob, O>
@@ -168,7 +168,7 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, O> ::morphix::helper::Assignable for BarObserver<'ob, O>
+    impl<'ob, O> ::morphix::helper::AsNormalized for BarObserver<'ob, O>
     where
         O: ::morphix::observe::Observer<
             'ob,
@@ -176,7 +176,7 @@ const _: () = {
         >,
         O::Head: Sized,
     {
-        type Depth = ::morphix::helper::Succ<::morphix::helper::Succ<O::OuterDepth>>;
+        type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Succ<O::OuterDepth>>;
     }
     #[automatically_derived]
     impl<'ob, O, N> ::morphix::observe::Observer<'ob> for BarObserver<'ob, O>
@@ -298,8 +298,8 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S> ::morphix::helper::Assignable for QuxObserver<'ob, S> {
-        type Depth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+    impl<'ob, S> ::morphix::helper::AsNormalized for QuxObserver<'ob, S> {
+        type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer<'ob> for QuxObserver<'ob, S, N>

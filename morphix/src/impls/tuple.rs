@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, RefObserve, RefObserver, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
@@ -32,8 +32,8 @@ impl<'ob, O, S: ?Sized, D> DerefMut for TupleObserver<'ob, O, S, D> {
     }
 }
 
-impl<'ob, O, S> Assignable for TupleObserver<'ob, O, S> {
-    type Depth = Succ<Zero>;
+impl<'ob, O, S: ?Sized, D> AsNormalized for TupleObserver<'ob, O, S, D> {
+    type OuterDepth = Succ<Zero>;
 }
 
 impl<'ob, O, S: ?Sized, D> Observer<'ob> for TupleObserver<'ob, O, S, D>
@@ -44,7 +44,6 @@ where
     O::Head: Sized,
 {
     type InnerDepth = D;
-    type OuterDepth = Zero;
     type Head = S;
 
     #[inline]
@@ -132,8 +131,8 @@ macro_rules! tuple_observer {
             }
         }
 
-        impl<'ob, $($o,)* S> Assignable for $ty<'ob, $($o,)* S> {
-            type Depth = Succ<Zero>;
+        impl<'ob, $($o,)* S: ?Sized, D> AsNormalized for $ty<'ob, $($o,)* S, D> {
+            type OuterDepth = Succ<Zero>;
         }
 
         impl<'ob, $($o,)* S: ?Sized, D> Observer<'ob> for $ty<'ob, $($o,)* S, D>
@@ -143,7 +142,6 @@ macro_rules! tuple_observer {
             $($o: Observer<'ob, InnerDepth = Zero, Head: Sized>,)*
         {
             type InnerDepth = D;
-            type OuterDepth = Zero;
             type Head = S;
 
             #[inline]

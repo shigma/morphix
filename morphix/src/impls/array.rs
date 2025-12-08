@@ -5,7 +5,7 @@ use std::slice::SliceIndex;
 use serde::Serialize;
 
 use crate::helper::macros::spec_impl_ref_observe;
-use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
@@ -98,11 +98,11 @@ impl<'ob, const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<'ob, N, O,
     }
 }
 
-impl<'ob, const N: usize, O, S> Assignable for ArrayObserver<'ob, N, O, S>
+impl<'ob, const N: usize, O, S: ?Sized, D> AsNormalized for ArrayObserver<'ob, N, O, S, D>
 where
     O: Observer<'ob, InnerDepth = Zero, Head: Sized>,
 {
-    type Depth = Succ<Succ<Zero>>;
+    type OuterDepth = Succ<Succ<Zero>>;
 }
 
 impl<'ob, const N: usize, O, S: ?Sized, D, T> Observer<'ob> for ArrayObserver<'ob, N, O, S, D>
@@ -112,7 +112,6 @@ where
     O: Observer<'ob, InnerDepth = Zero, Head = T>,
 {
     type InnerDepth = D;
-    type OuterDepth = Succ<Zero>;
     type Head = S;
 
     #[inline]

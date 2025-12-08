@@ -146,11 +146,11 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, 'i, S> ::morphix::helper::Assignable for FooObserver<'ob, 'i, S>
+    impl<'ob, 'i, S> ::morphix::helper::AsNormalized for FooObserver<'ob, 'i, S>
     where
         &'i mut String: ::morphix::Observe,
     {
-        type Depth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+        type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]
     impl<'ob, 'i, S: ?Sized, N> ::morphix::observe::Observer<'ob>

@@ -8,7 +8,7 @@ use std::vec::{Drain, ExtractIf, Splice};
 use serde::Serialize;
 
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
-use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver, TruncateAppend};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
@@ -38,11 +38,11 @@ impl<'ob, O, S: ?Sized, D> DerefMut for VecObserver<'ob, O, S, D> {
     }
 }
 
-impl<'ob, O, S> Assignable for VecObserver<'ob, O, S>
+impl<'ob, O, S: ?Sized, D> AsNormalized for VecObserver<'ob, O, S, D>
 where
     O: Observer<'ob, InnerDepth = Zero, Head: Sized>,
 {
-    type Depth = Succ<Succ<Zero>>;
+    type OuterDepth = Succ<Succ<Zero>>;
 }
 
 impl<'ob, O, S: ?Sized, D, T> Observer<'ob> for VecObserver<'ob, O, S, D>
@@ -52,7 +52,6 @@ where
     O: Observer<'ob, InnerDepth = Zero, Head = T>,
 {
     type InnerDepth = D;
-    type OuterDepth = Succ<Zero>;
     type Head = S;
 
     #[inline]

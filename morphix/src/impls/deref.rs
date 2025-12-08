@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
-use crate::helper::{AsDeref, AsDerefMut, Assignable, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, AsNormalized, Succ, Unsigned};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
@@ -31,12 +31,11 @@ impl<'ob, O> DerefMut for DerefObserver<'ob, O> {
     }
 }
 
-impl<'ob, O> Assignable for DerefObserver<'ob, O>
+impl<'ob, O> AsNormalized for DerefObserver<'ob, O>
 where
-    O: Observer<'ob, InnerDepth = Succ<Zero>>,
-    O::Head: Sized,
+    O: AsNormalized,
 {
-    type Depth = Succ<Succ<O::OuterDepth>>;
+    type OuterDepth = Succ<O::OuterDepth>;
 }
 
 impl<'ob, O, D> Observer<'ob> for DerefObserver<'ob, O>
@@ -45,7 +44,6 @@ where
     O::Head: AsDeref<D>,
     D: Unsigned,
 {
-    type OuterDepth = Succ<O::OuterDepth>;
     type InnerDepth = D;
     type Head = O::Head;
 

@@ -48,12 +48,12 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, 'i, T, const N: usize, S> ::morphix::helper::Assignable
+    impl<'ob, 'i, T, const N: usize, S> ::morphix::helper::AsNormalized
     for FooObserver<'ob, 'i, T, N, S>
     where
         &'i mut [T; N]: ::morphix::Observe,
     {
-        type Depth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+        type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]
     impl<'ob, 'i, T, const N: usize, S: ?Sized, _N> ::morphix::observe::Observer<'ob>

@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::helper::{Assignable, Succ};
+use crate::helper::{AsNormalized, Succ};
 use crate::observe::{AsDerefMut, Observer, ObserverPointer, SerializeObserver, Unsigned, Zero};
 use crate::{Adapter, Mutation, MutationKind};
 
@@ -214,11 +214,13 @@ where
     }
 }
 
-impl<'ob, H, S> Assignable for GeneralObserver<'ob, H, S>
+impl<'ob, H, S: ?Sized, N> AsNormalized for GeneralObserver<'ob, H, S, N>
 where
-    H: GeneralHandler<S>,
+    N: Unsigned,
+    S: AsDerefMut<N>,
+    H: GeneralHandler<S::Target>,
 {
-    type Depth = Succ<Zero>;
+    type OuterDepth = Succ<Zero>;
 }
 
 impl<'ob, H, S: ?Sized, N> Observer<'ob> for GeneralObserver<'ob, H, S, N>
@@ -228,7 +230,6 @@ where
     H: GeneralHandler<S::Target>,
 {
     type InnerDepth = N;
-    type OuterDepth = Zero;
     type Head = S;
 
     #[inline]

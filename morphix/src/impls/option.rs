@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDerefMut, Assignable, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::observe::{Observer, ObserverPointer, SerializeObserver};
 use crate::{Adapter, Mutation, MutationKind, Observe};
 
@@ -40,8 +40,8 @@ impl<'ob, O, S: ?Sized, D> DerefMut for OptionObserver<'ob, O, S, D> {
     }
 }
 
-impl<'ob, O, S> Assignable for OptionObserver<'ob, O, S> {
-    type Depth = Succ<Zero>;
+impl<'ob, O, S: ?Sized, D> AsNormalized for OptionObserver<'ob, O, S, D> {
+    type OuterDepth = Succ<Zero>;
 }
 
 impl<'ob, O, S: ?Sized, D> Observer<'ob> for OptionObserver<'ob, O, S, D>
@@ -52,7 +52,6 @@ where
     O::Head: Sized,
 {
     type InnerDepth = D;
-    type OuterDepth = Zero;
     type Head = S;
 
     #[inline]
