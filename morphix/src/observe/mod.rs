@@ -222,7 +222,7 @@ where
     /// Implementing [`Observer`] for [`Option<T>`]:
     ///
     /// ```
-    /// # use morphix::helper::{AsDerefMut, Unsigned, Zero};
+    /// # use morphix::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
     /// # use morphix::observe::{Observer, ObserverPointer};
     /// # use std::marker::PhantomData;
     /// #
@@ -246,6 +246,10 @@ where
     /// #     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.ptr }
     /// # }
     /// #
+    /// # impl<'ob, O, S: ?Sized, N> AsNormalized for OptionObserver<'ob, O, S, N> {
+    /// #     type OuterDepth = Succ<Zero>;
+    /// # }
+    /// #
     /// impl<'ob, O, S: ?Sized, N> Observer<'ob> for OptionObserver<'ob, O, S, N>
     /// where
     ///     N: Unsigned,
@@ -254,7 +258,6 @@ where
     ///     O::Head: Sized,
     /// {
     ///     # type InnerDepth = N;
-    ///     # type OuterDepth = Zero;
     ///     # type Head = S;
     ///     #
     ///     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {

@@ -38,10 +38,7 @@ impl<'ob, O, S: ?Sized, D> DerefMut for VecObserver<'ob, O, S, D> {
     }
 }
 
-impl<'ob, O, S: ?Sized, D> AsNormalized for VecObserver<'ob, O, S, D>
-where
-    O: Observer<'ob, InnerDepth = Zero, Head: Sized>,
-{
+impl<'ob, O, S: ?Sized, D> AsNormalized for VecObserver<'ob, O, S, D> {
     type OuterDepth = Succ<Succ<Zero>>;
 }
 

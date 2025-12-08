@@ -48,8 +48,8 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, 'i, T, const N: usize, S> ::morphix::helper::AsNormalized
-    for FooObserver<'ob, 'i, T, N, S>
+    impl<'ob, 'i, T, const N: usize, S: ?Sized, _N> ::morphix::helper::AsNormalized
+    for FooObserver<'ob, 'i, T, N, S, _N>
     where
         &'i mut [T; N]: ::morphix::Observe,
     {
@@ -65,7 +65,6 @@ const _: () = {
     {
         type Head = S;
         type InnerDepth = _N;
-        type OuterDepth = ::morphix::helper::Zero;
         fn uninit() -> Self {
             Self {
                 __ptr: ::morphix::observe::ObserverPointer::default(),

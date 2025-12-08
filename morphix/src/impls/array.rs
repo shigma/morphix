@@ -98,10 +98,7 @@ impl<'ob, const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<'ob, N, O,
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D> AsNormalized for ArrayObserver<'ob, N, O, S, D>
-where
-    O: Observer<'ob, InnerDepth = Zero, Head: Sized>,
-{
+impl<'ob, const N: usize, O, S: ?Sized, D> AsNormalized for ArrayObserver<'ob, N, O, S, D> {
     type OuterDepth = Succ<Succ<Zero>>;
 }
 

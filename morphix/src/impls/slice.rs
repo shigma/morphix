@@ -172,10 +172,7 @@ where
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D> AsNormalized for SliceObserver<'ob, V, M, S, D>
-where
-    V: ObserverSlice<'ob>,
-{
+impl<'ob, V, M, S: ?Sized, D> AsNormalized for SliceObserver<'ob, V, M, S, D> {
     type OuterDepth = Succ<Zero>;
 }
 

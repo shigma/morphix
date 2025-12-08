@@ -32,13 +32,9 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, O> ::morphix::helper::AsNormalized for FooObserver<'ob, O>
     where
-        O: ::morphix::observe::Observer<
-            'ob,
-            InnerDepth = ::morphix::helper::Succ<::morphix::helper::Zero>,
-        >,
-        O::Head: Sized,
+        O: ::morphix::helper::AsNormalized,
     {
-        type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Succ<O::OuterDepth>>;
+        type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
     }
     #[automatically_derived]
     impl<'ob, T, O, N> ::morphix::observe::Observer<'ob> for FooObserver<'ob, O>
@@ -50,7 +46,6 @@ const _: () = {
     {
         type Head = O::Head;
         type InnerDepth = N;
-        type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
         fn uninit() -> Self {
             Self {
                 __phantom: ::std::marker::PhantomData,
@@ -170,13 +165,9 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, O> ::morphix::helper::AsNormalized for BarObserver<'ob, O>
     where
-        O: ::morphix::observe::Observer<
-            'ob,
-            InnerDepth = ::morphix::helper::Succ<::morphix::helper::Zero>,
-        >,
-        O::Head: Sized,
+        O: ::morphix::helper::AsNormalized,
     {
-        type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Succ<O::OuterDepth>>;
+        type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
     }
     #[automatically_derived]
     impl<'ob, O, N> ::morphix::observe::Observer<'ob> for BarObserver<'ob, O>
@@ -187,7 +178,6 @@ const _: () = {
     {
         type Head = O::Head;
         type InnerDepth = N;
-        type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
         fn uninit() -> Self {
             Self {
                 __phantom: ::std::marker::PhantomData,
@@ -298,7 +288,7 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S> ::morphix::helper::AsNormalized for QuxObserver<'ob, S> {
+    impl<'ob, S: ?Sized, N> ::morphix::helper::AsNormalized for QuxObserver<'ob, S, N> {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]
@@ -309,7 +299,6 @@ const _: () = {
     {
         type Head = S;
         type InnerDepth = N;
-        type OuterDepth = ::morphix::helper::Zero;
         fn uninit() -> Self {
             Self {
                 __ptr: ::morphix::observe::ObserverPointer::default(),

@@ -236,10 +236,6 @@ pub fn derive_observe_for_enum(
     let mut ob_variant_generics = input_generics.clone();
     ob_variant_generics.params.insert(0, parse_quote! { #ob_lt });
 
-    let mut ob_assignable_generics = input_generics.clone();
-    ob_assignable_generics.params.insert(0, parse_quote! { #ob_lt });
-    ob_assignable_generics.params.push(parse_quote! { #head });
-
     let mut ob_generics = input_generics.clone();
     ob_generics.params.insert(0, parse_quote! { #ob_lt });
     ob_generics.params.push(parse_quote! { #head: ?Sized });
@@ -249,7 +245,6 @@ pub fn derive_observe_for_enum(
 
     let (ob_impl_generics, ob_type_generics, _) = ob_generics.split_for_impl();
     let (ob_variant_impl_generics, ob_variant_type_generics, _) = ob_variant_generics.split_for_impl();
-    let (ob_assignable_impl_generics, ob_assignable_type_generics, _) = ob_assignable_generics.split_for_impl();
 
     let input_trivial = input.generics.params.is_empty();
     let input_serialize_predicates = if input_trivial {
@@ -346,13 +341,13 @@ pub fn derive_observe_for_enum(
         }
 
         #[automatically_derived]
-        impl #ob_assignable_impl_generics ::morphix::helper::AsNormalized
-        for #ob_ident #ob_assignable_type_generics
+        impl #ob_impl_generics ::morphix::helper::AsNormalized
+        for #ob_ident #ob_type_generics
         where
             #(#input_predicates,)*
             #(#field_tys: ::morphix::Observe,)*
         {
-            type Depth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+            type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
         }
 
         #[automatically_derived]
@@ -366,7 +361,6 @@ pub fn derive_observe_for_enum(
         {
             type Head = #head;
             type InnerDepth = #depth;
-            type OuterDepth = ::morphix::helper::Zero;
 
             fn uninit() -> Self {
                 Self {

@@ -22,7 +22,7 @@ fn main() {
     };
 
     let Json(mutation) = observe!(foo => {
-        foo.bar.baz = 1;
+        foo.bar.baz += 1;
         foo.qux.push(' ');
         foo.qux += "world";
     })

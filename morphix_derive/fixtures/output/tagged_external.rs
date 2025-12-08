@@ -162,7 +162,8 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S, T, _S> ::morphix::helper::AsNormalized for FooObserver<'ob, S, T, _S>
+    impl<'ob, S, T, _S: ?Sized, N> ::morphix::helper::AsNormalized
+    for FooObserver<'ob, S, T, _S, N>
     where
         T: Clone,
         S: ::morphix::Observe,
@@ -182,7 +183,6 @@ const _: () = {
     {
         type Head = _S;
         type InnerDepth = N;
-        type OuterDepth = ::morphix::helper::Zero;
         fn uninit() -> Self {
             Self {
                 __ptr: ::morphix::observe::ObserverPointer::default(),

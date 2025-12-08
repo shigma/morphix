@@ -132,15 +132,14 @@ where
 /// ```
 /// use morphix::observe::{DebugHandler, GeneralHandler, GeneralObserver, Observer};
 ///
-/// #[derive(Default)]
 /// pub struct MyHandler;
 ///
 /// impl<T> GeneralHandler<T> for MyHandler {
 ///     // omitted for brevity
 /// #   type Spec = morphix::observe::DefaultSpec;
-/// #   fn on_observe(_value: &mut T) -> Self { MyHandler }
-/// #   fn on_deref_mut(&mut self) {}
-/// #   fn on_collect(&self, _value: &T) -> bool { true }
+/// #   fn uninit() -> Self { Self }
+/// #   fn observe(_value: &mut T) -> Self { Self }
+/// #   fn deref_mut(&mut self) {}
 /// }
 ///
 /// impl<T> DebugHandler<T> for MyHandler {
@@ -214,12 +213,7 @@ where
     }
 }
 
-impl<'ob, H, S: ?Sized, N> AsNormalized for GeneralObserver<'ob, H, S, N>
-where
-    N: Unsigned,
-    S: AsDerefMut<N>,
-    H: GeneralHandler<S::Target>,
-{
+impl<'ob, H, S: ?Sized, N> AsNormalized for GeneralObserver<'ob, H, S, N> {
     type OuterDepth = Succ<Zero>;
 }
 
