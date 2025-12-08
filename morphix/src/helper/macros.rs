@@ -35,21 +35,6 @@ macro_rules! spec_impl_observe {
                 S: AsDerefMut<D, Target = $ty_self> + ?Sized + 'ob;
         }
 
-        #[cfg(feature = "hash")]
-        const _: () = {
-            impl<T> $helper<$crate::observe::HashSpec> for T
-            where
-                T: ::std::hash::Hash + Observe<Spec = $crate::observe::HashSpec>,
-            {
-                type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
-                    = $crate::observe::HashObserver<'ob, S, D>
-                where
-                    Self: 'ob,
-                    D: Unsigned,
-                    S: AsDerefMut<D, Target = $ty_self> + ?Sized + 'ob;
-            }
-        };
-
         impl<T> $helper<$crate::observe::SnapshotSpec> for T
         where
             T: Clone + PartialEq + Observe<Spec = $crate::observe::SnapshotSpec>,
@@ -100,25 +85,6 @@ macro_rules! spec_impl_ref_observe {
                 D: Unsigned,
                 S: AsDerefMut<D, Target = &'a $ty_self> + ?Sized + 'ob;
         }
-
-        #[cfg(feature = "hash")]
-        const _: () = {
-            use std::hash::Hash;
-
-            use crate::observe::{HashObserver, HashSpec};
-
-            impl<T> $helper<HashSpec> for T
-            where
-                T: Hash + Observe<Spec = HashSpec>,
-            {
-                type Observer<'a, 'ob, S, D $(, const $arg: $arg_ty)*>
-                    = HashObserver<'ob, S, D>
-                where
-                    Self: 'a + 'ob,
-                    D: Unsigned,
-                    S: AsDerefMut<D, Target = &'a $ty_self> + ?Sized + 'ob;
-            }
-        };
 
         impl<T> $helper<$crate::observe::SnapshotSpec> for T
         where

@@ -183,7 +183,6 @@ pub trait DebugHandler<T: ?Sized>: GeneralHandler<T> {
 ///
 /// - [`ShallowObserver`](super::ShallowObserver) - Tracks any [`DerefMut`] access as a change
 /// - [`NoopObserver`](super::NoopObserver) - Ignores all changes
-/// - [`HashObserver`](super::HashObserver) - Compares hash values to detect changes
 /// - [`SnapshotObserver`](super::SnapshotObserver) - Compares cloned snapshots to detect changes
 pub struct GeneralObserver<'ob, H, S: ?Sized, N = Zero> {
     ptr: ObserverPointer<S>,

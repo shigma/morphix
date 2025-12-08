@@ -135,7 +135,6 @@ pub enum MutationKind<T> {
     /// foo.vec.extend(iter);       // Append to .vec
     /// ```
     #[cfg(feature = "append")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "append")))]
     Append(T),
 
     /// `Truncate` represents removing elements from the end of a string or vector. This is more
@@ -160,7 +159,6 @@ pub enum MutationKind<T> {
     /// foo.a.b.truncate(5);        // Truncate 8 chars from .a.b
     /// foo.vec.pop();              // Truncate 1 element from .vec
     #[cfg(feature = "truncate")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "truncate")))]
     Truncate(usize),
 
     /// `Batch` combines multiple mutations that occurred during a single observation period. This

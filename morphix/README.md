@@ -104,7 +104,7 @@ foo.vec.extend(iter);       // Append to .vec
 Optimized for truncating strings and vectors:
 
 ```rs
-foo.a.b.truncate(5);        // Truncate 5 chars from .a.b
+foo.a.b.truncate(5);        // Truncate n-5 chars from .a.b
 foo.vec.pop();              // Truncate 1 element from .vec
 ```
 

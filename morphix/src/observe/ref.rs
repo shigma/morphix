@@ -121,26 +121,6 @@ where
         S: AsDerefMut<D, Target = &'a &'b Self> + ?Sized + 'ob;
 }
 
-#[cfg(feature = "hash")]
-const _: () = {
-    use std::hash::Hash;
-
-    use crate::observe::{HashObserver, HashSpec};
-
-    impl<T: ?Sized> RefObserveImpl<HashSpec> for T
-    where
-        T: Hash + RefObserve<Spec = HashSpec>,
-    {
-        type Observer<'a, 'b, 'ob, S, D>
-            = HashObserver<'ob, S, D>
-        where
-            Self: 'b + 'ob,
-            'b: 'a,
-            D: Unsigned,
-            S: AsDerefMut<D, Target = &'a &'b Self> + ?Sized + 'ob;
-    }
-};
-
 pub struct RefHandler<'a, T: ?Sized> {
     ptr: Option<&'a T>,
 }

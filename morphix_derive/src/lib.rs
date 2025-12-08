@@ -1,3 +1,4 @@
+#![allow(rustdoc::private_intra_doc_links)]
 #![doc = include_str!("../README.md")]
 
 use proc_macro::TokenStream;
@@ -23,7 +24,6 @@ mod observe;
 /// implementation, you can customize this via the `#[morphix(...)]` field attribute inside a
 /// `#[derive(Observe)]` struct:
 ///
-/// - `#[morphix(hash)]` — use [`HashObserver`](morphix::observe::HashObserver) for this field
 /// - `#[morphix(noop)]` — use [`NoopObserver`](morphix::observe::NoopObserver) for this field
 /// - `#[morphix(shallow)]` — use [`ShallowObserver`](morphix::observe::ShallowObserver) for this
 ///   field

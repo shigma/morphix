@@ -77,13 +77,7 @@ impl ObserveMeta {
         attribute_kind: AttributeKind,
         derive_kind: DeriveKind,
     ) {
-        if arg.ident == "hash" {
-            self.general_impl = Some(GeneralImpl {
-                ob_ident: syn::Ident::new("HashObserver", arg.ident.span()),
-                spec_ident: syn::Ident::new("HashSpec", arg.ident.span()),
-                bounds: parse_quote! { ::std::hash::Hash },
-            });
-        } else if arg.ident == "noop" {
+        if arg.ident == "noop" {
             self.general_impl = Some(GeneralImpl {
                 ob_ident: syn::Ident::new("NoopObserver", arg.ident.span()),
                 spec_ident: syn::Ident::new("DefaultSpec", arg.ident.span()),
@@ -138,7 +132,7 @@ impl ObserveMeta {
             errors.extend(
                 syn::Error::new(
                     arg.ident.span(),
-                    "unknown argument, expected 'deref', 'hash', 'noop', 'shallow' or 'snapshot'",
+                    "unknown argument, expected 'deref', 'noop', 'shallow' or 'snapshot'",
                 )
                 .to_compile_error(),
             );

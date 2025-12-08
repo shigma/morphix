@@ -5,7 +5,7 @@
 //! - **Core traits**: [`Observe`] and [`Observer`] define the observation protocol
 //! - **General-purpose observers**: [`GeneralObserver`], handler trait [`GeneralHandler`] for
 //!   implementing custom detection strategies, and pre-configured types: [`ShallowObserver`],
-//!   [`SnapshotObserver`], [`HashObserver`], [`NoopObserver`]
+//!   [`SnapshotObserver`], [`NoopObserver`]
 //! - **Specialized observers**: Type-specific implementations for common types, such as [`String`]
 //!   and [`Vec<T>`]
 //!
@@ -39,8 +39,6 @@ use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Un
 use crate::{Adapter, Mutation};
 
 mod general;
-#[cfg(feature = "hash")]
-mod hash;
 mod noop;
 mod pointer;
 mod r#ref;
@@ -48,9 +46,6 @@ mod shallow;
 mod snapshot;
 
 pub use general::{DebugHandler, GeneralHandler, GeneralObserver};
-#[cfg(feature = "hash")]
-#[cfg_attr(docsrs, doc(cfg(feature = "hash")))]
-pub use hash::{HashObserver, HashSpec};
 pub use noop::NoopObserver;
 pub use pointer::ObserverPointer;
 pub use r#ref::{RefObserve, RefObserver};
@@ -115,7 +110,6 @@ pub trait Observe {
     /// - [`DefaultSpec`] → use [`OptionObserver`](crate::impls::option::OptionObserver) wrapping
     ///   `T`'s observer
     /// - [`SnapshotSpec`] → use [`SnapshotObserver<Option<T>>`] for snapshot-based change detection
-    /// - [`HashSpec`] → use [`HashObserver<Option<T>>`] for hash-based change detection
     ///
     /// This allows [`Option<T>`] to automatically inherit more accurate or efficient change
     /// detection strategies based on its element type, without requiring manual implementation.

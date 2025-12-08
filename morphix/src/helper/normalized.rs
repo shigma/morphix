@@ -40,11 +40,12 @@
 //! value = 42;
 //!
 //! // Macro transforms to:
-//! *(&mut value).as_normalized_mut() = 42;
+//! **(&mut value).as_normalized_mut() = 42;
 //! ```
 //!
-//! - For normal values: `&mut T` returns `&mut T`, becoming `*(&mut value) = 42`
-//! - For observers: returns `&mut Target`, properly dereferencing through the observer chain
+//! - For normal values: `&mut T` returns `&mut &mut T`, becoming `**(&mut &mut value) = 42`
+//! - For observers: returns [`&mut ObserverPointer`](crate::observe::ObserverPointer), properly
+//!   dereferencing through the observer chain
 //!
 //! ### Comparison Solution
 //!
@@ -55,11 +56,12 @@
 //! lhs == rhs;
 //!
 //! // Macro transforms to:
-//! *(&lhs).as_normalized_ref() == *(&rhs).as_normalized_ref();
+//! **(&lhs).as_normalized_ref() == **(&rhs).as_normalized_ref();
 //! ```
 //!
-//! - For normal values: `&T` returns `&T`, becoming `*(&lhs) == *(&rhs)`
-//! - For observers: returns `&Target`, comparing the underlying observed values
+//! - For normal values: `&T` returns `&&T`, becoming `**(&&lhs) == **(&&rhs)`
+//! - For observers: returns [`&ObserverPointer`](crate::observe::ObserverPointer), comparing the
+//!   underlying observed values
 //!
 //! This creates a form of specialization without requiring the unstable specialization feature.
 
