@@ -1,5 +1,6 @@
 use crate::Observe;
 use crate::helper::{AsDerefMut, Unsigned, Zero};
+use crate::observe::general::ReplaceHandler;
 use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver, RefObserve, SnapshotSpec};
 
 /// A general observer that never reports changes.
@@ -29,22 +30,28 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver,
 /// - Should not trigger change notifications.
 pub type NoopObserver<'ob, S, D = Zero> = GeneralObserver<'ob, NoopHandler, S, D>;
 
-#[derive(Default)]
 pub struct NoopHandler;
 
 impl<T: ?Sized> GeneralHandler<T> for NoopHandler {
     type Spec = DefaultSpec;
 
     #[inline]
-    fn on_observe(_value: &mut T) -> Self {
+    fn uninit() -> Self {
         Self
     }
 
     #[inline]
-    fn on_deref_mut(&mut self) {}
+    fn observe(_value: &mut T) -> Self {
+        Self
+    }
 
     #[inline]
-    fn on_collect(&self, _value: &T) -> bool {
+    fn deref_mut(&mut self) {}
+}
+
+impl<T: ?Sized> ReplaceHandler<T> for NoopHandler {
+    #[inline]
+    fn flush_replace(&mut self, _value: &T) -> bool {
         false
     }
 }

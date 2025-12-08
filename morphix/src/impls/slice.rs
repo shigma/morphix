@@ -228,7 +228,7 @@ where
     O: SerializeObserver<'ob, InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         let mut mutations = vec![];
         let len = this.as_deref().as_ref().len();
         let Some(truncate_append) = this.mutation.replace(M::observe(len)) else {
@@ -256,7 +256,7 @@ where
             });
         }
         for (index, observer) in this.obs.as_mut_slice().iter_mut().take(append_index).enumerate() {
-            if let Some(mut mutation) = SerializeObserver::collect::<A>(observer)? {
+            if let Some(mut mutation) = SerializeObserver::flush::<A>(observer)? {
                 mutation.path.push(PathSegment::Negative(len - index));
                 mutations.push(mutation);
             }
@@ -631,11 +631,11 @@ mod tests {
         let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
         let mut ob = slice.__observe();
         assert_eq!(ob[2], Number(2));
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
         **ob[2] = Number(42);
         assert_eq!(ob[2], Number(42));
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
             Some(Mutation {
@@ -650,11 +650,11 @@ mod tests {
         let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
         let mut ob = slice.__observe();
         assert_eq!(*ob.get_mut(2).unwrap(), Number(2));
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
         ***ob.get_mut(2).unwrap() = Number(42);
         assert_eq!(*ob.get_mut(2).unwrap(), Number(42));
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
             Some(Mutation {
@@ -670,7 +670,7 @@ mod tests {
         let mut ob = slice.__observe();
         ob.swap(0, 1);
         assert_eq!(**ob, [Number(1), Number(0), Number(2)]);
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
             Some(Mutation {

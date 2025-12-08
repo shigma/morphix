@@ -83,8 +83,8 @@ where
     T: Serialize,
 {
     #[inline]
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
-        unsafe { SliceObserver::collect_unchecked::<A>(&mut this.inner) }
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+        unsafe { SliceObserver::flush_unchecked::<A>(&mut this.inner) }
     }
 }
 
@@ -525,7 +525,7 @@ mod tests {
     fn no_change_returns_none() {
         let mut vec: Vec<Number> = vec![];
         let mut ob = vec.__observe();
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
     }
 
@@ -534,7 +534,7 @@ mod tests {
         let mut vec: Vec<Number> = vec![Number(1)];
         let mut ob = vec.__observe();
         ob.clear();
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!([])));
     }
 
@@ -544,7 +544,7 @@ mod tests {
         let mut ob = vec.__observe();
         ob.push(Number(2));
         ob.push(Number(3));
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!([2, 3])));
     }
 
@@ -554,7 +554,7 @@ mod tests {
         let mut ob = vec.__observe();
         let mut extra = vec![Number(4), Number(5)];
         ob.append(&mut extra);
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!([4, 5])));
     }
 
@@ -563,7 +563,7 @@ mod tests {
         let mut vec: Vec<Number> = vec![Number(1)];
         let mut ob = vec.__observe();
         ob.extend_from_slice(&[Number(6), Number(7)]);
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!([6, 7])));
     }
 
@@ -576,7 +576,7 @@ mod tests {
         ob[0].0 = 99;
         ob.reserve(64); // force reallocation
         assert_eq!(ob[0].0, 99);
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
             Some(Mutation {
@@ -593,7 +593,7 @@ mod tests {
         ob[0].0 = 11;
         ob.push(Number(2));
         ob[1].0 = 12;
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
             Some(Mutation {
@@ -623,7 +623,7 @@ mod tests {
         }
         assert_eq!(ob, vec![Number(1), Number(222), Number(333), Number(4)]);
         assert_eq!(ob[..], vec![Number(1), Number(222), Number(333), Number(4)]);
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
             Some(Mutation {

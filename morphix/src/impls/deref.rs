@@ -78,8 +78,8 @@ where
     D: Unsigned,
 {
     #[inline]
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
-        unsafe { O::collect_unchecked::<A>(&mut this.inner) }
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+        unsafe { O::flush_unchecked::<A>(&mut this.inner) }
     }
 }
 
@@ -189,7 +189,7 @@ mod test {
         assert_eq!(*ob, "Hello, World!");
 
         ob.push_str("\n");
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!("\n")));
     }
 
@@ -200,7 +200,7 @@ mod test {
         assert_eq!(*ob, "Hello, World!");
 
         ****ob = String::from("42");
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("42")));
     }
 
@@ -211,7 +211,7 @@ mod test {
         assert_eq!(*ob, "Hello, World!");
 
         ****ob = String::from("42");
-        let Json(mutation) = ob.collect().unwrap();
+        let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("42")));
     }
 }

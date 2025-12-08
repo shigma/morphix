@@ -87,7 +87,7 @@ where
     O::Head: Serialize + Sized,
 {
     #[inline]
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         if this.mutated {
             return Ok(Some(Mutation {
                 path: Default::default(),
@@ -95,7 +95,7 @@ where
             }));
         }
         let mut mutations = Vec::with_capacity(1);
-        if let Some(mut mutation) = SerializeObserver::collect::<A>(&mut this.inner.0)? {
+        if let Some(mut mutation) = SerializeObserver::flush::<A>(&mut this.inner.0)? {
             mutation.path.push(0.into());
             mutations.push(mutation);
         }
@@ -185,7 +185,7 @@ macro_rules! tuple_observer {
             $($o: SerializeObserver<'ob, InnerDepth = Zero, Head: Serialize + Sized>,)*
         {
             #[inline]
-            unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+            unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
                 if this.mutated {
                     return Ok(Some(Mutation {
                         path: Default::default(),
@@ -194,7 +194,7 @@ macro_rules! tuple_observer {
                 }
                 let mut mutations = Vec::with_capacity($len);
                 $(
-                    if let Some(mut mutation) = SerializeObserver::collect::<A>(&mut this.inner.$n)? {
+                    if let Some(mut mutation) = SerializeObserver::flush::<A>(&mut this.inner.$n)? {
                         mutation.path.push($n.into());
                         mutations.push(mutation);
                     }

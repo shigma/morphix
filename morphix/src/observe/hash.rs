@@ -2,6 +2,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::marker::PhantomData;
 
 use crate::helper::Zero;
+use crate::observe::general::ReplaceHandler;
 use crate::observe::{DebugHandler, GeneralHandler, GeneralObserver};
 
 /// A general observer that uses hash comparison to detect changes.
@@ -45,7 +46,6 @@ use crate::observe::{DebugHandler, GeneralHandler, GeneralObserver};
 ///    [`ShallowObserver`](super::ShallowObserver)
 pub type HashObserver<'ob, S, D = Zero, H = DefaultHasher> = GeneralObserver<'ob, HashHandler<H>, S, D>;
 
-#[derive(Default)]
 pub struct HashHandler<H> {
     initial_hash: u64,
     phantom: PhantomData<H>,
@@ -64,7 +64,15 @@ impl<T: Hash + ?Sized, H: Hasher + Default> GeneralHandler<T> for HashHandler<H>
     type Spec = HashSpec;
 
     #[inline]
-    fn on_observe(value: &mut T) -> Self {
+    fn uninit() -> Self {
+        Self {
+            initial_hash: 0,
+            phantom: PhantomData,
+        }
+    }
+
+    #[inline]
+    fn observe(value: &mut T) -> Self {
         Self {
             initial_hash: Self::hash(value),
             phantom: PhantomData,
@@ -72,10 +80,12 @@ impl<T: Hash + ?Sized, H: Hasher + Default> GeneralHandler<T> for HashHandler<H>
     }
 
     #[inline]
-    fn on_deref_mut(&mut self) {}
+    fn deref_mut(&mut self) {}
+}
 
+impl<T: Hash + ?Sized, H: Hasher + Default> ReplaceHandler<T> for HashHandler<H> {
     #[inline]
-    fn on_collect(&self, value: &T) -> bool {
+    fn flush_replace(&mut self, value: &T) -> bool {
         self.initial_hash != Self::hash(value)
     }
 }

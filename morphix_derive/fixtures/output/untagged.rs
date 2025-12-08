@@ -72,16 +72,16 @@ const _: () = {
             A::Error,
         > {
             match self {
-                Self::A(u0) => ::morphix::observe::SerializeObserver::collect::<A>(u0),
+                Self::A(u0) => ::morphix::observe::SerializeObserver::flush::<A>(u0),
                 Self::B(u0, u1) => {
                     let mut mutations = ::std::vec::Vec::with_capacity(2usize);
-                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
+                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
                         A,
                     >(u0)? {
                         mutation.path.push("0".into());
                         mutations.push(mutation);
                     }
-                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
+                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
                         A,
                     >(u1)? {
                         mutation.path.push("1".into());
@@ -90,7 +90,7 @@ const _: () = {
                     Ok(::morphix::Mutation::coalesce(mutations))
                 }
                 Self::C { bar } => {
-                    match ::morphix::observe::SerializeObserver::collect::<A>(bar) {
+                    match ::morphix::observe::SerializeObserver::flush::<A>(bar) {
                         Ok(Some(mut mutation)) => {
                             mutation.path.push("bar".into());
                             Ok(Some(mutation))
@@ -161,7 +161,7 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<N, Target = Foo> + 'ob,
         N: ::morphix::helper::Unsigned,
     {
-        unsafe fn collect_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<
             ::std::option::Option<::morphix::Mutation<A::Value>>,

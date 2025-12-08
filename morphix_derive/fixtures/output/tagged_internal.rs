@@ -61,9 +61,9 @@ const _: () = {
             A::Error,
         > {
             match self {
-                Self::A(u0) => ::morphix::observe::SerializeObserver::collect::<A>(u0),
+                Self::A(u0) => ::morphix::observe::SerializeObserver::flush::<A>(u0),
                 Self::C { bar } => {
-                    match ::morphix::observe::SerializeObserver::collect::<A>(bar) {
+                    match ::morphix::observe::SerializeObserver::flush::<A>(bar) {
                         Ok(Some(mut mutation)) => {
                             mutation.path.push("bar".into());
                             Ok(Some(mutation))
@@ -139,7 +139,7 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<_N, Target = Foo<N>> + 'ob,
         _N: ::morphix::helper::Unsigned,
     {
-        unsafe fn collect_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<
             ::std::option::Option<::morphix::Mutation<A::Value>>,

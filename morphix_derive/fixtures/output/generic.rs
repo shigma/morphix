@@ -111,7 +111,7 @@ const _: () = {
             &'i mut [T; N],
         >: ::morphix::observe::SerializeObserver<'ob>,
     {
-        unsafe fn collect_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<
             ::std::option::Option<::morphix::Mutation<A::Value>>,
@@ -127,7 +127,7 @@ const _: () = {
                     }),
                 );
             }
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
+            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
                 A,
             >(&mut this.a)? {
                 mutation.path.push("a".into());

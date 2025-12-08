@@ -103,7 +103,7 @@ pub fn derive_observe_for_enum(
                 let variant_collect_expr = match fields_named.named.len() {
                     0 => quote! { Ok(None) },
                     1 => quote! {
-                        match ::morphix::observe::SerializeObserver::collect::<A>(#(#idents),*) {
+                        match ::morphix::observe::SerializeObserver::flush::<A>(#(#idents),*) {
                             Ok(Some(mut mutation)) => {
                                 mutation.path.push(#(#segments.into()),*);
                                 #push_tag
@@ -115,7 +115,7 @@ pub fn derive_observe_for_enum(
                     n => quote! {{
                         let mut mutations = ::std::vec::Vec::with_capacity(#n);
                         #(
-                            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<A>(#idents)? {
+                            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<A>(#idents)? {
                                 mutation.path.push(#segments.into());
                                 #push_tag
                                 mutations.push(mutation);
@@ -176,10 +176,10 @@ pub fn derive_observe_for_enum(
                     0 => quote! { Ok(None) },
                     1 => match push_tag.is_empty() {
                         true => quote! {
-                            ::morphix::observe::SerializeObserver::collect::<A>(#(#ob_idents),*)
+                            ::morphix::observe::SerializeObserver::flush::<A>(#(#ob_idents),*)
                         },
                         false => quote! {
-                            match ::morphix::observe::SerializeObserver::collect::<A>(#(#ob_idents),*) {
+                            match ::morphix::observe::SerializeObserver::flush::<A>(#(#ob_idents),*) {
                                 Ok(Some(mut mutation)) => {
                                     #push_tag
                                     Ok(Some(mutation))
@@ -191,7 +191,7 @@ pub fn derive_observe_for_enum(
                     n => quote! {{
                         let mut mutations = ::std::vec::Vec::with_capacity(#n);
                         #(
-                            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<A>(#ob_idents)? {
+                            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<A>(#ob_idents)? {
                                 mutation.path.push(#segments.into());
                                 #push_tag
                                 mutations.push(mutation);
@@ -406,7 +406,7 @@ pub fn derive_observe_for_enum(
             #depth: ::morphix::helper::Unsigned,
             #(#ob_field_tys: ::morphix::observe::SerializeObserver<#ob_lt>,)*
         {
-            unsafe fn collect_unchecked<A: ::morphix::Adapter>(
+            unsafe fn flush_unchecked<A: ::morphix::Adapter>(
                 this: &mut Self,
             ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A::Value>>, A::Error> {
                 if this.__mutated {

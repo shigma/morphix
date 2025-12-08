@@ -46,7 +46,7 @@ fn build_output(pat: &syn::Pat, inits: &mut Vec<TokenStream>) -> Result<TokenStr
         syn::Pat::Ident(syn::PatIdent { ident, .. }) => {
             inits.push(quote! { let mut #ident = #ident.__observe(); });
             Ok(quote! {
-                match ::morphix::observe::SerializeObserverExt::collect(&mut #ident) {
+                match ::morphix::observe::SerializeObserverExt::flush(&mut #ident) {
                     Ok(mutation) => mutation,
                     Err(error) => break 'ob Err(error),
                 }

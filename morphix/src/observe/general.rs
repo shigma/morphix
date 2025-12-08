@@ -14,13 +14,6 @@ use crate::{Adapter, Mutation, MutationKind};
 /// exclusively with `GeneralObserver`. Each handler implementation encapsulates a specific approach
 /// to detecting whether a value has changed.
 ///
-/// ## Lifecycle
-///
-/// - [`on_observe`](GeneralHandler::on_observe) - Called once when observation begins
-/// - [`on_deref_mut`](GeneralHandler::on_deref_mut) - Called each time the value is accessed via
-///   [`DerefMut`]
-/// - [`on_collect`](GeneralHandler::on_collect) - Called once to determine if a change occurred
-///
 /// ## Example
 ///
 /// A [`ShallowObserver`](super::ShallowObserver) implementation that treats any mutation through
@@ -28,7 +21,6 @@ use crate::{Adapter, Mutation, MutationKind};
 ///
 /// ```
 /// # use morphix::observe::{DefaultSpec, GeneralHandler, GeneralObserver};
-/// #[derive(Default)]
 /// struct ShallowHandler {
 ///     mutated: bool,
 /// }
@@ -36,47 +28,98 @@ use crate::{Adapter, Mutation, MutationKind};
 /// impl<T> GeneralHandler<T> for ShallowHandler {
 ///     type Spec = DefaultSpec;
 ///
-///     fn on_observe(_value: &mut T) -> Self {
+///     fn uninit() -> Self {
+///        Self { mutated: false }
+///     }
+///
+///     fn observe(_value: &mut T) -> Self {
 ///         Self { mutated: false }
 ///     }
 ///
-///     fn on_deref_mut(&mut self) {
+///     fn deref_mut(&mut self) {
 ///         self.mutated = true;
-///     }
-///
-///     fn on_collect(&self, _value: &T) -> bool {
-///         self.mutated
 ///     }
 /// }
 ///
 /// type ShallowObserver<'ob, T> = GeneralObserver<'ob, T, ShallowHandler>;
 /// ```
-pub trait GeneralHandler<T: ?Sized>: Default {
+pub trait GeneralHandler<T: ?Sized> {
     /// Associated specification type for [`GeneralObserver`].
     type Spec;
 
-    /// Called when the observed value is moved.
+    /// Implementation for [`Observer::uninit`].
+    fn uninit() -> Self;
+
+    /// Implementation for [`Observer::observe`].
+    fn observe(value: &mut T) -> Self;
+
+    /// Called when the value is accessed through [`DerefMut`].
+    fn deref_mut(&mut self);
+}
+
+/// A handler that can serialize mutations for [`GeneralObserver`].
+///
+/// This trait extends [`GeneralHandler`] with serialization capabilities. A [`GeneralHandler`]
+/// must implement `SerializeHandler` for its corresponding [`GeneralObserver`] to implement
+/// [`SerializeObserver`].
+///
+/// ## Blanket Implementation
+///
+/// A blanket implementation is provided for all types that implement [`ReplaceHandler`]
+/// where the observed type implements [`Serialize`]. This automatically converts the
+/// boolean result from [`flush_replace`](ReplaceHandler::flush_replace) into a
+/// [`Replace`](MutationKind::Replace) mutation when changes are detected.
+///
+/// Most handlers only need to implement [`ReplaceHandler`] to gain full serialization
+/// support. Direct implementation of `SerializeHandler` is only necessary for handlers
+/// that need to emit non-replace mutations (like [`Append`](MutationKind::Append)).
+pub trait SerializeHandler<T: ?Sized>: GeneralHandler<T> {
+    /// Implementation for [`SerializeObserver::flush_unchecked`].
     ///
     /// ## Safety
     ///
-    /// See [`Observer::refresh`].
+    /// See [`SerializeObserver::flush_unchecked`].
+    unsafe fn flush<A: Adapter>(&mut self, value: &T) -> Result<Option<Mutation<A::Value>>, A::Error>;
+}
+
+/// A handler that can only express replace-style mutations.
+///
+/// This trait provides a simplified interface for handlers that only need to track whether the
+/// observed value has changed, without distinguishing between different mutation kinds (like
+/// [`Append`](MutationKind::Append) or [`Truncate`](MutationKind::Truncate)). Most
+/// [`GeneralHandler`] implementations implement this trait rather than [`SerializeHandler`]
+/// directly.
+pub trait ReplaceHandler<T: ?Sized>: GeneralHandler<T> {
+    /// Determines whether the observed value should be reported as replaced.
+    ///
+    /// This method is called during [`flush`](SerializeHandler::flush) to check if the value has
+    /// changed. It also resets the handler's internal state, so that an immediate subsequent call
+    /// will return `false` unless new mutations occur.
+    ///
+    /// ## Returns
+    ///
+    /// - `true`: The value has changed and should be serialized as a
+    ///   [`Replace`](MutationKind::Replace) mutation
+    /// - `false`: No changes detected, no mutation will be emitted
+    fn flush_replace(&mut self, value: &T) -> bool;
+}
+
+impl<H, T: ?Sized> SerializeHandler<T> for H
+where
+    H: ReplaceHandler<T>,
+    T: Serialize,
+{
     #[inline]
-    unsafe fn on_refresh(&mut self, value: &mut T) {
-        let _ = value;
+    unsafe fn flush<A: Adapter>(&mut self, value: &T) -> Result<Option<Mutation<A::Value>>, A::Error> {
+        if self.flush_replace(value) {
+            Ok(Some(Mutation {
+                path: Default::default(),
+                kind: MutationKind::Replace(A::serialize_value(value)?),
+            }))
+        } else {
+            Ok(None)
+        }
     }
-
-    /// Called when observation begins.
-    ///
-    /// See [`Observer::observe`].
-    fn on_observe(value: &mut T) -> Self;
-
-    /// Called when the value is accessed through [`DerefMut`].
-    fn on_deref_mut(&mut self);
-
-    /// Called when collecting changes, returns whether a change occurred.
-    ///
-    /// See [`SerializeObserver::collect`].
-    fn on_collect(&self, value: &T) -> bool;
 }
 
 /// A helper trait for providing a custom name when formatting [`GeneralObserver`] with [`Debug`].
@@ -166,7 +209,7 @@ where
 {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.handler.on_deref_mut();
+        self.handler.deref_mut();
         &mut self.ptr
     }
 }
@@ -192,7 +235,7 @@ where
     fn uninit() -> Self {
         Self {
             ptr: ObserverPointer::default(),
-            handler: H::default(),
+            handler: H::uninit(),
             phantom: PhantomData,
         }
     }
@@ -200,14 +243,13 @@ where
     #[inline]
     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
         ObserverPointer::set(&this.ptr, value);
-        unsafe { this.handler.on_refresh(value.as_deref_mut()) }
     }
 
     #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
             ptr: ObserverPointer::new(value),
-            handler: H::on_observe(value.as_deref_mut()),
+            handler: H::observe(value.as_deref_mut()),
             phantom: PhantomData,
         }
     }
@@ -216,18 +258,11 @@ where
 impl<'ob, H, S: ?Sized, N> SerializeObserver<'ob> for GeneralObserver<'ob, H, S, N>
 where
     N: Unsigned,
-    S: AsDerefMut<N, Target: Serialize> + 'ob,
-    H: GeneralHandler<S::Target>,
+    S: AsDerefMut<N> + 'ob,
+    H: SerializeHandler<S::Target>,
 {
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
-        Ok(if this.handler.on_collect(this.as_deref()) {
-            Some(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
-            })
-        } else {
-            None
-        })
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+        unsafe { this.handler.flush::<A>(this.ptr.as_deref()) }
     }
 }
 

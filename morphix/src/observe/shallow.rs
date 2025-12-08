@@ -1,5 +1,6 @@
 use crate::Observe;
 use crate::helper::{AsDerefMut, Unsigned, Zero};
+use crate::observe::general::ReplaceHandler;
 use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver};
 
 /// A general observer that tracks any mutation access as a change.
@@ -38,7 +39,6 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 ///    as [`Vec::reserve`]) are still reported as changes.
 pub type ShallowObserver<'ob, S, D = Zero> = GeneralObserver<'ob, ShallowHandler, S, D>;
 
-#[derive(Default)]
 pub struct ShallowHandler {
     mutated: bool,
 }
@@ -47,17 +47,24 @@ impl<T: ?Sized> GeneralHandler<T> for ShallowHandler {
     type Spec = DefaultSpec;
 
     #[inline]
-    fn on_observe(_value: &mut T) -> Self {
+    fn uninit() -> Self {
         Self { mutated: false }
     }
 
     #[inline]
-    fn on_deref_mut(&mut self) {
-        self.mutated = true;
+    fn observe(_value: &mut T) -> Self {
+        Self { mutated: false }
     }
 
     #[inline]
-    fn on_collect(&self, _value: &T) -> bool {
+    fn deref_mut(&mut self) {
+        self.mutated = true;
+    }
+}
+
+impl<T: ?Sized> ReplaceHandler<T> for ShallowHandler {
+    #[inline]
+    fn flush_replace(&mut self, _value: &T) -> bool {
         self.mutated
     }
 }

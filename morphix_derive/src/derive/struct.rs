@@ -110,7 +110,7 @@ pub fn derive_observe_for_struct_fields(
             };
         }
         collect_stmts.push(quote_spanned! { field_span =>
-            if let Some(#mutability mutation) = ::morphix::observe::SerializeObserver::collect::<A>(&mut this.#field_ident)? {
+            if let Some(#mutability mutation) = ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_ident)? {
                 #body
             }
         });
@@ -432,7 +432,7 @@ pub fn derive_observe_for_struct_fields(
             #depth: ::morphix::helper::Unsigned,
             #(#ob_field_tys: ::morphix::observe::SerializeObserver<#ob_lt>,)*
         {
-            unsafe fn collect_unchecked<A: ::morphix::Adapter>(
+            unsafe fn flush_unchecked<A: ::morphix::Adapter>(
                 this: &mut Self,
             ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A::Value>>, A::Error> {
                 #serialize_observer_impl_prefix

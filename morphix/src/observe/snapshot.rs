@@ -2,6 +2,7 @@ use std::mem::MaybeUninit;
 
 use crate::Observe;
 use crate::helper::{AsDeref, Zero};
+use crate::observe::general::ReplaceHandler;
 use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
@@ -53,31 +54,31 @@ pub struct SnapshotHandler<T> {
     snapshot: MaybeUninit<T>,
 }
 
-impl<T> Default for SnapshotHandler<T> {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            snapshot: MaybeUninit::uninit(),
-        }
-    }
-}
-
 impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
     type Spec = SnapshotSpec;
 
     #[inline]
-    fn on_observe(value: &mut T) -> Self {
+    fn uninit() -> Self {
+        Self {
+            snapshot: MaybeUninit::uninit(),
+        }
+    }
+
+    #[inline]
+    fn observe(value: &mut T) -> Self {
         Self {
             snapshot: MaybeUninit::new(value.clone()),
         }
     }
 
     #[inline]
-    fn on_deref_mut(&mut self) {}
+    fn deref_mut(&mut self) {}
+}
 
+impl<T: Clone + PartialEq> ReplaceHandler<T> for SnapshotHandler<T> {
     #[inline]
-    fn on_collect(&self, value: &T) -> bool {
-        // SAFETY: `GeneralHandler::on_collect` is only called in `Observer::collect_unchecked`, where the
+    fn flush_replace(&mut self, value: &T) -> bool {
+        // SAFETY: `GeneralHandler::on_collect` is only called in `Observer::flush_unchecked`, where the
         // observer is assumed to contain a valid pointer
         value != unsafe { self.snapshot.assume_init_ref() }
     }

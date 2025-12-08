@@ -227,7 +227,7 @@ where
     /// # use morphix::helper::{AsDerefMut, Unsigned, Zero};
     /// # use morphix::observe::{Observer, ObserverPointer};
     /// # use std::marker::PhantomData;
-    ///
+    /// #
     /// pub struct OptionObserver<'ob, O, S: ?Sized, N = Zero> {
     ///     ptr: ObserverPointer<S>,
     ///     mutated: bool,
@@ -238,16 +238,16 @@ where
     /// # impl<'ob, O, S: ?Sized, N> Default for OptionObserver<'ob, O, S, N> {
     /// #    fn default() -> Self { todo!() }
     /// # }
-    ///
+    /// #
     /// # impl<'ob, O, S: ?Sized, N> std::ops::Deref for OptionObserver<'ob, O, S, N> {
     /// #     type Target = ObserverPointer<S>;
     /// #     fn deref(&self) -> &Self::Target { &self.ptr }
     /// # }
-    ///
+    /// #
     /// # impl<'ob, O, S: ?Sized, N> std::ops::DerefMut for OptionObserver<'ob, O, S, N> {
     /// #     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.ptr }
     /// # }
-    ///
+    /// #
     /// impl<'ob, O, S: ?Sized, N> Observer<'ob> for OptionObserver<'ob, O, S, N>
     /// where
     ///     N: Unsigned,
@@ -258,7 +258,7 @@ where
     ///     # type InnerDepth = N;
     ///     # type OuterDepth = Zero;
     ///     # type Head = S;
-    ///
+    ///     #
     ///     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
     ///         // Refresh the outer pointer
     ///         ObserverPointer::set(Self::as_ptr(this), value);
@@ -270,7 +270,7 @@ where
     ///             _ => unreachable!("inconsistent observer state"),
     ///         }
     ///     }
-    ///
+    ///     #
     ///     # fn uninit() -> Self { todo!() }
     ///     # fn observe(value: &'ob mut Self::Head) -> Self { todo!() }
     /// }
@@ -311,7 +311,7 @@ where
         match ObserverPointer::get(Self::as_ptr(this)) {
             None => *this = Self::observe(value),
             Some(ptr) => {
-                if !std::ptr::eq(ptr, value) {
+                if !std::ptr::addr_eq(ptr, value) {
                     // SAFETY: The observer was previously initialized via `observe`, and the caller
                     // guarantees that `value` refers to the same logical value.
                     unsafe { Self::refresh(this, value) }
@@ -389,42 +389,43 @@ where
     }
 }
 
-/// Trait for observers that can serialize their collected mutations.
+/// Trait for observers that can serialize their recorded mutations.
 ///
 /// This trait extends [`Observer`] with the ability to collect and serialize mutations using a
 /// specific [`Adapter`].
 pub trait SerializeObserver<'ob>: Observer<'ob> {
-    /// Collects all recorded mutations (unsafe version).
+    /// Flushes and serializes all recorded mutations (unsafe version).
+    ///
+    /// This method extracts all recorded mutations, serializes them using the specified adapter,
+    /// and clears the internal mutation state. After calling this method, the observer continues
+    /// tracking new mutations from a clean state.
     ///
     /// ## Safety
     ///
-    /// This method assumes the observer contains a valid (non-null) pointer. Calling this on a
-    /// uninitialized observer results in *undefined behavior*.
-    ///
-    /// Most users should call [`collect`](SerializeObserver::collect) instead, which includes a
-    /// null pointer check.
+    /// This method assumes the observer contains a valid (non-null) pointer. Calling this on an
+    /// uninitialized observer results in *undefined behavior*. Most users should call
+    /// [`flush`](SerializeObserver::flush) instead, which includes a null pointer check.
     ///
     /// ## Implementation Notes
     ///
     /// Implementations can safely use [`Deref`](std::ops::Deref) and
     /// [`DerefMut`](std::ops::DerefMut) to access the observed value, as this method is only
-    /// called when the observer contains a valid pointer. The observer's
-    /// [`Deref`](std::ops::Deref) and [`DerefMut`](std::ops::DerefMut) implementations are
-    /// guaranteed to be safe when `collect_unchecked` is called.
-    ///
-    /// ```ignore
-    /// unsafe fn collect_unchecked<A: Adapter>(this: Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
-    ///     // Safe to dereference
-    ///     collect_mutation(&*this)
-    /// }
-    /// ```
-    unsafe fn collect_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error>;
+    /// called when the observer contains a valid pointer. The observer's [`Deref`](std::ops::Deref)
+    /// and [`DerefMut`](std::ops::DerefMut) implementations are guaranteed to be safe when
+    /// `flush_unchecked` is called.
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error>;
 
-    /// Collects all recorded mutations using the specified adapter.
+    /// Flushes and serializes all recorded mutations using the specified adapter.
     ///
-    /// - Returns [`Ok(None)`](std::result::Result::Ok) if no mutations is recorded or the observer
-    ///   is null
-    /// - Returns [`Err`] if serialization fails.
+    /// This method extracts all recorded mutations, serializes them, and resets the observer's
+    /// internal state. After calling this method, the observer begins tracking mutations afresh,
+    /// meaning an immediate subsequent call to `flush` will return [`Ok(None)`].
+    ///
+    /// ## Returns
+    ///
+    /// - [`Ok(Some(mutation))`](Ok): The serialized mutations if any were recorded
+    /// - [`Ok(None)`](Ok): If no mutations were recorded, or if the observer is uninitialized
+    /// - [`Err`]: If serialization fails
     ///
     /// ## Example
     ///
@@ -436,19 +437,25 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
     /// let mut value = String::from("Hello");
     /// let mut ob = value.__observe();
     /// ob += " world";
-    /// let Json(mutation) = ob.collect().unwrap();
+    ///
+    /// // First flush returns the recorded mutation
+    /// let Json(mutation) = ob.flush().unwrap();
     /// assert!(mutation.is_some());
+    ///
+    /// // Immediate second flush returns None (state was cleared)
+    /// let Json(mutation) = ob.flush().unwrap();
+    /// assert!(mutation.is_none());
     ///
     /// // Safe handling of uninitialized observer
     /// let mut empty: ShallowObserver<i32> = ShallowObserver::uninit();
-    /// let Json(mutation) = empty.collect().unwrap();
+    /// let Json(mutation) = empty.flush().unwrap();
     /// assert!(mutation.is_none());
     /// ```
-    fn collect<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    fn flush<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         if ObserverPointer::is_null(Self::as_ptr(this)) {
             return Ok(None);
         }
-        unsafe { Self::collect_unchecked::<A>(this) }
+        unsafe { Self::flush_unchecked::<A>(this) }
     }
 }
 
@@ -459,10 +466,10 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
 pub trait SerializeObserverExt<'ob>: SerializeObserver<'ob> {
     /// Collects mutations using the specified adapter.
     ///
-    /// This is a convenience method that calls [`SerializeObserver::collect`].
+    /// This is a convenience method that calls [`SerializeObserver::flush`].
     #[inline]
-    fn collect<A: Adapter>(&mut self) -> Result<A, A::Error> {
-        SerializeObserver::collect::<A>(self).map(A::from_mutation)
+    fn flush<A: Adapter>(&mut self) -> Result<A, A::Error> {
+        SerializeObserver::flush::<A>(self).map(A::from_mutation)
     }
 }
 

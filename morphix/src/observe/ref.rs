@@ -1,5 +1,6 @@
 use crate::Observe;
 use crate::helper::{AsDeref, AsDerefMut, Succ, Unsigned};
+use crate::observe::general::ReplaceHandler;
 use crate::observe::{DefaultSpec, GeneralHandler, GeneralObserver, Observer, SnapshotObserver, SnapshotSpec};
 
 /// A general observer implementation for reference types.
@@ -144,26 +145,26 @@ pub struct RefHandler<'a, T: ?Sized> {
     ptr: Option<&'a T>,
 }
 
-impl<'a, T: ?Sized> Default for RefHandler<'a, T> {
-    #[inline]
-    fn default() -> Self {
-        Self { ptr: None }
-    }
-}
-
 impl<'a, T: ?Sized> GeneralHandler<&'a T> for RefHandler<'a, T> {
     type Spec = DefaultSpec;
 
     #[inline]
-    fn on_observe(value: &mut &'a T) -> Self {
+    fn uninit() -> Self {
+        Self { ptr: None }
+    }
+
+    #[inline]
+    fn observe(value: &mut &'a T) -> Self {
         Self { ptr: Some(value) }
     }
 
     #[inline]
-    fn on_deref_mut(&mut self) {}
+    fn deref_mut(&mut self) {}
+}
 
+impl<'a, T: ?Sized> ReplaceHandler<&'a T> for RefHandler<'a, T> {
     #[inline]
-    fn on_collect(&self, value: &&'a T) -> bool {
+    fn flush_replace(&mut self, value: &&'a T) -> bool {
         !std::ptr::eq(*value, unsafe { self.ptr.unwrap_unchecked() })
     }
 }

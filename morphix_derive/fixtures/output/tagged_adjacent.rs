@@ -86,7 +86,7 @@ const _: () = {
         {
             match self {
                 Self::A(u0) => {
-                    match ::morphix::observe::SerializeObserver::collect::<A>(u0) {
+                    match ::morphix::observe::SerializeObserver::flush::<A>(u0) {
                         Ok(Some(mut mutation)) => {
                             mutation.path.push("data".into());
                             Ok(Some(mutation))
@@ -96,14 +96,14 @@ const _: () = {
                 }
                 Self::B(u0, u1) => {
                     let mut mutations = ::std::vec::Vec::with_capacity(2usize);
-                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
+                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
                         A,
                     >(u0)? {
                         mutation.path.push("0".into());
                         mutation.path.push("data".into());
                         mutations.push(mutation);
                     }
-                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::collect::<
+                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
                         A,
                     >(u1)? {
                         mutation.path.push("1".into());
@@ -113,7 +113,7 @@ const _: () = {
                     Ok(::morphix::Mutation::coalesce(mutations))
                 }
                 Self::C { bar } => {
-                    match ::morphix::observe::SerializeObserver::collect::<A>(bar) {
+                    match ::morphix::observe::SerializeObserver::flush::<A>(bar) {
                         Ok(Some(mut mutation)) => {
                             mutation.path.push("bar".into());
                             mutation.path.push("data".into());
@@ -202,7 +202,7 @@ const _: () = {
             &'i mut String,
         >: ::morphix::observe::SerializeObserver<'ob>,
     {
-        unsafe fn collect_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<
             ::std::option::Option<::morphix::Mutation<A::Value>>,
