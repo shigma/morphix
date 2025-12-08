@@ -3,7 +3,7 @@ use quote::quote;
 use syn::parse::Parse;
 use syn::spanned::Spanned;
 use syn::visit_mut::VisitMut;
-use syn::{Token, parse_quote};
+use syn::{Token, parse_quote_spanned};
 
 enum ObserveKind {
     Closure(#[expect(dead_code)] Token![|], #[expect(dead_code)] Token![|]),
@@ -82,7 +82,7 @@ pub fn observe(mut input: ObserveInput) -> TokenStream {
     };
 
     let body = &mut input.body;
-    DerefAssign.visit_expr_mut(body);
+    TransformAsNormalized.visit_expr_mut(body);
 
     let body = quote! {
         'ob: {
@@ -102,17 +102,39 @@ pub fn observe(mut input: ObserveInput) -> TokenStream {
     }
 }
 
-struct DerefAssign;
+struct TransformAsNormalized;
 
-impl VisitMut for DerefAssign {
-    fn visit_expr_mut(&mut self, expr: &mut syn::Expr) {
-        if let syn::Expr::Assign(expr_assign) = expr {
-            let left = &expr_assign.left;
-            let right = &expr_assign.right;
-            *expr = parse_quote! {
-                **(&mut #left).as_normalized_mut() = #right
-            };
+impl VisitMut for TransformAsNormalized {
+    fn visit_expr_assign_mut(&mut self, expr_assign: &mut syn::ExprAssign) {
+        syn::visit_mut::visit_expr_assign_mut(self, expr_assign);
+        let left = &expr_assign.left;
+        let span = left.span();
+        expr_assign.left = parse_quote_spanned! { span =>
+            **(&mut #left).as_normalized_mut()
+        };
+    }
+
+    fn visit_expr_binary_mut(&mut self, expr_binary: &mut syn::ExprBinary) {
+        syn::visit_mut::visit_expr_binary_mut(self, expr_binary);
+        match &expr_binary.op {
+            syn::BinOp::Eq(_)
+            | syn::BinOp::Ne(_)
+            | syn::BinOp::Le(_)
+            | syn::BinOp::Lt(_)
+            | syn::BinOp::Ge(_)
+            | syn::BinOp::Gt(_) => {
+                let left = &expr_binary.left;
+                let span = left.span();
+                expr_binary.left = parse_quote_spanned! { span =>
+                    **(&#left).as_normalized_ref()
+                };
+                let right = &expr_binary.right;
+                let span = right.span();
+                expr_binary.right = parse_quote_spanned! { span =>
+                    **(&#right).as_normalized_ref()
+                };
+            }
+            _ => {}
         }
-        syn::visit_mut::visit_expr_mut(self, expr);
     }
 }
