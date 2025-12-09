@@ -11,7 +11,7 @@ use std::ops::{Deref, DerefMut};
 /// ## Purpose
 ///
 /// When observing types that already implement [`Deref`] (like [`Vec<T>`]), we need a way to break
-/// the dereference chain to insert observer logic at multiple levels. `ObserverPointer` provides
+/// the dereference chain to insert observer logic at multiple levels. [`ObserverPointer`] provides
 /// this break point, enabling chains like: [`VecObserver`](crate::impls::vec::VecObserver) →
 /// [`SliceObserver`](crate::impls::slice::SliceObserver) →
 /// [`ObserverPointer<[T]>`](ObserverPointer) → [`Vec<T>`] → [`[T]`](std::slice).

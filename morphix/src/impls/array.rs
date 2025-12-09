@@ -37,11 +37,6 @@ where
     }
 }
 
-/// Observer implementation for [array](core::array).
-///
-/// `ArrayObserver` provides element-level change tracking for fixed-size arrays by building on
-/// [`SliceObserver`]. It tracks modifications to individual array elements through indexing
-/// operations.
 pub struct ArrayObserver<'ob, const N: usize, O, S: ?Sized, D = Zero> {
     inner: SliceObserver<'ob, [O; N], (), S, D>,
 }

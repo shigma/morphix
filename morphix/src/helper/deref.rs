@@ -8,10 +8,10 @@
 //!
 //! The key difference lies in their induction direction:
 //!
-//! - **Inductive**: If `T` can be dereferenced `N` times to reach a type that implements `Deref`,
+//! - **Inductive**: If `T` can be dereferenced `N` times to reach a type that implements [`Deref`],
 //!   then `T` can be dereferenced `N + 1` times.
-//! - **Coinductive**: If `T` implements `Deref` to reach a type that can be dereferenced `N` times,
-//!   then `T` can be dereferenced `N + 1` times.
+//! - **Coinductive**: If `T` implements [`Deref`] to reach a type that can be dereferenced `N`
+//!   times, then `T` can be dereferenced `N + 1` times.
 //!
 //! While these definitions are mathematically equivalent, Rust's type system cannot simply
 //! recognize this equivalence. Implementing both patterns would cause conflicts, so we provide

@@ -54,17 +54,17 @@ pub use snapshot::{SnapshotObserver, SnapshotSpec};
 
 /// A trait for types that can be observed for mutations.
 ///
-/// Types implementing `Observe` can be wrapped in [`Observer`]s that track mutations. The trait is
-/// typically derived using the `#[derive(Observe)]` macro and used in `observe!` macros.
+/// Types implementing [`Observe`] can be wrapped in [`Observer`]s that track mutations. The trait
+/// is typically derived using the `#[derive(Observe)]` macro and used in `observe!` macros.
 ///
 /// A single type `T` may have many possible [`Observer<'ob, Target = T>`] implementations in
-/// theory, each with different change-tracking strategies. The `Observe` trait selects one
+/// theory, each with different change-tracking strategies. The [`Observe`] trait selects one
 /// of these as the default observer to be used by `#[derive(Observe)]` and other generic code
 /// that needs an observer for `T`.
 ///
 /// When you `#[derive(Observe)]` on a struct, the macro requires that each field type
-/// implements `Observe` so it can select an appropriate default observer for that field.
-/// The `Observer` associated type of each field's `Observe` implementation determines which
+/// implements [`Observe`] so it can select an appropriate default observer for that field.
+/// The [`Observer`] associated type of each field's [`Observe`] implementation determines which
 /// observer will be instantiated in the generated code.
 ///
 /// ## Example
@@ -98,14 +98,15 @@ pub trait Observe {
 
     /// Associated specification type for this observable.
     ///
-    /// The `Spec` associated type is used as a marker to select specialized implementations of
-    /// observers in certain contexts. For most types, this will be [`DefaultSpec`], but types
-    /// can specify alternative specs to enable specialized observation strategies.
+    /// The [`Spec`](Observe::Spec) associated type is used as a marker to select specialized
+    /// implementations of observers in certain contexts. For most types, this will be
+    /// [`DefaultSpec`], but types can specify alternative specs to enable specialized
+    /// observation strategies.
     ///
     /// ## Usage
     ///
-    /// One important use of `Spec` is to select the appropriate observer implementation for wrapper
-    /// types like [`Option<T>`]:
+    /// One important use of [`Spec`](Observe::Spec) is to select the appropriate observer
+    /// implementation for wrapper types like [`Option<T>`]:
     ///
     /// - [`DefaultSpec`] → use [`OptionObserver`](crate::impls::option::OptionObserver) wrapping
     ///   `T`'s observer
@@ -149,12 +150,10 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 ///
 /// ## Type Parameters
 ///
-/// - `Head`: The type stored in the internal [`ObserverPointer`], representing the head of the
-///   dereference chain
-/// - `InnerDepth`: Type-level number indicating how many times `Head` must be dereferenced to reach
-///   the observed type
-/// - `OuterDepth`: Type-level number indicating how many times `Self` must be dereferenced (plus
-///   one) to reach [`ObserverPointer<Head>`]
+/// - [`Head`](Observer::Head): The type stored in the internal [`ObserverPointer`], representing
+///   the head of the dereference chain
+/// - [`InnerDepth`](Observer::InnerDepth): Type-level number indicating how many times
+///   [`Head`](Observer::Head) must be dereferenced to reach the observed type
 ///
 /// See the [module documentation](self) for more details about how observers work with dereference
 /// chains.
@@ -163,7 +162,7 @@ where
     Self: AsNormalized<Target = ObserverPointer<Self::Head>>,
     Self: AsDerefMutCoinductive<Self::OuterDepth>,
 {
-    /// Type-level number of dereferences from `Head` to the observed type.
+    /// Type-level number of dereferences from [`Head`](Observer::Head) to the observed type.
     type InnerDepth: Unsigned;
 
     /// The head type of the dereference chain.
@@ -201,7 +200,7 @@ where
     ///
     /// This method updates the observer's internal pointer to point to the new location
     /// of the observed value. It is necessary when the observed value is relocated in
-    /// memory (e.g., due to `Vec` reallocation) while the observer remains active.
+    /// memory (e.g., due to [`Vec`] reallocation) while the observer remains active.
     ///
     /// ## Safety
     ///
@@ -472,12 +471,12 @@ impl<'ob, T: SerializeObserver<'ob>> SerializeObserverExt<'ob> for T {}
 
 /// Default observation specification.
 ///
-/// `DefaultSpec` indicates that no special observation behavior is required for the type. For most
-/// types, this means they use their standard `Observer` implementation. For example, if `T`
+/// [`DefaultSpec`] indicates that no special observation behavior is required for the type. For
+/// most types, this means they use their standard [`Observer`] implementation. For example, if `T`
 /// implements [`Observe`] with `Spec = DefaultSpec`, then [`Option<T>`] will be observed using
-/// `OptionObserver` which wraps `T`'s observer.
+/// [`OptionObserver`](crate::impls::option::OptionObserver) which wraps `T`'s observer.
 ///
-/// All `#[derive(Observe)]` implementations use `DefaultSpec` unless overridden with field
+/// All `#[derive(Observe)]` implementations use [`DefaultSpec`] unless overridden with field
 /// attributes.
 pub struct DefaultSpec;
 

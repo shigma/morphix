@@ -7,7 +7,7 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
 ///
-/// `SnapshotObserver` creates a clone of the initial value and compares it with the
+/// [`SnapshotObserver`] creates a clone of the initial value and compares it with the
 /// final value using [`PartialEq`]. This provides accurate change detection by comparing
 /// actual values rather than tracking access patterns.
 ///
@@ -39,14 +39,14 @@ use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, 
 ///
 /// ## When to Use
 ///
-/// `SnapshotObserver` is ideal when:
+/// [`SnapshotObserver`] is ideal when:
 /// 1. The type implements [`Clone`] and [`PartialEq`] with low cost
 /// 2. Values may be modified and then restored to original (so that
 ///    [`ShallowObserver`](super::ShallowObserver) would yield false positives)
 ///
 /// ## Built-in Usage
 ///
-/// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use `SnapshotObserver` as their default
+/// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use [`SnapshotObserver`] as their default
 /// implementation since they're cheap to clone and compare.
 pub type SnapshotObserver<'ob, S, D = Zero> = GeneralObserver<'ob, SnapshotHandler<<S as AsDeref<D>>::Target>, S, D>;
 
@@ -91,7 +91,7 @@ impl<T: Clone + PartialEq> DebugHandler for SnapshotHandler<T> {
 
 /// Snapshot-based observation specification.
 ///
-/// `SnapshotSpec` marks a type as supporting efficient snapshot comparison (requires [`Clone`] +
+/// [`SnapshotSpec`] marks a type as supporting efficient snapshot comparison (requires [`Clone`] +
 /// [`PartialEq`]). When used as the [`Spec`](crate::Observe::Spec) for a type `T`, it affects
 /// certain wrapper type observations, such as [`Option<T>`].
 pub struct SnapshotSpec;

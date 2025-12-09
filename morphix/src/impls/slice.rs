@@ -131,12 +131,6 @@ impl SliceMutation for TruncateAppend {
     }
 }
 
-/// Observer implementation for [slice](core::slice).
-///
-/// `SliceObserver` provides element-level change tracking for slices through indexing operations.
-/// It serves as the foundation for both [`VecObserver`](crate::impls::vec::VecObserver) and
-/// [`ArrayObserver`](crate::impls::array::ArrayObserver), enabling them to track mutations to
-/// individual elements.
 pub struct SliceObserver<'ob, V, M, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
     pub(super) obs: V,

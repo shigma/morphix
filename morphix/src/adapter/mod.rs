@@ -22,16 +22,18 @@ pub use yaml::Yaml;
 
 /// Trait for adapting mutations to different serialization formats.
 ///
-/// The `Adapter` trait provides an abstraction layer between the mutation detection system and the
-/// serialization format. This allows morphix to support multiple output formats while maintaining
-/// type safety.
+/// The [`Adapter`] trait provides an abstraction layer between the mutation detection system and
+/// the serialization format. This allows morphix to support multiple output formats while
+/// maintaining type safety.
 ///
 /// ## Type Parameters
 ///
-/// - `Value`: Type used to represent `Replace` and `Append` values.
-/// - `Error`: Error type for serialization / deserialization operations.
+/// - [`Value`](Adapter::Value): Type used to represent [`Replace`](MutationKind::Replace) and
+///   [`Append`](MutationKind::Append) values.
+/// - [`Error`](Adapter::Error): Error type for serialization / deserialization operations.
 pub trait Adapter: Sized {
-    /// Type used to represent `Replace` and `Append` values.
+    /// Type used to represent [`Replace`](MutationKind::Replace) and
+    /// [`Append`](MutationKind::Append) values.
     type Value;
 
     /// Error type for serialization / deserialization operations.
@@ -57,9 +59,9 @@ pub trait Adapter: Sized {
     ///
     /// ## Returns
     ///
-    /// - [`Some(value)`](Some): A mutable reference to the nested value
-    /// - [`None`]: If the operation is not supported on this value type, or if the segment refers
-    ///   to a non-existent location and `allow_create` is `false`
+    /// - `Some(value)`: A mutable reference to the nested value
+    /// - `None`: If the operation is not supported on this value type, or if the segment refers to
+    ///   a non-existent location and `allow_create` is `false`
     fn get_mut<'a>(
         value: &'a mut Self::Value,
         segment: &PathSegment,
@@ -78,8 +80,8 @@ pub trait Adapter: Sized {
     ///
     /// ## Returns
     ///
-    /// - [`Some(append_len)`](Some): The length of the appended portion
-    /// - [`None`]: If the operation is not supported (e.g., incompatible types between `value` and
+    /// - `Some(append_len)`: The length of the appended portion
+    /// - `None`: If the operation is not supported (e.g., incompatible types between `value` and
     ///   `append_value`, or `value` is not an appendable type)
     ///
     /// ## Note
@@ -95,8 +97,8 @@ pub trait Adapter: Sized {
     ///
     /// ## Returns
     ///
-    /// - [`Some(len)`](Some): The current length of the value
-    /// - [`None`]: If the value is not an appendable type
+    /// - `Some(len)`: The current length of the value
+    /// - `None`: If the value is not an appendable type
     ///
     /// ## Note
     ///
@@ -115,10 +117,10 @@ pub trait Adapter: Sized {
     ///
     /// ## Returns
     ///
-    /// - [`Some(remaining)`](Some): The remaining truncation length that could not be applied.
-    ///   Returns `0` if the full truncation was successful. If `truncate_len` exceeds the actual
-    ///   length, returns `truncate_len - actual_len` and clears the value.
-    /// - [`None`]: If the operation is not supported on this value type
+    /// - `Some(remaining)`: The remaining truncation length that could not be applied. Returns `0`
+    ///   if the full truncation was successful. If `truncate_len` exceeds the actual length,
+    ///   returns `truncate_len - actual_len` and clears the value.
+    /// - `None`: If the operation is not supported on this value type
     ///
     /// ## Note
     ///

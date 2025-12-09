@@ -7,7 +7,7 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 
 /// A general observer that tracks any mutation access as a change.
 ///
-/// `ShallowObserver` uses a simple boolean flag to track whether [`DerefMut`](std::ops::DerefMut)
+/// [`ShallowObserver`] uses a simple boolean flag to track whether [`DerefMut`](std::ops::DerefMut)
 /// has been called, treating any mutable access as a change. This makes it extremely efficient with
 /// minimal overhead.
 ///
@@ -29,8 +29,8 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 ///
 /// ## When to Use
 ///
-/// Despite its limitations, `ShallowObserver` is usually the best choice for external types that
-/// don't implement the `Observe` trait, as the performance benefits typically outweigh
+/// Despite its limitations, [`ShallowObserver`] is usually the best choice for external types that
+/// don't implement the [`Observe`] trait, as the performance benefits typically outweigh
 /// the occasional false positive.
 ///
 /// ## Limitations

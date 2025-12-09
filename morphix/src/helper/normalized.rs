@@ -82,14 +82,14 @@ use crate::helper::{AsDerefCoinductive, AsDerefMutCoinductive, Unsigned, Zero};
 /// ## Implementation Notes
 ///
 /// 1. **Every type implementing [`Observer`](crate::observe::Observer) should manually implement
-///    `AsNormalized`**. Without this implementation, assignments and comparisons in the
+///    [`AsNormalized`]**. Without this implementation, assignments and comparisons in the
 ///    [`observe!`](crate::observe!) macro may not work as expected, potentially causing compilation
 ///    errors or incorrect behavior. We cannot provide a blanket implementation `impl<T: Observer>
 ///    AsNormalized for T` because it would conflict with the `impl<T> AsNormalized for &T` and
 ///    `impl<T> AsNormalized for &mut T` implementations.
 ///
-/// 2. **Do not implement `AsNormalized` for types other than `&T`, `&mut T`, and
-///    [`Observer`](crate::observe::Observer) types**. Implementing `AsNormalized` for other
+/// 2. **Do not implement [`AsNormalized`] for types other than `&T`, `&mut T`, and
+///    [`Observer`](crate::observe::Observer) types**. Implementing [`AsNormalized`] for other
 ///    [`Deref`](std::ops::Deref) types (like [`Box`], [`MutexGuard`](std::sync::MutexGuard), etc.)
 ///    may cause unexpected behavior in the [`observe!`](crate::observe!) macro, as it would
 ///    interfere with the autoref-based specialization mechanism.

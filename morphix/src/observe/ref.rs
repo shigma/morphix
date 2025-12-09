@@ -18,7 +18,7 @@ use crate::observe::{DefaultSpec, GeneralHandler, GeneralObserver, Observer, Sna
 ///
 /// ## When to Use
 ///
-/// Use `RefObserver` for types where:
+/// Use [`RefObserver`] for types where:
 /// 1. Pointer identity is a reliable indicator of value identity
 /// 2. Value comparison is expensive or unavailable
 /// 3. The type has no interior mutability
@@ -29,12 +29,12 @@ pub type RefObserver<'a, 'ob, S, D> = GeneralObserver<'ob, RefHandler<'a, <S as 
 
 /// A trait for types whose references can be observed for mutations.
 ///
-/// `RefObserve` provides observation capability for reference types. A type `T` implements
-/// `RefObserve` if and only if `&T` implements [`Observe`]. This is analogous to the relationship
+/// [`RefObserve`] provides observation capability for reference types. A type `T` implements
+/// [`RefObserve`] if and only if `&T` implements [`Observe`]. This is analogous to the relationship
 /// between [`UnwindSafe`](std::panic::UnwindSafe) and [`RefUnwindSafe`](std::panic::RefUnwindSafe).
 ///
 /// A single type `T` may have many possible [`Observer<'ob, Target = &T>`] implementations in
-/// theory, each with different change-tracking strategies. The `RefObserve` trait selects one
+/// theory, each with different change-tracking strategies. The [`RefObserve`] trait selects one
 /// of these as the default observer to be used by `#[derive(Observe)]` and other generic code
 /// that needs an observer for `&T`.
 ///

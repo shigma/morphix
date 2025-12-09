@@ -4,17 +4,17 @@ use crate::Path;
 
 /// A mutation representing a change to a value at a specific path.
 ///
-/// `Mutation` captures both the location where a change occurred (via `path`) and the kind of
-/// change that was made (via `operation`). Mutations can be applied to values to reproduce the
-/// changes they represent.
+/// [`Mutation`] captures both the location where a change occurred (via `path`) and the kind of
+/// change that was made (via `kind`). Mutations can be applied to values to reproduce the changes
+/// they represent.
 ///
 /// ## Path Representation
 ///
-/// The path is stored in reverse order for efficiency during collection.
+/// The path is stored in *reverse order* for efficiency during collection.
 /// For example, a change at `foo.bar.baz` would have `path = ["baz", "bar", "foo"]`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mutation<V> {
-    /// The path to the mutated value, stored in reverse order.
+    /// The path to the mutated value, stored in *reverse order*.
     ///
     /// An empty vec indicates a mutation at the root level.
     pub path: Path<true>,
@@ -43,8 +43,8 @@ impl<V> Mutation<V> {
 
 /// The kind of mutation that occurred.
 ///
-/// `MutationKind` represents the specific type of change made to a value.
-/// Different kinds enable optimizations and more precise change descriptions.
+/// [`MutationKind`] represents the specific type of change made to a value. Different kinds enable
+/// optimizations and more precise change descriptions.
 ///
 /// ## Variants
 ///
@@ -84,7 +84,8 @@ impl<V> Mutation<V> {
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MutationKind<T> {
-    /// `Replace` is the default mutation for [`DerefMut`](std::ops::DerefMut) operations.
+    /// [`Replace`](MutationKind::Replace) is the default mutation for
+    /// [`DerefMut`](std::ops::DerefMut) operations.
     ///
     /// ## Examples
     ///
@@ -104,16 +105,11 @@ pub enum MutationKind<T> {
     /// foo.num *= 2;       // Replace at .num
     /// foo.vec.clear();    // Replace at .vec
     /// ```
-    ///
-    /// ## Note
-    ///
-    /// If an operation can be represented as [`Append`](MutationKind::Append), it will be preferred
-    /// over `Replace` for efficiency.
     Replace(T),
 
-    /// `Append` represents adding data to the end of a string or vector. This is more efficient
-    /// than [`Replace`](MutationKind::Replace) because only the appended portion needs to be
-    /// serialized and transmitted.
+    /// [`Append`](MutationKind::Append) represents adding data to the end of a string or vector.
+    /// This is more efficient than [`Replace`](MutationKind::Replace) because only the appended
+    /// portion needs to be serialized and transmitted.
     ///
     /// ## Examples
     ///
@@ -137,11 +133,12 @@ pub enum MutationKind<T> {
     #[cfg(feature = "append")]
     Append(T),
 
-    /// `Truncate` represents removing elements from the end of a string or vector. This is more
-    /// efficient than [`Replace`](MutationKind::Replace) because only the truncation length needs
-    /// to be serialized and transmitted.
+    /// [`Truncate`](MutationKind::Truncate) represents removing elements from the end of a string
+    /// or vector. This is more efficient than [`Replace`](MutationKind::Replace) because only
+    /// the truncation length needs to be serialized and transmitted.
     ///
     /// ## Examples
+    ///
     /// ```
     /// # #[derive(Default)]
     /// # struct Foo {
@@ -161,8 +158,9 @@ pub enum MutationKind<T> {
     #[cfg(feature = "truncate")]
     Truncate(usize),
 
-    /// `Batch` combines multiple mutations that occurred during a single observation period. This
-    /// is automatically created when multiple independent changes are detected.
+    /// [`Batch`](MutationKind::Batch) combines multiple mutations that occurred during a single
+    /// observation period. This is automatically created when multiple independent changes are
+    /// detected.
     ///
     /// ## Optimization
     ///

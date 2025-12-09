@@ -69,7 +69,7 @@ impl<A: Adapter> IntoIterator for BatchChildren<A> {
 
 /// A batch collector for aggregating and optimizing multiple mutations.
 ///
-/// `BatchTree` is used internally to collect multiple mutations and optimize them before creating
+/// [`BatchTree`] is used internally to collect multiple mutations and optimize them before creating
 /// the final mutation. It can merge consecutive append operations and eliminate redundant
 /// mutations.
 ///

@@ -20,9 +20,9 @@ mod observe;
 ///
 /// ## Customizing Behavior
 ///
-/// If a field type `T` does not implement `Observe`, or you need an alternative observer
-/// implementation, you can customize this via the `#[morphix(...)]` field attribute inside a
-/// `#[derive(Observe)]` struct:
+/// If a field type `T` does not implement [`Observe`](morphix::Observe), or you need an alternative
+/// observer implementation, you can customize this via the `#[morphix(...)]` field attribute inside
+/// a `#[derive(Observe)]` struct:
 ///
 /// - `#[morphix(noop)]` — use [`NoopObserver`](morphix::observe::NoopObserver) for this field
 /// - `#[morphix(shallow)]` — use [`ShallowObserver`](morphix::observe::ShallowObserver) for this
@@ -30,8 +30,8 @@ mod observe;
 /// - `#[morphix(snapshot)]` — use [`SnapshotObserver`](morphix::observe::SnapshotObserver) for this
 ///   field
 ///
-/// These attributes allow you to override the default `Observer` type that would otherwise come
-/// from the field's `Observe` implementation.
+/// These attributes allow you to override the default [`Observer`](morphix::observe::Observer) type
+/// that would otherwise come from the field's [`Observe`](morphix::Observe) implementation.
 ///
 /// ## Example
 ///

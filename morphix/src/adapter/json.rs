@@ -6,9 +6,7 @@ use crate::{Adapter, Mutation, PathSegment};
 
 /// JSON adapter for morphix mutation serialization.
 ///
-/// `Json` implements the [`Adapter`] trait using [`serde_json::Value`] for both
-/// [`Replace`](crate::MutationKind::Replace) and [`Append`](crate::MutationKind::Append)
-/// operations. This adapter is available when the `json` feature is enabled.
+/// [`Json`] implements the [`Adapter`] trait using [`serde_json::Value`].
 ///
 /// ## Example
 ///

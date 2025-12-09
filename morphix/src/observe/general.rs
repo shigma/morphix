@@ -10,9 +10,9 @@ use crate::{Adapter, Mutation, MutationKind};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
 ///
-/// `GeneralHandler` defines the interface for pluggable change detection strategies used
-/// exclusively with `GeneralObserver`. Each handler implementation encapsulates a specific approach
-/// to detecting whether a value has changed.
+/// [`GeneralHandler`] defines the interface for pluggable change detection strategies used
+/// exclusively with [`GeneralObserver`]. Each handler implementation encapsulates a specific
+/// approach to detecting whether a value has changed.
 ///
 /// ## Example
 ///
@@ -66,7 +66,7 @@ pub trait GeneralHandler {
 /// A handler that can serialize mutations for [`GeneralObserver`].
 ///
 /// This trait extends [`GeneralHandler`] with serialization capabilities. A [`GeneralHandler`]
-/// must implement `SerializeHandler` for its corresponding [`GeneralObserver`] to implement
+/// must implement [`SerializeHandler`] for its corresponding [`GeneralObserver`] to implement
 /// [`SerializeObserver`].
 ///
 /// ## Blanket Implementation
@@ -77,7 +77,7 @@ pub trait GeneralHandler {
 /// [`Replace`](MutationKind::Replace) mutation when changes are detected.
 ///
 /// Most handlers only need to implement [`ReplaceHandler`] to gain full serialization
-/// support. Direct implementation of `SerializeHandler` is only necessary for handlers
+/// support. Direct implementation of [`SerializeHandler`] is only necessary for handlers
 /// that need to emit non-replace mutations (like [`Append`](MutationKind::Append)).
 pub trait SerializeHandler: GeneralHandler {
     /// Implementation for [`SerializeObserver::flush_unchecked`].
@@ -130,8 +130,8 @@ where
 
 /// A helper trait for providing a custom name when formatting [`GeneralObserver`] with [`Debug`].
 ///
-/// `DebugHandler` extends [`GeneralHandler`] by adding a [`NAME`](DebugHandler::NAME) constant used
-/// as the type label in [`Debug`] output for [`GeneralObserver`].
+/// [`DebugHandler`] extends [`GeneralHandler`] by adding a [`NAME`](DebugHandler::NAME) constant
+/// used as the type label in [`Debug`] output for [`GeneralObserver`].
 ///
 /// ## Example
 ///
@@ -165,20 +165,19 @@ pub trait DebugHandler: GeneralHandler {
 
 /// A general-purpose [`Observer`] implementation with extensible change detection strategies.
 ///
-/// `GeneralObserver` provides a flexible framework for implementing different change detection
+/// [`GeneralObserver`] provides a flexible framework for implementing different change detection
 /// strategies through the [`GeneralHandler`] trait. It serves as the foundation for several
 /// built-in observer types.
 ///
 /// ## Capabilities and Limitations
 ///
-/// `GeneralObserver` can:
+/// [`GeneralObserver`] can:
 /// - Detect whether a value has changed via [`DerefMut`]
 /// - Produce [`Replace`](MutationKind::Replace) mutations when changes are detected
 ///
-/// `GeneralObserver` cannot:
-/// - Track [`Append`](MutationKind::Append) mutations
-/// - Track field-level changes
-/// - Add specialized implementations for common traits (e.g. [`PartialEq`])
+/// [`GeneralObserver`] cannot:
+/// - Track field-level changes or interior mutations within complex types
+/// - Add specialized implementations for common traits (e.g. [`AddAssign`](std::ops::AddAssign))
 ///
 /// For types that benefit from more sophisticated change tracking, morphix provides specialized
 /// observer implementations. These include built-in support for [`String`] and [`Vec`] (which can
@@ -187,7 +186,7 @@ pub trait DebugHandler: GeneralHandler {
 ///
 /// ## Built-in Implementations
 ///
-/// The following observer types are built on `GeneralObserver`:
+/// The following observer types are built on [`GeneralObserver`]:
 ///
 /// - [`ShallowObserver`](super::ShallowObserver) - Tracks any [`DerefMut`] access as a change
 /// - [`NoopObserver`](super::NoopObserver) - Ignores all changes

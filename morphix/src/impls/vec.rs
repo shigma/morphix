@@ -13,11 +13,6 @@ use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver, Truncate
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
-/// Observer implementation for [`Vec`].
-///
-/// `VecObserver` provides comprehensive change tracking for vectors, including both element-level
-/// mutations and append operations. It builds on [`SliceObserver`] for element tracking while
-/// adding specialized support for dynamic operations.
 pub struct VecObserver<'ob, O, S: ?Sized, D = Zero> {
     inner: SliceObserver<'ob, UnsafeCell<Vec<O>>, TruncateAppend, S, Succ<D>>,
 }

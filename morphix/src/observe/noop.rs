@@ -7,7 +7,7 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver,
 
 /// A general observer that never reports changes.
 ///
-/// `NoopObserver` is a no-operation [`Observer`](crate::observe::Observer) that always returns
+/// [`NoopObserver`] is a no-operation [`Observer`](crate::observe::Observer) that always returns
 /// [`None`] when collecting changes, effectively ignoring all mutations to the observed value.
 ///
 /// ## Derive Usage
@@ -27,7 +27,7 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver,
 ///
 /// ## When to Use
 ///
-/// Use `NoopObserver` for fields that:
+/// Use [`NoopObserver`] for fields that:
 /// - Are only used internally and not part of the public state
 /// - Should not trigger change notifications.
 pub type NoopObserver<'ob, S, D = Zero> = GeneralObserver<'ob, NoopHandler<<S as AsDeref<D>>::Target>, S, D>;
