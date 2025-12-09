@@ -67,7 +67,7 @@ const _: () = {
         type InnerDepth = _N;
         fn uninit() -> Self {
             Self {
-                __ptr: ::morphix::observe::ObserverPointer::default(),
+                __ptr: ::morphix::observe::ObserverPointer::uninit(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
                 a: ::morphix::observe::Observer::uninit(),

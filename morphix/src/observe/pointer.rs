@@ -3,17 +3,18 @@ use std::ops::{Deref, DerefMut};
 
 /// An internal pointer type for observer dereference chains.
 ///
-/// `ObserverPointer` is a specialized pointer type used exclusively within observer implementations
-/// to store references to observed values. It serves as a critical component in the observer
-/// dereference chain, allowing multiple levels of observers to coexist while maintaining access to
-/// the original value.
+/// [`ObserverPointer`] is a specialized pointer type used exclusively within observer
+/// implementations to store references to observed values. It serves as a critical component in the
+/// observer dereference chain, allowing multiple levels of observers to coexist while maintaining
+/// access to the original value.
 ///
 /// ## Purpose
 ///
 /// When observing types that already implement [`Deref`] (like [`Vec<T>`]), we need a way to break
 /// the dereference chain to insert observer logic at multiple levels. `ObserverPointer` provides
 /// this break point, enabling chains like: [`VecObserver`](crate::impls::vec::VecObserver) →
-/// `SliceObserver` → `ObserverPointer<[T]>` → [`Vec<T>`] → [`[T]`](std::slice).
+/// [`SliceObserver`](crate::impls::slice::SliceObserver) →
+/// [`ObserverPointer<[T]>`](ObserverPointer) → [`Vec<T>`] → [`[T]`](std::slice).
 ///
 /// ## Safety
 ///
@@ -23,8 +24,8 @@ use std::ops::{Deref, DerefMut};
 ///    valid for the observer's lifetime
 /// 2. **Initialization**: Pointers must be properly initialized via [`new`](ObserverPointer::new)
 ///    before dereferencing
-/// 3. **Single ownership**: Each `ObserverPointer` assumes exclusive access to its referenced value
-///    during the observer's lifetime
+/// 3. **Single ownership**: Each [`ObserverPointer`] assumes exclusive access to its referenced
+///    value during the observer's lifetime
 ///
 /// ## Internal Use Only
 ///
@@ -34,18 +35,24 @@ use std::ops::{Deref, DerefMut};
 pub struct ObserverPointer<S: ?Sized>(Cell<Option<*mut S>>);
 
 impl<S: ?Sized> ObserverPointer<S> {
+    /// Create an uninitialized pointer.
+    #[inline]
+    pub const fn uninit() -> Self {
+        Self(Cell::new(None))
+    }
+
     /// Creates a new pointer from a mutable reference.
     ///
     /// The returned pointer will remain valid as long as the original reference remains valid,
     /// which is enforced by the lifetime parameter in observer types.
     #[inline]
-    pub fn new(value: &mut S) -> Self {
+    pub const fn new(value: &mut S) -> Self {
         Self(Cell::new(Some(value)))
     }
 
     /// Retrieves the internal raw pointer.
     #[inline]
-    pub fn get(this: &Self) -> Option<*mut S> {
+    pub const fn get(this: &Self) -> Option<*mut S> {
         this.0.get()
     }
 
@@ -53,7 +60,7 @@ impl<S: ?Sized> ObserverPointer<S> {
     ///
     /// This method is primarily used when observed collections (like [`Vec`]) reallocate their
     /// internal storage. When a vector grows and moves its elements to a new memory location,
-    /// any existing `ObserverPointer` instances pointing to those elements become invalid.
+    /// any existing [`ObserverPointer`] instances pointing to those elements become invalid.
     /// This method allows updating those pointers to point to the elements' new locations.
     #[inline]
     pub fn set(this: &Self, value: *mut S) {
@@ -62,10 +69,10 @@ impl<S: ?Sized> ObserverPointer<S> {
 
     /// Checks if this pointer is null.
     ///
-    /// A null pointer indicates the observer was [`Default`]-constructed and has not been properly
-    /// initialized via [`observe`](crate::observe::Observer::observe).
+    /// A null pointer indicates the observer was constructed with [`uninit`](Self::uninit) and has
+    /// not been properly initialized via [`refresh`](crate::observe::Observer::refresh).
     #[inline]
-    pub fn is_null(this: &Self) -> bool {
+    pub const fn is_null(this: &Self) -> bool {
         this.0.get().is_none()
     }
 
@@ -74,14 +81,14 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// ## Safety
     ///
     /// The caller must ensure that:
-    /// 1. The pointer is not null (was properly initialized via [`new`](ObserverPointer::new))
+    /// 1. The pointer is not null (was properly initialized via [`new`](Self::new))
     /// 2. The original value this pointer was created from is still valid
     /// 3. No mutable references to the same value exist elsewhere
     ///
     /// These invariants are automatically maintained when using [`ObserverPointer`] within the
     /// observer infrastructure, but must be manually verified if called directly.
     #[inline]
-    pub unsafe fn as_ref<'ob>(this: &Self) -> &'ob S {
+    pub const unsafe fn as_ref<'ob>(this: &Self) -> &'ob S {
         let ptr = this.0.get().expect("Observed pointer should not be null");
         // SAFETY: The caller guarantees the pointer is valid and properly aligned,
         // and that the lifetime 'ob does not outlive the original value.
@@ -93,7 +100,7 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// ## Safety
     ///
     /// The caller must ensure that:
-    /// 1. The pointer is not null (was properly initialized via [`new`](ObserverPointer::new))
+    /// 1. The pointer is not null (was properly initialized via [`new`](Self::new))
     /// 2. The original value this pointer was created from is still valid
     /// 3. No other references (mutable or immutable) to the same value exist elsewhere
     /// 4. The returned reference is used in a way that maintains Rust's aliasing rules
@@ -101,19 +108,12 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// These invariants are automatically maintained when using [`ObserverPointer`] within the
     /// observer infrastructure, but must be manually verified if called directly.
     #[inline]
-    pub unsafe fn as_mut<'ob>(this: &Self) -> &'ob mut S {
+    pub const unsafe fn as_mut<'ob>(this: &Self) -> &'ob mut S {
         let ptr = this.0.get().expect("Observed pointer should not be null");
         // SAFETY: The caller guarantees exclusive access to the pointed value,
         // that the pointer is valid and properly aligned, and that the lifetime
         // 'ob does not outlive the original value.
         unsafe { &mut *ptr }
-    }
-}
-
-impl<S: ?Sized> Default for ObserverPointer<S> {
-    #[inline]
-    fn default() -> Self {
-        Self(Cell::new(None))
     }
 }
 

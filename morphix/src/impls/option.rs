@@ -57,7 +57,7 @@ where
     #[inline]
     fn uninit() -> Self {
         Self {
-            ptr: ObserverPointer::default(),
+            ptr: ObserverPointer::uninit(),
             is_mutated: false,
             is_initial_some: false,
             ob: None,

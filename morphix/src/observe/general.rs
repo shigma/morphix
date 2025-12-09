@@ -228,7 +228,7 @@ where
     #[inline]
     fn uninit() -> Self {
         Self {
-            ptr: ObserverPointer::default(),
+            ptr: ObserverPointer::uninit(),
             handler: H::uninit(),
             phantom: PhantomData,
         }

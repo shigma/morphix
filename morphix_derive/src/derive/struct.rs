@@ -179,7 +179,7 @@ pub fn derive_observe_for_struct_fields(
 
             fn uninit() -> Self {
                 Self {
-                    __ptr: ::morphix::observe::ObserverPointer::default(),
+                    __ptr: ::morphix::observe::ObserverPointer::uninit(),
                     __mutated: false,
                     __phantom: ::std::marker::PhantomData,
                     #(#uninit_fields)*

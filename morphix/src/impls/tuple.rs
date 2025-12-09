@@ -49,7 +49,7 @@ where
     #[inline]
     fn uninit() -> Self {
         Self {
-            ptr: ObserverPointer::default(),
+            ptr: ObserverPointer::uninit(),
             inner: (O::uninit(),),
             mutated: false,
             phantom: PhantomData,
@@ -147,7 +147,7 @@ macro_rules! tuple_observer {
             #[inline]
             fn uninit() -> Self {
                 Self {
-                    ptr: ObserverPointer::default(),
+                    ptr: ObserverPointer::uninit(),
                     inner: ($($o::uninit(),)*),
                     mutated: false,
                     phantom: PhantomData,
