@@ -29,6 +29,7 @@ impl Display for MutationError {
             Self::OperationError { path } => {
                 write!(f, "operation could not be performed at {path}")
             }
+            #[cfg(feature = "truncate")]
             Self::TruncateError {
                 path,
                 actual_len,

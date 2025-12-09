@@ -297,12 +297,14 @@ impl<A: Adapter> BatchTree<A> {
                 append_len,
                 append_value,
             } => {
+                #[cfg(feature = "truncate")]
                 if truncate_len > 0 {
                     mutations.push(Mutation {
                         path: vec![].into(),
                         kind: MutationKind::Truncate(truncate_len),
                     });
                 }
+                #[cfg(feature = "append")]
                 if append_len > 0
                     && let Some(value) = append_value
                 {
