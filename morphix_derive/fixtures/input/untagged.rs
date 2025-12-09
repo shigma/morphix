@@ -6,7 +6,7 @@ use serde::Serialize;
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-#[serde(untagged)]
+#[serde(untagged, rename_all_fields = "UPPERCASE")]
 #[morphix(derive(Display))]
 pub enum Foo {
     A(u32),

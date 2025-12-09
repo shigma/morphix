@@ -4,7 +4,7 @@ use morphix_derive::Observe;
 use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all_fields = "UPPERCASE")]
 pub enum Foo {
     A(u32),
     B(u32, u32),
@@ -92,7 +92,7 @@ const _: () = {
                 Self::C { bar } => {
                     match ::morphix::observe::SerializeObserver::flush::<A>(bar) {
                         Ok(Some(mut mutation)) => {
-                            mutation.path.push("bar".into());
+                            mutation.path.push("BAR".into());
                             Ok(Some(mutation))
                         }
                         result => result,

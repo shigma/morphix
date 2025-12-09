@@ -3,13 +3,16 @@ use morphix_derive::Observe;
 use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Foo<S, T>
 where
     T: Clone,
 {
     A(u32),
     B(u32, S),
-    C { bar: T },
+    #[serde(rename_all = "UPPERCASE")]
+    #[serde(rename = "OwO")]
+    C { bar: T, #[serde(rename = "QwQ")] qux: Qux },
     D,
 }
 #[rustfmt::skip]
@@ -36,7 +39,10 @@ const _: () = {
             ::morphix::observe::DefaultObserver<'ob, u32>,
             ::morphix::observe::DefaultObserver<'ob, S>,
         ),
-        C { bar: ::morphix::observe::DefaultObserver<'ob, T> },
+        C {
+            bar: ::morphix::observe::DefaultObserver<'ob, T>,
+            qux: ::morphix::observe::DefaultObserver<'ob, Qux>,
+        },
         D,
     }
     impl<'ob, S, T> FooObserverVariant<'ob, S, T>
@@ -54,9 +60,10 @@ const _: () = {
                         ::morphix::observe::Observer::observe(v1),
                     )
                 }
-                Foo::C { bar } => {
+                Foo::C { bar, qux } => {
                     Self::C {
                         bar: ::morphix::observe::Observer::observe(bar),
+                        qux: ::morphix::observe::Observer::observe(qux),
                     }
                 }
                 Foo::D => Self::D,
@@ -72,8 +79,9 @@ const _: () = {
                         ::morphix::observe::Observer::refresh(u0, v0);
                         ::morphix::observe::Observer::refresh(u1, v1)
                     }
-                    (Self::C { bar: u0 }, Foo::C { bar: v0 }) => {
-                        ::morphix::observe::Observer::refresh(u0, v0)
+                    (Self::C { bar: u0, qux: u1 }, Foo::C { bar: v0, qux: v1 }) => {
+                        ::morphix::observe::Observer::refresh(u0, v0);
+                        ::morphix::observe::Observer::refresh(u1, v1)
                     }
                     (Self::D, Foo::D) => {}
                     _ => panic!("inconsistent state for FooObserver"),
@@ -100,7 +108,7 @@ const _: () = {
                 Self::A(u0) => {
                     match ::morphix::observe::SerializeObserver::flush::<A>(u0) {
                         Ok(Some(mut mutation)) => {
-                            mutation.path.push("A".into());
+                            mutation.path.push("a".into());
                             Ok(Some(mutation))
                         }
                         result => result,
@@ -112,27 +120,35 @@ const _: () = {
                         A,
                     >(u0)? {
                         mutation.path.push("0".into());
-                        mutation.path.push("B".into());
+                        mutation.path.push("b".into());
                         mutations.push(mutation);
                     }
                     if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
                         A,
                     >(u1)? {
                         mutation.path.push("1".into());
-                        mutation.path.push("B".into());
+                        mutation.path.push("b".into());
                         mutations.push(mutation);
                     }
                     Ok(::morphix::Mutation::coalesce(mutations))
                 }
-                Self::C { bar } => {
-                    match ::morphix::observe::SerializeObserver::flush::<A>(bar) {
-                        Ok(Some(mut mutation)) => {
-                            mutation.path.push("bar".into());
-                            mutation.path.push("C".into());
-                            Ok(Some(mutation))
-                        }
-                        result => result,
+                Self::C { bar, qux } => {
+                    let mut mutations = ::std::vec::Vec::with_capacity(2usize);
+                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(bar)? {
+                        mutation.path.push("BAR".into());
+                        mutation.path.push("OwO".into());
+                        mutations.push(mutation);
                     }
+                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(qux)? {
+                        mutation.path.push("QwQ".into());
+                        mutation.path.push("OwO".into());
+                        mutations.push(mutation);
+                    }
+                    Ok(::morphix::Mutation::coalesce(mutations))
                 }
                 Self::D => Ok(None),
             }
@@ -262,6 +278,21 @@ const _: () = {
             T: 'ob,
             N: ::morphix::helper::Unsigned,
             _S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+        type Spec = ::morphix::observe::DefaultSpec;
+    }
+};
+#[rustfmt::skip]
+#[derive(Serialize)]
+pub struct Qux {}
+#[rustfmt::skip]
+const _: () = {
+    #[automatically_derived]
+    impl ::morphix::Observe for Qux {
+        type Observer<'ob, S, N> = ::morphix::observe::NoopObserver<'ob, S, N>
+        where
+            Self: 'ob,
+            N: ::morphix::helper::Unsigned,
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };

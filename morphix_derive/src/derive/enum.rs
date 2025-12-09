@@ -40,6 +40,8 @@ pub fn derive_observe_for_enum(
     for variant in variants {
         let variant_ident = &variant.ident;
         let variant_name = variant.ident.to_string();
+        let variant_meta =
+            ObserveMeta::parse_attrs(&variant.attrs, &mut errors, AttributeKind::Variant, DeriveKind::Enum);
         let mut ob_variant = variant.clone();
         let push_tag_stmt = if let Some(expr) = &input_meta.serde.content {
             quote! {
@@ -48,8 +50,14 @@ pub fn derive_observe_for_enum(
         } else if input_meta.serde.untagged || input_meta.serde.tag.is_some() {
             quote! {}
         } else {
+            let segment = if let Some(rename) = &variant_meta.serde.rename {
+                quote! { #rename }
+            } else {
+                let segment = input_meta.serde.rename_all.apply(&variant_name);
+                quote! { #segment }
+            };
             quote! {
-                mutation.path.push(#variant_name.into());
+                mutation.path.push(#segment.into());
             }
         };
         match &mut ob_variant.fields {
@@ -76,7 +84,17 @@ pub fn derive_observe_for_enum(
                     if field_meta.serde.flatten {
                         push_field_stmts.push(quote! {});
                     } else {
-                        let segment = format!("{}", field_ident.as_ref().unwrap());
+                        let segment = if let Some(rename) = &field_meta.serde.rename {
+                            quote! { #rename }
+                        } else {
+                            let field_name = field_ident.as_ref().unwrap().to_string();
+                            let segment = variant_meta
+                                .serde
+                                .rename_all
+                                .or(input_meta.serde.rename_all_fields)
+                                .apply(&field_name);
+                            quote! { #segment }
+                        };
                         push_field_stmts.push(quote! {
                             mutation.path.push(#segment.into());
                         });
@@ -161,7 +179,7 @@ pub fn derive_observe_for_enum(
                     let value_ident = syn::Ident::new(&format!("v{}", index), field_span);
                     ob_idents.push(quote! { #ob_ident });
                     value_idents.push(quote! { #value_ident });
-                    let segment = format!("{index}");
+                    let segment = index.to_string();
                     segments.push(quote! { #segment });
                     observe_exprs.push(quote! {
                         ::morphix::observe::Observer::observe(#value_ident)

@@ -43,7 +43,6 @@ pub struct GeneralImpl {
 pub enum AttributeKind {
     Item,
     Field,
-    #[expect(dead_code)]
     Variant,
 }
 
@@ -98,6 +97,10 @@ impl RenameRule {
             }
         }
         None
+    }
+
+    pub fn or(self, other: Self) -> Self {
+        if self == Self::None { other } else { self }
     }
 
     pub fn apply(self, name: &str) -> String {
