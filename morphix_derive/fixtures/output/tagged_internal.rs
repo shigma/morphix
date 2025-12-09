@@ -7,7 +7,7 @@ use serde::Serialize;
 pub enum Foo<const N: usize> {
     #[serde(serialize_with = "<[_]>::serialize")]
     A([u32; N]),
-    C { bar: String },
+    C { bar: String, #[serde(flatten)] qux: Qux },
     D,
 }
 #[rustfmt::skip]
@@ -25,16 +25,20 @@ const _: () = {
     }
     pub enum FooObserverVariant<'ob, const N: usize> {
         A(::morphix::observe::DefaultObserver<'ob, [u32; N]>),
-        C { bar: ::morphix::observe::DefaultObserver<'ob, String> },
+        C {
+            bar: ::morphix::observe::DefaultObserver<'ob, String>,
+            qux: ::morphix::observe::DefaultObserver<'ob, Qux>,
+        },
         D,
     }
     impl<'ob, const N: usize> FooObserverVariant<'ob, N> {
         fn observe(value: &'ob mut Foo<N>) -> Self {
             match value {
                 Foo::A(v0) => Self::A(::morphix::observe::Observer::observe(v0)),
-                Foo::C { bar } => {
+                Foo::C { bar, qux } => {
                     Self::C {
                         bar: ::morphix::observe::Observer::observe(bar),
+                        qux: ::morphix::observe::Observer::observe(qux),
                     }
                 }
                 Foo::D => Self::D,
@@ -46,8 +50,9 @@ const _: () = {
                     (Self::A(u0), Foo::A(v0)) => {
                         ::morphix::observe::Observer::refresh(u0, v0)
                     }
-                    (Self::C { bar: u0 }, Foo::C { bar: v0 }) => {
-                        ::morphix::observe::Observer::refresh(u0, v0)
+                    (Self::C { bar: u0, qux: u1 }, Foo::C { bar: v0, qux: v1 }) => {
+                        ::morphix::observe::Observer::refresh(u0, v0);
+                        ::morphix::observe::Observer::refresh(u1, v1)
                     }
                     (Self::D, Foo::D) => {}
                     _ => panic!("inconsistent state for FooObserver"),
@@ -62,14 +67,20 @@ const _: () = {
         > {
             match self {
                 Self::A(u0) => ::morphix::observe::SerializeObserver::flush::<A>(u0),
-                Self::C { bar } => {
-                    match ::morphix::observe::SerializeObserver::flush::<A>(bar) {
-                        Ok(Some(mut mutation)) => {
-                            mutation.path.push("bar".into());
-                            Ok(Some(mutation))
-                        }
-                        result => result,
+                Self::C { bar, qux } => {
+                    let mut mutations = ::std::vec::Vec::with_capacity(2usize);
+                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(bar)? {
+                        mutation.path.push("bar".into());
+                        mutations.push(mutation);
                     }
+                    if let Some(mutation) = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(qux)? {
+                        mutations.push(mutation);
+                    }
+                    Ok(::morphix::Mutation::coalesce(mutations))
                 }
                 Self::D => Ok(None),
             }
@@ -167,6 +178,20 @@ const _: () = {
             Self: 'ob,
             _N: ::morphix::helper::Unsigned,
             S: ::morphix::helper::AsDerefMut<_N, Target = Self> + ?Sized + 'ob;
+        type Spec = ::morphix::observe::DefaultSpec;
+    }
+};
+#[derive(Serialize)]
+pub struct Qux {}
+const _: () = {
+    #[automatically_derived]
+    impl ::morphix::Observe for Qux {
+        type Observer<'ob, S, N>
+            = ::morphix::observe::NoopObserver<'ob, S, N>
+        where
+            Self: 'ob,
+            N: ::morphix::helper::Unsigned,
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };

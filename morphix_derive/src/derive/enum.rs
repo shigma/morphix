@@ -5,10 +5,11 @@ use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
+use syn::visit_mut::VisitMut;
 use syn::{parse_quote, parse_quote_spanned};
 
 use crate::derive::meta::{AttributeKind, DeriveKind, GeneralImpl, ObserveMeta};
-use crate::derive::{FMT_TRAITS, GenericsDetector, GenericsVisitor};
+use crate::derive::{FMT_TRAITS, GenericsDetector, GenericsVisitor, StripAttributes};
 
 pub fn derive_observe_for_enum(
     input: &syn::DeriveInput,
@@ -40,8 +41,7 @@ pub fn derive_observe_for_enum(
         let variant_ident = &variant.ident;
         let variant_name = variant.ident.to_string();
         let mut ob_variant = variant.clone();
-        take(&mut ob_variant.attrs);
-        let push_tag = if let Some(expr) = &input_meta.serde.content {
+        let push_tag_stmt = if let Some(expr) = &input_meta.serde.content {
             quote! {
                 mutation.path.push(#expr.into());
             }
@@ -56,7 +56,7 @@ pub fn derive_observe_for_enum(
             syn::Fields::Named(fields_named) => {
                 let mut idents = vec![];
                 let mut ob_idents = vec![];
-                let mut segments = vec![];
+                let mut push_field_stmts = vec![];
                 let mut value_idents = vec![];
                 let mut observe_exprs = vec![];
                 for (index, field) in fields_named.named.iter_mut().enumerate() {
@@ -73,8 +73,14 @@ pub fn derive_observe_for_enum(
                     ob_idents.push(quote! { #ob_ident });
                     value_idents.push(quote! { #value_ident });
                     idents.push(quote! { #field_ident });
-                    let segment = format!("{}", field_ident.as_ref().unwrap());
-                    segments.push(quote! { #segment });
+                    if field_meta.serde.flatten {
+                        push_field_stmts.push(quote! {});
+                    } else {
+                        let segment = format!("{}", field_ident.as_ref().unwrap());
+                        push_field_stmts.push(quote! {
+                            mutation.path.push(#segment.into());
+                        });
+                    }
                     observe_exprs.push(quote! {
                         ::morphix::observe::Observer::observe(#field_ident)
                     });
@@ -105,24 +111,34 @@ pub fn derive_observe_for_enum(
                     1 => quote! {
                         match ::morphix::observe::SerializeObserver::flush::<A>(#(#idents),*) {
                             Ok(Some(mut mutation)) => {
-                                mutation.path.push(#(#segments.into()),*);
-                                #push_tag
+                                #(#push_field_stmts)*
+                                #push_tag_stmt
                                 Ok(Some(mutation))
                             },
                             result => result,
                         }
                     },
-                    n => quote! {{
-                        let mut mutations = ::std::vec::Vec::with_capacity(#n);
-                        #(
-                            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<A>(#idents)? {
-                                mutation.path.push(#segments.into());
-                                #push_tag
-                                mutations.push(mutation);
+                    n => {
+                        let flush_stmts = idents.iter().zip(push_field_stmts.iter()).map(|(ident, push_field_stmt)| {
+                            let mutability = if push_tag_stmt.is_empty() && push_field_stmt.is_empty() {
+                                quote! {}
+                            } else {
+                                quote! { mut }
+                            };
+                            quote! {
+                                if let Some(#mutability mutation) = ::morphix::observe::SerializeObserver::flush::<A>(#ident)? {
+                                    #push_field_stmt
+                                    #push_tag_stmt
+                                    mutations.push(mutation);
+                                }
                             }
-                        )*
-                        Ok(::morphix::Mutation::coalesce(mutations))
-                    }},
+                        });
+                        quote! {{
+                            let mut mutations = ::std::vec::Vec::with_capacity(#n);
+                            #(#flush_stmts)*
+                            Ok(::morphix::Mutation::coalesce(mutations))
+                        }}
+                    }
                 };
                 variant_collect_arms.extend(quote! {
                     Self::#variant_ident { #(#idents),* } => #variant_collect_expr,
@@ -174,14 +190,14 @@ pub fn derive_observe_for_enum(
                 });
                 let variant_collect_expr = match fields_unnamed.unnamed.len() {
                     0 => quote! { Ok(None) },
-                    1 => match push_tag.is_empty() {
+                    1 => match push_tag_stmt.is_empty() {
                         true => quote! {
                             ::morphix::observe::SerializeObserver::flush::<A>(#(#ob_idents),*)
                         },
                         false => quote! {
                             match ::morphix::observe::SerializeObserver::flush::<A>(#(#ob_idents),*) {
                                 Ok(Some(mut mutation)) => {
-                                    #push_tag
+                                    #push_tag_stmt
                                     Ok(Some(mutation))
                                 },
                                 result => result,
@@ -193,7 +209,7 @@ pub fn derive_observe_for_enum(
                         #(
                             if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<A>(#ob_idents)? {
                                 mutation.path.push(#segments.into());
-                                #push_tag
+                                #push_tag_stmt
                                 mutations.push(mutation);
                             }
                         )*
@@ -216,6 +232,7 @@ pub fn derive_observe_for_enum(
                 });
             }
         }
+        StripAttributes.visit_variant_mut(&mut ob_variant);
         ty_variants.extend(quote! {
             #ob_variant,
         });

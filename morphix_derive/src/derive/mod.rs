@@ -8,6 +8,7 @@ use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
+use syn::visit_mut::VisitMut;
 
 use crate::derive::meta::{AttributeKind, DeriveKind, GeneralImpl, ObserveMeta};
 
@@ -192,5 +193,13 @@ impl<'i> Visit<'_> for GenericsDetector<'i> {
                 self.is_detected = true;
             }
         }
+    }
+}
+
+pub struct StripAttributes;
+
+impl VisitMut for StripAttributes {
+    fn visit_attributes_mut(&mut self, attributes: &mut Vec<syn::Attribute>) {
+        attributes.clear();
     }
 }

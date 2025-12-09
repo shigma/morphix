@@ -12,6 +12,11 @@ pub enum Foo<const N: usize> {
     // B(u32, u32),
     C {
         bar: String,
+        #[serde(flatten)]
+        qux: Qux,
     },
     D,
 }
+
+#[derive(Serialize, Observe)]
+pub struct Qux {}
