@@ -4,8 +4,10 @@ use morphix_derive::Observe;
 use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "UPPERCASE")]
 pub struct Foo {
     a: i32,
+    #[serde(rename = "bar")]
     b: String,
 }
 #[rustfmt::skip]
@@ -98,13 +100,13 @@ const _: () = {
             if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
                 A,
             >(&mut this.a)? {
-                mutation.path.push("a".into());
+                mutation.path.push("A".into());
                 mutations.push(mutation);
             }
             if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
                 A,
             >(&mut this.b)? {
-                mutation.path.push("b".into());
+                mutation.path.push("bar".into());
                 mutations.push(mutation);
             }
             Ok(::morphix::Mutation::coalesce(mutations))

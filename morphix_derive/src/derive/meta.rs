@@ -1,3 +1,4 @@
+use heck::{ToKebabCase, ToLowerCamelCase, ToShoutyKebabCase, ToShoutySnakeCase, ToSnakeCase, ToUpperCamelCase};
 use proc_macro2::TokenStream;
 use syn::parse::{Parse, Parser};
 use syn::parse_quote;
@@ -59,6 +60,59 @@ pub struct SerdeMeta {
     pub untagged: bool,
     pub tag: Option<syn::Expr>,
     pub content: Option<syn::Expr>,
+    pub rename: Option<syn::Expr>,
+    pub rename_all: RenameRule,
+    pub rename_all_fields: RenameRule,
+}
+
+#[derive(Default, Copy, Clone, PartialEq, Eq)]
+pub enum RenameRule {
+    #[default]
+    None,
+    LowerCase,
+    UpperCase,
+    PascalCase,
+    CamelCase,
+    SnakeCase,
+    ScreamingSnakeCase,
+    KebabCase,
+    ScreamingKebabCase,
+}
+
+const RENAME_RULES: &[(&str, RenameRule)] = &[
+    ("lowercase", RenameRule::LowerCase),
+    ("UPPERCASE", RenameRule::UpperCase),
+    ("PascalCase", RenameRule::PascalCase),
+    ("camelCase", RenameRule::CamelCase),
+    ("snake_case", RenameRule::SnakeCase),
+    ("SCREAMING_SNAKE_CASE", RenameRule::ScreamingSnakeCase),
+    ("kebab-case", RenameRule::KebabCase),
+    ("SCREAMING-KEBAB-CASE", RenameRule::ScreamingKebabCase),
+];
+
+impl RenameRule {
+    pub fn from_str(input: &str) -> Option<Self> {
+        for (name, rule) in RENAME_RULES {
+            if input == *name {
+                return Some(*rule);
+            }
+        }
+        None
+    }
+
+    pub fn apply(self, name: &str) -> String {
+        match self {
+            Self::None => name.to_string(),
+            Self::LowerCase => name.to_ascii_lowercase(),
+            Self::UpperCase => name.to_ascii_uppercase(),
+            Self::PascalCase => name.to_upper_camel_case(),
+            Self::CamelCase => name.to_lower_camel_case(),
+            Self::SnakeCase => name.to_snake_case(),
+            Self::ScreamingSnakeCase => name.to_shouty_snake_case(),
+            Self::KebabCase => name.to_kebab_case(),
+            Self::ScreamingKebabCase => name.to_shouty_kebab_case(),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -139,35 +193,57 @@ impl ObserveMeta {
         }
     }
 
-    fn parse_serde(&mut self, arg: MetaArgument, errors: &mut TokenStream) {
+    // do not handle serde attributes parsing errors
+    fn parse_serde(&mut self, arg: MetaArgument) {
         if arg.ident == "flatten" {
             self.serde.flatten = true;
         } else if arg.ident == "untagged" {
             self.serde.untagged = true;
         } else if arg.ident == "tag" {
             let Some((_, expr)) = arg.value else {
-                errors.extend(
-                    syn::Error::new(
-                        arg.ident.span(),
-                        "the 'tag' argument requires a value, e.g., tag = \"type\"",
-                    )
-                    .to_compile_error(),
-                );
                 return;
             };
             self.serde.tag = Some(expr);
         } else if arg.ident == "content" {
             let Some((_, expr)) = arg.value else {
-                errors.extend(
-                    syn::Error::new(
-                        arg.ident.span(),
-                        "the 'content' argument requires a value, e.g., content = \"data\"",
-                    )
-                    .to_compile_error(),
-                );
                 return;
             };
             self.serde.content = Some(expr);
+        } else if arg.ident == "rename" {
+            let Some((_, expr)) = arg.value else {
+                return;
+            };
+            self.serde.rename = Some(expr);
+        } else if arg.ident == "rename_all" {
+            let Some((
+                _,
+                syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit_str),
+                    ..
+                }),
+            )) = arg.value
+            else {
+                return;
+            };
+            let Some(rule) = RenameRule::from_str(&lit_str.value()) else {
+                return;
+            };
+            self.serde.rename_all = rule;
+        } else if arg.ident == "rename_all_fields" {
+            let Some((
+                _,
+                syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit_str),
+                    ..
+                }),
+            )) = arg.value
+            else {
+                return;
+            };
+            let Some(rule) = RenameRule::from_str(&lit_str.value()) else {
+                return;
+            };
+            self.serde.rename_all_fields = rule;
         }
     }
 
@@ -223,7 +299,7 @@ impl ObserveMeta {
                     }
                 };
                 for arg in args {
-                    meta.parse_serde(arg, errors);
+                    meta.parse_serde(arg);
                 }
             }
         }

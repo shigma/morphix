@@ -21,6 +21,7 @@ name = "fixtures"
 path = "fixtures/mod.rs"
 
 [dependencies]
+heck = "0.5.0"
 proc-macro2 = "1.0.101"
 quote = "1.0.41"
 syn = { version = "2.0.106", features = ["full", "visit", "visit-mut"] }

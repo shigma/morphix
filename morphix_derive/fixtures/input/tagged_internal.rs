@@ -18,5 +18,6 @@ pub enum Foo<const N: usize> {
     D,
 }
 
+#[rustfmt::skip]
 #[derive(Serialize, Observe)]
 pub struct Qux {}

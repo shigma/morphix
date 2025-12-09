@@ -103,9 +103,15 @@ pub fn derive_observe_for_struct_fields(
             quote! { mutations.push(mutation); }
         };
         if !field_meta.serde.flatten {
+            let segment = if let Some(rename) = &field_meta.serde.rename {
+                quote! { #rename }
+            } else {
+                let segment = input_meta.serde.rename_all.apply(&field_name);
+                quote! { #segment }
+            };
             mutability = quote! { mut };
             body = quote! {
-                mutation.path.push(#field_name.into());
+                mutation.path.push(#segment.into());
                 #body
             };
         }
