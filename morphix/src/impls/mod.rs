@@ -5,4 +5,5 @@ pub mod slice;
 #[cfg(any(feature = "truncate", feature = "append"))]
 pub mod string;
 pub mod tuple;
+pub mod unsize;
 pub mod vec;

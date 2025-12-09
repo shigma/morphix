@@ -45,7 +45,7 @@ mod r#ref;
 mod shallow;
 mod snapshot;
 
-pub use general::{DebugHandler, GeneralHandler, GeneralObserver};
+pub use general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 pub use noop::NoopObserver;
 pub use pointer::ObserverPointer;
 pub use r#ref::{RefObserve, RefObserver};

@@ -149,27 +149,6 @@ impl<'a, T: ?Sized> ReplaceHandler<&'a T> for RefHandler<'a, T> {
     }
 }
 
-macro_rules! impl_ref_observe {
-    ($($ty_self:ty),* $(,)?) => {
-        $(
-            impl RefObserve for $ty_self {
-                type Observer<'a, 'ob, S, D>
-                    = GeneralObserver<'ob, RefHandler<'a, $ty_self>, S, D>
-                where
-                    Self: 'ob,
-                    D: Unsigned,
-                    S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
-
-                type Spec = DefaultSpec;
-            }
-        )*
-    };
-}
-
-impl_ref_observe! {
-    str, // TODO: better implementation for str
-}
-
 macro_rules! impl_snapshot_ref_observe {
     ($($ty_self:ty),* $(,)?) => {
         $(
