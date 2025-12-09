@@ -22,11 +22,12 @@ impl<T> Len for [T] {
     }
 }
 
-struct UnsizeRefHandler<'a, T: ?Sized> {
+pub struct UnsizeRefHandler<'a, T: ?Sized> {
     ptr: Option<&'a T>,
 }
 
-impl<'a, T: ?Sized> GeneralHandler<&'a T> for UnsizeRefHandler<'a, T> {
+impl<'a, T: ?Sized> GeneralHandler for UnsizeRefHandler<'a, T> {
+    type Target = &'a T;
     type Spec = DefaultSpec;
 
     #[inline]
@@ -43,7 +44,7 @@ impl<'a, T: ?Sized> GeneralHandler<&'a T> for UnsizeRefHandler<'a, T> {
     fn deref_mut(&mut self) {}
 }
 
-impl<'a, T> SerializeHandler<&'a T> for UnsizeRefHandler<'a, T>
+impl<'a, T> SerializeHandler for UnsizeRefHandler<'a, T>
 where
     T: Len + Index<RangeFrom<usize>, Output = T> + Serialize + ?Sized,
 {
@@ -73,7 +74,7 @@ where
     }
 }
 
-impl<'a, T: ?Sized> DebugHandler<&'a T> for UnsizeRefHandler<'a, T> {
+impl<'a, T: ?Sized> DebugHandler for UnsizeRefHandler<'a, T> {
     const NAME: &'static str = "UnsizedRefHandler";
 }
 

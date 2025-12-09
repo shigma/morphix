@@ -1,5 +1,7 @@
+use std::marker::PhantomData;
+
 use crate::Observe;
-use crate::helper::{AsDerefMut, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Unsigned, Zero};
 use crate::observe::general::ReplaceHandler;
 use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver, RefObserve, SnapshotSpec};
 
@@ -28,35 +30,36 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver,
 /// Use `NoopObserver` for fields that:
 /// - Are only used internally and not part of the public state
 /// - Should not trigger change notifications.
-pub type NoopObserver<'ob, S, D = Zero> = GeneralObserver<'ob, NoopHandler, S, D>;
+pub type NoopObserver<'ob, S, D = Zero> = GeneralObserver<'ob, NoopHandler<<S as AsDeref<D>>::Target>, S, D>;
 
-pub struct NoopHandler;
+pub struct NoopHandler<T: ?Sized>(PhantomData<T>);
 
-impl<T: ?Sized> GeneralHandler<T> for NoopHandler {
+impl<T: ?Sized> GeneralHandler for NoopHandler<T> {
+    type Target = T;
     type Spec = DefaultSpec;
 
     #[inline]
     fn uninit() -> Self {
-        Self
+        Self(PhantomData)
     }
 
     #[inline]
     fn observe(_value: &mut T) -> Self {
-        Self
+        Self(PhantomData)
     }
 
     #[inline]
     fn deref_mut(&mut self) {}
 }
 
-impl<T: ?Sized> ReplaceHandler<T> for NoopHandler {
+impl<T: ?Sized> ReplaceHandler for NoopHandler<T> {
     #[inline]
     fn flush_replace(&mut self, _value: &T) -> bool {
         false
     }
 }
 
-impl<T: ?Sized> DebugHandler<T> for NoopHandler {
+impl<T: ?Sized> DebugHandler for NoopHandler<T> {
     const NAME: &'static str = "NoopObserver";
 }
 

@@ -20,20 +20,23 @@ use crate::{Adapter, Mutation, MutationKind};
 /// [`DerefMut`] as a complete replacement:
 ///
 /// ```
+/// # use std::marker::PhantomData;
 /// # use morphix::observe::{DefaultSpec, GeneralHandler, GeneralObserver};
-/// struct ShallowHandler {
+/// struct ShallowHandler<T> {
 ///     mutated: bool,
+///     phantom: PhantomData<T>,
 /// }
 ///
-/// impl<T> GeneralHandler<T> for ShallowHandler {
+/// impl<T> GeneralHandler for ShallowHandler<T> {
+///     type Target = T;
 ///     type Spec = DefaultSpec;
 ///
 ///     fn uninit() -> Self {
-///        Self { mutated: false }
+///        Self { mutated: false, phantom: PhantomData }
 ///     }
 ///
 ///     fn observe(_value: &mut T) -> Self {
-///         Self { mutated: false }
+///         Self { mutated: false, phantom: PhantomData }
 ///     }
 ///
 ///     fn deref_mut(&mut self) {
@@ -41,9 +44,12 @@ use crate::{Adapter, Mutation, MutationKind};
 ///     }
 /// }
 ///
-/// type ShallowObserver<'ob, T> = GeneralObserver<'ob, T, ShallowHandler>;
+/// type ShallowObserver<'ob, T> = GeneralObserver<'ob, T, ShallowHandler<T>>;
 /// ```
-pub trait GeneralHandler<T: ?Sized> {
+pub trait GeneralHandler {
+    /// The target type being observed.
+    type Target: ?Sized;
+
     /// Associated specification type for [`GeneralObserver`].
     type Spec;
 
@@ -51,7 +57,7 @@ pub trait GeneralHandler<T: ?Sized> {
     fn uninit() -> Self;
 
     /// Implementation for [`Observer::observe`].
-    fn observe(value: &mut T) -> Self;
+    fn observe(value: &mut Self::Target) -> Self;
 
     /// Called when the value is accessed through [`DerefMut`].
     fn deref_mut(&mut self);
@@ -73,13 +79,13 @@ pub trait GeneralHandler<T: ?Sized> {
 /// Most handlers only need to implement [`ReplaceHandler`] to gain full serialization
 /// support. Direct implementation of `SerializeHandler` is only necessary for handlers
 /// that need to emit non-replace mutations (like [`Append`](MutationKind::Append)).
-pub trait SerializeHandler<T: ?Sized>: GeneralHandler<T> {
+pub trait SerializeHandler: GeneralHandler {
     /// Implementation for [`SerializeObserver::flush_unchecked`].
     ///
     /// ## Safety
     ///
     /// See [`SerializeObserver::flush_unchecked`].
-    unsafe fn flush<A: Adapter>(&mut self, value: &T) -> Result<Option<Mutation<A::Value>>, A::Error>;
+    unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Option<Mutation<A::Value>>, A::Error>;
 }
 
 /// A handler that can only express replace-style mutations.
@@ -89,7 +95,7 @@ pub trait SerializeHandler<T: ?Sized>: GeneralHandler<T> {
 /// [`Append`](MutationKind::Append) or [`Truncate`](MutationKind::Truncate)). Most
 /// [`GeneralHandler`] implementations implement this trait rather than [`SerializeHandler`]
 /// directly.
-pub trait ReplaceHandler<T: ?Sized>: GeneralHandler<T> {
+pub trait ReplaceHandler: GeneralHandler {
     /// Determines whether the observed value should be reported as replaced.
     ///
     /// This method is called during [`flush`](SerializeHandler::flush) to check if the value has
@@ -101,16 +107,16 @@ pub trait ReplaceHandler<T: ?Sized>: GeneralHandler<T> {
     /// - `true`: The value has changed and should be serialized as a
     ///   [`Replace`](MutationKind::Replace) mutation
     /// - `false`: No changes detected, no mutation will be emitted
-    fn flush_replace(&mut self, value: &T) -> bool;
+    fn flush_replace(&mut self, value: &Self::Target) -> bool;
 }
 
-impl<H, T: ?Sized> SerializeHandler<T> for H
+impl<H> SerializeHandler for H
 where
-    H: ReplaceHandler<T>,
-    T: Serialize,
+    H: ReplaceHandler,
+    H::Target: Serialize,
 {
     #[inline]
-    unsafe fn flush<A: Adapter>(&mut self, value: &T) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Option<Mutation<A::Value>>, A::Error> {
         if self.flush_replace(value) {
             Ok(Some(Mutation {
                 path: Default::default(),
@@ -130,27 +136,29 @@ where
 /// ## Example
 ///
 /// ```
+/// # use std::marker::PhantomData;
 /// use morphix::observe::{DebugHandler, GeneralHandler, GeneralObserver, Observer};
 ///
-/// pub struct MyHandler;
+/// pub struct MyHandler<T>(PhantomData<T>);
 ///
-/// impl<T> GeneralHandler<T> for MyHandler {
+/// impl<T> GeneralHandler for MyHandler<T> {
 ///     // omitted for brevity
+/// #   type Target = T;
 /// #   type Spec = morphix::observe::DefaultSpec;
-/// #   fn uninit() -> Self { Self }
-/// #   fn observe(_value: &mut T) -> Self { Self }
+/// #   fn uninit() -> Self { Self(PhantomData) }
+/// #   fn observe(_value: &mut T) -> Self { Self(PhantomData) }
 /// #   fn deref_mut(&mut self) {}
 /// }
 ///
-/// impl<T> DebugHandler<T> for MyHandler {
+/// impl<T> DebugHandler for MyHandler<T> {
 ///     const NAME: &'static str = "MyObserver";
 /// }
 ///
 /// let mut value = 123;
-/// let ob = GeneralObserver::<MyHandler, i32>::observe(&mut value);
+/// let ob = GeneralObserver::<MyHandler<i32>, i32>::observe(&mut value);
 /// println!("{:?}", ob); // prints: MyObserver(123)
 /// ```
-pub trait DebugHandler<T: ?Sized>: GeneralHandler<T> {
+pub trait DebugHandler: GeneralHandler {
     /// The name displayed when formatting the observer with [`Debug`].
     const NAME: &'static str;
 }
@@ -203,7 +211,7 @@ impl<'ob, H, S: ?Sized, N> DerefMut for GeneralObserver<'ob, H, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N>,
-    H: GeneralHandler<S::Target>,
+    H: GeneralHandler<Target = S::Target>,
 {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
@@ -220,7 +228,7 @@ impl<'ob, H, S: ?Sized, N> Observer<'ob> for GeneralObserver<'ob, H, S, N>
 where
     N: Unsigned,
     S: AsDerefMut<N> + 'ob,
-    H: GeneralHandler<S::Target>,
+    H: GeneralHandler<Target = S::Target>,
 {
     type InnerDepth = N;
     type Head = S;
@@ -253,7 +261,7 @@ impl<'ob, H, S: ?Sized, N> SerializeObserver<'ob> for GeneralObserver<'ob, H, S,
 where
     N: Unsigned,
     S: AsDerefMut<N> + 'ob,
-    H: SerializeHandler<S::Target>,
+    H: SerializeHandler<Target = S::Target>,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         unsafe { this.handler.flush::<A>(this.ptr.as_deref()) }
@@ -266,7 +274,7 @@ macro_rules! impl_fmt {
             impl<'ob, H, S, N: Unsigned> std::fmt::$trait for GeneralObserver<'ob, H, S, N>
             where
                 S: AsDerefMut<N, Target: std::fmt::$trait> + ?Sized,
-                H: GeneralHandler<S::Target>
+                H: GeneralHandler<Target = S::Target>
             {
                 #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -291,7 +299,7 @@ impl_fmt! {
 impl<'ob, H, S, N: Unsigned> Debug for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: Debug> + ?Sized,
-    H: DebugHandler<S::Target>,
+    H: DebugHandler<Target = S::Target>,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -302,7 +310,7 @@ where
 impl<'ob, H, S, N: Unsigned, I> std::ops::Index<I> for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: std::ops::Index<I>> + ?Sized,
-    H: GeneralHandler<S::Target>,
+    H: GeneralHandler<Target = S::Target>,
 {
     type Output = <S::Target as std::ops::Index<I>>::Output;
 
@@ -315,7 +323,7 @@ where
 impl<'ob, H, S, N: Unsigned, I> std::ops::IndexMut<I> for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: std::ops::IndexMut<I>> + ?Sized,
-    H: GeneralHandler<S::Target>,
+    H: GeneralHandler<Target = S::Target>,
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
@@ -326,7 +334,7 @@ where
 impl<'ob, H, S, N: Unsigned, U: ?Sized> PartialEq<U> for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: PartialEq<U>> + ?Sized,
-    H: GeneralHandler<S::Target>,
+    H: GeneralHandler<Target = S::Target>,
 {
     #[inline]
     fn eq(&self, other: &U) -> bool {
@@ -337,7 +345,7 @@ where
 impl<'ob, H, S, N: Unsigned, U: ?Sized> PartialOrd<U> for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: PartialOrd<U>> + ?Sized,
-    H: GeneralHandler<S::Target>,
+    H: GeneralHandler<Target = S::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
@@ -351,7 +359,7 @@ macro_rules! impl_assign_ops {
             impl<'ob, H, S, N: Unsigned, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, N>
             where
                 S: AsDerefMut<N, Target: std::ops::$trait<U>> + ?Sized,
-                H: GeneralHandler<S::Target>,
+                H: GeneralHandler<Target = S::Target>,
             {
                 #[inline]
                 fn $method(&mut self, rhs: U) {
@@ -381,7 +389,7 @@ macro_rules! impl_ops_copy {
             impl<'ob, H, S, N: Unsigned, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, N>
             where
                 S: AsDerefMut<N, Target: std::ops::$trait<U> + Copy> + ?Sized,
-                H: GeneralHandler<S::Target>,
+                H: GeneralHandler<Target = S::Target>,
             {
                 type Output = <S::Target as std::ops::$trait<U>>::Output;
 
@@ -410,7 +418,7 @@ impl_ops_copy! {
 impl<'ob, H, S, N: Unsigned> std::ops::Neg for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: std::ops::Neg + Copy> + ?Sized,
-    H: GeneralHandler<S::Target>,
+    H: GeneralHandler<Target = S::Target>,
 {
     type Output = <S::Target as std::ops::Neg>::Output;
 
@@ -423,7 +431,7 @@ where
 impl<'ob, H, S, N: Unsigned> std::ops::Not for GeneralObserver<'ob, H, S, N>
 where
     S: AsDerefMut<N, Target: std::ops::Not + Copy> + ?Sized,
-    H: GeneralHandler<S::Target>,
+    H: GeneralHandler<Target = S::Target>,
 {
     type Output = <S::Target as std::ops::Not>::Output;
 

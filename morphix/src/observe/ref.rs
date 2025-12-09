@@ -125,7 +125,8 @@ pub struct RefHandler<'a, T: ?Sized> {
     ptr: Option<&'a T>,
 }
 
-impl<'a, T: ?Sized> GeneralHandler<&'a T> for RefHandler<'a, T> {
+impl<'a, T: ?Sized> GeneralHandler for RefHandler<'a, T> {
+    type Target = &'a T;
     type Spec = DefaultSpec;
 
     #[inline]
@@ -142,7 +143,7 @@ impl<'a, T: ?Sized> GeneralHandler<&'a T> for RefHandler<'a, T> {
     fn deref_mut(&mut self) {}
 }
 
-impl<'a, T: ?Sized> ReplaceHandler<&'a T> for RefHandler<'a, T> {
+impl<'a, T: ?Sized> ReplaceHandler for RefHandler<'a, T> {
     #[inline]
     fn flush_replace(&mut self, value: &&'a T) -> bool {
         !std::ptr::eq(*value, unsafe { self.ptr.unwrap_unchecked() })

@@ -1,5 +1,7 @@
+use std::marker::PhantomData;
+
 use crate::Observe;
-use crate::helper::{AsDerefMut, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Unsigned, Zero};
 use crate::observe::general::ReplaceHandler;
 use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver};
 
@@ -37,23 +39,31 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 ///    original value, it's still reported as changes.
 /// 2. **False positives on non-semantic changes**: Operations that don't affect serialization (such
 ///    as [`Vec::reserve`]) are still reported as changes.
-pub type ShallowObserver<'ob, S, D = Zero> = GeneralObserver<'ob, ShallowHandler, S, D>;
+pub type ShallowObserver<'ob, S, D = Zero> = GeneralObserver<'ob, ShallowHandler<<S as AsDeref<D>>::Target>, S, D>;
 
-pub struct ShallowHandler {
+pub struct ShallowHandler<T: ?Sized> {
     mutated: bool,
+    phantom: PhantomData<T>,
 }
 
-impl<T: ?Sized> GeneralHandler<T> for ShallowHandler {
+impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
+    type Target = T;
     type Spec = DefaultSpec;
 
     #[inline]
     fn uninit() -> Self {
-        Self { mutated: false }
+        Self {
+            mutated: false,
+            phantom: PhantomData,
+        }
     }
 
     #[inline]
     fn observe(_value: &mut T) -> Self {
-        Self { mutated: false }
+        Self {
+            mutated: false,
+            phantom: PhantomData,
+        }
     }
 
     #[inline]
@@ -62,14 +72,14 @@ impl<T: ?Sized> GeneralHandler<T> for ShallowHandler {
     }
 }
 
-impl<T: ?Sized> ReplaceHandler<T> for ShallowHandler {
+impl<T: ?Sized> ReplaceHandler for ShallowHandler<T> {
     #[inline]
     fn flush_replace(&mut self, _value: &T) -> bool {
         self.mutated
     }
 }
 
-impl<T: ?Sized> DebugHandler<T> for ShallowHandler {
+impl<T: ?Sized> DebugHandler for ShallowHandler<T> {
     const NAME: &'static str = "ShallowObserver";
 }
 

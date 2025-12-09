@@ -94,6 +94,7 @@ use crate::helper::{AsDerefCoinductive, AsDerefMutCoinductive, Unsigned, Zero};
 ///    may cause unexpected behavior in the [`observe!`](crate::observe!) macro, as it would
 ///    interfere with the autoref-based specialization mechanism.
 pub trait AsNormalized: AsDerefCoinductive<Self::OuterDepth> {
+    /// The number of outer dereference layers to reach the normalized value.
     type OuterDepth: Unsigned;
 
     /// Returns a normalized reference to the underlying value.

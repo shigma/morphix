@@ -54,7 +54,8 @@ pub struct SnapshotHandler<T> {
     snapshot: MaybeUninit<T>,
 }
 
-impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
+impl<T: Clone + PartialEq> GeneralHandler for SnapshotHandler<T> {
+    type Target = T;
     type Spec = SnapshotSpec;
 
     #[inline]
@@ -75,7 +76,7 @@ impl<T: Clone + PartialEq> GeneralHandler<T> for SnapshotHandler<T> {
     fn deref_mut(&mut self) {}
 }
 
-impl<T: Clone + PartialEq> ReplaceHandler<T> for SnapshotHandler<T> {
+impl<T: Clone + PartialEq> ReplaceHandler for SnapshotHandler<T> {
     #[inline]
     fn flush_replace(&mut self, value: &T) -> bool {
         // SAFETY: `GeneralHandler::on_collect` is only called in `Observer::flush_unchecked`, where the
@@ -84,7 +85,7 @@ impl<T: Clone + PartialEq> ReplaceHandler<T> for SnapshotHandler<T> {
     }
 }
 
-impl<T: Clone + PartialEq> DebugHandler<T> for SnapshotHandler<T> {
+impl<T: Clone + PartialEq> DebugHandler for SnapshotHandler<T> {
     const NAME: &'static str = "SnapshotObserver";
 }
 
