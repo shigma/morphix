@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::ops::{Deref, DerefMut};
+use std::ptr::NonNull;
 
 /// An internal pointer type for observer dereference chains.
 ///
@@ -14,7 +15,7 @@ use std::ops::{Deref, DerefMut};
 /// the dereference chain to insert observer logic at multiple levels. [`ObserverPointer`] provides
 /// this break point, enabling chains like: [`VecObserver`](crate::impls::vec::VecObserver) →
 /// [`SliceObserver`](crate::impls::slice::SliceObserver) →
-/// [`ObserverPointer<[T]>`](ObserverPointer) → [`Vec<T>`] → [`[T]`](std::slice).
+/// [`ObserverPointer<Vec<T>>`](ObserverPointer) → [`Vec<T>`] → [`[T]`](std::slice).
 ///
 /// ## Safety
 ///
@@ -32,7 +33,7 @@ use std::ops::{Deref, DerefMut};
 /// This type is not intended for direct use outside of observer implementations. All safety
 /// invariants are maintained by the observer infrastructure when used correctly within that
 /// context.
-pub struct ObserverPointer<S: ?Sized>(Cell<Option<*mut S>>);
+pub struct ObserverPointer<S: ?Sized>(Cell<Option<NonNull<S>>>);
 
 impl<S: ?Sized> ObserverPointer<S> {
     /// Create an uninitialized pointer.
@@ -47,12 +48,12 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// which is enforced by the lifetime parameter in observer types.
     #[inline]
     pub const fn new(value: &mut S) -> Self {
-        Self(Cell::new(Some(value)))
+        Self(Cell::new(Some(NonNull::from_mut(value))))
     }
 
     /// Retrieves the internal raw pointer.
     #[inline]
-    pub const fn get(this: &Self) -> Option<*mut S> {
+    pub const fn get(this: &Self) -> Option<NonNull<S>> {
         this.0.get()
     }
 
@@ -63,8 +64,8 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// any existing [`ObserverPointer`] instances pointing to those elements become invalid.
     /// This method allows updating those pointers to point to the elements' new locations.
     #[inline]
-    pub fn set(this: &Self, value: *mut S) {
-        this.0.set(Some(value));
+    pub fn set(this: &Self, value: &mut S) {
+        this.0.set(Some(NonNull::from_mut(value)));
     }
 
     /// Checks if this pointer is null.
@@ -89,10 +90,10 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// observer infrastructure, but must be manually verified if called directly.
     #[inline]
     pub const unsafe fn as_ref<'ob>(this: &Self) -> &'ob S {
-        let ptr = this.0.get().expect("Observed pointer should not be null");
+        let ptr = this.0.get().expect("ObserverPointer should not be null");
         // SAFETY: The caller guarantees the pointer is valid and properly aligned,
         // and that the lifetime 'ob does not outlive the original value.
-        unsafe { &*ptr }
+        unsafe { ptr.as_ref() }
     }
 
     /// Returns a mutable reference to the pointed value.
@@ -109,11 +110,11 @@ impl<S: ?Sized> ObserverPointer<S> {
     /// observer infrastructure, but must be manually verified if called directly.
     #[inline]
     pub const unsafe fn as_mut<'ob>(this: &Self) -> &'ob mut S {
-        let ptr = this.0.get().expect("Observed pointer should not be null");
+        let mut ptr = this.0.get().expect("ObserverPointer should not be null");
         // SAFETY: The caller guarantees exclusive access to the pointed value,
         // that the pointer is valid and properly aligned, and that the lifetime
         // 'ob does not outlive the original value.
-        unsafe { &mut *ptr }
+        unsafe { ptr.as_mut() }
     }
 }
 

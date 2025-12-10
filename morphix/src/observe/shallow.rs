@@ -83,7 +83,7 @@ impl<T: ?Sized> DebugHandler for ShallowHandler<T> {
     const NAME: &'static str = "ShallowObserver";
 }
 
-macro_rules! impl_observe {
+macro_rules! impl_shallow_observe {
     ($($ty:ty),* $(,)?) => {
         $(
             impl Observe for $ty {
@@ -100,13 +100,6 @@ macro_rules! impl_observe {
     };
 }
 
-impl_observe! {
+impl_shallow_observe! {
     str,
 }
-
-#[cfg(not(any(feature = "truncate", feature = "append")))]
-const _: () = {
-    impl_observe! {
-        String
-    }
-};

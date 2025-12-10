@@ -305,7 +305,7 @@ where
         match ObserverPointer::get(Self::as_ptr(this)) {
             None => *this = Self::observe(value),
             Some(ptr) => {
-                if !std::ptr::addr_eq(ptr, value) {
+                if !std::ptr::addr_eq(ptr.as_ptr(), value) {
                     // SAFETY: The observer was previously initialized via `observe`, and the caller
                     // guarantees that `value` refers to the same logical value.
                     unsafe { Self::refresh(this, value) }
