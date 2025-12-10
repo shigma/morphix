@@ -10,6 +10,8 @@ pub enum Foo {
     B(u32, u32),
     C { bar: String },
     D,
+    E(),
+    F {},
 }
 #[rustfmt::skip]
 const _: () = {
@@ -23,6 +25,8 @@ const _: () = {
     }
     pub enum FooObserverInitial {
         D,
+        E,
+        F,
         __Rest,
     }
     pub enum FooObserverVariant<'ob> {
@@ -33,6 +37,8 @@ const _: () = {
         ),
         C { bar: ::morphix::observe::DefaultObserver<'ob, String> },
         D,
+        E(),
+        F {},
     }
     impl<'ob> FooObserverVariant<'ob> {
         fn observe(value: &'ob mut Foo) -> Self {
@@ -50,6 +56,8 @@ const _: () = {
                     }
                 }
                 Foo::D => Self::D,
+                Foo::E() => Self::E(),
+                Foo::F {} => Self::F {},
             }
         }
         unsafe fn refresh(&mut self, value: &mut Foo) {
@@ -66,6 +74,8 @@ const _: () = {
                         ::morphix::observe::Observer::refresh(u0, v0)
                     }
                     (Self::D, Foo::D) => {}
+                    (Self::E(), Foo::E()) => {}
+                    (Self::F {}, Foo::F {}) => {}
                     _ => panic!("inconsistent state for FooObserver"),
                 }
             }
@@ -104,6 +114,8 @@ const _: () = {
                     }
                 }
                 Self::D => Ok(None),
+                Self::E() => Ok(None),
+                Self::F {} => Ok(None),
             }
         }
     }
@@ -150,6 +162,8 @@ const _: () = {
                 __phantom: ::std::marker::PhantomData,
                 __initial: match __value {
                     Foo::D => FooObserverInitial::D,
+                    Foo::E() => FooObserverInitial::E,
+                    Foo::F {} => FooObserverInitial::F,
                     _ => FooObserverInitial::__Rest,
                 },
                 __variant: ::std::mem::MaybeUninit::new(
@@ -186,6 +200,8 @@ const _: () = {
             let __value = this.as_deref();
             match (__initial, __value) {
                 (FooObserverInitial::D, Foo::D) => Ok(None),
+                (FooObserverInitial::E, Foo::E()) => Ok(None),
+                (FooObserverInitial::F, Foo::F {}) => Ok(None),
                 _ => {
                     Ok(
                         Some(::morphix::Mutation {
@@ -227,6 +243,8 @@ impl Display for Foo {
             Foo::B(a, b) => write!(f, "Foo::B({}, {})", a, b),
             Foo::C { bar } => write!(f, "Foo::C {{ bar: {} }}", bar),
             Foo::D => write!(f, "Foo::D"),
+            Foo::E() => write!(f, "Foo::E()"),
+            Foo::F {} => write!(f, "Foo::F {{}}"),
         }
     }
 }

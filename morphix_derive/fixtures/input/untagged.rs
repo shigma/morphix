@@ -15,6 +15,8 @@ pub enum Foo {
         bar: String,
     },
     D,
+    E(),
+    F {},
 }
 
 impl Display for Foo {
@@ -24,6 +26,8 @@ impl Display for Foo {
             Foo::B(a, b) => write!(f, "Foo::B({}, {})", a, b),
             Foo::C { bar } => write!(f, "Foo::C {{ bar: {} }}", bar),
             Foo::D => write!(f, "Foo::D"),
+            Foo::E() => write!(f, "Foo::E()"),
+            Foo::F {} => write!(f, "Foo::F {{}}"),
         }
     }
 }

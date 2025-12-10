@@ -20,11 +20,7 @@ const _: () = {
         __ptr: ::morphix::observe::ObserverPointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut _N>,
-        __initial: FooObserverInitial,
         __variant: ::std::mem::MaybeUninit<FooObserverVariant<'ob, N>>,
-    }
-    pub enum FooObserverInitial {
-        __Rest,
     }
     pub enum FooObserverVariant<'ob, const N: usize> {
         A(::morphix::observe::DefaultObserver<'ob, [u32; N]>),
@@ -119,7 +115,6 @@ const _: () = {
                 __ptr: ::morphix::observe::ObserverPointer::uninit(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                __initial: FooObserverInitial::__Rest,
                 __variant: ::std::mem::MaybeUninit::uninit(),
             }
         }
@@ -130,9 +125,6 @@ const _: () = {
                 __ptr,
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                __initial: match __value {
-                    _ => FooObserverInitial::__Rest,
-                },
                 __variant: ::std::mem::MaybeUninit::new(
                     FooObserverVariant::observe(__value),
                 ),
@@ -161,23 +153,14 @@ const _: () = {
             if !this.__mutated {
                 return unsafe { this.__variant.assume_init_mut() }.flush::<A>();
             }
-            let __initial = ::std::mem::replace(
-                &mut this.__initial,
-                FooObserverInitial::__Rest,
-            );
-            let __value = this.as_deref();
-            match (__initial, __value) {
-                _ => {
-                    Ok(
-                        Some(::morphix::Mutation {
-                            path: ::morphix::Path::new(),
-                            kind: ::morphix::MutationKind::Replace(
-                                A::serialize_value(__value)?,
-                            ),
-                        }),
-                    )
-                }
-            }
+            Ok(
+                Some(::morphix::Mutation {
+                    path: ::morphix::Path::new(),
+                    kind: ::morphix::MutationKind::Replace(
+                        A::serialize_value(this.as_deref())?,
+                    ),
+                }),
+            )
         }
     }
     #[automatically_derived]

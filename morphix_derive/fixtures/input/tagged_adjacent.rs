@@ -11,5 +11,4 @@ pub enum Foo<'i> {
     C {
         bar: &'i mut String,
     },
-    D,
 }
