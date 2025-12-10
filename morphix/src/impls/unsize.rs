@@ -59,18 +59,30 @@ where
         let old_len = old_value.len();
         let new_len = new_value.len();
         if new_len < old_len {
-            Ok(Some(Mutation {
+            #[cfg(feature = "truncate")]
+            return Ok(Some(Mutation {
                 path: Default::default(),
                 kind: MutationKind::Truncate(old_value[new_len..].len()),
-            }))
-        } else if new_len > old_len {
-            Ok(Some(Mutation {
+            }));
+            #[cfg(not(feature = "truncate"))]
+            return Ok(Some(Mutation {
+                path: Default::default(),
+                kind: MutationKind::Replace(A::serialize_value(new_value)?),
+            }));
+        }
+        if new_len > old_len {
+            #[cfg(feature = "append")]
+            return Ok(Some(Mutation {
                 path: Default::default(),
                 kind: MutationKind::Append(A::serialize_value(&new_value[old_len..])?),
-            }))
-        } else {
-            Ok(None)
+            }));
+            #[cfg(not(feature = "append"))]
+            return Ok(Some(Mutation {
+                path: Default::default(),
+                kind: MutationKind::Replace(A::serialize_value(new_value)?),
+            }));
         }
+        Ok(None)
     }
 }
 
