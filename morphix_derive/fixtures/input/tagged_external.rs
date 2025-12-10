@@ -16,6 +16,8 @@ pub enum Foo<S, T> where T: Clone {
         qux: Qux,
     },
     D,
+    E(),
+    F {},
 }
 
 #[rustfmt::skip]

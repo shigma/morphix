@@ -19,7 +19,7 @@ pub fn derive_observe_for_enum(
     let input_ident = &input.ident;
     // let ob_name = format!("{}Observer", input_ident);
     let ob_ident = format_ident!("{}Observer", input_ident);
-    // let ob_variant_name = format!("{}ObserverVariant", input_ident);
+    let ob_initial_ident = format_ident!("{}ObserverInitial", input_ident);
     let ob_variant_ident = format_ident!("{}ObserverVariant", input_ident);
     let input_vis = &input.vis;
 
@@ -29,14 +29,19 @@ pub fn derive_observe_for_enum(
     let depth = generics_visitor.allocate_ty(parse_quote!(N));
     let ob_lt = generics_visitor.allocate_lt(parse_quote!('ob));
 
-    let mut ty_variants = quote! {};
+    let mut ob_initial_variants = quote! {};
+    let mut ob_variant_variants = quote! {};
+    let mut initial_observe_arms = quote! {};
+    let mut initial_flush_arms = quote! {};
     let mut variant_observe_arms = quote! {};
     let mut variant_refresh_arms = quote! {};
-    let mut variant_collect_arms = quote! {};
+    let mut variant_flush_arms = quote! {};
 
     let mut errors = quote! {};
     let mut field_tys = vec![];
     let mut ob_field_tys = vec![];
+    let mut has_nonempty_variant = false;
+    let mut has_empty_variant = false;
     for variant in variants {
         let variant_ident = &variant.ident;
         let variant_name = variant.ident.to_string();
@@ -60,6 +65,22 @@ pub fn derive_observe_for_enum(
                 mutation.path.push(#segment.into());
             }
         };
+        if variant.fields.is_empty() {
+            has_empty_variant = true;
+            let mut variant = variant.clone();
+            take(&mut variant.attrs);
+            ob_initial_variants.extend(quote! {
+                #variant_ident,
+            });
+            initial_observe_arms.extend(quote! {
+                #input_ident::#variant => #ob_initial_ident::#variant_ident,
+            });
+            initial_flush_arms.extend(quote! {
+                (#ob_initial_ident::#variant_ident, #input_ident::#variant) => Ok(None),
+            });
+        } else {
+            has_nonempty_variant = true;
+        }
         match &mut ob_variant.fields {
             syn::Fields::Named(fields_named) => {
                 let mut idents = vec![];
@@ -124,7 +145,7 @@ pub fn derive_observe_for_enum(
                         #(::morphix::observe::Observer::refresh(#ob_idents, #value_idents));*
                     }
                 });
-                let variant_collect_expr = match fields_named.named.len() {
+                let variant_flush_expr = match fields_named.named.len() {
                     0 => quote! { Ok(None) },
                     1 => quote! {
                         match ::morphix::observe::SerializeObserver::flush::<A>(#(#idents),*) {
@@ -158,8 +179,8 @@ pub fn derive_observe_for_enum(
                         }}
                     }
                 };
-                variant_collect_arms.extend(quote! {
-                    Self::#variant_ident { #(#idents),* } => #variant_collect_expr,
+                variant_flush_arms.extend(quote! {
+                    Self::#variant_ident { #(#idents),* } => #variant_flush_expr,
                 });
             }
             syn::Fields::Unnamed(fields_unnamed) => {
@@ -206,7 +227,7 @@ pub fn derive_observe_for_enum(
                         #(::morphix::observe::Observer::refresh(#ob_idents, #value_idents));*
                     }
                 });
-                let variant_collect_expr = match fields_unnamed.unnamed.len() {
+                let variant_flush_expr = match fields_unnamed.unnamed.len() {
                     0 => quote! { Ok(None) },
                     1 => match push_tag_stmt.is_empty() {
                         true => quote! {
@@ -234,8 +255,8 @@ pub fn derive_observe_for_enum(
                         Ok(::morphix::Mutation::coalesce(mutations))
                     }},
                 };
-                variant_collect_arms.extend(quote! {
-                    Self::#variant_ident(#(#ob_idents),*) => #variant_collect_expr,
+                variant_flush_arms.extend(quote! {
+                    Self::#variant_ident(#(#ob_idents),*) => #variant_flush_expr,
                 });
             }
             syn::Fields::Unit => {
@@ -245,18 +266,33 @@ pub fn derive_observe_for_enum(
                 variant_refresh_arms.extend(quote! {
                     (Self::#variant_ident, #input_ident::#variant_ident) => {},
                 });
-                variant_collect_arms.extend(quote! {
+                variant_flush_arms.extend(quote! {
                     Self::#variant_ident => Ok(None),
                 });
             }
         }
         StripAttributes.visit_variant_mut(&mut ob_variant);
-        ty_variants.extend(quote! {
+        ob_variant_variants.extend(quote! {
             #ob_variant,
         });
     }
     if !errors.is_empty() {
         return errors;
+    }
+
+    if has_nonempty_variant {
+        ob_initial_variants.extend(quote! {
+            __Rest,
+        });
+        initial_observe_arms.extend(quote! {
+            _ => #ob_initial_ident::__Rest,
+        });
+        initial_flush_arms.extend(quote! {
+            _ => Ok(Some(::morphix::Mutation {
+                path: ::morphix::Path::new(),
+                kind: ::morphix::MutationKind::Replace(A::serialize_value(__value)?),
+            })),
+        });
     }
 
     let inconsistent_state = format!("inconsistent state for {ob_ident}");
@@ -309,7 +345,12 @@ pub fn derive_observe_for_enum(
             __ptr: ::morphix::observe::ObserverPointer<#head>,
             __mutated: bool,
             __phantom: ::std::marker::PhantomData<&#ob_lt mut #depth>,
+            __initial: #ob_initial_ident,
             __variant: ::std::mem::MaybeUninit<#ob_variant_ident #ob_variant_type_generics>,
+        }
+
+        #input_vis enum #ob_initial_ident {
+            #ob_initial_variants
         }
 
         #input_vis enum #ob_variant_ident #ob_variant_generics
@@ -317,7 +358,7 @@ pub fn derive_observe_for_enum(
             #(#input_predicates,)*
             #(#field_tys: ::morphix::Observe + #ob_lt),*
         {
-            #ty_variants
+            #ob_variant_variants
         }
 
         impl #ob_variant_impl_generics #ob_variant_ident #ob_variant_type_generics
@@ -340,12 +381,12 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            fn collect<A: ::morphix::Adapter>(&mut self) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A::Value>>, A::Error>
+            fn flush<A: ::morphix::Adapter>(&mut self) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A::Value>>, A::Error>
             where
                 #(#ob_field_tys: ::morphix::observe::SerializeObserver<#ob_lt>,)*
             {
                 match self {
-                    #variant_collect_arms
+                    #variant_flush_arms
                 }
             }
         }
@@ -402,6 +443,7 @@ pub fn derive_observe_for_enum(
                     __ptr: ::morphix::observe::ObserverPointer::uninit(),
                     __mutated: false,
                     __phantom: ::std::marker::PhantomData,
+                    __initial: #ob_initial_ident::__Rest,
                     __variant: ::std::mem::MaybeUninit::uninit(),
                 }
             }
@@ -413,6 +455,9 @@ pub fn derive_observe_for_enum(
                     __ptr,
                     __mutated: false,
                     __phantom: ::std::marker::PhantomData,
+                    __initial: match __value {
+                        #initial_observe_arms
+                    },
                     __variant: ::std::mem::MaybeUninit::new(#ob_variant_ident::observe(__value)),
                 }
             }
@@ -438,13 +483,14 @@ pub fn derive_observe_for_enum(
             unsafe fn flush_unchecked<A: ::morphix::Adapter>(
                 this: &mut Self,
             ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A::Value>>, A::Error> {
-                if this.__mutated {
-                    return Ok(Some(::morphix::Mutation {
-                        path: ::morphix::Path::new(),
-                        kind: ::morphix::MutationKind::Replace(A::serialize_value(this.as_deref())?),
-                    }));
-                };
-                unsafe { this.__variant.assume_init_mut() }.collect::<A>()
+                if !this.__mutated {
+                    return unsafe { this.__variant.assume_init_mut() }.flush::<A>();
+                }
+                let __initial = ::std::mem::replace(&mut this.__initial, #ob_initial_ident::__Rest);
+                let __value = this.as_deref();
+                match (__initial, __value) {
+                    #initial_flush_arms
+                }
             }
         }
 

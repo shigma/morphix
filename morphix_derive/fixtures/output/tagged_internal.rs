@@ -8,7 +8,6 @@ pub enum Foo<const N: usize> {
     #[serde(serialize_with = "<[_]>::serialize")]
     A([u32; N]),
     C { bar: String, #[serde(flatten)] qux: Qux },
-    D,
 }
 #[rustfmt::skip]
 const _: () = {
@@ -21,7 +20,11 @@ const _: () = {
         __ptr: ::morphix::observe::ObserverPointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut _N>,
+        __initial: FooObserverInitial,
         __variant: ::std::mem::MaybeUninit<FooObserverVariant<'ob, N>>,
+    }
+    pub enum FooObserverInitial {
+        __Rest,
     }
     pub enum FooObserverVariant<'ob, const N: usize> {
         A(::morphix::observe::DefaultObserver<'ob, [u32; N]>),
@@ -29,7 +32,6 @@ const _: () = {
             bar: ::morphix::observe::DefaultObserver<'ob, String>,
             qux: ::morphix::observe::DefaultObserver<'ob, Qux>,
         },
-        D,
     }
     impl<'ob, const N: usize> FooObserverVariant<'ob, N> {
         fn observe(value: &'ob mut Foo<N>) -> Self {
@@ -41,7 +43,6 @@ const _: () = {
                         qux: ::morphix::observe::Observer::observe(qux),
                     }
                 }
-                Foo::D => Self::D,
             }
         }
         unsafe fn refresh(&mut self, value: &mut Foo<N>) {
@@ -54,12 +55,11 @@ const _: () = {
                         ::morphix::observe::Observer::refresh(u0, v0);
                         ::morphix::observe::Observer::refresh(u1, v1)
                     }
-                    (Self::D, Foo::D) => {}
                     _ => panic!("inconsistent state for FooObserver"),
                 }
             }
         }
-        fn collect<A: ::morphix::Adapter>(
+        fn flush<A: ::morphix::Adapter>(
             &mut self,
         ) -> ::std::result::Result<
             ::std::option::Option<::morphix::Mutation<A::Value>>,
@@ -82,7 +82,6 @@ const _: () = {
                     }
                     Ok(::morphix::Mutation::coalesce(mutations))
                 }
-                Self::D => Ok(None),
             }
         }
     }
@@ -120,6 +119,7 @@ const _: () = {
                 __ptr: ::morphix::observe::ObserverPointer::uninit(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
+                __initial: FooObserverInitial::__Rest,
                 __variant: ::std::mem::MaybeUninit::uninit(),
             }
         }
@@ -130,6 +130,9 @@ const _: () = {
                 __ptr,
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
+                __initial: match __value {
+                    _ => FooObserverInitial::__Rest,
+                },
                 __variant: ::std::mem::MaybeUninit::new(
                     FooObserverVariant::observe(__value),
                 ),
@@ -155,17 +158,26 @@ const _: () = {
             ::std::option::Option<::morphix::Mutation<A::Value>>,
             A::Error,
         > {
-            if this.__mutated {
-                return Ok(
-                    Some(::morphix::Mutation {
-                        path: ::morphix::Path::new(),
-                        kind: ::morphix::MutationKind::Replace(
-                            A::serialize_value(this.as_deref())?,
-                        ),
-                    }),
-                );
+            if !this.__mutated {
+                return unsafe { this.__variant.assume_init_mut() }.flush::<A>();
             }
-            unsafe { this.__variant.assume_init_mut() }.collect::<A>()
+            let __initial = ::std::mem::replace(
+                &mut this.__initial,
+                FooObserverInitial::__Rest,
+            );
+            let __value = this.as_deref();
+            match (__initial, __value) {
+                _ => {
+                    Ok(
+                        Some(::morphix::Mutation {
+                            path: ::morphix::Path::new(),
+                            kind: ::morphix::MutationKind::Replace(
+                                A::serialize_value(__value)?,
+                            ),
+                        }),
+                    )
+                }
+            }
         }
     }
     #[automatically_derived]

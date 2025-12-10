@@ -95,13 +95,18 @@ where
     O::Head: Serialize + Sized,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
-        if this.is_mutated && (this.is_initial_some || this.as_deref().is_some()) {
+        if !this.is_mutated {
+            if let Some(mut ob) = this.ob.take() {
+                return SerializeObserver::flush::<A>(&mut ob);
+            } else {
+                return Ok(None);
+            }
+        }
+        if this.is_initial_some || this.as_deref().is_some() {
             Ok(Some(Mutation {
                 path: Default::default(),
                 kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
             }))
-        } else if let Some(mut ob) = this.ob.take() {
-            SerializeObserver::flush::<A>(&mut ob)
         } else {
             Ok(None)
         }

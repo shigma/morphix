@@ -19,7 +19,12 @@ const _: () = {
         __ptr: ::morphix::observe::ObserverPointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut N>,
+        __initial: FooObserverInitial,
         __variant: ::std::mem::MaybeUninit<FooObserverVariant<'ob, 'i>>,
+    }
+    pub enum FooObserverInitial {
+        D,
+        __Rest,
     }
     pub enum FooObserverVariant<'ob, 'i>
     where
@@ -72,7 +77,7 @@ const _: () = {
                 }
             }
         }
-        fn collect<A: ::morphix::Adapter>(
+        fn flush<A: ::morphix::Adapter>(
             &mut self,
         ) -> ::std::result::Result<
             ::std::option::Option<::morphix::Mutation<A::Value>>,
@@ -168,6 +173,7 @@ const _: () = {
                 __ptr: ::morphix::observe::ObserverPointer::uninit(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
+                __initial: FooObserverInitial::__Rest,
                 __variant: ::std::mem::MaybeUninit::uninit(),
             }
         }
@@ -178,6 +184,10 @@ const _: () = {
                 __ptr,
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
+                __initial: match __value {
+                    Foo::D => FooObserverInitial::D,
+                    _ => FooObserverInitial::__Rest,
+                },
                 __variant: ::std::mem::MaybeUninit::new(
                     FooObserverVariant::observe(__value),
                 ),
@@ -208,17 +218,27 @@ const _: () = {
             ::std::option::Option<::morphix::Mutation<A::Value>>,
             A::Error,
         > {
-            if this.__mutated {
-                return Ok(
-                    Some(::morphix::Mutation {
-                        path: ::morphix::Path::new(),
-                        kind: ::morphix::MutationKind::Replace(
-                            A::serialize_value(this.as_deref())?,
-                        ),
-                    }),
-                );
+            if !this.__mutated {
+                return unsafe { this.__variant.assume_init_mut() }.flush::<A>();
             }
-            unsafe { this.__variant.assume_init_mut() }.collect::<A>()
+            let __initial = ::std::mem::replace(
+                &mut this.__initial,
+                FooObserverInitial::__Rest,
+            );
+            let __value = this.as_deref();
+            match (__initial, __value) {
+                (FooObserverInitial::D, Foo::D) => Ok(None),
+                _ => {
+                    Ok(
+                        Some(::morphix::Mutation {
+                            path: ::morphix::Path::new(),
+                            kind: ::morphix::MutationKind::Replace(
+                                A::serialize_value(__value)?,
+                            ),
+                        }),
+                    )
+                }
+            }
         }
     }
     #[automatically_derived]

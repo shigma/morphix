@@ -15,7 +15,6 @@ pub enum Foo<const N: usize> {
         #[serde(flatten)]
         qux: Qux,
     },
-    D,
 }
 
 #[rustfmt::skip]
