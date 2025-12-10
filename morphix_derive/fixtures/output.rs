@@ -1,5 +1,6 @@
 pub mod basic;
 pub mod deref;
+pub mod enum_trivial;
 pub mod generic;
 pub mod tagged_adjacent;
 pub mod tagged_external;
