@@ -13,13 +13,14 @@ const _: () = {
     pub struct FooObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
         __ptr: ::morphix::observe::ObserverPointer<S>,
         __phantom: ::std::marker::PhantomData<&'ob mut N>,
-        __initial: ::std::mem::MaybeUninit<FooObserverInitial>,
+        __initial: FooObserverInitial,
     }
     #[derive(Clone, Copy)]
     pub enum FooObserverInitial {
         A,
         B,
         C,
+        __None,
     }
     impl FooObserverInitial {
         fn new(value: &Foo) -> Self {
@@ -59,7 +60,7 @@ const _: () = {
             Self {
                 __ptr: ::morphix::observe::ObserverPointer::uninit(),
                 __phantom: ::std::marker::PhantomData,
-                __initial: ::std::mem::MaybeUninit::uninit(),
+                __initial: FooObserverInitial::__None,
             }
         }
         fn observe(value: &'ob mut S) -> Self {
@@ -68,7 +69,7 @@ const _: () = {
             Self {
                 __ptr,
                 __phantom: ::std::marker::PhantomData,
-                __initial: ::std::mem::MaybeUninit::new(FooObserverInitial::new(__value)),
+                __initial: FooObserverInitial::new(__value),
             }
         }
         unsafe fn refresh(this: &mut Self, value: &mut S) {
@@ -89,10 +90,8 @@ const _: () = {
             A::Error,
         > {
             let __value = this.__ptr.as_deref();
-            let __initial = unsafe { this.__initial.assume_init() };
-            this.__initial = ::std::mem::MaybeUninit::new(
-                FooObserverInitial::new(__value),
-            );
+            let __initial = this.__initial;
+            this.__initial = FooObserverInitial::new(__value);
             match (__initial, __value) {
                 (FooObserverInitial::A, Foo::A) => Ok(None),
                 (FooObserverInitial::B, Foo::B()) => Ok(None),

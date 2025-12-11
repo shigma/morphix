@@ -20,7 +20,7 @@ const _: () = {
         __ptr: ::morphix::observe::ObserverPointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut _N>,
-        __variant: ::std::mem::MaybeUninit<FooObserverVariant<'ob, N>>,
+        __variant: FooObserverVariant<'ob, N>,
     }
     pub enum FooObserverVariant<'ob, const N: usize> {
         A(::morphix::observe::DefaultObserver<'ob, [u32; N]>),
@@ -28,6 +28,7 @@ const _: () = {
             bar: ::morphix::observe::DefaultObserver<'ob, String>,
             qux: ::morphix::observe::DefaultObserver<'ob, Qux>,
         },
+        __None,
     }
     impl<'ob, const N: usize> FooObserverVariant<'ob, N> {
         fn observe(value: &'ob mut Foo<N>) -> Self {
@@ -51,6 +52,7 @@ const _: () = {
                         ::morphix::observe::Observer::refresh(u0, v0);
                         ::morphix::observe::Observer::refresh(u1, v1)
                     }
+                    (Self::__None, _) => {}
                     _ => panic!("inconsistent state for FooObserver"),
                 }
             }
@@ -78,6 +80,7 @@ const _: () = {
                     }
                     Ok(::morphix::Mutation::coalesce(mutations))
                 }
+                Self::__None => Ok(None),
             }
         }
     }
@@ -93,6 +96,8 @@ const _: () = {
     impl<'ob, const N: usize, S: ?Sized, _N> ::std::ops::DerefMut
     for FooObserver<'ob, N, S, _N> {
         fn deref_mut(&mut self) -> &mut Self::Target {
+            self.__mutated = true;
+            self.__variant = FooObserverVariant::__None;
             &mut self.__ptr
         }
     }
@@ -115,7 +120,7 @@ const _: () = {
                 __ptr: ::morphix::observe::ObserverPointer::uninit(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                __variant: ::std::mem::MaybeUninit::uninit(),
+                __variant: FooObserverVariant::__None,
             }
         }
         fn observe(value: &'ob mut S) -> Self {
@@ -125,15 +130,13 @@ const _: () = {
                 __ptr,
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                __variant: ::std::mem::MaybeUninit::new(
-                    FooObserverVariant::observe(__value),
-                ),
+                __variant: FooObserverVariant::observe(__value),
             }
         }
         unsafe fn refresh(this: &mut Self, value: &mut S) {
             ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
             let __value = value.as_deref_mut();
-            unsafe { this.__variant.assume_init_mut().refresh(__value) }
+            unsafe { this.__variant.refresh(__value) }
         }
     }
     #[automatically_derived]
@@ -151,8 +154,10 @@ const _: () = {
             A::Error,
         > {
             if !this.__mutated {
-                return unsafe { this.__variant.assume_init_mut() }.flush::<A>();
+                return this.__variant.flush::<A>();
             }
+            this.__mutated = false;
+            this.__variant = FooObserverVariant::__None;
             Ok(
                 Some(::morphix::Mutation {
                     path: ::morphix::Path::new(),

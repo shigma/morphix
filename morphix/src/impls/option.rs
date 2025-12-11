@@ -96,7 +96,8 @@ where
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
         let value = this.ptr.as_deref();
-        let initial = std::mem::replace(&mut this.initial, value.is_some());
+        let initial = this.initial;
+        this.initial = value.is_some();
         if !this.mutated {
             if let Some(ob) = &mut this.inner {
                 return SerializeObserver::flush::<A>(ob);
@@ -105,7 +106,7 @@ where
             }
         }
         this.mutated = false;
-        this.inner = Observer::as_inner(this).as_mut().map(O::observe);
+        this.inner = None;
         if initial || value.is_some() {
             Ok(Some(Mutation {
                 path: Default::default(),
