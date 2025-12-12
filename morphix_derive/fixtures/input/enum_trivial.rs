@@ -7,5 +7,5 @@ use serde::Serialize;
 pub enum Foo {
     A,
     B(),
-    C{},
+    C {},
 }

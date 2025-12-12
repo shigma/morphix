@@ -4,12 +4,14 @@ use serde::Serialize;
 use serde_json::json;
 
 #[derive(Serialize, Debug, PartialEq, Observe)]
+#[morphix(derive(Debug))]
 struct Foo<T> {
     bar: Bar,
     qux: T,
 }
 
 #[derive(Serialize, Debug, PartialEq, Observe)]
+#[morphix(derive(Debug))]
 struct Bar {
     baz: i32,
 }

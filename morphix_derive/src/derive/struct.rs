@@ -32,7 +32,7 @@ pub fn derive_observe_for_struct_fields(
     let mut inst_fields = vec![];
     let mut uninit_fields = vec![];
     let mut refresh_stmts = vec![];
-    let mut collect_stmts = vec![];
+    let mut flush_stmts = vec![];
     let mut debug_chain = quote! {};
 
     let field_count = fields.len();
@@ -115,7 +115,7 @@ pub fn derive_observe_for_struct_fields(
                 #body
             };
         }
-        collect_stmts.push(quote_spanned! { field_span =>
+        flush_stmts.push(quote_spanned! { field_span =>
             if let Some(#mutability mutation) = ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_ident)? {
                 #body
             }
@@ -138,6 +138,7 @@ pub fn derive_observe_for_struct_fields(
     let deref_ident;
     let deref_target;
     let deref_expr;
+    let deref_mut_impl;
     let assignable_impl;
     let observer_impl;
     let serialize_observer_impl_prefix;
@@ -174,6 +175,9 @@ pub fn derive_observe_for_struct_fields(
         deref_ident = format_ident!("Deref");
         deref_target = quote! { ::morphix::observe::ObserverPointer<#head> };
         deref_expr = quote! { self.__ptr };
+        deref_mut_impl = quote! {
+            self.__mutated = true;
+        };
 
         assignable_impl = quote! {
             type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
@@ -214,6 +218,7 @@ pub fn derive_observe_for_struct_fields(
 
         serialize_observer_impl_prefix = quote! {
             if this.__mutated {
+                this.__mutated = false;
                 return Ok(Some(::morphix::Mutation {
                     path: ::morphix::Path::new(),
                     kind: ::morphix::MutationKind::Replace(A::serialize_value(this.as_deref())?),
@@ -282,6 +287,7 @@ pub fn derive_observe_for_struct_fields(
         deref_ident = syn::Ident::new("Deref", meta_deref_ident.span());
         deref_target = quote! { #inner };
         deref_expr = quote! { self.#field_ident };
+        deref_mut_impl = quote! {};
 
         assignable_impl = quote! {
             type OuterDepth = ::morphix::helper::Succ<#inner::OuterDepth>;
@@ -329,13 +335,13 @@ pub fn derive_observe_for_struct_fields(
 
     let serialize_observer_impl = if field_count == 1 {
         quote! {
-            #(#collect_stmts)*
+            #(#flush_stmts)*
             Ok(None)
         }
     } else {
         quote! {
             let mut mutations = ::std::vec::Vec::with_capacity(#field_count);
-            #(#collect_stmts)*
+            #(#flush_stmts)*
             Ok(::morphix::Mutation::coalesce(mutations))
         }
     };
@@ -389,6 +395,7 @@ pub fn derive_observe_for_struct_fields(
             #(#field_tys: ::morphix::Observe,)*
         {
             fn deref_mut(&mut self) -> &mut Self::Target {
+                #deref_mut_impl
                 &mut #deref_expr
             }
         }

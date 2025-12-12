@@ -44,6 +44,7 @@ const _: () = {
         &'i mut [T; N]: ::morphix::Observe,
     {
         fn deref_mut(&mut self) -> &mut Self::Target {
+            self.__mutated = true;
             &mut self.__ptr
         }
     }
@@ -117,6 +118,7 @@ const _: () = {
             A::Error,
         > {
             if this.__mutated {
+                this.__mutated = false;
                 return Ok(
                     Some(::morphix::Mutation {
                         path: ::morphix::Path::new(),

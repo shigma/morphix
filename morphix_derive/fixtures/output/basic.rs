@@ -29,6 +29,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::ops::DerefMut for FooObserver<'ob, S, N> {
         fn deref_mut(&mut self) -> &mut Self::Target {
+            self.__mutated = true;
             &mut self.__ptr
         }
     }
@@ -87,6 +88,7 @@ const _: () = {
             A::Error,
         > {
             if this.__mutated {
+                this.__mutated = false;
                 return Ok(
                     Some(::morphix::Mutation {
                         path: ::morphix::Path::new(),

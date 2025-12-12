@@ -15,6 +15,7 @@ pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
     phantom: PhantomData<&'ob mut D>,
 }
 
+#[derive(Debug)]
 struct TruncateAppend {
     pub append_index: usize, // byte index
     pub truncate_len: usize, // char count
@@ -355,7 +356,10 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("StringObserver").field(self.as_deref()).finish()
+        f.debug_struct("StringObserver")
+            .field("state", &self.mutation)
+            .field("value", self.as_deref())
+            .finish()
     }
 }
 
