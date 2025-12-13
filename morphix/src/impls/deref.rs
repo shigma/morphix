@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use crate::helper::{AsDeref, AsDerefMut, AsNormalized, Succ, Unsigned};
-use crate::observe::{DefaultSpec, Observer, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, Mutation, Observe};
 
 /// Observer implementation for pointer types such as [`Box<T>`] and `&mut T`.
@@ -168,6 +168,20 @@ where
         Self: 'ob,
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob,
         D: Unsigned;
+
+    type Spec = DefaultSpec;
+}
+
+impl<'a, 'b: 'a, T> RefObserve<'a> for &'b T
+where
+    T: RefObserve<'b> + ?Sized,
+{
+    type Observer<'ob, S, D>
+        = DerefObserver<'ob, T::Observer<'ob, S, Succ<D>>>
+    where
+        Self: 'a + 'ob,
+        D: Unsigned,
+        S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }
