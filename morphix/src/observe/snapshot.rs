@@ -3,7 +3,7 @@ use std::mem::MaybeUninit;
 use crate::Observe;
 use crate::helper::{AsDeref, Zero};
 use crate::observe::general::ReplaceHandler;
-use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, Unsigned};
+use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, RefObserve, Unsigned};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
 ///
@@ -106,6 +106,17 @@ macro_rules! impl_snapshot_observe {
                     Self: 'ob,
                     D: Unsigned,
                     S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+                type Spec = SnapshotSpec;
+            }
+
+            impl RefObserve for $ty {
+                type Observer<'a, 'ob, S, D>
+                    = SnapshotObserver<'ob, S, D>
+                where
+                    Self: 'ob,
+                    D: Unsigned,
+                    S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
 
                 type Spec = SnapshotSpec;
             }

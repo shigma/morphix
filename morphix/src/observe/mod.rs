@@ -48,7 +48,7 @@ mod snapshot;
 pub use general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 pub use noop::NoopObserver;
 pub use pointer::ObserverPointer;
-pub use r#ref::{RefObserve, RefObserver};
+pub use r#ref::RefObserver;
 pub use shallow::ShallowObserver;
 pub use snapshot::{SnapshotObserver, SnapshotSpec};
 
@@ -482,3 +482,47 @@ pub struct DefaultSpec;
 
 #[doc(hidden)]
 pub type DefaultObserver<'ob, T, S = T, D = Zero> = <T as Observe>::Observer<'ob, S, D>;
+
+/// A trait for types whose references can be observed for mutations.
+///
+/// [`RefObserve`] provides observation capability for reference types. A type `T` implements
+/// [`RefObserve`] if and only if `&T` implements [`Observe`]. This is analogous to the relationship
+/// between [`UnwindSafe`](std::panic::UnwindSafe) and [`RefUnwindSafe`](std::panic::RefUnwindSafe).
+///
+/// A single type `T` may have many possible [`Observer<'ob, Target = &T>`] implementations in
+/// theory, each with different change-tracking strategies. The [`RefObserve`] trait selects one
+/// of these as the default observer to be used by `#[derive(Observe)]` and other generic code
+/// that needs an observer for `&T`.
+///
+/// See also: [`Observe`].
+pub trait RefObserve {
+    /// The observer type for `&'a Self`.
+    ///
+    /// This associated type specifies the *default* observer implementation for the type, when used
+    /// in contexts where an [`Observe`] implementation is required.
+    type Observer<'a, 'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
+    where
+        Self: 'a + 'ob,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
+
+    /// Specification type controlling nested reference observation behavior.
+    ///
+    /// This determines how `&&T`, `&&&T`, etc. are observed. See the [trait
+    /// documentation](RefObserve) for available specs.
+    type Spec;
+}
+
+impl<'a, T: ?Sized> Observe for &'a T
+where
+    T: RefObserve,
+{
+    type Observer<'ob, S, D>
+        = T::Observer<'a, 'ob, S, D>
+    where
+        Self: 'ob,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+    type Spec = DefaultSpec;
+}
