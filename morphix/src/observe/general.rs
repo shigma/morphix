@@ -35,7 +35,7 @@ use crate::{Adapter, Mutation, MutationKind};
 ///        Self { mutated: false, phantom: PhantomData }
 ///     }
 ///
-///     fn observe(_value: &mut T) -> Self {
+///     fn observe(_value: &T) -> Self {
 ///         Self { mutated: false, phantom: PhantomData }
 ///     }
 ///
@@ -146,7 +146,7 @@ where
 /// #   type Target = T;
 /// #   type Spec = morphix::observe::DefaultSpec;
 /// #   fn uninit() -> Self { Self(PhantomData) }
-/// #   fn observe(_value: &mut T) -> Self { Self(PhantomData) }
+/// #   fn observe(_value: &T) -> Self { Self(PhantomData) }
 /// #   fn deref_mut(&mut self) {}
 /// }
 ///

@@ -485,7 +485,7 @@ impl<T: Observe> Observe for Vec<T> {
 }
 
 default_impl_ref_observe! {
-    impl [T: RefObserve] RefObserve for Vec<T> ;
+    impl [T: RefObserve<'a>] RefObserve for Vec<T> ;
 }
 
 #[cfg(test)]

@@ -90,8 +90,8 @@ impl<'a, T: ?Sized> DebugHandler for UnsizeRefHandler<'a, T> {
     const NAME: &'static str = "UnsizedRefHandler";
 }
 
-impl RefObserve for str {
-    type Observer<'a, 'ob, S, D>
+impl<'a> RefObserve<'a> for str {
+    type Observer<'ob, S, D>
         = GeneralObserver<'ob, UnsizeRefHandler<'a, str>, S, D>
     where
         Self: 'ob,
@@ -101,12 +101,11 @@ impl RefObserve for str {
     type Spec = DefaultSpec;
 }
 
-impl<T> RefObserve for [T] {
-    type Observer<'a, 'ob, S, D>
+impl<'a, T: 'a> RefObserve<'a> for [T] {
+    type Observer<'ob, S, D>
         = GeneralObserver<'ob, UnsizeRefHandler<'a, [T]>, S, D>
     where
         Self: 'ob,
-        T: 'a,
         D: Unsigned,
         S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 

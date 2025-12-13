@@ -51,12 +51,12 @@ macro_rules! spec_impl_observe {
 
 macro_rules! spec_impl_ref_observe {
     ($helper:ident, $ty_self:ty, $ty_t:ty $(, const $arg:ident: $arg_ty:ty)* $(,)?) => {
-        impl<T $(, const $arg: $arg_ty)*> $crate::observe::RefObserve for $ty_t
+        impl<'a, T $(, const $arg: $arg_ty)*> $crate::observe::RefObserve<'a> for $ty_t
         where
-            T: $crate::observe::RefObserve + $helper<T::Spec>,
+            T: $crate::observe::RefObserve<'a> + $helper<'a, T::Spec>,
         {
-            type Observer<'a, 'ob, S, D>
-                = <T as $helper<T::Spec>>::Observer<'a, 'ob, S, D $(, $arg)*>
+            type Observer<'ob, S, D>
+                = <T as $helper<'a, T::Spec>>::Observer<'ob, S, D $(, $arg)*>
             where
                 Self: 'a + 'ob,
                 D: Unsigned,
@@ -65,8 +65,8 @@ macro_rules! spec_impl_ref_observe {
             type Spec = T::Spec;
         }
 
-        pub trait $helper<Spec> {
-            type Observer<'a, 'ob, S, D $(, const $arg: $arg_ty)*>:
+        pub trait $helper<'a, Spec> {
+            type Observer<'ob, S, D $(, const $arg: $arg_ty)*>:
                 $crate::observe::Observer<'ob, Head = S, InnerDepth = D>
             where
                 Self: 'a + 'ob,
@@ -74,11 +74,11 @@ macro_rules! spec_impl_ref_observe {
                 S: $crate::helper::AsDeref<D, Target = &'a $ty_self> + ?Sized + 'ob;
         }
 
-        impl<T> $helper<$crate::observe::DefaultSpec> for T
+        impl<'a, T> $helper<'a, $crate::observe::DefaultSpec> for T
         where
             T: Observe<Spec = $crate::observe::DefaultSpec>,
         {
-            type Observer<'a, 'ob, S, D $(, const $arg: $arg_ty)*>
+            type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
                 = $crate::observe::RefObserver<'a, 'ob, S, D>
             where
                 Self: 'a + 'ob,
@@ -86,11 +86,11 @@ macro_rules! spec_impl_ref_observe {
                 S: $crate::helper::AsDeref<D, Target = &'a $ty_self> + ?Sized + 'ob;
         }
 
-        impl<T> $helper<$crate::observe::SnapshotSpec> for T
+        impl<'a, T> $helper<'a, $crate::observe::SnapshotSpec> for T
         where
             T: Clone + PartialEq + Observe<Spec = $crate::observe::SnapshotSpec>,
         {
-            type Observer<'a, 'ob, S, D $(, const $arg: $arg_ty)*>
+            type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
                 = $crate::observe::SnapshotObserver<'ob, S, D>
             where
                 Self: 'a + 'ob,
@@ -103,8 +103,8 @@ macro_rules! spec_impl_ref_observe {
 macro_rules! default_impl_ref_observe {
     ($(impl $([$($gen:tt)*])? RefObserve for $ty:ty $(where { $($where:tt)+ })?;)*) => {
         $(
-            impl $(<$($gen)*>)? $crate::observe::RefObserve for $ty {
-                type Observer<'a, 'ob, S, D>
+            impl <'a, $($($gen)*)?> $crate::observe::RefObserve<'a> for $ty {
+                type Observer<'ob, S, D>
                     = $crate::observe::RefObserver<'a, 'ob, S, D>
                 where
                     Self: 'a + 'ob,

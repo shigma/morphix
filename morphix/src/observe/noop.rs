@@ -74,8 +74,8 @@ impl Observe for () {
     type Spec = SnapshotSpec;
 }
 
-impl RefObserve for () {
-    type Observer<'a, 'ob, S, D>
+impl<'a> RefObserve<'a> for () {
+    type Observer<'ob, S, D>
         = NoopObserver<'ob, S, D>
     where
         Self: 'ob,

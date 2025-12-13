@@ -45,7 +45,7 @@ mod r#ref;
 mod shallow;
 mod snapshot;
 
-pub use general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
+pub use general::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler, SerializeHandler};
 pub use noop::NoopObserver;
 pub use pointer::ObserverPointer;
 pub use r#ref::RefObserver;
@@ -495,14 +495,14 @@ pub type DefaultObserver<'ob, T, S = T, D = Zero> = <T as Observe>::Observer<'ob
 /// that needs an observer for `&T`.
 ///
 /// See also: [`Observe`].
-pub trait RefObserve {
+pub trait RefObserve<'a>: 'a {
     /// The observer type for `&'a Self`.
     ///
     /// This associated type specifies the *default* observer implementation for the type, when used
     /// in contexts where an [`Observe`] implementation is required.
-    type Observer<'a, 'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
+    type Observer<'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
     where
-        Self: 'a + 'ob,
+        Self: 'ob,
         D: Unsigned,
         S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 
@@ -515,10 +515,10 @@ pub trait RefObserve {
 
 impl<'a, T: ?Sized> Observe for &'a T
 where
-    T: RefObserve,
+    T: RefObserve<'a>,
 {
     type Observer<'ob, S, D>
-        = T::Observer<'a, 'ob, S, D>
+        = T::Observer<'ob, S, D>
     where
         Self: 'ob,
         D: Unsigned,

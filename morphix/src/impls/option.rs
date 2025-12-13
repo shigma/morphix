@@ -221,8 +221,9 @@ mod tests {
 
     use super::*;
     use crate::adapter::Json;
+    use crate::helper::AsDeref;
     use crate::impls::string::StringObserver;
-    use crate::observe::{DefaultSpec, GeneralObserver, ObserveExt, SerializeObserverExt, ShallowObserver};
+    use crate::observe::{DefaultSpec, GeneralObserver, ObserveExt, RefObserve, SerializeObserverExt, ShallowObserver};
 
     #[derive(Debug, Serialize, Default, PartialEq, Eq)]
     struct Number(i32);
@@ -234,6 +235,17 @@ mod tests {
             Self: 'ob,
             D: Unsigned,
             S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+        type Spec = DefaultSpec;
+    }
+
+    impl<'a> RefObserve<'a> for Number {
+        type Observer<'ob, S, D>
+            = ShallowObserver<'ob, S, D>
+        where
+            Self: 'a + 'ob,
+            D: Unsigned,
+            S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 
         type Spec = DefaultSpec;
     }
@@ -330,6 +342,15 @@ mod tests {
 
         let mut opt = Some(Number(0));
         let _ob: OptionObserver<_, _, _> = opt.__observe(); // assert type
+    }
+
+    #[test]
+    fn ref_specialization() {
+        let mut opt = &Some(0i32);
+        let _ob: GeneralObserver<_, _, _> = opt.__observe(); // assert type
+
+        let mut opt = &Some(Number(0));
+        let _ob: GeneralObserver<_, _, _> = opt.__observe(); // assert type
     }
 
     #[test]

@@ -79,7 +79,7 @@ impl<T: Clone + PartialEq> GeneralHandler for SnapshotHandler<T> {
 impl<T: Clone + PartialEq> ReplaceHandler for SnapshotHandler<T> {
     #[inline]
     fn flush_replace(&mut self, value: &T) -> bool {
-        // SAFETY: `GeneralHandler::on_collect` is only called in `Observer::flush_unchecked`, where the
+        // SAFETY: `ReplaceHandler::flush_replace` is only called in `Observer::flush_unchecked`, where the
         // observer is assumed to contain a valid pointer
         value != unsafe { self.snapshot.assume_init_ref() }
     }
@@ -110,8 +110,8 @@ macro_rules! impl_snapshot_observe {
                 type Spec = SnapshotSpec;
             }
 
-            impl RefObserve for $ty {
-                type Observer<'a, 'ob, S, D>
+            impl<'a> RefObserve<'a> for $ty {
+                type Observer<'ob, S, D>
                     = SnapshotObserver<'ob, S, D>
                 where
                     Self: 'ob,

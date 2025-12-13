@@ -215,11 +215,11 @@ macro_rules! tuple_observer {
             type Spec = DefaultSpec;
         }
 
-        impl<$($t,)*> RefObserve for ($($t,)*)
+        impl<'a, $($t,)*> RefObserve<'a> for ($($t,)*)
         where
-            $($t: RefObserve,)*
+            $($t: RefObserve<'a>,)*
         {
-            type Observer<'a, 'ob, S, D>
+            type Observer<'ob, S, D>
                 = RefObserver<'a, 'ob, S, D>
             where
                 Self: 'a + 'ob,
