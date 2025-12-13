@@ -2,7 +2,7 @@ use std::ops::{Index, RangeFrom};
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, Unsigned};
+use crate::helper::{AsDeref, Unsigned};
 use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver, RefObserve, SerializeHandler};
 use crate::{Adapter, Mutation, MutationKind};
 
@@ -36,7 +36,7 @@ impl<'a, T: ?Sized> GeneralHandler for UnsizeRefHandler<'a, T> {
     }
 
     #[inline]
-    fn observe(value: &mut &'a T) -> Self {
+    fn observe(value: &&'a T) -> Self {
         Self { ptr: Some(value) }
     }
 
@@ -96,7 +96,7 @@ impl RefObserve for str {
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
+        S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }
@@ -108,7 +108,7 @@ impl<T> RefObserve for [T] {
         Self: 'ob,
         T: 'a,
         D: Unsigned,
-        S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
+        S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }

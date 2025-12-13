@@ -60,7 +60,7 @@ macro_rules! spec_impl_ref_observe {
             where
                 Self: 'a + 'ob,
                 D: Unsigned,
-                S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
+                S: $crate::helper::AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 
             type Spec = T::Spec;
         }
@@ -71,7 +71,7 @@ macro_rules! spec_impl_ref_observe {
             where
                 Self: 'a + 'ob,
                 D: Unsigned,
-                S: AsDerefMut<D, Target = &'a $ty_self> + ?Sized + 'ob;
+                S: $crate::helper::AsDeref<D, Target = &'a $ty_self> + ?Sized + 'ob;
         }
 
         impl<T> $helper<$crate::observe::DefaultSpec> for T
@@ -83,7 +83,7 @@ macro_rules! spec_impl_ref_observe {
             where
                 Self: 'a + 'ob,
                 D: Unsigned,
-                S: AsDerefMut<D, Target = &'a $ty_self> + ?Sized + 'ob;
+                S: $crate::helper::AsDeref<D, Target = &'a $ty_self> + ?Sized + 'ob;
         }
 
         impl<T> $helper<$crate::observe::SnapshotSpec> for T
@@ -95,7 +95,7 @@ macro_rules! spec_impl_ref_observe {
             where
                 Self: 'a + 'ob,
                 D: Unsigned,
-                S: AsDerefMut<D, Target = &'a $ty_self> + ?Sized + 'ob;
+                S: $crate::helper::AsDeref<D, Target = &'a $ty_self> + ?Sized + 'ob;
         }
     };
 }
@@ -109,7 +109,7 @@ macro_rules! default_impl_ref_observe {
                 where
                     Self: 'a + 'ob,
                     D: Unsigned,
-                    S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
+                    S: $crate::helper::AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 
                 type Spec = $crate::observe::DefaultSpec;
             }

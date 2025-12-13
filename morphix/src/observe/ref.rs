@@ -1,8 +1,6 @@
-use crate::helper::{AsDeref, AsDerefMut, Succ, Unsigned};
+use crate::helper::{AsDeref, Succ};
 use crate::observe::general::ReplaceHandler;
-use crate::observe::{
-    DefaultSpec, GeneralHandler, GeneralObserver, Observer, RefObserve, SnapshotObserver, SnapshotSpec,
-};
+use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver};
 
 /// A general observer implementation for reference types.
 ///
@@ -28,56 +26,6 @@ use crate::observe::{
 /// references.
 pub type RefObserver<'a, 'ob, S, D> = GeneralObserver<'ob, RefHandler<'a, <S as AsDeref<Succ<D>>>::Target>, S, D>;
 
-impl<'b, T: ?Sized> RefObserve for &'b T
-where
-    T: RefObserve + RefObserveImpl<T::Spec>,
-{
-    type Observer<'a, 'ob, S, D>
-        = <T as RefObserveImpl<T::Spec>>::Observer<'a, 'b, 'ob, S, D>
-    where
-        Self: 'a + 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
-
-    type Spec = T::Spec;
-}
-
-/// Helper trait for selecting appropriate observer implementations for `&&T`.
-pub trait RefObserveImpl<Spec> {
-    type Observer<'a, 'b, 'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
-    where
-        Self: 'b + 'ob,
-        'b: 'a,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = &'a &'b Self> + ?Sized + 'ob;
-}
-
-impl<T: ?Sized> RefObserveImpl<DefaultSpec> for T
-where
-    T: RefObserve<Spec = DefaultSpec>,
-{
-    type Observer<'a, 'b, 'ob, S, D>
-        = RefObserver<'a, 'ob, S, D>
-    where
-        Self: 'b + 'ob,
-        'b: 'a,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = &'a &'b Self> + ?Sized + 'ob;
-}
-
-impl<T: ?Sized> RefObserveImpl<SnapshotSpec> for T
-where
-    T: PartialEq + RefObserve<Spec = SnapshotSpec>,
-{
-    type Observer<'a, 'b, 'ob, S, D>
-        = SnapshotObserver<'ob, S, D>
-    where
-        Self: 'b + 'ob,
-        'b: 'a,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = &'a &'b Self> + ?Sized + 'ob;
-}
-
 pub struct RefHandler<'a, T: ?Sized> {
     ptr: Option<&'a T>,
 }
@@ -92,7 +40,7 @@ impl<'a, T: ?Sized> GeneralHandler for RefHandler<'a, T> {
     }
 
     #[inline]
-    fn observe(value: &mut &'a T) -> Self {
+    fn observe(value: &&'a T) -> Self {
         Self { ptr: Some(value) }
     }
 
@@ -103,6 +51,13 @@ impl<'a, T: ?Sized> GeneralHandler for RefHandler<'a, T> {
 impl<'a, T: ?Sized> ReplaceHandler for RefHandler<'a, T> {
     #[inline]
     fn flush_replace(&mut self, value: &&'a T) -> bool {
-        !std::ptr::eq(*value, unsafe { self.ptr.unwrap_unchecked() })
+        !std::ptr::eq(
+            *value,
+            self.ptr.expect("Pointer should not be null in GeneralHandler::flush"),
+        )
     }
+}
+
+impl<'a, T: ?Sized> DebugHandler for RefHandler<'a, T> {
+    const NAME: &'static str = "RefHandler";
 }

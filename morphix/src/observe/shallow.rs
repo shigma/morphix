@@ -59,7 +59,7 @@ impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
     }
 
     #[inline]
-    fn observe(_value: &mut T) -> Self {
+    fn observe(_value: &T) -> Self {
         Self {
             mutated: false,
             phantom: PhantomData,

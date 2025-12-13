@@ -44,7 +44,7 @@ impl<T: ?Sized> GeneralHandler for NoopHandler<T> {
     }
 
     #[inline]
-    fn observe(_value: &mut T) -> Self {
+    fn observe(_value: &T) -> Self {
         Self(PhantomData)
     }
 
@@ -80,7 +80,7 @@ impl RefObserve for () {
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
+        S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 
     type Spec = SnapshotSpec;
 }

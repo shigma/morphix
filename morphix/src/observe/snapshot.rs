@@ -1,9 +1,9 @@
 use std::mem::MaybeUninit;
 
 use crate::Observe;
-use crate::helper::{AsDeref, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Zero};
 use crate::observe::general::ReplaceHandler;
-use crate::observe::{AsDerefMut, DebugHandler, GeneralHandler, GeneralObserver, RefObserve, Unsigned};
+use crate::observe::{DebugHandler, GeneralHandler, GeneralObserver, RefObserve, Unsigned};
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
 ///
@@ -66,7 +66,7 @@ impl<T: Clone + PartialEq> GeneralHandler for SnapshotHandler<T> {
     }
 
     #[inline]
-    fn observe(value: &mut T) -> Self {
+    fn observe(value: &T) -> Self {
         Self {
             snapshot: MaybeUninit::new(value.clone()),
         }
@@ -116,7 +116,7 @@ macro_rules! impl_snapshot_observe {
                 where
                     Self: 'ob,
                     D: Unsigned,
-                    S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
+                    S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 
                 type Spec = SnapshotSpec;
             }

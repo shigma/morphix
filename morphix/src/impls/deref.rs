@@ -146,7 +146,7 @@ where
 
 impl<T> Observe for Box<T>
 where
-    T: Observe,
+    T: Observe + ?Sized,
 {
     type Observer<'ob, S, D>
         = DerefObserver<'ob, T::Observer<'ob, S, Succ<D>>>
@@ -160,7 +160,7 @@ where
 
 impl<T> Observe for &mut T
 where
-    T: Observe,
+    T: Observe + ?Sized,
 {
     type Observer<'ob, S, D>
         = DerefObserver<'ob, T::Observer<'ob, S, Succ<D>>>

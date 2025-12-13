@@ -224,7 +224,7 @@ macro_rules! tuple_observer {
             where
                 Self: 'a + 'ob,
                 D: Unsigned,
-                S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
+                S: $crate::helper::AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 
             type Spec = DefaultSpec;
         }

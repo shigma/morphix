@@ -504,7 +504,7 @@ pub trait RefObserve {
     where
         Self: 'a + 'ob,
         D: Unsigned,
-        S: AsDerefMut<D, Target = &'a Self> + ?Sized + 'ob;
+        S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
 
     /// Specification type controlling nested reference observation behavior.
     ///
