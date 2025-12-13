@@ -87,7 +87,7 @@ where
 }
 
 impl<'a, T: ?Sized> DebugHandler for UnsizeRefHandler<'a, T> {
-    const NAME: &'static str = "UnsizedRefHandler";
+    const NAME: &'static str = "UnsizedRefObserver";
 }
 
 impl<'a> RefObserve<'a> for str {

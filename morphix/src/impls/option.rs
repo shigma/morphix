@@ -222,7 +222,6 @@ mod tests {
     use super::*;
     use crate::adapter::Json;
     use crate::helper::AsDeref;
-    use crate::impls::string::StringObserver;
     use crate::observe::{DefaultSpec, GeneralObserver, ObserveExt, RefObserve, SerializeObserverExt, ShallowObserver};
 
     #[derive(Debug, Serialize, Default, PartialEq, Eq)]
@@ -296,7 +295,8 @@ mod tests {
     fn insert_returns_observer() {
         let mut opt: Option<String> = None;
         let mut ob = opt.__observe();
-        let s: &mut StringObserver<_, _> = ob.insert(String::from("99")); // assert type
+        let s = ob.insert(String::from("99"));
+        assert_eq!(format!("{s:?}"), r#"StringObserver("99")"#);
         *s += "9";
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("999")));
@@ -338,19 +338,23 @@ mod tests {
     #[test]
     fn specialization() {
         let mut opt = Some(0i32);
-        let _ob: GeneralObserver<_, _, _> = opt.__observe(); // assert type
+        let ob: GeneralObserver<_, _, _> = opt.__observe();
+        assert_eq!(format!("{ob:?}"), r#"SnapshotObserver(Some(0))"#);
 
         let mut opt = Some(Number(0));
-        let _ob: OptionObserver<_, _, _> = opt.__observe(); // assert type
+        let ob: OptionObserver<_, _, _> = opt.__observe();
+        assert_eq!(format!("{ob:?}"), r#"OptionObserver(Some(Number(0)))"#);
     }
 
     #[test]
     fn ref_specialization() {
         let mut opt = &Some(0i32);
-        let _ob: GeneralObserver<_, _, _> = opt.__observe(); // assert type
+        let ob = opt.__observe();
+        assert_eq!(format!("{ob:?}"), r#"SnapshotObserver(Some(0))"#);
 
         let mut opt = &Some(Number(0));
-        let _ob: GeneralObserver<_, _, _> = opt.__observe(); // assert type
+        let ob = opt.__observe();
+        assert_eq!(format!("{ob:?}"), r#"RefObserver(Some(Number(0)))"#);
     }
 
     #[test]

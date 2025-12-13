@@ -59,5 +59,5 @@ impl<'a, T: ?Sized> ReplaceHandler for RefHandler<'a, T> {
 }
 
 impl<'a, T: ?Sized> DebugHandler for RefHandler<'a, T> {
-    const NAME: &'static str = "RefHandler";
+    const NAME: &'static str = "RefObserver";
 }
