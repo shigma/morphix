@@ -138,7 +138,8 @@ macro_rules! impl_snapshot_observe {
                     Self: 'ob,
                     D: Unsigned,
                     E: Unsigned,
-                    S: AsDeref<D> + ?Sized + 'ob, S::Target: AsDeref<E, Target = Self>;
+                    S: AsDeref<D> + ?Sized + 'ob,
+                    S::Target: AsDeref<E, Target = Self>;
 
                 type Spec = SnapshotSpec;
             }

@@ -3,6 +3,7 @@ use crate::helper::{AsDeref, AsDerefMut, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, RefObserve};
 
 pub mod array;
+pub mod atomic;
 pub mod deref;
 pub mod option;
 pub mod slice;
