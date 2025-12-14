@@ -35,7 +35,7 @@
 //! field-level control. Direct use of types from this module is typically only needed for advanced
 //! use cases.
 
-use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Unsigned, Zero};
 use crate::{Adapter, Mutation};
 
 mod general;
@@ -513,34 +513,4 @@ pub trait RefObserve {
     /// This determines how `&&T`, `&&&T`, etc. are observed. See the [trait
     /// documentation](RefObserve) for available specs.
     type Spec;
-}
-
-impl<T> Observe for &T
-where
-    T: RefObserve + ?Sized,
-{
-    type Observer<'ob, S, D>
-        = T::Observer<'ob, S, D, Succ<Zero>>
-    where
-        Self: 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
-
-    type Spec = DefaultSpec;
-}
-
-impl<T> RefObserve for &T
-where
-    T: RefObserve + ?Sized,
-{
-    type Observer<'ob, S, D, E>
-        = T::Observer<'ob, S, D, Succ<E>>
-    where
-        Self: 'ob,
-        D: Unsigned,
-        E: Unsigned,
-        S: AsDeref<D> + ?Sized + 'ob,
-        S::Target: AsDeref<E, Target = Self>;
-
-    type Spec = DefaultSpec;
 }

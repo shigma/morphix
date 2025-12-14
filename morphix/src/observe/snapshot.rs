@@ -148,7 +148,7 @@ macro_rules! impl_snapshot_observe {
 
 impl_snapshot_observe! {
     usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
-    ::core::net::IpAddr, ::core::net::Ipv4Addr, ::core::net::Ipv6Addr,
-    ::core::net::SocketAddr, ::core::net::SocketAddrV4, ::core::net::SocketAddrV6,
-    ::core::time::Duration, ::std::time::SystemTime,
+    core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
+    core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
+    core::time::Duration, std::time::SystemTime,
 }

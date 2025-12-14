@@ -59,7 +59,8 @@ where
 
 impl<T, E> SerializeHandler for UnsizeRefHandler<T, E>
 where
-    T: AsDeref<E, Target: Len + Index<RangeFrom<usize>, Output = T::Target> + Serialize> + ?Sized,
+    T: AsDeref<E> + ?Sized,
+    T::Target: Len + Index<RangeFrom<usize>, Output = T::Target> + Serialize,
     E: Unsigned,
 {
     unsafe fn flush<A: Adapter>(&mut self, new_value: &T) -> Result<Option<Mutation<A::Value>>, A::Error> {
@@ -120,7 +121,8 @@ impl RefObserve for str {
         Self: 'ob,
         D: Unsigned,
         E: Unsigned,
-        S: AsDeref<D> + ?Sized + 'ob, S::Target: AsDeref<E, Target = Self>;
+        S: AsDeref<D> + ?Sized + 'ob,
+        S::Target: AsDeref<E, Target = Self>;
 
     type Spec = DefaultSpec;
 }
@@ -132,7 +134,8 @@ impl<T> RefObserve for [T] {
         Self: 'ob,
         D: Unsigned,
         E: Unsigned,
-        S: AsDeref<D> + ?Sized + 'ob, S::Target: AsDeref<E, Target = Self>;
+        S: AsDeref<D> + ?Sized + 'ob,
+        S::Target: AsDeref<E, Target = Self>;
 
     type Spec = DefaultSpec;
 }
