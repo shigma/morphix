@@ -215,16 +215,18 @@ macro_rules! tuple_observer {
             type Spec = DefaultSpec;
         }
 
-        impl<'a, $($t,)*> RefObserve<'a> for ($($t,)*)
+        impl<$($t,)*> RefObserve for ($($t,)*)
         where
-            $($t: RefObserve<'a>,)*
+            $($t: RefObserve,)*
         {
-            type Observer<'ob, S, D>
-                = RefObserver<'a, 'ob, S, D>
+            type Observer<'ob, S, D, E>
+                = RefObserver<'ob, S, D, E>
             where
-                Self: 'a + 'ob,
+                Self: 'ob,
                 D: Unsigned,
-                S: $crate::helper::AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
+                E: Unsigned,
+                S: $crate::helper::AsDeref<D> + ?Sized + 'ob,
+                S::Target: $crate::helper::AsDeref<E, Target = Self>;
 
             type Spec = DefaultSpec;
         }

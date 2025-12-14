@@ -1,4 +1,5 @@
 use std::ops::{Index, RangeFrom};
+use std::ptr::NonNull;
 
 use serde::Serialize;
 
@@ -11,23 +12,33 @@ trait Len {
 }
 
 impl Len for str {
+    #[inline]
     fn len(&self) -> usize {
-        str::len(self)
+        self.chars().count()
     }
 }
 
 impl<T> Len for [T] {
+    #[inline]
     fn len(&self) -> usize {
         <[T]>::len(self)
     }
 }
 
-pub struct UnsizeRefHandler<'a, T: ?Sized> {
-    ptr: Option<&'a T>,
+pub struct UnsizeRefHandler<T, E>
+where
+    T: AsDeref<E> + ?Sized,
+    E: Unsigned,
+{
+    ptr: Option<NonNull<T::Target>>,
 }
 
-impl<'a, T: ?Sized> GeneralHandler for UnsizeRefHandler<'a, T> {
-    type Target = &'a T;
+impl<T, E> GeneralHandler for UnsizeRefHandler<T, E>
+where
+    T: AsDeref<E> + ?Sized,
+    E: Unsigned,
+{
+    type Target = T;
     type Spec = DefaultSpec;
 
     #[inline]
@@ -36,21 +47,29 @@ impl<'a, T: ?Sized> GeneralHandler for UnsizeRefHandler<'a, T> {
     }
 
     #[inline]
-    fn observe(value: &&'a T) -> Self {
-        Self { ptr: Some(value) }
+    fn observe(value: &T) -> Self {
+        Self {
+            ptr: Some(NonNull::from(value.as_deref())),
+        }
     }
 
     #[inline]
     fn deref_mut(&mut self) {}
 }
 
-impl<'a, T> SerializeHandler for UnsizeRefHandler<'a, T>
+impl<T, E> SerializeHandler for UnsizeRefHandler<T, E>
 where
-    T: Len + Index<RangeFrom<usize>, Output = T> + Serialize + ?Sized,
+    T: AsDeref<E, Target: Len + Index<RangeFrom<usize>, Output = T::Target> + Serialize> + ?Sized,
+    E: Unsigned,
 {
-    unsafe fn flush<A: Adapter>(&mut self, new_value: &&'a T) -> Result<Option<Mutation<A::Value>>, A::Error> {
-        let old_value = unsafe { self.ptr.unwrap_unchecked() };
-        if !std::ptr::addr_eq(*new_value, old_value) {
+    unsafe fn flush<A: Adapter>(&mut self, new_value: &T) -> Result<Option<Mutation<A::Value>>, A::Error> {
+        let new_value = new_value.as_deref();
+        let old_value = unsafe {
+            self.ptr
+                .expect("Pointer should not be null in GeneralHandler::flush")
+                .as_ref()
+        };
+        if !std::ptr::addr_eq(new_value, old_value) {
             return Ok(Some(Mutation {
                 path: Default::default(),
                 kind: MutationKind::Replace(A::serialize_value(new_value)?),
@@ -86,28 +105,34 @@ where
     }
 }
 
-impl<'a, T: ?Sized> DebugHandler for UnsizeRefHandler<'a, T> {
+impl<T, E> DebugHandler for UnsizeRefHandler<T, E>
+where
+    T: AsDeref<E> + ?Sized,
+    E: Unsigned,
+{
     const NAME: &'static str = "UnsizedRefObserver";
 }
 
-impl<'a> RefObserve<'a> for str {
-    type Observer<'ob, S, D>
-        = GeneralObserver<'ob, UnsizeRefHandler<'a, str>, S, D>
+impl RefObserve for str {
+    type Observer<'ob, S, D, E>
+        = GeneralObserver<'ob, UnsizeRefHandler<S::Target, E>, S, D>
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
+        E: Unsigned,
+        S: AsDeref<D> + ?Sized + 'ob, S::Target: AsDeref<E, Target = Self>;
 
     type Spec = DefaultSpec;
 }
 
-impl<'a, T: 'a> RefObserve<'a> for [T] {
-    type Observer<'ob, S, D>
-        = GeneralObserver<'ob, UnsizeRefHandler<'a, [T]>, S, D>
+impl<T> RefObserve for [T] {
+    type Observer<'ob, S, D, E>
+        = GeneralObserver<'ob, UnsizeRefHandler<S::Target, E>, S, D>
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
+        E: Unsigned,
+        S: AsDeref<D> + ?Sized + 'ob, S::Target: AsDeref<E, Target = Self>;
 
     type Spec = DefaultSpec;
 }

@@ -35,7 +35,7 @@
 //! field-level control. Direct use of types from this module is typically only needed for advanced
 //! use cases.
 
-use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Succ, Unsigned, Zero};
 use crate::{Adapter, Mutation};
 
 mod general;
@@ -495,16 +495,18 @@ pub type DefaultObserver<'ob, T, S = T, D = Zero> = <T as Observe>::Observer<'ob
 /// that needs an observer for `&T`.
 ///
 /// See also: [`Observe`].
-pub trait RefObserve<'a>: 'a {
+pub trait RefObserve {
     /// The observer type for `&'a Self`.
     ///
     /// This associated type specifies the *default* observer implementation for the type, when used
     /// in contexts where an [`Observe`] implementation is required.
-    type Observer<'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
+    type Observer<'ob, S, D, E>: Observer<'ob, Head = S, InnerDepth = D>
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
+        E: Unsigned,
+        S: AsDeref<D> + ?Sized + 'ob,
+        S::Target: AsDeref<E, Target = Self>;
 
     /// Specification type controlling nested reference observation behavior.
     ///
@@ -513,16 +515,32 @@ pub trait RefObserve<'a>: 'a {
     type Spec;
 }
 
-impl<'a, T: ?Sized> Observe for &'a T
+impl<T> Observe for &T
 where
-    T: RefObserve<'a>,
+    T: RefObserve + ?Sized,
 {
     type Observer<'ob, S, D>
-        = T::Observer<'ob, S, D>
+        = T::Observer<'ob, S, D, Succ<Zero>>
     where
         Self: 'ob,
         D: Unsigned,
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+    type Spec = DefaultSpec;
+}
+
+impl<T> RefObserve for &T
+where
+    T: RefObserve + ?Sized,
+{
+    type Observer<'ob, S, D, E>
+        = T::Observer<'ob, S, D, Succ<E>>
+    where
+        Self: 'ob,
+        D: Unsigned,
+        E: Unsigned,
+        S: AsDeref<D> + ?Sized + 'ob,
+        S::Target: AsDeref<E, Target = Self>;
 
     type Spec = DefaultSpec;
 }

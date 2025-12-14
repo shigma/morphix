@@ -48,13 +48,24 @@ use crate::observe::{DebugHandler, GeneralHandler, GeneralObserver, RefObserve, 
 ///
 /// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use [`SnapshotObserver`] as their default
 /// implementation since they're cheap to clone and compare.
-pub type SnapshotObserver<'ob, S, D = Zero> = GeneralObserver<'ob, SnapshotHandler<<S as AsDeref<D>>::Target>, S, D>;
+pub type SnapshotObserver<'ob, S, D = Zero, E = Zero> =
+    GeneralObserver<'ob, SnapshotHandler<<S as AsDeref<D>>::Target, E>, S, D>;
 
-pub struct SnapshotHandler<T> {
-    snapshot: MaybeUninit<T>,
+pub struct SnapshotHandler<T, E>
+where
+    T: AsDeref<E> + ?Sized,
+    T::Target: Sized,
+    E: Unsigned,
+{
+    snapshot: MaybeUninit<T::Target>,
 }
 
-impl<T: Clone + PartialEq> GeneralHandler for SnapshotHandler<T> {
+impl<T, E> GeneralHandler for SnapshotHandler<T, E>
+where
+    T: AsDeref<E> + ?Sized,
+    T::Target: Clone + PartialEq + Sized,
+    E: Unsigned,
+{
     type Target = T;
     type Spec = SnapshotSpec;
 
@@ -68,7 +79,7 @@ impl<T: Clone + PartialEq> GeneralHandler for SnapshotHandler<T> {
     #[inline]
     fn observe(value: &T) -> Self {
         Self {
-            snapshot: MaybeUninit::new(value.clone()),
+            snapshot: MaybeUninit::new(value.as_deref().clone()),
         }
     }
 
@@ -76,16 +87,26 @@ impl<T: Clone + PartialEq> GeneralHandler for SnapshotHandler<T> {
     fn deref_mut(&mut self) {}
 }
 
-impl<T: Clone + PartialEq> ReplaceHandler for SnapshotHandler<T> {
+impl<T, E> ReplaceHandler for SnapshotHandler<T, E>
+where
+    T: AsDeref<E> + ?Sized,
+    T::Target: Clone + PartialEq + Sized,
+    E: Unsigned,
+{
     #[inline]
     fn flush_replace(&mut self, value: &T) -> bool {
         // SAFETY: `ReplaceHandler::flush_replace` is only called in `Observer::flush_unchecked`, where the
         // observer is assumed to contain a valid pointer
-        value != unsafe { self.snapshot.assume_init_ref() }
+        value.as_deref() != unsafe { self.snapshot.assume_init_ref() }
     }
 }
 
-impl<T: Clone + PartialEq> DebugHandler for SnapshotHandler<T> {
+impl<T, E> DebugHandler for SnapshotHandler<T, E>
+where
+    T: AsDeref<E> + ?Sized,
+    T::Target: Clone + PartialEq + Sized,
+    E: Unsigned,
+{
     const NAME: &'static str = "SnapshotObserver";
 }
 
@@ -110,13 +131,14 @@ macro_rules! impl_snapshot_observe {
                 type Spec = SnapshotSpec;
             }
 
-            impl<'a> RefObserve<'a> for $ty {
-                type Observer<'ob, S, D>
-                    = SnapshotObserver<'ob, S, D>
+            impl RefObserve for $ty {
+                type Observer<'ob, S, D, E>
+                    = SnapshotObserver<'ob, S, D, E>
                 where
                     Self: 'ob,
                     D: Unsigned,
-                    S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
+                    E: Unsigned,
+                    S: AsDeref<D> + ?Sized + 'ob, S::Target: AsDeref<E, Target = Self>;
 
                 type Spec = SnapshotSpec;
             }

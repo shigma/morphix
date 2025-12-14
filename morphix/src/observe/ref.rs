@@ -1,4 +1,6 @@
-use crate::helper::{AsDeref, Succ};
+use std::ptr::NonNull;
+
+use crate::helper::{AsDeref, Unsigned};
 use crate::observe::general::ReplaceHandler;
 use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver};
 
@@ -24,14 +26,22 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 ///
 /// For types where value comparison is cheap and preferred, consider using [`SnapshotObserver`] for
 /// references.
-pub type RefObserver<'a, 'ob, S, D> = GeneralObserver<'ob, RefHandler<'a, <S as AsDeref<Succ<D>>>::Target>, S, D>;
+pub type RefObserver<'ob, S, D, E> = GeneralObserver<'ob, RefHandler<<S as AsDeref<D>>::Target, E>, S, D>;
 
-pub struct RefHandler<'a, T: ?Sized> {
-    ptr: Option<&'a T>,
+pub struct RefHandler<T, E>
+where
+    T: AsDeref<E> + ?Sized,
+    E: Unsigned,
+{
+    ptr: Option<NonNull<T::Target>>,
 }
 
-impl<'a, T: ?Sized> GeneralHandler for RefHandler<'a, T> {
-    type Target = &'a T;
+impl<T, E> GeneralHandler for RefHandler<T, E>
+where
+    T: AsDeref<E> + ?Sized,
+    E: Unsigned,
+{
+    type Target = T;
     type Spec = DefaultSpec;
 
     #[inline]
@@ -40,24 +50,36 @@ impl<'a, T: ?Sized> GeneralHandler for RefHandler<'a, T> {
     }
 
     #[inline]
-    fn observe(value: &&'a T) -> Self {
-        Self { ptr: Some(value) }
+    fn observe(value: &T) -> Self {
+        Self {
+            ptr: Some(NonNull::from(value.as_deref())),
+        }
     }
 
     #[inline]
     fn deref_mut(&mut self) {}
 }
 
-impl<'a, T: ?Sized> ReplaceHandler for RefHandler<'a, T> {
+impl<T, E> ReplaceHandler for RefHandler<T, E>
+where
+    T: AsDeref<E> + ?Sized,
+    E: Unsigned,
+{
     #[inline]
-    fn flush_replace(&mut self, value: &&'a T) -> bool {
+    fn flush_replace(&mut self, value: &T) -> bool {
         !std::ptr::eq(
-            *value,
-            self.ptr.expect("Pointer should not be null in GeneralHandler::flush"),
+            value.as_deref(),
+            self.ptr
+                .expect("Pointer should not be null in GeneralHandler::flush")
+                .as_ptr(),
         )
     }
 }
 
-impl<'a, T: ?Sized> DebugHandler for RefHandler<'a, T> {
+impl<T, E> DebugHandler for RefHandler<T, E>
+where
+    T: AsDeref<E> + ?Sized,
+    E: Unsigned,
+{
     const NAME: &'static str = "RefObserver";
 }

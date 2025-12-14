@@ -222,7 +222,9 @@ mod tests {
     use super::*;
     use crate::adapter::Json;
     use crate::helper::AsDeref;
-    use crate::observe::{DefaultSpec, GeneralObserver, ObserveExt, RefObserve, SerializeObserverExt, ShallowObserver};
+    use crate::observe::{
+        DefaultSpec, GeneralObserver, ObserveExt, RefObserve, RefObserver, SerializeObserverExt, ShallowObserver,
+    };
 
     #[derive(Debug, Serialize, Default, PartialEq, Eq)]
     struct Number(i32);
@@ -238,13 +240,15 @@ mod tests {
         type Spec = DefaultSpec;
     }
 
-    impl<'a> RefObserve<'a> for Number {
-        type Observer<'ob, S, D>
-            = ShallowObserver<'ob, S, D>
+    impl RefObserve for Number {
+        type Observer<'ob, S, D, E>
+            = RefObserver<'ob, S, D, E>
         where
-            Self: 'a + 'ob,
+            Self: 'ob,
             D: Unsigned,
-            S: AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
+            E: Unsigned,
+            S: AsDeref<D> + ?Sized + 'ob,
+            S::Target: AsDeref<E, Target = Self>;
 
         type Spec = DefaultSpec;
     }

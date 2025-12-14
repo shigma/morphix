@@ -51,51 +51,56 @@ macro_rules! spec_impl_observe {
 
 macro_rules! spec_impl_ref_observe {
     ($helper:ident, $ty_self:ty, $ty_t:ty $(, const $arg:ident: $arg_ty:ty)* $(,)?) => {
-        impl<'a, T $(, const $arg: $arg_ty)*> $crate::observe::RefObserve<'a> for $ty_t
+        impl<T $(, const $arg: $arg_ty)*> $crate::observe::RefObserve for $ty_t
         where
-            T: $crate::observe::RefObserve<'a> + $helper<'a, T::Spec>,
+            T: $crate::observe::RefObserve + $helper<T::Spec>,
         {
-            type Observer<'ob, S, D>
-                = <T as $helper<'a, T::Spec>>::Observer<'ob, S, D $(, $arg)*>
+            type Observer<'ob, S, D, E>
+                = <T as $helper<T::Spec>>::Observer<'ob, S, D, E $(, $arg)*>
             where
-                Self: 'a + 'ob,
+                Self: 'ob,
                 D: Unsigned,
-                S: $crate::helper::AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
+                E: Unsigned,
+                S: $crate::helper::AsDeref<D> + ?Sized + 'ob,
+                S::Target: $crate::helper::AsDeref<E, Target = Self>;
 
             type Spec = T::Spec;
         }
 
-        pub trait $helper<'a, Spec> {
-            type Observer<'ob, S, D $(, const $arg: $arg_ty)*>:
+        pub trait $helper<Spec> {
+            type Observer<'ob, S, D, E $(, const $arg: $arg_ty)*>:
                 $crate::observe::Observer<'ob, Head = S, InnerDepth = D>
             where
-                Self: 'a + 'ob,
+                Self: 'ob,
                 D: Unsigned,
-                S: $crate::helper::AsDeref<D, Target = &'a $ty_self> + ?Sized + 'ob;
+                E: Unsigned,
+                S: $crate::helper::AsDeref<D, Target: $crate::helper::AsDeref<E, Target = $ty_self>> + ?Sized + 'ob;
         }
 
-        impl<'a, T> $helper<'a, $crate::observe::DefaultSpec> for T
+        impl<T> $helper<$crate::observe::DefaultSpec> for T
         where
             T: Observe<Spec = $crate::observe::DefaultSpec>,
         {
-            type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
-                = $crate::observe::RefObserver<'a, 'ob, S, D>
+            type Observer<'ob, S, D, E $(, const $arg: $arg_ty)*>
+                = $crate::observe::RefObserver<'ob, S, D, E>
             where
-                Self: 'a + 'ob,
+                Self: 'ob,
                 D: Unsigned,
-                S: $crate::helper::AsDeref<D, Target = &'a $ty_self> + ?Sized + 'ob;
+                E: Unsigned,
+                S: $crate::helper::AsDeref<D, Target: $crate::helper::AsDeref<E, Target = $ty_self>> + ?Sized + 'ob;
         }
 
-        impl<'a, T> $helper<'a, $crate::observe::SnapshotSpec> for T
+        impl<T> $helper<$crate::observe::SnapshotSpec> for T
         where
             T: Clone + PartialEq + Observe<Spec = $crate::observe::SnapshotSpec>,
         {
-            type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
-                = $crate::observe::SnapshotObserver<'ob, S, D>
+            type Observer<'ob, S, D, E $(, const $arg: $arg_ty)*>
+                = $crate::observe::SnapshotObserver<'ob, S, D, E>
             where
-                Self: 'a + 'ob,
+                Self: 'ob,
                 D: Unsigned,
-                S: $crate::helper::AsDeref<D, Target = &'a $ty_self> + ?Sized + 'ob;
+                E: Unsigned,
+                S: $crate::helper::AsDeref<D, Target: $crate::helper::AsDeref<E, Target = $ty_self>> + ?Sized + 'ob;
         }
     };
 }
@@ -103,13 +108,15 @@ macro_rules! spec_impl_ref_observe {
 macro_rules! default_impl_ref_observe {
     ($(impl $([$($gen:tt)*])? RefObserve for $ty:ty $(where { $($where:tt)+ })?;)*) => {
         $(
-            impl <'a, $($($gen)*)?> $crate::observe::RefObserve<'a> for $ty {
-                type Observer<'ob, S, D>
-                    = $crate::observe::RefObserver<'a, 'ob, S, D>
+            impl <$($($gen)*)?> $crate::observe::RefObserve for $ty {
+                type Observer<'ob, S, D, E>
+                    = $crate::observe::RefObserver<'ob, S, D, E>
                 where
-                    Self: 'a + 'ob,
+                    Self: 'ob,
                     D: Unsigned,
-                    S: $crate::helper::AsDeref<D, Target = &'a Self> + ?Sized + 'ob;
+                    E: Unsigned,
+                    S: $crate::helper::AsDeref<D> + ?Sized + 'ob,
+                    S::Target: $crate::helper::AsDeref<E, Target = Self>;
 
                 type Spec = $crate::observe::DefaultSpec;
             }
