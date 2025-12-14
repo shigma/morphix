@@ -102,8 +102,17 @@ where
     }
 }
 
-spec_impl_observe!(TupleObserveImpl, (Self,), (T,), TupleObserver);
-spec_impl_ref_observe!(TupleRefObserveImpl, (Self,), (T,));
+spec_impl_observe! {
+    #[cfg_attr(docsrs, doc(fake_variadic))]
+    #[cfg_attr(docsrs, doc = "This trait is implemented for tuples up to 12 items long.")]
+    TupleObserveImpl, (Self,), (T,), TupleObserver
+}
+
+spec_impl_ref_observe! {
+    #[cfg_attr(docsrs, doc(fake_variadic))]
+    #[cfg_attr(docsrs, doc = "This trait is implemented for tuples up to 12 items long.")]
+    TupleRefObserveImpl, (Self,), (T,)
+}
 
 macro_rules! tuple_observer {
     ($ty:ident, $len:literal; $($o:ident, $t:ident, $n:tt);*) => {
@@ -201,6 +210,7 @@ macro_rules! tuple_observer {
             }
         }
 
+        #[cfg_attr(docsrs, doc(hidden))]
         impl<$($t,)*> Observe for ($($t,)*)
         where
             $($t: Observe,)*
@@ -215,6 +225,7 @@ macro_rules! tuple_observer {
             type Spec = DefaultSpec;
         }
 
+        #[cfg_attr(docsrs, doc(hidden))]
         impl<$($t,)*> RefObserve for ($($t,)*)
         where
             $($t: RefObserve,)*
@@ -240,3 +251,7 @@ tuple_observer!(TupleObserver5, 5; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O
 tuple_observer!(TupleObserver6, 6; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5);
 tuple_observer!(TupleObserver7, 7; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6);
 tuple_observer!(TupleObserver8, 8; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7);
+tuple_observer!(TupleObserver9, 9; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8);
+tuple_observer!(TupleObserver10, 10; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8; O10, T10, 9);
+tuple_observer!(TupleObserver11, 11; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8; O10, T10, 9; O11, T11, 10);
+tuple_observer!(TupleObserver12, 12; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8; O10, T10, 9; O11, T11, 10; O12, T12, 11);

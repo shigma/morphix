@@ -1,5 +1,6 @@
 macro_rules! spec_impl_observe {
-    ($helper:ident, $ty_self:ty, $ty_t:ty, $default:ident $(, const $arg:ident: $arg_ty:ty)* $(,)?) => {
+    ($(#[$($tt:tt)*])* $helper:ident, $ty_self:ty, $ty_t:ty, $default:ident $(, const $arg:ident: $arg_ty:ty)* $(,)?) => {
+        $(#[$($tt)*])*
         impl<T $(, const $arg: $arg_ty)*> $crate::observe::Observe for $ty_t
         where
             T: $crate::observe::Observe + $helper<T::Spec>,
@@ -50,7 +51,8 @@ macro_rules! spec_impl_observe {
 }
 
 macro_rules! spec_impl_ref_observe {
-    ($helper:ident, $ty_self:ty, $ty_t:ty $(, const $arg:ident: $arg_ty:ty)* $(,)?) => {
+    ($(#[$($tt:tt)*])* $helper:ident, $ty_self:ty, $ty_t:ty $(, const $arg:ident: $arg_ty:ty)* $(,)?) => {
+        $(#[$($tt)*])*
         impl<T $(, const $arg: $arg_ty)*> $crate::observe::RefObserve for $ty_t
         where
             T: $crate::observe::RefObserve + $helper<T::Spec>,
