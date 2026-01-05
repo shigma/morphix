@@ -102,7 +102,7 @@ impl<V> MutationBatch<V> {
             return;
         };
         let existing_batch = match &mut existing.kind {
-            MutationKind::Batch(batch) => batch,
+            MutationKind::Batch(batch) if existing.path.is_empty() => batch,
             _ => {
                 let old = std::mem::replace(
                     existing,
