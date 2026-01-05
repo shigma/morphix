@@ -88,7 +88,7 @@ const _: () = {
             ::std::option::Option<::morphix::Mutation<A::Value>>,
             A::Error,
         > {
-            let mut mutations = ::std::vec::Vec::with_capacity(2usize);
+            let mut mutations = ::morphix::MutationBatch::new();
             if let Some(mutation) = ::morphix::observe::SerializeObserver::flush::<
                 A,
             >(&mut this.a)? {
@@ -100,7 +100,7 @@ const _: () = {
                 mutation.path.push("b".into());
                 mutations.push(mutation);
             }
-            Ok(::morphix::Mutation::coalesce(mutations))
+            Ok(mutations.into_inner())
         }
     }
     #[automatically_derived]
@@ -218,7 +218,7 @@ const _: () = {
             ::std::option::Option<::morphix::Mutation<A::Value>>,
             A::Error,
         > {
-            let mut mutations = ::std::vec::Vec::with_capacity(2usize);
+            let mut mutations = ::morphix::MutationBatch::new();
             if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
                 A,
             >(&mut this.a)? {
@@ -231,7 +231,7 @@ const _: () = {
                 mutation.path.push("b".into());
                 mutations.push(mutation);
             }
-            Ok(::morphix::Mutation::coalesce(mutations))
+            Ok(mutations.into_inner())
         }
     }
     #[automatically_derived]

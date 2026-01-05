@@ -340,9 +340,9 @@ pub fn derive_observe_for_struct_fields(
         }
     } else {
         quote! {
-            let mut mutations = ::std::vec::Vec::with_capacity(#field_count);
+            let mut mutations = ::morphix::MutationBatch::new();
             #(#flush_stmts)*
-            Ok(::morphix::Mutation::coalesce(mutations))
+            Ok(mutations.into_inner())
         }
     };
 

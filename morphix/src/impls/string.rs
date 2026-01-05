@@ -7,7 +7,7 @@ use std::string::Drain;
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
-use crate::{Adapter, Mutation, MutationKind, Observe};
+use crate::{Adapter, Mutation, MutationBatch, MutationKind, Observe};
 
 pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
@@ -103,7 +103,7 @@ where
             append_index,
             truncate_len,
         } = truncate_append;
-        let mut mutations = Vec::with_capacity(2);
+        let mut mutations = MutationBatch::new();
         #[cfg(feature = "truncate")]
         if truncate_len > 0 {
             mutations.push(Mutation {
@@ -118,7 +118,7 @@ where
                 kind: MutationKind::Append(A::serialize_value(&this.as_deref()[append_index..])?),
             });
         }
-        Ok(Mutation::coalesce(mutations))
+        Ok(mutations.into_inner())
     }
 }
 

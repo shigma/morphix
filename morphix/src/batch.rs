@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::mem::take;
 
-use crate::{Adapter, Mutation, MutationError, MutationKind, Path, PathSegment};
+use crate::{Adapter, Mutation, MutationBatch, MutationError, MutationKind, Path, PathSegment};
 
 #[derive(Default)]
 enum BatchMutationKind<A: Adapter> {
@@ -274,7 +274,7 @@ impl<A: Adapter> BatchTree<A> {
     /// - Returns a single mutation if only one mutation exists.
     /// - Returns a [`Batch`](MutationKind::Batch) mutation if multiple mutations exist.
     pub fn dump(&mut self) -> Option<Mutation<A::Value>> {
-        let mut mutations = vec![];
+        let mut mutations = MutationBatch::new();
         if let Some(children) = take(&mut self.children) {
             for (segment, mut batch) in children {
                 if let Some(mut mutation) = batch.dump() {
@@ -315,7 +315,7 @@ impl<A: Adapter> BatchTree<A> {
                 }
             }
         }
-        Mutation::coalesce(mutations)
+        mutations.into_inner()
     }
 }
 

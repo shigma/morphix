@@ -98,7 +98,7 @@ const _: () = {
                     }),
                 );
             }
-            let mut mutations = ::std::vec::Vec::with_capacity(2usize);
+            let mut mutations = ::morphix::MutationBatch::new();
             if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
                 A,
             >(&mut this.a)? {
@@ -111,7 +111,7 @@ const _: () = {
                 mutation.path.push("bar".into());
                 mutations.push(mutation);
             }
-            Ok(::morphix::Mutation::coalesce(mutations))
+            Ok(mutations.into_inner())
         }
     }
     #[automatically_derived]

@@ -66,7 +66,7 @@ const _: () = {
             match self {
                 Self::A(u0) => ::morphix::observe::SerializeObserver::flush::<A>(u0),
                 Self::C { bar, qux } => {
-                    let mut mutations = ::std::vec::Vec::with_capacity(2usize);
+                    let mut mutations = ::morphix::MutationBatch::new();
                     if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
                         A,
                     >(bar)? {
@@ -78,7 +78,7 @@ const _: () = {
                     >(qux)? {
                         mutations.push(mutation);
                     }
-                    Ok(::morphix::Mutation::coalesce(mutations))
+                    Ok(mutations.into_inner())
                 }
                 Self::__None => Ok(None),
             }

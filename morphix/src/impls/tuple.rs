@@ -6,7 +6,7 @@ use serde::Serialize;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, RefObserve, RefObserver, SerializeObserver};
-use crate::{Adapter, Mutation, MutationKind, Observe};
+use crate::{Adapter, Mutation, MutationBatch, MutationKind, Observe};
 
 pub struct TupleObserver<'ob, O, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
@@ -93,12 +93,12 @@ where
                 kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
             }));
         }
-        let mut mutations = Vec::with_capacity(1);
+        let mut mutations = MutationBatch::new();
         if let Some(mut mutation) = SerializeObserver::flush::<A>(&mut this.inner.0)? {
             mutation.path.push(0.into());
             mutations.push(mutation);
         }
-        Ok(Mutation::coalesce(mutations))
+        Ok(mutations.into_inner())
     }
 }
 
@@ -115,7 +115,7 @@ spec_impl_ref_observe! {
 }
 
 macro_rules! tuple_observer {
-    ($ty:ident, $len:literal; $($o:ident, $t:ident, $n:tt);*) => {
+    ($ty:ident; $($o:ident, $t:ident, $n:tt);*) => {
         pub struct $ty<'ob, $($o,)* S: ?Sized, D = Zero> {
             ptr: ObserverPointer<S>,
             inner: ($($o,)*),
@@ -199,14 +199,14 @@ macro_rules! tuple_observer {
                         kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
                     }));
                 }
-                let mut mutations = Vec::with_capacity($len);
+                let mut mutations = MutationBatch::new();
                 $(
                     if let Some(mut mutation) = SerializeObserver::flush::<A>(&mut this.inner.$n)? {
                         mutation.path.push($n.into());
                         mutations.push(mutation);
                     }
                 )*
-                Ok(Mutation::coalesce(mutations))
+                Ok(mutations.into_inner())
             }
         }
 
@@ -244,14 +244,14 @@ macro_rules! tuple_observer {
     };
 }
 
-tuple_observer!(TupleObserver2, 2; O1, T1, 0; O2, T2, 1);
-tuple_observer!(TupleObserver3, 3; O1, T1, 0; O2, T2, 1; O3, T3, 2);
-tuple_observer!(TupleObserver4, 4; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3);
-tuple_observer!(TupleObserver5, 5; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4);
-tuple_observer!(TupleObserver6, 6; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5);
-tuple_observer!(TupleObserver7, 7; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6);
-tuple_observer!(TupleObserver8, 8; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7);
-tuple_observer!(TupleObserver9, 9; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8);
-tuple_observer!(TupleObserver10, 10; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8; O10, T10, 9);
-tuple_observer!(TupleObserver11, 11; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8; O10, T10, 9; O11, T11, 10);
-tuple_observer!(TupleObserver12, 12; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8; O10, T10, 9; O11, T11, 10; O12, T12, 11);
+tuple_observer!(TupleObserver2; O1, T1, 0; O2, T2, 1);
+tuple_observer!(TupleObserver3; O1, T1, 0; O2, T2, 1; O3, T3, 2);
+tuple_observer!(TupleObserver4; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3);
+tuple_observer!(TupleObserver5; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4);
+tuple_observer!(TupleObserver6; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5);
+tuple_observer!(TupleObserver7; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6);
+tuple_observer!(TupleObserver8; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7);
+tuple_observer!(TupleObserver9; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8);
+tuple_observer!(TupleObserver10; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8; O10, T10, 9);
+tuple_observer!(TupleObserver11; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8; O10, T10, 9; O11, T11, 10);
+tuple_observer!(TupleObserver12; O1, T1, 0; O2, T2, 1; O3, T3, 2; O4, T4, 3; O5, T5, 4; O6, T6, 5; O7, T7, 6; O8, T8, 7; O9, T9, 8; O10, T10, 9; O11, T11, 10; O12, T12, 11);

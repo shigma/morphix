@@ -157,7 +157,7 @@ pub fn derive_observe_for_enum(
                             result => result,
                         }
                     },
-                    n => {
+                    _ => {
                         let flush_stmts = idents.iter().zip(push_field_stmts.iter()).map(|(ident, push_field_stmt)| {
                             let mutability = if push_tag_stmt.is_empty() && push_field_stmt.is_empty() {
                                 quote! {}
@@ -173,9 +173,9 @@ pub fn derive_observe_for_enum(
                             }
                         });
                         quote! {{
-                            let mut mutations = ::std::vec::Vec::with_capacity(#n);
+                            let mut mutations = ::morphix::MutationBatch::new();
                             #(#flush_stmts)*
-                            Ok(::morphix::Mutation::coalesce(mutations))
+                            Ok(mutations.into_inner())
                         }}
                     }
                 };
@@ -243,8 +243,8 @@ pub fn derive_observe_for_enum(
                             }
                         },
                     },
-                    n => quote! {{
-                        let mut mutations = ::std::vec::Vec::with_capacity(#n);
+                    _ => quote! {{
+                        let mut mutations = ::morphix::MutationBatch::new();
                         #(
                             if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<A>(#ob_idents)? {
                                 mutation.path.push(#segments.into());
@@ -252,7 +252,7 @@ pub fn derive_observe_for_enum(
                                 mutations.push(mutation);
                             }
                         )*
-                        Ok(::morphix::Mutation::coalesce(mutations))
+                        Ok(mutations.into_inner())
                     }},
                 };
                 variant_flush_arms.extend(quote! {

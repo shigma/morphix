@@ -11,7 +11,7 @@ use serde::Serialize;
 
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
-use crate::{Adapter, Mutation, MutationKind, Observe, PathSegment};
+use crate::{Adapter, Mutation, MutationBatch, MutationKind, Observe, PathSegment};
 
 pub trait ObserverSlice<'ob> {
     type Item: Observer<'ob, InnerDepth = Zero, Head: Sized>;
@@ -219,7 +219,7 @@ where
     T: Serialize,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
-        let mut mutations = vec![];
+        let mut mutations = MutationBatch::new();
         let len = this.as_deref().as_ref().len();
         let Some(truncate_append) = this.mutation.replace(M::observe(len)) else {
             return Ok(Some(Mutation {
@@ -251,7 +251,7 @@ where
                 mutations.push(mutation);
             }
         }
-        Ok(Mutation::coalesce(mutations))
+        Ok(mutations.into_inner())
     }
 }
 

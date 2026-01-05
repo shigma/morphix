@@ -29,6 +29,7 @@ impl<V> Mutation<V> {
     /// - Returns [`None`] if no mutations exist.
     /// - Returns a single mutation if only one mutation exists.
     /// - Returns a [`Batch`](MutationKind::Batch) mutation if multiple mutations exist.
+    #[deprecated(note = "use `MutationBatch` instead for incremental collection")]
     pub fn coalesce(mut mutations: Vec<Mutation<V>>) -> Option<Mutation<V>> {
         match mutations.len() {
             0 => None,
@@ -37,6 +38,92 @@ impl<V> Mutation<V> {
                 path: vec![].into(),
                 kind: MutationKind::Batch(mutations),
             }),
+        }
+    }
+}
+
+/// Helper for incrementally collecting multiple mutations into a single mutation.
+///
+/// ## Behavior
+///
+/// - If no mutations are pushed, [`into_inner`](MutationBatch::into_inner) returns [`None`].
+/// - If exactly one mutation is pushed, it is returned as-is.
+/// - If multiple mutations are pushed, they are wrapped in a [`Batch`](MutationKind::Batch).
+///
+/// ## Example
+///
+/// ```
+/// use morphix::{MutationBatch, Mutation, MutationKind};
+///
+/// let mut mutations = MutationBatch::new();
+///
+/// mutations.push(Mutation {
+///     path: vec!["a".into()].into(),
+///     kind: MutationKind::Replace(42),
+/// });
+///
+/// mutations.push(Mutation {
+///     path: vec!["b".into()].into(),
+///     kind: MutationKind::Replace(43),
+/// });
+///
+/// let result = mutations.into_inner();
+/// assert!(matches!(result, Some(Mutation { kind: MutationKind::Batch(_), .. })));
+/// ```
+pub struct MutationBatch<V>(Option<Mutation<V>>);
+
+impl<V> Default for MutationBatch<V> {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<V> MutationBatch<V> {
+    /// Creates a new empty batch.
+    #[inline]
+    pub fn new() -> Self {
+        Self(None)
+    }
+
+    /// Consumes the batch and returns the collected mutation.
+    #[inline]
+    pub fn into_inner(self) -> Option<Mutation<V>> {
+        self.0
+    }
+
+    /// Pushes a mutation into the batch.
+    ///
+    /// If this is the first mutation, it is stored directly. Subsequent mutations cause the
+    /// internal storage to be converted to a [`Batch`](MutationKind::Batch).
+    pub fn push(&mut self, mutation: Mutation<V>) {
+        let Some(existing) = &mut self.0 else {
+            self.0 = Some(mutation);
+            return;
+        };
+        let existing_batch = match &mut existing.kind {
+            MutationKind::Batch(batch) => batch,
+            _ => {
+                let old = std::mem::replace(
+                    existing,
+                    Mutation {
+                        path: vec![].into(),
+                        kind: MutationKind::Batch(Vec::with_capacity(2)),
+                    },
+                );
+                let MutationKind::Batch(batch) = &mut existing.kind else {
+                    unreachable!()
+                };
+                batch.push(old);
+                batch
+            }
+        };
+        if mutation.path == existing.path
+            && let MutationKind::Batch(batch) = mutation.kind
+        {
+            existing_batch.extend(batch);
+        } else {
+            existing_batch.push(mutation);
         }
     }
 }
