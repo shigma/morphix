@@ -93,12 +93,11 @@ where
                 kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
             }));
         }
-        let mut mutations = MutationBatch::new();
         if let Some(mut mutation) = SerializeObserver::flush::<A>(&mut this.inner.0)? {
             mutation.path.push(0.into());
-            mutations.push(mutation);
+            return Ok(Some(mutation));
         }
-        Ok(mutations.into_inner())
+        Ok(None)
     }
 }
 
@@ -199,9 +198,12 @@ macro_rules! tuple_observer {
                         kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
                     }));
                 }
-                let mut mutations = MutationBatch::new();
+                let mutation_tuple = ($(SerializeObserver::flush::<A>(&mut this.inner.$n)?,)*);
+                let mut mutations = MutationBatch::with_capacity(
+                    0 $(+ mutation_tuple.$n.is_some() as usize)*
+                );
                 $(
-                    if let Some(mut mutation) = SerializeObserver::flush::<A>(&mut this.inner.$n)? {
+                    if let Some(mut mutation) = mutation_tuple.$n {
                         mutation.path.push($n.into());
                         mutations.push(mutation);
                     }

@@ -70,7 +70,10 @@ impl<V> Mutation<V> {
 /// let result = mutations.into_inner();
 /// assert!(matches!(result, Some(Mutation { kind: MutationKind::Batch(_), .. })));
 /// ```
-pub struct MutationBatch<V>(Option<Mutation<V>>);
+pub struct MutationBatch<V> {
+    inner: Option<Mutation<V>>,
+    capacity: usize,
+}
 
 impl<V> Default for MutationBatch<V> {
     #[inline]
@@ -83,13 +86,22 @@ impl<V> MutationBatch<V> {
     /// Creates a new empty batch.
     #[inline]
     pub fn new() -> Self {
-        Self(None)
+        Self {
+            inner: None,
+            capacity: 2,
+        }
+    }
+
+    /// Creates a new empty batch with a specified capacity hint.
+    #[inline]
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self { inner: None, capacity }
     }
 
     /// Consumes the batch and returns the collected mutation.
     #[inline]
     pub fn into_inner(self) -> Option<Mutation<V>> {
-        self.0
+        self.inner
     }
 
     /// Pushes a mutation into the batch.
@@ -97,8 +109,8 @@ impl<V> MutationBatch<V> {
     /// If this is the first mutation, it is stored directly. Subsequent mutations cause the
     /// internal storage to be converted to a [`Batch`](MutationKind::Batch).
     pub fn push(&mut self, mutation: Mutation<V>) {
-        let Some(existing) = &mut self.0 else {
-            self.0 = Some(mutation);
+        let Some(existing) = &mut self.inner else {
+            self.inner = Some(mutation);
             return;
         };
         let existing_batch = match &mut existing.kind {
@@ -108,7 +120,7 @@ impl<V> MutationBatch<V> {
                     existing,
                     Mutation {
                         path: vec![].into(),
-                        kind: MutationKind::Batch(Vec::with_capacity(2)),
+                        kind: MutationKind::Batch(Vec::with_capacity(self.capacity)),
                     },
                 );
                 let MutationKind::Batch(batch) = &mut existing.kind else {
@@ -118,7 +130,7 @@ impl<V> MutationBatch<V> {
                 batch
             }
         };
-        if mutation.path == existing.path
+        if mutation.path.is_empty()
             && let MutationKind::Batch(batch) = mutation.kind
         {
             existing_batch.extend(batch);
