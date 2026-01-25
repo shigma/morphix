@@ -2,7 +2,7 @@ use serde::Serialize;
 use serde_json::value::Serializer;
 use serde_json::{Error, Value};
 
-use crate::{Adapter, Mutation, PathSegment};
+use crate::{Adapter, Mutation, Mutations, PathSegment};
 
 /// JSON adapter for morphix mutation serialization.
 ///
@@ -32,8 +32,8 @@ impl Adapter for Json {
     type Value = Value;
     type Error = Error;
 
-    fn from_mutation(mutation: Option<Mutation<Self::Value>>) -> Self {
-        Json(mutation)
+    fn from_mutation(mutation: Mutations<Self::Value>) -> Self {
+        Json(mutation.into_inner())
     }
 
     fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error> {

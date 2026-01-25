@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::mem::take;
 
-use crate::{Adapter, Mutation, MutationBatch, MutationError, MutationKind, Path, PathSegment};
+use crate::{Adapter, Mutation, MutationError, MutationKind, Mutations, Path, PathSegment};
 
 #[derive(Default)]
 enum BatchMutationKind<A: Adapter> {
@@ -273,23 +273,17 @@ impl<A: Adapter> BatchTree<A> {
     /// - Returns [`None`] if no mutations have been accumulated.
     /// - Returns a single mutation if only one mutation exists.
     /// - Returns a [`Batch`](MutationKind::Batch) mutation if multiple mutations exist.
-    pub fn dump(&mut self) -> Option<Mutation<A::Value>> {
-        let mut mutations = MutationBatch::new();
+    pub fn dump(&mut self) -> Mutations<A::Value> {
+        let mut mutations = Mutations::new();
         if let Some(children) = take(&mut self.children) {
             for (segment, mut batch) in children {
-                if let Some(mut mutation) = batch.dump() {
-                    mutation.path.push(segment);
-                    mutations.push(mutation);
-                }
+                mutations.insert(segment, batch.dump());
             }
         }
         match take(&mut self.kind) {
             BatchMutationKind::None => {}
             BatchMutationKind::Replace(value) => {
-                mutations.push(Mutation {
-                    path: vec![].into(),
-                    kind: MutationKind::Replace(value),
-                });
+                mutations.extend(MutationKind::Replace(value));
             }
             #[cfg(any(feature = "append", feature = "truncate"))]
             BatchMutationKind::TruncateAppend {
@@ -299,23 +293,17 @@ impl<A: Adapter> BatchTree<A> {
             } => {
                 #[cfg(feature = "truncate")]
                 if truncate_len > 0 {
-                    mutations.push(Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Truncate(truncate_len),
-                    });
+                    mutations.extend(MutationKind::Truncate(truncate_len));
                 }
                 #[cfg(feature = "append")]
                 if append_len > 0
                     && let Some(value) = append_value
                 {
-                    mutations.push(Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Append(value),
-                    });
+                    mutations.extend(MutationKind::Append(value));
                 }
             }
         }
-        mutations.into_inner()
+        mutations
     }
 }
 
@@ -329,7 +317,7 @@ mod test {
     #[test]
     fn empty_batch() {
         let mut batch = BatchTree::<Json>::new();
-        assert_eq!(batch.dump(), None);
+        assert_eq!(batch.dump().into_inner(), None);
     }
 
     #[test]
@@ -342,7 +330,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec!["foo".into(), "bar".into()].into(),
                 kind: MutationKind::Replace(json!(1))
@@ -366,7 +354,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec!["foo".into(), "bar".into()].into(),
                 kind: MutationKind::Replace(json!(2)),
@@ -390,7 +378,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec!["foo".into(), "bar".into()].into(),
                 kind: MutationKind::Replace(json!({"qux": "12"})),
@@ -414,7 +402,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec!["foo".into(), "bar".into()].into(),
                 kind: MutationKind::Replace(json!({"qux": "1"})),
@@ -441,7 +429,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec!["foo".into(), "bar".into()].into(),
                 kind: MutationKind::Append(json!("12")),
@@ -465,7 +453,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
@@ -498,7 +486,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec!["foo".into()].into(),
                 kind: MutationKind::Batch(vec![
@@ -543,7 +531,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
@@ -594,7 +582,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
@@ -630,7 +618,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec!["foo".into(), "bar".into()].into(),
                 kind: MutationKind::Truncate(3),
@@ -654,7 +642,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
                 kind: MutationKind::Append(json!("4")),
@@ -677,7 +665,7 @@ mod test {
                 kind: MutationKind::Truncate(2),
             })
             .unwrap();
-        assert_eq!(batch.dump(), None);
+        assert_eq!(batch.dump().into_inner(), None);
     }
 
     #[test]
@@ -696,7 +684,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
                 kind: MutationKind::Truncate(1),
@@ -726,7 +714,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
                 kind: MutationKind::Batch(vec![
@@ -765,7 +753,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
                 kind: MutationKind::Truncate(4),
@@ -795,7 +783,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
@@ -852,7 +840,7 @@ mod test {
             })
             .unwrap();
         assert_eq!(
-            batch.dump(),
+            batch.dump().into_inner(),
             Some(Mutation {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![

@@ -8,7 +8,7 @@ use crate::helper::macros::spec_impl_ref_observe;
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
-use crate::{Adapter, Mutation, Observe};
+use crate::{Adapter, Mutations, Observe};
 
 impl<'ob, O, const N: usize> ObserverSlice<'ob> for [O; N]
 where
@@ -134,7 +134,7 @@ where
     T: Serialize,
 {
     #[inline]
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         unsafe { SliceObserver::flush_unchecked::<A>(&mut this.inner) }
     }
 }

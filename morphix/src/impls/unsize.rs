@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use crate::helper::{AsDeref, Unsigned};
 use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver, RefObserve, SerializeHandler};
-use crate::{Adapter, Mutation, MutationKind};
+use crate::{Adapter, Mutations, MutationKind};
 
 trait Len {
     fn len(&self) -> usize;
@@ -63,7 +63,7 @@ where
     T::Target: Len + Index<RangeFrom<usize>, Output = T::Target> + Serialize,
     E: Unsigned,
 {
-    unsafe fn flush<A: Adapter>(&mut self, new_value: &T) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    unsafe fn flush<A: Adapter>(&mut self, new_value: &T) -> Result<Mutations<A::Value>, A::Error> {
         let new_value = new_value.as_deref();
         let old_value = unsafe {
             self.ptr
@@ -71,38 +71,23 @@ where
                 .as_ref()
         };
         if !std::ptr::addr_eq(new_value, old_value) {
-            return Ok(Some(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value(new_value)?),
-            }));
+            return Ok(MutationKind::Replace(A::serialize_value(new_value)?).into());
         }
         let old_len = old_value.len();
         let new_len = new_value.len();
         if new_len < old_len {
             #[cfg(feature = "truncate")]
-            return Ok(Some(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Truncate(old_value[new_len..].len()),
-            }));
+            return Ok(MutationKind::Truncate(old_value[new_len..].len()).into());
             #[cfg(not(feature = "truncate"))]
-            return Ok(Some(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value(new_value)?),
-            }));
+            return Ok(MutationKind::Replace(A::serialize_value(new_value)?).into());
         }
         if new_len > old_len {
             #[cfg(feature = "append")]
-            return Ok(Some(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Append(A::serialize_value(&new_value[old_len..])?),
-            }));
+            return Ok(MutationKind::Append(A::serialize_value(&new_value[old_len..])?).into());
             #[cfg(not(feature = "append"))]
-            return Ok(Some(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value(new_value)?),
-            }));
+            return Ok(MutationKind::Replace(A::serialize_value(new_value)?).into());
         }
-        Ok(None)
+        Ok(Mutations::new())
     }
 }
 

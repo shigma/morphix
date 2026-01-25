@@ -2,7 +2,7 @@ use serde::Serialize;
 use serde_yaml_ng::value::Serializer;
 use serde_yaml_ng::{Error, Value};
 
-use crate::{Adapter, Mutation, PathSegment};
+use crate::{Adapter, Mutation, Mutations, PathSegment};
 
 /// YAML adapter for morphix mutation serialization.
 ///
@@ -40,8 +40,8 @@ impl Adapter for Yaml {
     type Value = Value;
     type Error = Error;
 
-    fn from_mutation(mutation: Option<Mutation<Self::Value>>) -> Self {
-        Yaml(mutation)
+    fn from_mutation(mutation: Mutations<Self::Value>) -> Self {
+        Yaml(mutation.into_inner())
     }
 
     fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error> {

@@ -11,7 +11,7 @@ use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver, TruncateAppend};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
-use crate::{Adapter, Mutation, Observe};
+use crate::{Adapter, Mutations, Observe};
 
 pub struct VecObserver<'ob, O, S: ?Sized, D = Zero> {
     inner: SliceObserver<'ob, UnsafeCell<Vec<O>>, TruncateAppend, S, Succ<D>>,
@@ -74,7 +74,7 @@ where
     T: Serialize,
 {
     #[inline]
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         unsafe { SliceObserver::flush_unchecked::<A>(&mut this.inner) }
     }
 }
@@ -494,9 +494,9 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::MutationKind;
     use crate::adapter::Json;
     use crate::observe::{ObserveExt, SerializeObserverExt, ShallowObserver};
+    use crate::{Mutation, MutationKind};
 
     #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
     struct Number(i32);

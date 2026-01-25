@@ -36,7 +36,7 @@
 //! use cases.
 
 use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Unsigned, Zero};
-use crate::{Adapter, Mutation};
+use crate::{Adapter, Mutations};
 
 mod general;
 mod noop;
@@ -407,7 +407,7 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
     /// called when the observer contains a valid pointer. The observer's [`Deref`](std::ops::Deref)
     /// and [`DerefMut`](std::ops::DerefMut) implementations are guaranteed to be safe when
     /// `flush_unchecked` is called.
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error>;
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error>;
 
     /// Flushes and serializes all recorded mutations using the specified adapter.
     ///
@@ -445,9 +445,9 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
     /// let Json(mutation) = empty.flush().unwrap();
     /// assert!(mutation.is_none());
     /// ```
-    fn flush<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         if ObserverPointer::is_null(Self::as_ptr(this)) {
-            return Ok(None);
+            return Ok(Mutations::new());
         }
         unsafe { Self::flush_unchecked::<A>(this) }
     }

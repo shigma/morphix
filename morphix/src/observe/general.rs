@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::helper::{AsNormalized, Succ};
 use crate::observe::{Observer, ObserverPointer, SerializeObserver, Unsigned, Zero};
-use crate::{Adapter, Mutation, MutationKind};
+use crate::{Adapter, Mutations, MutationKind};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
 ///
@@ -85,7 +85,7 @@ pub trait SerializeHandler: GeneralHandler {
     /// ## Safety
     ///
     /// See [`SerializeObserver::flush_unchecked`].
-    unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Option<Mutation<A::Value>>, A::Error>;
+    unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Mutations<A::Value>, A::Error>;
 }
 
 /// A handler that can only express replace-style mutations.
@@ -116,14 +116,11 @@ where
     H::Target: Serialize,
 {
     #[inline]
-    unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Mutations<A::Value>, A::Error> {
         if self.flush_replace(value) {
-            Ok(Some(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value(value)?),
-            }))
+            Ok(MutationKind::Replace(A::serialize_value(value)?).into())
         } else {
-            Ok(None)
+            Ok(Mutations::new())
         }
     }
 }
@@ -260,7 +257,7 @@ where
     S: crate::helper::AsDeref<N> + 'ob,
     H: SerializeHandler<Target = S::Target>,
 {
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         unsafe { this.handler.flush::<A>(this.ptr.as_deref()) }
     }
 }

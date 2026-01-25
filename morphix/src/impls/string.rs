@@ -7,7 +7,7 @@ use std::string::Drain;
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
-use crate::{Adapter, Mutation, MutationBatch, MutationKind, Observe};
+use crate::{Adapter, MutationKind, Mutations, Observe};
 
 pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
@@ -88,37 +88,30 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String> + 'ob,
 {
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let len = this.as_deref().len();
         let Some(truncate_append) = this.mutation.replace(TruncateAppend {
             append_index: len,
             truncate_len: 0,
         }) else {
-            return Ok(Some(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value(this.as_deref())?),
-            }));
+            return Ok(MutationKind::Replace(A::serialize_value(this.as_deref())?).into());
         };
         let TruncateAppend {
             append_index,
             truncate_len,
         } = truncate_append;
-        let mut mutations = MutationBatch::new();
+        let mut mutations = Mutations::new();
         #[cfg(feature = "truncate")]
         if truncate_len > 0 {
-            mutations.push(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Truncate(truncate_len),
-            });
+            mutations.extend(MutationKind::Truncate(truncate_len));
         }
         #[cfg(feature = "append")]
         if len > append_index {
-            mutations.push(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Append(A::serialize_value(&this.as_deref()[append_index..])?),
-            });
+            mutations.extend(MutationKind::Append(A::serialize_value(
+                &this.as_deref()[append_index..],
+            )?));
         }
-        Ok(mutations.into_inner())
+        Ok(mutations)
     }
 }
 
@@ -414,6 +407,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::Mutation;
     use crate::adapter::Json;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 

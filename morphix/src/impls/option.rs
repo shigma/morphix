@@ -7,7 +7,7 @@ use serde::Serialize;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::observe::{Observer, ObserverPointer, SerializeObserver};
-use crate::{Adapter, Mutation, MutationKind, Observe};
+use crate::{Adapter, MutationKind, Mutations, Observe};
 
 /// Observer implementation for [`Option`].
 ///
@@ -94,7 +94,7 @@ where
     O: SerializeObserver<'ob, InnerDepth = Zero>,
     O::Head: Serialize + Sized,
 {
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let value = this.ptr.as_deref();
         let initial = this.initial;
         this.initial = value.is_some();
@@ -102,18 +102,15 @@ where
             if let Some(ob) = &mut this.inner {
                 return SerializeObserver::flush::<A>(ob);
             } else {
-                return Ok(None);
+                return Ok(Mutations::new());
             }
         }
         this.mutated = false;
         this.inner = None;
         if initial || value.is_some() {
-            Ok(Some(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value(value)?),
-            }))
+            Ok(MutationKind::Replace(A::serialize_value(value)?).into())
         } else {
-            Ok(None)
+            Ok(Mutations::new())
         }
     }
 }

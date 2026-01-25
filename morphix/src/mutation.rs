@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::Path;
+use crate::{Path, PathSegment};
 
 /// A mutation representing a change to a value at a specific path.
 ///
@@ -24,38 +24,42 @@ pub struct Mutation<V> {
 }
 
 impl<V> Mutation<V> {
-    /// Coalesce many mutations as a single mutation.
-    ///
-    /// - Returns [`None`] if no mutations exist.
-    /// - Returns a single mutation if only one mutation exists.
-    /// - Returns a [`Batch`](MutationKind::Batch) mutation if multiple mutations exist.
-    #[deprecated(note = "use `MutationBatch` instead for incremental collection")]
-    pub fn coalesce(mut mutations: Vec<Mutation<V>>) -> Option<Mutation<V>> {
-        match mutations.len() {
-            0 => None,
-            1 => Some(mutations.swap_remove(0)),
-            _ => Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(mutations),
-            }),
+    fn make_batch(&mut self, capacity: usize) -> &mut Vec<Self> {
+        if self.path.is_empty()
+            && let MutationKind::Batch(ref mut batch) = self.kind
+        {
+            return batch;
         }
+        let old = std::mem::replace(
+            self,
+            Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Batch(Vec::with_capacity(capacity)),
+            },
+        );
+        let MutationKind::Batch(batch) = &mut self.kind else {
+            unreachable!()
+        };
+        batch.push(old);
+        batch
     }
 }
 
-/// Helper for incrementally collecting multiple mutations into a single mutation.
+/// A collection of mutations collected during observation. It is the return type for
+/// [`flush`](crate::observe::SerializeObserver::flush) operations.
 ///
 /// ## Behavior
 ///
-/// - If no mutations are pushed, [`into_inner`](MutationBatch::into_inner) returns [`None`].
+/// - If no mutations are pushed, [`into_inner`](Mutations::into_inner) returns [`None`].
 /// - If exactly one mutation is pushed, it is returned as-is.
 /// - If multiple mutations are pushed, they are wrapped in a [`Batch`](MutationKind::Batch).
 ///
 /// ## Example
 ///
 /// ```
-/// use morphix::{MutationBatch, Mutation, MutationKind};
+/// use morphix::{Mutation, MutationKind, Mutations};
 ///
-/// let mut mutations = MutationBatch::new();
+/// let mut mutations = Mutations::new();
 ///
 /// mutations.push(Mutation {
 ///     path: vec!["a".into()].into(),
@@ -70,19 +74,39 @@ impl<V> Mutation<V> {
 /// let result = mutations.into_inner();
 /// assert!(matches!(result, Some(Mutation { kind: MutationKind::Batch(_), .. })));
 /// ```
-pub struct MutationBatch<V> {
+pub struct Mutations<V> {
     inner: Option<Mutation<V>>,
     capacity: usize,
 }
 
-impl<V> Default for MutationBatch<V> {
+impl<V> Default for Mutations<V> {
     #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<V> MutationBatch<V> {
+impl<V> From<MutationKind<V>> for Mutations<V> {
+    #[inline]
+    fn from(kind: MutationKind<V>) -> Self {
+        Self {
+            inner: Some(Mutation {
+                path: Default::default(),
+                kind,
+            }),
+            capacity: 2,
+        }
+    }
+}
+
+impl<V> From<Mutations<V>> for Option<Mutation<V>> {
+    #[inline]
+    fn from(value: Mutations<V>) -> Self {
+        value.into_inner()
+    }
+}
+
+impl<V> Mutations<V> {
     /// Creates a new empty batch.
     #[inline]
     pub fn new() -> Self {
@@ -104,39 +128,49 @@ impl<V> MutationBatch<V> {
         self.inner
     }
 
-    /// Pushes a mutation into the batch.
-    ///
-    /// If this is the first mutation, it is stored directly. Subsequent mutations cause the
-    /// internal storage to be converted to a [`Batch`](MutationKind::Batch).
-    pub fn push(&mut self, mutation: Mutation<V>) {
-        let Some(existing) = &mut self.inner else {
-            self.inner = Some(mutation);
+    pub fn extend(&mut self, mutations: impl Into<Self>) {
+        let Some(incoming) = mutations.into().into_inner() else {
             return;
         };
-        let existing_batch = match &mut existing.kind {
-            MutationKind::Batch(batch) if existing.path.is_empty() => batch,
-            _ => {
-                let old = std::mem::replace(
-                    existing,
-                    Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Batch(Vec::with_capacity(self.capacity)),
-                    },
-                );
-                let MutationKind::Batch(batch) = &mut existing.kind else {
-                    unreachable!()
-                };
-                batch.push(old);
-                batch
-            }
+        let Some(existing) = &mut self.inner else {
+            self.inner = Some(incoming);
+            return;
         };
-        if mutation.path.is_empty()
-            && let MutationKind::Batch(batch) = mutation.kind
+        let existing_batch: &mut Vec<Mutation<V>> = existing.make_batch(self.capacity);
+        if incoming.path.is_empty()
+            && let MutationKind::Batch(incoming_batch) = incoming.kind
         {
-            existing_batch.extend(batch);
+            existing_batch.extend(incoming_batch);
         } else {
-            existing_batch.push(mutation);
+            existing_batch.push(incoming);
         }
+    }
+
+    pub fn insert(&mut self, segment: PathSegment, mutations: impl Into<Self>) {
+        let Some(mut incoming) = mutations.into().into_inner() else {
+            return;
+        };
+        incoming.path.push(segment);
+        let Some(existing) = &mut self.inner else {
+            self.inner = Some(incoming);
+            return;
+        };
+        let existing_batch = existing.make_batch(self.capacity);
+        existing_batch.push(incoming);
+    }
+
+    pub fn len(&self) -> usize {
+        match &self.inner {
+            None => 0,
+            Some(mutation) => match &mutation.kind {
+                MutationKind::Batch(batch) if mutation.path.is_empty() => batch.len(),
+                _ => 1,
+            },
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 }
 

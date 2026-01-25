@@ -11,7 +11,7 @@ use serde::Serialize;
 
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
-use crate::{Adapter, Mutation, MutationBatch, MutationKind, Observe, PathSegment};
+use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
 pub trait ObserverSlice<'ob> {
     type Item: Observer<'ob, InnerDepth = Zero, Head: Sized>;
@@ -218,40 +218,33 @@ where
     O: SerializeObserver<'ob, InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Option<Mutation<A::Value>>, A::Error> {
-        let mut mutations = MutationBatch::new();
+    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let len = this.as_deref().as_ref().len();
         let Some(truncate_append) = this.mutation.replace(M::observe(len)) else {
-            return Ok(Some(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Replace(A::serialize_value(this.as_deref().as_ref())?),
-            }));
+            return Ok(MutationKind::Replace(A::serialize_value(this.as_deref().as_ref())?).into());
         };
+        let mut mutations = Mutations::new();
         let TruncateAppend {
             truncate_len,
             append_index,
         } = truncate_append.collect(len);
         #[cfg(feature = "truncate")]
         if truncate_len > 0 {
-            mutations.push(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Truncate(truncate_len),
-            });
+            mutations.extend(MutationKind::Truncate(truncate_len));
         }
         #[cfg(feature = "append")]
         if len > append_index {
-            mutations.push(Mutation {
-                path: Default::default(),
-                kind: MutationKind::Append(A::serialize_value(&this.as_deref().as_ref()[append_index..])?),
-            });
+            mutations.extend(MutationKind::Append(A::serialize_value(
+                &this.as_deref().as_ref()[append_index..],
+            )?));
         }
         for (index, observer) in this.obs.as_mut_slice().iter_mut().take(append_index).enumerate() {
-            if let Some(mut mutation) = SerializeObserver::flush::<A>(observer)? {
-                mutation.path.push(PathSegment::Negative(len - index));
-                mutations.push(mutation);
-            }
+            mutations.insert(
+                PathSegment::Negative(len - index),
+                SerializeObserver::flush::<A>(observer)?,
+            );
         }
-        Ok(mutations.into_inner())
+        Ok(mutations)
     }
 }
 
@@ -599,6 +592,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::Mutation;
     use crate::adapter::Json;
     use crate::observe::{ObserveExt, SerializeObserverExt, ShallowObserver};
 

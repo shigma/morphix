@@ -17,6 +17,6 @@ pub use batch::BatchTree;
 pub use error::MutationError;
 #[cfg(feature = "derive")]
 pub use morphix_derive::{Observe, observe};
-pub use mutation::{Mutation, MutationBatch, MutationKind};
+pub use mutation::{Mutation, Mutations, MutationKind};
 pub use observe::Observe;
 pub use path::{Path, PathSegment};
