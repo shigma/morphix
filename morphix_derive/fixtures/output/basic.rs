@@ -83,35 +83,28 @@ const _: () = {
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
-        ) -> ::std::result::Result<
-            ::std::option::Option<::morphix::Mutation<A::Value>>,
-            A::Error,
-        > {
+        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             if this.__mutated {
                 this.__mutated = false;
                 return Ok(
-                    Some(::morphix::Mutation {
-                        path: ::morphix::Path::new(),
-                        kind: ::morphix::MutationKind::Replace(
+                    ::morphix::MutationKind::Replace(
                             A::serialize_value(this.as_deref())?,
-                        ),
-                    }),
+                        )
+                        .into(),
                 );
             }
-            let mut mutations = ::morphix::MutationBatch::new();
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
+            let mutations_a = ::morphix::observe::SerializeObserver::flush::<
                 A,
-            >(&mut this.a)? {
-                mutation.path.push("A".into());
-                mutations.push(mutation);
-            }
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
+            >(&mut this.a)?;
+            let mutations_b = ::morphix::observe::SerializeObserver::flush::<
                 A,
-            >(&mut this.b)? {
-                mutation.path.push("bar".into());
-                mutations.push(mutation);
-            }
-            Ok(mutations.into_inner())
+            >(&mut this.b)?;
+            let mut mutations = ::morphix::Mutations::with_capacity(
+                mutations_a.len() + mutations_b.len(),
+            );
+            mutations.insert("A", mutations_a);
+            mutations.insert("bar", mutations_b);
+            Ok(mutations)
         }
     }
     #[automatically_derived]

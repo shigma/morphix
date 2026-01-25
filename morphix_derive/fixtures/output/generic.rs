@@ -113,28 +113,22 @@ const _: () = {
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
-        ) -> ::std::result::Result<
-            ::std::option::Option<::morphix::Mutation<A::Value>>,
-            A::Error,
-        > {
+        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             if this.__mutated {
                 this.__mutated = false;
                 return Ok(
-                    Some(::morphix::Mutation {
-                        path: ::morphix::Path::new(),
-                        kind: ::morphix::MutationKind::Replace(
+                    ::morphix::MutationKind::Replace(
                             A::serialize_value(this.as_deref())?,
-                        ),
-                    }),
+                        )
+                        .into(),
                 );
             }
-            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
+            let mutations_a = ::morphix::observe::SerializeObserver::flush::<
                 A,
-            >(&mut this.a)? {
-                mutation.path.push("a".into());
-                return Ok(Some(mutation));
-            }
-            Ok(None)
+            >(&mut this.a)?;
+            let mut mutations = ::morphix::Mutations::with_capacity(mutations_a.len());
+            mutations.insert("a", mutations_a);
+            Ok(mutations)
         }
     }
     #[automatically_derived]

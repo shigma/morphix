@@ -508,7 +508,7 @@ mod test {
         let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
-                path: vec![(-1).into()].into(),
+                path: vec![PathSegment::Negative(1)].into(),
                 kind: MutationKind::Append(json!("c")),
             })
             .unwrap();
@@ -520,13 +520,13 @@ mod test {
             .unwrap();
         batch
             .load(Mutation {
-                path: vec![(-1).into()].into(),
+                path: vec![PathSegment::Negative(1)].into(),
                 kind: MutationKind::Append(json!("d")),
             })
             .unwrap();
         batch
             .load(Mutation {
-                path: vec![(-3).into()].into(),
+                path: vec![PathSegment::Negative(3)].into(),
                 kind: MutationKind::Append(json!("e")),
             })
             .unwrap();
@@ -536,7 +536,7 @@ mod test {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
-                        path: vec![(-1).into()].into(),
+                        path: vec![PathSegment::Negative(1)].into(),
                         kind: MutationKind::Append(json!("ce")),
                     },
                     Mutation {
@@ -553,7 +553,7 @@ mod test {
         let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
-                path: vec![(-1).into()].into(),
+                path: vec![PathSegment::Negative(1)].into(),
                 kind: MutationKind::Append(json!("c")),
             })
             .unwrap();
@@ -565,7 +565,7 @@ mod test {
             .unwrap();
         batch
             .load(Mutation {
-                path: vec![(-2).into()].into(),
+                path: vec![PathSegment::Negative(2)].into(),
                 kind: MutationKind::Append(json!("d")),
             })
             .unwrap();
@@ -577,7 +577,7 @@ mod test {
             .unwrap();
         batch
             .load(Mutation {
-                path: vec![(-3).into()].into(),
+                path: vec![PathSegment::Negative(3)].into(),
                 kind: MutationKind::Append(json!("g")),
             })
             .unwrap();
@@ -587,7 +587,7 @@ mod test {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
-                        path: vec![(-1).into()].into(),
+                        path: vec![PathSegment::Negative(1)].into(),
                         kind: MutationKind::Append(json!("c")),
                     },
                     Mutation {
@@ -766,7 +766,7 @@ mod test {
         let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
-                path: vec![(-1).into()].into(),
+                path: vec![PathSegment::Negative(1)].into(),
                 kind: MutationKind::Truncate(1),
             })
             .unwrap();
@@ -778,7 +778,7 @@ mod test {
             .unwrap();
         batch
             .load(Mutation {
-                path: vec![(-1).into()].into(),
+                path: vec![PathSegment::Negative(1)].into(),
                 kind: MutationKind::Truncate(3),
             })
             .unwrap();
@@ -788,7 +788,7 @@ mod test {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
-                        path: vec![(-3).into()].into(),
+                        path: vec![PathSegment::Negative(3)].into(),
                         kind: MutationKind::Truncate(3),
                     },
                     Mutation {
@@ -811,7 +811,7 @@ mod test {
             .unwrap();
         batch
             .load(Mutation {
-                path: vec![(-2).into()].into(),
+                path: vec![PathSegment::Negative(2)].into(),
                 kind: MutationKind::Truncate(3),
             })
             .unwrap();
@@ -823,7 +823,7 @@ mod test {
             .unwrap();
         batch
             .load(Mutation {
-                path: vec![(-1).into()].into(),
+                path: vec![PathSegment::Negative(1)].into(),
                 kind: MutationKind::Append(json!("Hello, world!")),
             })
             .unwrap();
@@ -835,7 +835,7 @@ mod test {
             .unwrap();
         batch
             .load(Mutation {
-                path: vec![(-3).into()].into(),
+                path: vec![PathSegment::Negative(3)].into(),
                 kind: MutationKind::Truncate(8),
             })
             .unwrap();
@@ -845,7 +845,7 @@ mod test {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
-                        path: vec![(-4).into()].into(),
+                        path: vec![PathSegment::Negative(4)].into(),
                         kind: MutationKind::Batch(vec![
                             Mutation {
                                 path: vec![].into(),

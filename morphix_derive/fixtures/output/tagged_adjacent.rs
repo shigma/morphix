@@ -72,10 +72,7 @@ const _: () = {
         }
         fn flush<A: ::morphix::Adapter>(
             &mut self,
-        ) -> ::std::result::Result<
-            ::std::option::Option<::morphix::Mutation<A::Value>>,
-            A::Error,
-        >
+        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error>
         where
             ::morphix::observe::DefaultObserver<
                 'ob,
@@ -84,43 +81,42 @@ const _: () = {
         {
             match self {
                 Self::A(u0) => {
-                    match ::morphix::observe::SerializeObserver::flush::<A>(u0) {
-                        Ok(Some(mut mutation)) => {
-                            mutation.path.push("data".into());
-                            Ok(Some(mutation))
-                        }
-                        result => result,
-                    }
+                    let mut mutations = ::morphix::Mutations::new();
+                    mutations
+                        .insert2(
+                            0usize,
+                            "data",
+                            ::morphix::observe::SerializeObserver::flush::<A>(u0)?,
+                        );
+                    Ok(mutations)
                 }
                 Self::B(u0, u1) => {
-                    let mut mutations = ::morphix::MutationBatch::new();
-                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(u0)? {
-                        mutation.path.push("0".into());
-                        mutation.path.push("data".into());
-                        mutations.push(mutation);
-                    }
-                    if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(u1)? {
-                        mutation.path.push("1".into());
-                        mutation.path.push("data".into());
-                        mutations.push(mutation);
-                    }
-                    Ok(mutations.into_inner())
+                    let mut mutations = ::morphix::Mutations::new();
+                    mutations
+                        .insert2(
+                            0usize,
+                            "data",
+                            ::morphix::observe::SerializeObserver::flush::<A>(u0)?,
+                        );
+                    mutations
+                        .insert2(
+                            1usize,
+                            "data",
+                            ::morphix::observe::SerializeObserver::flush::<A>(u1)?,
+                        );
+                    Ok(mutations)
                 }
                 Self::C { bar } => {
-                    match ::morphix::observe::SerializeObserver::flush::<A>(bar) {
-                        Ok(Some(mut mutation)) => {
-                            mutation.path.push("bar".into());
-                            mutation.path.push("data".into());
-                            Ok(Some(mutation))
-                        }
-                        result => result,
-                    }
+                    let mut mutations = ::morphix::Mutations::new();
+                    mutations
+                        .insert2(
+                            "bar",
+                            "data",
+                            ::morphix::observe::SerializeObserver::flush::<A>(bar)?,
+                        );
+                    Ok(mutations)
                 }
-                Self::__None => Ok(None),
+                Self::__None => Ok(::morphix::Mutations::new()),
             }
         }
     }
@@ -202,22 +198,15 @@ const _: () = {
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
-        ) -> ::std::result::Result<
-            ::std::option::Option<::morphix::Mutation<A::Value>>,
-            A::Error,
-        > {
+        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             if !this.__mutated {
                 return this.__variant.flush::<A>();
             }
             this.__mutated = false;
             this.__variant = FooObserverVariant::__None;
             Ok(
-                Some(::morphix::Mutation {
-                    path: ::morphix::Path::new(),
-                    kind: ::morphix::MutationKind::Replace(
-                        A::serialize_value(this.as_deref())?,
-                    ),
-                }),
+                ::morphix::MutationKind::Replace(A::serialize_value(this.as_deref())?)
+                    .into(),
             )
         }
     }

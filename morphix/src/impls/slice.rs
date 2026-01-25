@@ -623,7 +623,7 @@ mod tests {
         assert_eq!(
             mutation,
             Some(Mutation {
-                path: vec![(-1).into()].into(),
+                path: vec![PathSegment::Negative(1)].into(),
                 kind: MutationKind::Replace(json!(Number(42)))
             })
         );
@@ -642,7 +642,7 @@ mod tests {
         assert_eq!(
             mutation,
             Some(Mutation {
-                path: vec![(-1).into()].into(),
+                path: vec![PathSegment::Negative(1)].into(),
                 kind: MutationKind::Replace(json!(Number(42)))
             })
         );
@@ -661,11 +661,11 @@ mod tests {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
-                        path: vec![(-3).into()].into(),
+                        path: vec![PathSegment::Negative(3)].into(),
                         kind: MutationKind::Replace(json!(Number(1))),
                     },
                     Mutation {
-                        path: vec![(-2).into()].into(),
+                        path: vec![PathSegment::Negative(2)].into(),
                         kind: MutationKind::Replace(json!(Number(0))),
                     }
                 ]),

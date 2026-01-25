@@ -48,22 +48,15 @@ pub fn derive_observe_for_enum(
         let variant_meta =
             ObserveMeta::parse_attrs(&variant.attrs, &mut errors, AttributeKind::Variant, DeriveKind::Enum);
         let mut ob_variant = variant.clone();
-        let push_tag_stmt = if let Some(expr) = &input_meta.serde.content {
-            quote! {
-                mutation.path.push(#expr.into());
-            }
+        let tag_segment = if let Some(expr) = &input_meta.serde.content {
+            Some(quote! { #expr })
         } else if input_meta.serde.untagged || input_meta.serde.tag.is_some() {
-            quote! {}
+            None
+        } else if let Some(rename) = &variant_meta.serde.rename {
+            Some(quote! { #rename })
         } else {
-            let segment = if let Some(rename) = &variant_meta.serde.rename {
-                quote! { #rename }
-            } else {
-                let segment = input_meta.serde.rename_all.apply(&variant_name);
-                quote! { #segment }
-            };
-            quote! {
-                mutation.path.push(#segment.into());
-            }
+            let segment = input_meta.serde.rename_all.apply(&variant_name);
+            Some(quote! { #segment })
         };
         if variant.fields.is_empty() {
             has_initial = true;
@@ -76,7 +69,7 @@ pub fn derive_observe_for_enum(
                 #input_ident::#variant => #ob_initial_ident::#variant_ident,
             });
             initial_flush_arms.extend(quote! {
-                (#ob_initial_ident::#variant_ident, #input_ident::#variant) => Ok(None),
+                (#ob_initial_ident::#variant_ident, #input_ident::#variant) => Ok(::morphix::Mutations::new()),
             });
             continue;
         }
@@ -85,7 +78,7 @@ pub fn derive_observe_for_enum(
             syn::Fields::Named(fields_named) => {
                 let mut idents = vec![];
                 let mut ob_idents = vec![];
-                let mut push_field_stmts = vec![];
+                let mut field_segments = vec![];
                 let mut value_idents = vec![];
                 let mut observe_exprs = vec![];
                 for (index, field) in fields_named.named.iter_mut().enumerate() {
@@ -103,23 +96,18 @@ pub fn derive_observe_for_enum(
                     value_idents.push(quote! { #value_ident });
                     idents.push(quote! { #field_ident });
                     if field_meta.serde.flatten {
-                        push_field_stmts.push(quote! {});
+                        field_segments.push(None);
+                    } else if let Some(rename) = &field_meta.serde.rename {
+                        field_segments.push(Some(quote! { #rename }));
                     } else {
-                        let segment = if let Some(rename) = &field_meta.serde.rename {
-                            quote! { #rename }
-                        } else {
-                            let field_name = field_ident.as_ref().unwrap().to_string();
-                            let segment = variant_meta
-                                .serde
-                                .rename_all
-                                .or(input_meta.serde.rename_all_fields)
-                                .apply(&field_name);
-                            quote! { #segment }
-                        };
-                        push_field_stmts.push(quote! {
-                            mutation.path.push(#segment.into());
-                        });
-                    }
+                        let field_name = field_ident.as_ref().unwrap().to_string();
+                        let segment = variant_meta
+                            .serde
+                            .rename_all
+                            .or(input_meta.serde.rename_all_fields)
+                            .apply(&field_name);
+                        field_segments.push(Some(quote! { #segment }));
+                    };
                     observe_exprs.push(quote! {
                         ::morphix::observe::Observer::observe(#field_ident)
                     });
@@ -145,48 +133,31 @@ pub fn derive_observe_for_enum(
                         #(::morphix::observe::Observer::refresh(#ob_idents, #value_idents));*
                     }
                 });
-                let variant_flush_expr = match fields_named.named.len() {
-                    0 => quote! { Ok(None) },
-                    1 => quote! {
-                        match ::morphix::observe::SerializeObserver::flush::<A>(#(#idents),*) {
-                            Ok(Some(mut mutation)) => {
-                                #(#push_field_stmts)*
-                                #push_tag_stmt
-                                Ok(Some(mutation))
-                            },
-                            result => result,
-                        }
-                    },
-                    _ => {
-                        let flush_stmts = idents.iter().zip(push_field_stmts.iter()).map(|(ident, push_field_stmt)| {
-                            let mutability = if push_tag_stmt.is_empty() && push_field_stmt.is_empty() {
-                                quote! {}
-                            } else {
-                                quote! { mut }
-                            };
-                            quote! {
-                                if let Some(#mutability mutation) = ::morphix::observe::SerializeObserver::flush::<A>(#ident)? {
-                                    #push_field_stmt
-                                    #push_tag_stmt
-                                    mutations.push(mutation);
-                                }
-                            }
-                        });
-                        quote! {{
-                            let mut mutations = ::morphix::MutationBatch::new();
-                            #(#flush_stmts)*
-                            Ok(mutations.into_inner())
-                        }}
+                let flush_stmts = idents.iter().zip(field_segments).map(|(ident, field_segment)| {
+                    let segment_count = field_segment.iter().len() + tag_segment.iter().len();
+                    let segments = field_segment.iter().chain(&tag_segment);
+                    let children = quote! {
+                        ::morphix::observe::SerializeObserver::flush::<A>(#ident)?
+                    };
+                    match segment_count {
+                        0 => quote! { mutations.extend(#children); },
+                        1 => quote! { mutations.insert(#(#segments),*, #children); },
+                        2 => quote! { mutations.insert2(#(#segments),*, #children); },
+                        _ => unreachable!(),
                     }
-                };
+                });
                 variant_flush_arms.extend(quote! {
-                    Self::#variant_ident { #(#idents),* } => #variant_flush_expr,
+                    Self::#variant_ident { #(#idents),* } => {
+                        let mut mutations = ::morphix::Mutations::new();
+                        #(#flush_stmts)*
+                        Ok(mutations)
+                    },
                 });
             }
             syn::Fields::Unnamed(fields_unnamed) => {
                 let mut ob_idents = vec![];
                 let mut value_idents = vec![];
-                let mut segments = vec![];
+                let mut field_segments = vec![];
                 let mut observe_exprs = vec![];
                 for (index, field) in fields_unnamed.unnamed.iter_mut().enumerate() {
                     let field_meta =
@@ -200,8 +171,7 @@ pub fn derive_observe_for_enum(
                     let value_ident = syn::Ident::new(&format!("v{}", index), field_span);
                     ob_idents.push(quote! { #ob_ident });
                     value_idents.push(quote! { #value_ident });
-                    let segment = index.to_string();
-                    segments.push(quote! { #segment });
+                    field_segments.push(quote! { #index });
                     observe_exprs.push(quote! {
                         ::morphix::observe::Observer::observe(#value_ident)
                     });
@@ -227,36 +197,21 @@ pub fn derive_observe_for_enum(
                         #(::morphix::observe::Observer::refresh(#ob_idents, #value_idents));*
                     }
                 });
-                let variant_flush_expr = match fields_unnamed.unnamed.len() {
-                    0 => quote! { Ok(None) },
-                    1 => match push_tag_stmt.is_empty() {
-                        true => quote! {
-                            ::morphix::observe::SerializeObserver::flush::<A>(#(#ob_idents),*)
-                        },
-                        false => quote! {
-                            match ::morphix::observe::SerializeObserver::flush::<A>(#(#ob_idents),*) {
-                                Ok(Some(mut mutation)) => {
-                                    #push_tag_stmt
-                                    Ok(Some(mutation))
-                                },
-                                result => result,
-                            }
-                        },
-                    },
-                    _ => quote! {{
-                        let mut mutations = ::morphix::MutationBatch::new();
-                        #(
-                            if let Some(mut mutation) = ::morphix::observe::SerializeObserver::flush::<A>(#ob_idents)? {
-                                mutation.path.push(#segments.into());
-                                #push_tag_stmt
-                                mutations.push(mutation);
-                            }
-                        )*
-                        Ok(mutations.into_inner())
-                    }},
-                };
+                let flush_stmts = ob_idents.iter().zip(field_segments).map(|(ident, field_segment)| {
+                    let children = quote! {
+                        ::morphix::observe::SerializeObserver::flush::<A>(#ident)?
+                    };
+                    match &tag_segment {
+                        Some(tag_segment) => quote! { mutations.insert2(#field_segment, #tag_segment, #children); },
+                        None => quote! { mutations.insert(#field_segment, #children); },
+                    }
+                });
                 variant_flush_arms.extend(quote! {
-                    Self::#variant_ident(#(#ob_idents),*) => #variant_flush_expr,
+                    Self::#variant_ident(#(#ob_idents),*) => {
+                        let mut mutations = ::morphix::Mutations::new();
+                        #(#flush_stmts)*
+                        Ok(mutations)
+                    },
                 });
             }
             syn::Fields::Unit => {
@@ -301,14 +256,11 @@ pub fn derive_observe_for_enum(
         (Self::__None, _) => {},
     });
     variant_flush_arms.extend(quote! {
-        Self::__None => Ok(None),
+        Self::__None => Ok(::morphix::Mutations::new()),
     });
 
     initial_flush_arms.extend(quote! {
-        _ => Ok(Some(::morphix::Mutation {
-            path: ::morphix::Path::new(),
-            kind: ::morphix::MutationKind::Replace(A::serialize_value(__value)?),
-        })),
+        _ => Ok(::morphix::MutationKind::Replace(A::serialize_value(__value)?).into()),
     });
 
     let ob_flush_prefix_stmt = if has_initial {
@@ -328,10 +280,7 @@ pub fn derive_observe_for_enum(
         }
     } else {
         quote! {
-            Ok(Some(::morphix::Mutation {
-                path: ::morphix::Path::new(),
-                kind: ::morphix::MutationKind::Replace(A::serialize_value(this.as_deref())?),
-            }))
+            Ok(::morphix::MutationKind::Replace(A::serialize_value(this.as_deref())?).into())
         }
     };
 
@@ -431,7 +380,7 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            fn flush<A: ::morphix::Adapter>(&mut self) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A::Value>>, A::Error>
+            fn flush<A: ::morphix::Adapter>(&mut self) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error>
             where
                 #(#ob_field_tys: ::morphix::observe::SerializeObserver<#ob_lt>,)*
             {
@@ -555,7 +504,7 @@ pub fn derive_observe_for_enum(
         {
             unsafe fn flush_unchecked<A: ::morphix::Adapter>(
                 this: &mut Self,
-            ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A::Value>>, A::Error> {
+            ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
                 #ob_flush_prefix_stmt
                 #(#if_has_variant
                     if !this.__mutated {

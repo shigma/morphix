@@ -32,10 +32,11 @@ pub fn derive_observe_for_struct_fields(
     let mut inst_fields = vec![];
     let mut uninit_fields = vec![];
     let mut refresh_stmts = vec![];
-    let mut flush_stmts = vec![];
+    let mut flush_fields = quote! {};
+    let mut push_mutations = quote! {};
+    let mut mutation_batch_capacity = vec![];
     let mut debug_chain = quote! {};
 
-    let field_count = fields.len();
     let mut field_tys = vec![];
     let mut deref_erased_tys = vec![];
     let mut ob_field_tys = vec![];
@@ -96,12 +97,13 @@ pub fn derive_observe_for_struct_fields(
         debug_chain.extend(quote_spanned! { field_span =>
             .field(#field_name, &self.#field_ident)
         });
-        let mut mutability = quote! {};
-        let mut body = if field_count == 1 {
-            quote! { return Ok(Some(mutation)); }
-        } else {
-            quote! { mutations.push(mutation); }
-        };
+        let mutable_ident = syn::Ident::new(&format!("mutations_{}", field_ident), field_span);
+        flush_fields.extend(quote_spanned! { field_span =>
+            let #mutable_ident = ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_ident)?;
+        });
+        mutation_batch_capacity.push(quote_spanned! { field_span =>
+            #mutable_ident.len()
+        });
         if !field_meta.serde.flatten {
             let segment = if let Some(rename) = &field_meta.serde.rename {
                 quote! { #rename }
@@ -109,17 +111,14 @@ pub fn derive_observe_for_struct_fields(
                 let segment = input_meta.serde.rename_all.apply(&field_name);
                 quote! { #segment }
             };
-            mutability = quote! { mut };
-            body = quote! {
-                mutation.path.push(#segment.into());
-                #body
-            };
+            push_mutations.extend(quote_spanned! { field_span =>
+                mutations.insert(#segment, #mutable_ident);
+            });
+        } else {
+            push_mutations.extend(quote_spanned! { field_span =>
+                mutations.extend(#mutable_ident);
+            });
         }
-        flush_stmts.push(quote_spanned! { field_span =>
-            if let Some(#mutability mutation) = ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_ident)? {
-                #body
-            }
-        });
     }
     if !errors.is_empty() {
         return errors;
@@ -219,10 +218,7 @@ pub fn derive_observe_for_struct_fields(
         serialize_observer_impl_prefix = quote! {
             if this.__mutated {
                 this.__mutated = false;
-                return Ok(Some(::morphix::Mutation {
-                    path: ::morphix::Path::new(),
-                    kind: ::morphix::MutationKind::Replace(A::serialize_value(this.as_deref())?),
-                }));
+                return Ok(::morphix::MutationKind::Replace(A::serialize_value(this.as_deref())?).into());
             };
         };
 
@@ -333,17 +329,11 @@ pub fn derive_observe_for_struct_fields(
         input_observer_type_generics = quote! { <#(#ob_type_arguments),*> };
     }
 
-    let serialize_observer_impl = if field_count == 1 {
-        quote! {
-            #(#flush_stmts)*
-            Ok(None)
-        }
-    } else {
-        quote! {
-            let mut mutations = ::morphix::MutationBatch::new();
-            #(#flush_stmts)*
-            Ok(mutations.into_inner())
-        }
+    let serialize_observer_impl = quote! {
+        #flush_fields
+        let mut mutations = ::morphix::Mutations::with_capacity(#(#mutation_batch_capacity)+*);
+        #push_mutations
+        Ok(mutations)
     };
 
     let (ob_impl_generics, ob_type_generics, _) = ob_generics.split_for_impl();
@@ -438,7 +428,7 @@ pub fn derive_observe_for_struct_fields(
         {
             unsafe fn flush_unchecked<A: ::morphix::Adapter>(
                 this: &mut Self,
-            ) -> ::std::result::Result<::std::option::Option<::morphix::Mutation<A::Value>>, A::Error> {
+            ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
                 #serialize_observer_impl_prefix
                 #serialize_observer_impl
             }

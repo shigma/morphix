@@ -496,7 +496,7 @@ mod tests {
     use super::*;
     use crate::adapter::Json;
     use crate::observe::{ObserveExt, SerializeObserverExt, ShallowObserver};
-    use crate::{Mutation, MutationKind};
+    use crate::{Mutation, MutationKind, PathSegment};
 
     #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
     struct Number(i32);
@@ -571,7 +571,7 @@ mod tests {
         assert_eq!(
             mutation,
             Some(Mutation {
-                path: vec![(-2).into()].into(),
+                path: vec![PathSegment::Negative(2)].into(),
                 kind: MutationKind::Replace(json!(99))
             })
         );
@@ -595,7 +595,7 @@ mod tests {
                         kind: MutationKind::Append(json!([12])),
                     },
                     Mutation {
-                        path: vec![(-2).into()].into(),
+                        path: vec![PathSegment::Negative(2)].into(),
                         kind: MutationKind::Replace(json!(11)),
                     },
                 ])
@@ -621,11 +621,11 @@ mod tests {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
-                        path: vec![(-3).into()].into(),
+                        path: vec![PathSegment::Negative(3)].into(),
                         kind: MutationKind::Replace(json!(222)),
                     },
                     Mutation {
-                        path: vec![(-2).into()].into(),
+                        path: vec![PathSegment::Negative(2)].into(),
                         kind: MutationKind::Replace(json!(333)),
                     }
                 ]),

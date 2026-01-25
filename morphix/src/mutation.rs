@@ -61,15 +61,8 @@ impl<V> Mutation<V> {
 ///
 /// let mut mutations = Mutations::new();
 ///
-/// mutations.push(Mutation {
-///     path: vec!["a".into()].into(),
-///     kind: MutationKind::Replace(42),
-/// });
-///
-/// mutations.push(Mutation {
-///     path: vec!["b".into()].into(),
-///     kind: MutationKind::Replace(43),
-/// });
+/// mutations.insert("a", MutationKind::Replace(42).into());
+/// mutations.insert("b", MutationKind::Truncate(1).into());
 ///
 /// let result = mutations.into_inner();
 /// assert!(matches!(result, Some(Mutation { kind: MutationKind::Batch(_), .. })));
@@ -146,11 +139,24 @@ impl<V> Mutations<V> {
         }
     }
 
-    pub fn insert(&mut self, segment: PathSegment, mutations: impl Into<Self>) {
-        let Some(mut incoming) = mutations.into().into_inner() else {
+    #[inline]
+    pub fn insert(&mut self, segment: impl Into<PathSegment>, mutations: Self) {
+        self.__insert(Some(segment.into()), mutations);
+    }
+
+    #[inline]
+    pub fn insert2(&mut self, segment1: impl Into<PathSegment>, segment2: impl Into<PathSegment>, mutations: Self) {
+        self.__insert(
+            Some(segment1.into()).into_iter().chain(Some(segment2.into())),
+            mutations,
+        );
+    }
+
+    fn __insert(&mut self, segments: impl IntoIterator<Item = PathSegment>, mutations: Self) {
+        let Some(mut incoming) = mutations.into_inner() else {
             return;
         };
-        incoming.path.push(segment);
+        incoming.path.extend(segments);
         let Some(existing) = &mut self.inner else {
             self.inner = Some(incoming);
             return;
