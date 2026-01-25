@@ -32,7 +32,7 @@ pub fn derive_observe_for_enum(
     let mut ob_initial_variants = quote! {};
     let mut ob_variant_variants = quote! {};
     let mut initial_observe_arms = quote! {};
-    let mut initial_flush_arms = quote! {};
+    let mut initial_flush_pats = quote! {};
     let mut variant_observe_arms = quote! {};
     let mut variant_refresh_arms = quote! {};
     let mut variant_flush_arms = quote! {};
@@ -68,8 +68,8 @@ pub fn derive_observe_for_enum(
             initial_observe_arms.extend(quote! {
                 #input_ident::#variant => #ob_initial_ident::#variant_ident,
             });
-            initial_flush_arms.extend(quote! {
-                (#ob_initial_ident::#variant_ident, #input_ident::#variant) => Ok(::morphix::Mutations::new()),
+            initial_flush_pats.extend(quote! {
+                | (#ob_initial_ident::#variant_ident, #input_ident::#variant)
             });
             continue;
         }
@@ -259,10 +259,6 @@ pub fn derive_observe_for_enum(
         Self::__None => Ok(::morphix::Mutations::new()),
     });
 
-    initial_flush_arms.extend(quote! {
-        _ => Ok(::morphix::MutationKind::Replace(A::serialize_value(__value)?).into()),
-    });
-
     let ob_flush_prefix_stmt = if has_initial {
         quote! {
             let __value = this.__ptr.as_deref();
@@ -275,7 +271,8 @@ pub fn derive_observe_for_enum(
     let ob_flush_suffix_stmt = if has_initial {
         quote! {
             match (__initial, __value) {
-                #initial_flush_arms
+                #initial_flush_pats => Ok(::morphix::Mutations::new()),
+                _ => Ok(::morphix::MutationKind::Replace(A::serialize_value(__value)?).into()),
             }
         }
     } else {

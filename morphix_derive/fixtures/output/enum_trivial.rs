@@ -90,9 +90,9 @@ const _: () = {
             let __initial = this.__initial;
             this.__initial = FooObserverInitial::new(__value);
             match (__initial, __value) {
-                (FooObserverInitial::A, Foo::A) => Ok(::morphix::Mutations::new()),
-                (FooObserverInitial::B, Foo::B()) => Ok(::morphix::Mutations::new()),
-                (FooObserverInitial::C, Foo::C {}) => Ok(::morphix::Mutations::new()),
+                (FooObserverInitial::A, Foo::A)
+                | (FooObserverInitial::B, Foo::B())
+                | (FooObserverInitial::C, Foo::C {}) => Ok(::morphix::Mutations::new()),
                 _ => {
                     Ok(
                         ::morphix::MutationKind::Replace(A::serialize_value(__value)?)

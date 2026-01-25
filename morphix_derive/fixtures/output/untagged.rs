@@ -197,9 +197,9 @@ const _: () = {
             this.__mutated = false;
             this.__variant = FooObserverVariant::__None;
             match (__initial, __value) {
-                (FooObserverInitial::D, Foo::D) => Ok(::morphix::Mutations::new()),
-                (FooObserverInitial::E, Foo::E()) => Ok(::morphix::Mutations::new()),
-                (FooObserverInitial::F, Foo::F {}) => Ok(::morphix::Mutations::new()),
+                (FooObserverInitial::D, Foo::D)
+                | (FooObserverInitial::E, Foo::E())
+                | (FooObserverInitial::F, Foo::F {}) => Ok(::morphix::Mutations::new()),
                 _ => {
                     Ok(
                         ::morphix::MutationKind::Replace(A::serialize_value(__value)?)
