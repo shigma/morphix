@@ -2,10 +2,19 @@ use std::borrow::Cow;
 use std::fmt::{Debug, Display};
 use std::ops::{Deref, DerefMut};
 
+/// A segment of a mutation path.
+///
+/// [`PathSegment`] represents a single step in navigating to a nested value:
+/// - [`String`](PathSegment::String): Access an object/struct field by name
+/// - [`Positive`](PathSegment::Positive): Access an array/vec element by index from the start
+/// - [`Negative`](PathSegment::Negative): Access an array/vec element by index from the end
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PathSegment {
+    /// A string key for accessing object/struct fields.
     String(Cow<'static, str>),
+    /// A positive index for accessing elements from the start (0-based).
     Positive(usize),
+    /// A negative index for accessing elements from the end (1-based, where 1 is the last element).
     Negative(usize),
 }
 
@@ -13,16 +22,6 @@ impl From<usize> for PathSegment {
     #[inline]
     fn from(n: usize) -> Self {
         Self::Positive(n)
-    }
-}
-
-impl From<isize> for PathSegment {
-    fn from(n: isize) -> Self {
-        if n >= 0 {
-            Self::Positive(n as usize)
-        } else {
-            Self::Negative(-n as usize)
-        }
     }
 }
 
@@ -57,10 +56,18 @@ impl Display for PathSegment {
     }
 }
 
+/// A path to a nested value within a data structure.
+///
+/// [`Path`] is a sequence of [`PathSegment`]s that describes how to navigate from a root value to a
+/// nested value. The const parameter `REV` controls the internal storage order:
+/// - `Path<false>`: Segments stored in natural order (root to leaf)
+/// - `Path<true>`: Segments stored in reverse order (leaf to root), optimized for efficient `push`
+///   and `pop` operations during mutation collection
 #[derive(Default, Clone, PartialEq, Eq)]
 pub struct Path<const REV: bool>(Vec<PathSegment>);
 
 impl<const REV: bool> Path<REV> {
+    /// Creates a new empty path.
     pub fn new() -> Self {
         Self::default()
     }

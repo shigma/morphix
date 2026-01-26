@@ -135,7 +135,7 @@ pub fn derive_observe_for_enum(
                 });
                 let flush_stmts = idents.iter().zip(field_segments).map(|(ident, field_segment)| {
                     let segment_count = field_segment.iter().len() + tag_segment.iter().len();
-                    let segments = field_segment.iter().chain(&tag_segment);
+                    let segments = tag_segment.iter().chain(&field_segment);
                     let children = quote! {
                         ::morphix::observe::SerializeObserver::flush::<A>(#ident)?
                     };
@@ -202,7 +202,7 @@ pub fn derive_observe_for_enum(
                         ::morphix::observe::SerializeObserver::flush::<A>(#ident)?
                     };
                     match &tag_segment {
-                        Some(tag_segment) => quote! { mutations.insert2(#field_segment, #tag_segment, #children); },
+                        Some(tag_segment) => quote! { mutations.insert2(#tag_segment, #field_segment, #children); },
                         None => quote! { mutations.insert(#field_segment, #children); },
                     }
                 });

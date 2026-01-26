@@ -100,7 +100,7 @@ impl<V> From<Mutations<V>> for Option<Mutation<V>> {
 }
 
 impl<V> Mutations<V> {
-    /// Creates a new empty batch.
+    /// Creates a new empty collection.
     #[inline]
     pub fn new() -> Self {
         Self {
@@ -109,7 +109,10 @@ impl<V> Mutations<V> {
         }
     }
 
-    /// Creates a new empty batch with a specified capacity hint.
+    /// Creates a new empty collection with a specified capacity hint.
+    ///
+    /// The capacity hint is used when the internal storage needs to be converted to a
+    /// [`Batch`](MutationKind::Batch) to hold multiple mutations.
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self { inner: None, capacity }
@@ -121,6 +124,10 @@ impl<V> Mutations<V> {
         self.inner
     }
 
+    /// Merges another collection of mutations into this one.
+    ///
+    /// If the incoming collection contains a [`Batch`](MutationKind::Batch) with an empty path, its
+    /// inner mutations are flattened into this collection rather than being nested.
     pub fn extend(&mut self, mutations: impl Into<Self>) {
         let Some(incoming) = mutations.into().into_inner() else {
             return;
@@ -139,15 +146,23 @@ impl<V> Mutations<V> {
         }
     }
 
+    /// Inserts mutations at a specified path segment.
+    ///
+    /// The incoming mutations will have the given segment prepended to their path before being
+    /// added to this collection.
     #[inline]
     pub fn insert(&mut self, segment: impl Into<PathSegment>, mutations: Self) {
         self.__insert(Some(segment.into()), mutations);
     }
 
+    /// Inserts mutations at a two-level path.
+    ///
+    /// This is a convenience method primarily used for enum named variants, where mutations need to
+    /// be inserted at a path like `variant_name.field_name`.
     #[inline]
     pub fn insert2(&mut self, segment1: impl Into<PathSegment>, segment2: impl Into<PathSegment>, mutations: Self) {
         self.__insert(
-            Some(segment1.into()).into_iter().chain(Some(segment2.into())),
+            Some(segment2.into()).into_iter().chain(Some(segment1.into())),
             mutations,
         );
     }
@@ -165,6 +180,12 @@ impl<V> Mutations<V> {
         existing_batch.push(incoming);
     }
 
+    /// Returns the number of top-level mutations in this collection.
+    ///
+    /// A top-level mutation is one with an empty path. If this collection contains a
+    /// [`Batch`](MutationKind::Batch) with an empty path, this returns the number of mutations
+    /// in that batch. Otherwise, it returns `1` if a mutation exists, or `0` if the collection is
+    /// empty.
     pub fn len(&self) -> usize {
         match &self.inner {
             None => 0,
@@ -175,6 +196,7 @@ impl<V> Mutations<V> {
         }
     }
 
+    /// Returns `true` if this collection contains no mutations.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

@@ -129,8 +129,8 @@ const _: () = {
                     let mut mutations = ::morphix::Mutations::new();
                     mutations
                         .insert2(
-                            0usize,
                             "a",
+                            0usize,
                             ::morphix::observe::SerializeObserver::flush::<A>(u0)?,
                         );
                     Ok(mutations)
@@ -139,14 +139,14 @@ const _: () = {
                     let mut mutations = ::morphix::Mutations::new();
                     mutations
                         .insert2(
-                            0usize,
                             "b",
+                            0usize,
                             ::morphix::observe::SerializeObserver::flush::<A>(u0)?,
                         );
                     mutations
                         .insert2(
-                            1usize,
                             "b",
+                            1usize,
                             ::morphix::observe::SerializeObserver::flush::<A>(u1)?,
                         );
                     Ok(mutations)
@@ -155,14 +155,14 @@ const _: () = {
                     let mut mutations = ::morphix::Mutations::new();
                     mutations
                         .insert2(
-                            "BAR",
                             "OwO",
+                            "BAR",
                             ::morphix::observe::SerializeObserver::flush::<A>(bar)?,
                         );
                     mutations
                         .insert2(
-                            "QwQ",
                             "OwO",
+                            "QwQ",
                             ::morphix::observe::SerializeObserver::flush::<A>(qux)?,
                         );
                     Ok(mutations)

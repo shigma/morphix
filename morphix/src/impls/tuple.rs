@@ -6,7 +6,7 @@ use serde::Serialize;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverPointer, RefObserve, RefObserver, SerializeObserver};
-use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
+use crate::{Adapter, MutationKind, Mutations, Observe};
 
 pub struct TupleObserver<'ob, O, S: ?Sized, D = Zero> {
     ptr: ObserverPointer<S>,
@@ -193,7 +193,7 @@ macro_rules! tuple_observer {
                     0 $(+ mutations_tuple.$n.len())*
                 );
                 $(
-                    mutations.insert(PathSegment::Positive($n), mutations_tuple.$n);
+                    mutations.insert($n, mutations_tuple.$n);
                 )*
                 Ok(mutations)
             }
