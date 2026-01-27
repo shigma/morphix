@@ -220,14 +220,12 @@ macro_rules! tuple_observer {
         where
             $($t: RefObserve,)*
         {
-            type Observer<'ob, S, D, E>
-                = PointerObserver<'ob, S, D, E>
+            type Observer<'ob, S, D>
+                = PointerObserver<'ob, S, D>
             where
                 Self: 'ob,
                 D: Unsigned,
-                E: Unsigned,
-                S: $crate::helper::AsDeref<D> + ?Sized + 'ob,
-                S::Target: $crate::helper::AsDeref<E, Target = Self>;
+                S: $crate::helper::AsDeref<D, Target = Self> + ?Sized + 'ob;
 
             type Spec = DefaultSpec;
         }

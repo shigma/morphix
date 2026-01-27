@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use crate::helper::{AsDeref, AsDerefMut, AsNormalized, Succ, Unsigned};
-use crate::observe::{DefaultSpec, Observer, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
 /// Observer implementation for pointer types such as [`Box<T>`] and `&mut T`.
@@ -144,32 +144,54 @@ where
     }
 }
 
-impl<T> Observe for Box<T>
-where
-    T: Observe + ?Sized,
-{
-    type Observer<'ob, S, D>
-        = DerefObserver<'ob, T::Observer<'ob, S, Succ<D>>>
-    where
-        Self: 'ob,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob,
-        D: Unsigned;
+macro_rules! impl_deref_observe {
+    ($(impl $([$($gen:tt)*])? Observe for $ty:ty as $spec:ty $(where { $($where:tt)+ })?;)*) => {
+        $(
+            impl <$($($gen)*)?> Observe for $ty {
+                type Observer<'ob, S, D>
+                    = DerefObserver<'ob, T::Observer<'ob, S, Succ<D>>>
+                where
+                    Self: 'ob,
+                    D: Unsigned,
+                    S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
-    type Spec = DefaultSpec;
+                type Spec = $spec;
+            }
+        )*
+    };
 }
 
-impl<T> Observe for &mut T
-where
-    T: Observe + ?Sized,
-{
-    type Observer<'ob, S, D>
-        = DerefObserver<'ob, T::Observer<'ob, S, Succ<D>>>
-    where
-        Self: 'ob,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob,
-        D: Unsigned;
+impl_deref_observe! {
+    impl [T: Observe + ?Sized] Observe for Box<T> as T::Spec;
+    impl [T: Observe + ?Sized] Observe for &mut T as T::Spec;
+    impl [T: RefObserve + ?Sized] Observe for &T as T::Spec;
+    impl [T: RefObserve + ?Sized] Observe for std::rc::Rc<T> as DefaultSpec;
+    impl [T: RefObserve + ?Sized] Observe for std::sync::Arc<T> as DefaultSpec;
+}
 
-    type Spec = DefaultSpec;
+macro_rules! impl_deref_ref_observe {
+    ($(impl $([$($gen:tt)*])? RefObserve for $ty:ty as $spec:ty $(where { $($where:tt)+ })?;)*) => {
+        $(
+            impl <$($($gen)*)?> RefObserve for $ty {
+                type Observer<'ob, S, D>
+                    = DerefObserver<'ob, T::Observer<'ob, S, Succ<D>>>
+                where
+                    Self: 'ob,
+                    D: Unsigned,
+                    S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+
+                type Spec = $spec;
+            }
+        )*
+    };
+}
+
+impl_deref_ref_observe! {
+    impl [T: RefObserve + ?Sized] RefObserve for &T as T::Spec;
+    impl [T: RefObserve + ?Sized] RefObserve for &mut T as T::Spec;
+    impl [T: RefObserve + ?Sized] RefObserve for Box<T> as T::Spec;
+    impl [T: RefObserve + ?Sized] RefObserve for std::rc::Rc<T> as DefaultSpec;
+    impl [T: RefObserve + ?Sized] RefObserve for std::sync::Arc<T> as DefaultSpec;
 }
 
 #[cfg(test)]

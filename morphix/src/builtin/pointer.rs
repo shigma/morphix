@@ -1,7 +1,7 @@
 use std::ptr::NonNull;
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, Unsigned};
+use crate::helper::{AsDeref, Unsigned, Zero};
 use crate::observe::DefaultSpec;
 
 /// A general observer implementation for reference types.
@@ -26,9 +26,10 @@ use crate::observe::DefaultSpec;
 ///
 /// For types where value comparison is cheap and preferred, consider using
 /// [`SnapshotObserver`](crate::builtin::SnapshotObserver) for references.
-pub type PointerObserver<'ob, S, D, E> = GeneralObserver<'ob, RefHandler<<S as AsDeref<D>>::Target, E>, S, D>;
+pub type PointerObserver<'ob, S, D, E = Zero> =
+    GeneralObserver<'ob, PointerHandler<<S as AsDeref<D>>::Target, E>, S, D>;
 
-pub struct RefHandler<T, E>
+pub struct PointerHandler<T, E = Zero>
 where
     T: AsDeref<E> + ?Sized,
     E: Unsigned,
@@ -36,7 +37,7 @@ where
     ptr: Option<NonNull<T::Target>>,
 }
 
-impl<T, E> GeneralHandler for RefHandler<T, E>
+impl<T, E> GeneralHandler for PointerHandler<T, E>
 where
     T: AsDeref<E> + ?Sized,
     E: Unsigned,
@@ -60,7 +61,7 @@ where
     fn deref_mut(&mut self) {}
 }
 
-impl<T, E> ReplaceHandler for RefHandler<T, E>
+impl<T, E> ReplaceHandler for PointerHandler<T, E>
 where
     T: AsDeref<E> + ?Sized,
     E: Unsigned,
@@ -76,7 +77,7 @@ where
     }
 }
 
-impl<T, E> DebugHandler for RefHandler<T, E>
+impl<T, E> DebugHandler for PointerHandler<T, E>
 where
     T: AsDeref<E> + ?Sized,
     E: Unsigned,

@@ -471,13 +471,11 @@ pub trait RefObserve {
     ///
     /// This associated type specifies the *default* observer implementation for the type, when used
     /// in contexts where an [`Observe`] implementation is required.
-    type Observer<'ob, S, D, E>: Observer<'ob, Head = S, InnerDepth = D>
+    type Observer<'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
     where
         Self: 'ob,
         D: Unsigned,
-        E: Unsigned,
-        S: AsDeref<D> + ?Sized + 'ob,
-        S::Target: AsDeref<E, Target = Self>;
+        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
     /// Specification type controlling nested reference observation behavior.
     ///

@@ -1,9 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::Observe;
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, AsDerefMut, Unsigned, Zero};
-use crate::observe::{DefaultSpec, RefObserve, SnapshotSpec};
+use crate::helper::{AsDeref, Zero};
+use crate::observe::DefaultSpec;
 
 /// A general observer that never reports changes.
 ///
@@ -61,39 +60,4 @@ impl<T: ?Sized> ReplaceHandler for NoopHandler<T> {
 
 impl<T: ?Sized> DebugHandler for NoopHandler<T> {
     const NAME: &'static str = "NoopObserver";
-}
-
-macro_rules! impl_noop_observe {
-    ($(impl $({ $($gen:tt)* })? _ for $ty:ty);* $(;)?) => {
-        $(
-            impl <$($($gen)*)?> Observe for $ty {
-                type Observer<'ob, S, D>
-                    = NoopObserver<'ob, S, D>
-                where
-                    Self: 'ob,
-                    D: Unsigned,
-                    S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
-
-                type Spec = SnapshotSpec;
-            }
-
-            impl <$($($gen)*)?> RefObserve for $ty {
-                type Observer<'ob, S, D, E>
-                    = NoopObserver<'ob, S, D>
-                where
-                    Self: 'ob,
-                    D: Unsigned,
-                    E: Unsigned,
-                    S: AsDeref<D> + ?Sized + 'ob,
-                    S::Target: AsDeref<E, Target = Self>;
-
-                type Spec = SnapshotSpec;
-            }
-        )*
-    };
-}
-
-impl_noop_observe! {
-    impl _ for ();
-    impl { T } _ for PhantomData<T>;
 }

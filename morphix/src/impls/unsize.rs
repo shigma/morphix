@@ -4,7 +4,7 @@ use std::ptr::NonNull;
 use serde::Serialize;
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
-use crate::helper::{AsDeref, Unsigned};
+use crate::helper::{AsDeref, Unsigned, Zero};
 use crate::observe::{DefaultSpec, RefObserve};
 use crate::{Adapter, MutationKind, Mutations};
 
@@ -26,7 +26,7 @@ impl<T> Len for [T] {
     }
 }
 
-pub struct UnsizeRefHandler<T, E>
+pub struct UnsizeHandler<T, E = Zero>
 where
     T: AsDeref<E> + ?Sized,
     E: Unsigned,
@@ -34,7 +34,7 @@ where
     ptr: Option<NonNull<T::Target>>,
 }
 
-impl<T, E> GeneralHandler for UnsizeRefHandler<T, E>
+impl<T, E> GeneralHandler for UnsizeHandler<T, E>
 where
     T: AsDeref<E> + ?Sized,
     E: Unsigned,
@@ -58,7 +58,7 @@ where
     fn deref_mut(&mut self) {}
 }
 
-impl<T, E> SerializeHandler for UnsizeRefHandler<T, E>
+impl<T, E> SerializeHandler for UnsizeHandler<T, E>
 where
     T: AsDeref<E> + ?Sized,
     T::Target: Len + Index<RangeFrom<usize>, Output = T::Target> + Serialize,
@@ -92,36 +92,32 @@ where
     }
 }
 
-impl<T, E> DebugHandler for UnsizeRefHandler<T, E>
+impl<T, E> DebugHandler for UnsizeHandler<T, E>
 where
     T: AsDeref<E> + ?Sized,
     E: Unsigned,
 {
-    const NAME: &'static str = "UnsizedRefObserver";
+    const NAME: &'static str = "UnsizeObserver";
 }
 
 impl RefObserve for str {
-    type Observer<'ob, S, D, E>
-        = GeneralObserver<'ob, UnsizeRefHandler<S::Target, E>, S, D>
+    type Observer<'ob, S, D>
+        = GeneralObserver<'ob, UnsizeHandler<S::Target>, S, D>
     where
         Self: 'ob,
         D: Unsigned,
-        E: Unsigned,
-        S: AsDeref<D> + ?Sized + 'ob,
-        S::Target: AsDeref<E, Target = Self>;
+        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }
 
 impl<T> RefObserve for [T] {
-    type Observer<'ob, S, D, E>
-        = GeneralObserver<'ob, UnsizeRefHandler<S::Target, E>, S, D>
+    type Observer<'ob, S, D>
+        = GeneralObserver<'ob, UnsizeHandler<S::Target>, S, D>
     where
         Self: 'ob,
         D: Unsigned,
-        E: Unsigned,
-        S: AsDeref<D> + ?Sized + 'ob,
-        S::Target: AsDeref<E, Target = Self>;
+        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }
@@ -140,7 +136,7 @@ mod test {
         const B: &str = "hello world 2";
         let mut a = &A[0..12];
         let mut ob = a.__observe();
-        **ob = &B[0..12];
+        ***ob = &B[0..12];
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("hello world ")));
     }
@@ -150,7 +146,7 @@ mod test {
         const A: &str = "hello world";
         let mut a = A;
         let mut ob = a.__observe();
-        **ob = &A[0..];
+        ***ob = &A[0..];
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
     }
@@ -160,7 +156,7 @@ mod test {
         const A: &str = "hello world";
         let mut a = &A[0..5];
         let mut ob = a.__observe();
-        **ob = A;
+        ***ob = A;
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.unwrap().kind == MutationKind::Append(json!(" world")));
     }
@@ -170,7 +166,7 @@ mod test {
         const A: &str = "hello world";
         let mut a = A;
         let mut ob = a.__observe();
-        **ob = &A[0..5];
+        ***ob = &A[0..5];
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.unwrap().kind == MutationKind::Truncate(6));
     }

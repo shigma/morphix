@@ -2,7 +2,7 @@ use std::mem::MaybeUninit;
 use std::sync::atomic::Ordering;
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, AsDerefMut, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Unsigned};
 use crate::observe::{DefaultSpec, Observe, RefObserve};
 
 pub trait Atomic {
@@ -11,20 +11,16 @@ pub trait Atomic {
     fn load(&self, ordering: Ordering) -> Self::Value;
 }
 
-pub struct AtomicHandler<T, E>
+pub struct AtomicHandler<T>
 where
-    T: AsDeref<E> + ?Sized,
-    T::Target: Atomic + Sized,
-    E: Unsigned,
+    T: Atomic + ?Sized,
 {
-    snapshot: MaybeUninit<<T::Target as Atomic>::Value>,
+    snapshot: MaybeUninit<T::Value>,
 }
 
-impl<T, E> GeneralHandler for AtomicHandler<T, E>
+impl<T> GeneralHandler for AtomicHandler<T>
 where
-    T: AsDeref<E> + ?Sized,
-    T::Target: Atomic + Sized,
-    E: Unsigned,
+    T: Atomic + ?Sized,
 {
     type Target = T;
     type Spec = DefaultSpec;
@@ -39,7 +35,7 @@ where
     #[inline]
     fn observe(value: &T) -> Self {
         Self {
-            snapshot: MaybeUninit::new(value.as_deref().load(Ordering::Relaxed)),
+            snapshot: MaybeUninit::new(value.load(Ordering::Relaxed)),
         }
     }
 
@@ -47,25 +43,21 @@ where
     fn deref_mut(&mut self) {}
 }
 
-impl<T, E> ReplaceHandler for AtomicHandler<T, E>
+impl<T> ReplaceHandler for AtomicHandler<T>
 where
-    T: AsDeref<E> + ?Sized,
-    T::Target: Atomic + Sized,
-    E: Unsigned,
+    T: Atomic + ?Sized,
 {
     #[inline]
     fn flush_replace(&mut self, value: &T) -> bool {
         // SAFETY: `ReplaceHandler::flush_replace` is only called in `Observer::flush_unchecked`, where the
         // observer is assumed to contain a valid pointer
-        value.as_deref().load(Ordering::Relaxed) != unsafe { self.snapshot.assume_init() }
+        value.load(Ordering::Relaxed) != unsafe { self.snapshot.assume_init() }
     }
 }
 
-impl<T, E> DebugHandler for AtomicHandler<T, E>
+impl<T> DebugHandler for AtomicHandler<T>
 where
-    T: AsDeref<E> + ?Sized,
-    T::Target: Atomic + Sized,
-    E: Unsigned,
+    T: Atomic + ?Sized,
 {
     const NAME: &'static str = "SnapshotObserver";
 }
@@ -84,7 +76,7 @@ macro_rules! impl_atomic {
 
             impl Observe for std::sync::atomic::$ident {
                 type Observer<'ob, S, D>
-                    = GeneralObserver<'ob, AtomicHandler<S::Target, Zero>, S, D>
+                    = GeneralObserver<'ob, AtomicHandler<S::Target>, S, D>
                 where
                     Self: 'ob,
                     D: Unsigned,
@@ -94,14 +86,12 @@ macro_rules! impl_atomic {
             }
 
             impl RefObserve for std::sync::atomic::$ident {
-                type Observer<'ob, S, D, E>
-                    = GeneralObserver<'ob, AtomicHandler<S::Target, E>, S, D>
+                type Observer<'ob, S, D>
+                    = GeneralObserver<'ob, AtomicHandler<S::Target>, S, D>
                 where
                     Self: 'ob,
                     D: Unsigned,
-                    E: Unsigned,
-                    S: AsDeref<D> + ?Sized + 'ob,
-                    S::Target: AsDeref<E, Target = Self>;
+                    S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
                 type Spec = DefaultSpec;
             }

@@ -237,14 +237,12 @@ mod tests {
     }
 
     impl RefObserve for Number {
-        type Observer<'ob, S, D, E>
-            = PointerObserver<'ob, S, D, E>
+        type Observer<'ob, S, D>
+            = PointerObserver<'ob, S, D>
         where
             Self: 'ob,
             D: Unsigned,
-            E: Unsigned,
-            S: AsDeref<D> + ?Sized + 'ob,
-            S::Target: AsDeref<E, Target = Self>;
+            S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
         type Spec = DefaultSpec;
     }
@@ -350,11 +348,11 @@ mod tests {
     fn ref_specialization() {
         let mut opt = &Some(0i32);
         let ob = opt.__observe();
-        assert_eq!(format!("{ob:?}"), r#"SnapshotObserver(Some(0))"#);
+        assert_eq!(format!("{ob:?}"), r#"DerefObserver(SnapshotObserver(Some(0)))"#);
 
         let mut opt = &Some(Number(0));
         let ob = opt.__observe();
-        assert_eq!(format!("{ob:?}"), r#"PointerObserver(Some(Number(0)))"#);
+        assert_eq!(format!("{ob:?}"), r#"DerefObserver(PointerObserver(Some(Number(0))))"#);
     }
 
     #[test]

@@ -132,14 +132,12 @@ macro_rules! impl_snapshot_observe {
             }
 
             impl RefObserve for $ty {
-                type Observer<'ob, S, D, E>
-                    = SnapshotObserver<'ob, S, D, E>
+                type Observer<'ob, S, D>
+                    = SnapshotObserver<'ob, S, D>
                 where
                     Self: 'ob,
                     D: Unsigned,
-                    E: Unsigned,
-                    S: AsDeref<D> + ?Sized + 'ob,
-                    S::Target: AsDeref<E, Target = Self>;
+                    S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
                 type Spec = SnapshotSpec;
             }
@@ -148,8 +146,40 @@ macro_rules! impl_snapshot_observe {
 }
 
 impl_snapshot_observe! {
-    usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
+    (), usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
     core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
     core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
     core::time::Duration, std::time::SystemTime,
+}
+
+macro_rules! generic_impl_snapshot_observe {
+    ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
+        $(
+            impl <$($($gen)*)?> Observe for $ty {
+                type Observer<'ob, S, D>
+                    = SnapshotObserver<'ob, S, D>
+                where
+                    Self: 'ob,
+                    D: Unsigned,
+                    S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+                type Spec = SnapshotSpec;
+            }
+
+            impl <$($($gen)*)?> RefObserve for $ty {
+                type Observer<'ob, S, D>
+                    = SnapshotObserver<'ob, S, D>
+                where
+                    Self: 'ob,
+                    D: Unsigned,
+                    S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+
+                type Spec = SnapshotSpec;
+            }
+        )*
+    };
+}
+
+generic_impl_snapshot_observe! {
+    impl [T] _ for std::marker::PhantomData<T>;
 }
