@@ -189,12 +189,12 @@ where
     /// Implementing [`Observer`] for [`Option<T>`]:
     ///
     /// ```
-    /// # use morphix::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
-    /// # use morphix::observe::{Observer, ObserverPointer};
+    /// # use morphix::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
+    /// # use morphix::observe::{Observer};
     /// # use std::marker::PhantomData;
     /// #
     /// pub struct OptionObserver<'ob, O, S: ?Sized, N = Zero> {
-    ///     ptr: ObserverPointer<S>,
+    ///     ptr: Pointer<S>,
     ///     mutated: bool,
     ///     ob: Option<O>,
     ///     phantom: PhantomData<&'ob mut N>,
@@ -205,7 +205,7 @@ where
     /// # }
     /// #
     /// # impl<'ob, O, S: ?Sized, N> std::ops::Deref for OptionObserver<'ob, O, S, N> {
-    /// #     type Target = ObserverPointer<S>;
+    /// #     type Target = Pointer<S>;
     /// #     fn deref(&self) -> &Self::Target { &self.ptr }
     /// # }
     /// #
@@ -229,7 +229,7 @@ where
     ///     #
     ///     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
     ///         // Refresh the outer pointer
-    ///         ObserverPointer::set(this, value);
+    ///         Pointer::set(this, value);
     ///
     ///         // Refresh nested observer if present
     ///         match (&mut this.ob, value.as_deref_mut()) {
