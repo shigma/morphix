@@ -106,8 +106,9 @@ where
 pub struct SnapshotSpec;
 
 macro_rules! impl_snapshot_observe {
-    ($($ty:ty),* $(,)?) => {
+    ($($(#[$($meta:tt)*])* $ty:ty),* $(,)?) => {
         $(
+            $(#[$($meta)*])*
             impl Observe for $ty {
                 type Observer<'ob, S, D>
                     = SnapshotObserver<'ob, S, D>
@@ -119,6 +120,7 @@ macro_rules! impl_snapshot_observe {
                 type Spec = SnapshotSpec;
             }
 
+            $(#[$($meta)*])*
             impl RefObserve for $ty {
                 type Observer<'ob, S, D>
                     = SnapshotObserver<'ob, S, D>
@@ -138,11 +140,14 @@ impl_snapshot_observe! {
     core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
     core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
     core::time::Duration, std::time::SystemTime,
+    #[cfg(feature = "uuid")]
+    uuid::Uuid,
 }
 
 macro_rules! generic_impl_snapshot_observe {
-    ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
+    ($($(#[$($meta:tt)*])* impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
         $(
+            $(#[$($meta)*])*
             impl <$($($gen)*)?> Observe for $ty {
                 type Observer<'ob, S, D>
                     = SnapshotObserver<'ob, S, D>
@@ -154,6 +159,7 @@ macro_rules! generic_impl_snapshot_observe {
                 type Spec = SnapshotSpec;
             }
 
+            $(#[$($meta)*])*
             impl <$($($gen)*)?> RefObserve for $ty {
                 type Observer<'ob, S, D>
                     = SnapshotObserver<'ob, S, D>

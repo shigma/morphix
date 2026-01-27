@@ -17,6 +17,7 @@ derive = ["dep:morphix_derive"]
 full = ["append", "derive", "json", "truncate", "yaml"]
 json = ["dep:serde_json"]
 truncate = []
+uuid = ["dep:uuid"]
 yaml = ["dep:serde_yaml_ng"]
 
 [package.metadata.docs.rs]
@@ -24,10 +25,12 @@ all-features = true
 
 [dependencies]
 morphix_derive = { version = "0.14.0", path = "../morphix_derive", optional = true }
-serde = { version = "1.0" }
-serde_json = { version = "1.0", optional = true }
+serde = { version = "1" }
+serde_json = { version = "1", optional = true }
 serde_yaml_ng = { version = "0.10", optional = true }
+uuid = { version = "1", features = ["serde"], optional = true }
 
 [dev-dependencies]
 morphix = { path = ".", features = ["full"] }
 serde = { version = "1.0.228", features = ["derive"] }
+uuid = { version = "1.20.0" }
