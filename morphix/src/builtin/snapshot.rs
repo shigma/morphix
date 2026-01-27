@@ -48,23 +48,15 @@ use crate::observe::RefObserve;
 ///
 /// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use [`SnapshotObserver`] as their default
 /// implementation since they're cheap to clone and compare.
-pub type SnapshotObserver<'ob, S, D = Zero, E = Zero> =
-    GeneralObserver<'ob, SnapshotHandler<<S as AsDeref<D>>::Target, E>, S, D>;
+pub type SnapshotObserver<'ob, S, D = Zero> = GeneralObserver<'ob, SnapshotHandler<<S as AsDeref<D>>::Target>, S, D>;
 
-pub struct SnapshotHandler<T, E>
-where
-    T: AsDeref<E> + ?Sized,
-    T::Target: Sized,
-    E: Unsigned,
-{
-    snapshot: MaybeUninit<T::Target>,
+pub struct SnapshotHandler<T> {
+    snapshot: MaybeUninit<T>,
 }
 
-impl<T, E> GeneralHandler for SnapshotHandler<T, E>
+impl<T> GeneralHandler for SnapshotHandler<T>
 where
-    T: AsDeref<E> + ?Sized,
-    T::Target: Clone + PartialEq + Sized,
-    E: Unsigned,
+    T: Clone + PartialEq,
 {
     type Target = T;
     type Spec = SnapshotSpec;
@@ -79,7 +71,7 @@ where
     #[inline]
     fn observe(value: &T) -> Self {
         Self {
-            snapshot: MaybeUninit::new(value.as_deref().clone()),
+            snapshot: MaybeUninit::new(value.clone()),
         }
     }
 
@@ -87,25 +79,21 @@ where
     fn deref_mut(&mut self) {}
 }
 
-impl<T, E> ReplaceHandler for SnapshotHandler<T, E>
+impl<T> ReplaceHandler for SnapshotHandler<T>
 where
-    T: AsDeref<E> + ?Sized,
-    T::Target: Clone + PartialEq + Sized,
-    E: Unsigned,
+    T: Clone + PartialEq,
 {
     #[inline]
     fn flush_replace(&mut self, value: &T) -> bool {
         // SAFETY: `ReplaceHandler::flush_replace` is only called in `Observer::flush_unchecked`, where the
         // observer is assumed to contain a valid pointer
-        value.as_deref() != unsafe { self.snapshot.assume_init_ref() }
+        value != unsafe { self.snapshot.assume_init_ref() }
     }
 }
 
-impl<T, E> DebugHandler for SnapshotHandler<T, E>
+impl<T> DebugHandler for SnapshotHandler<T>
 where
-    T: AsDeref<E> + ?Sized,
-    T::Target: Clone + PartialEq + Sized,
-    E: Unsigned,
+    T: Clone + PartialEq,
 {
     const NAME: &'static str = "SnapshotObserver";
 }

@@ -1,7 +1,7 @@
 use std::ptr::NonNull;
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, Unsigned, Zero};
+use crate::helper::AsDeref;
 use crate::observe::DefaultSpec;
 
 /// A general observer implementation for reference types.
@@ -26,22 +26,13 @@ use crate::observe::DefaultSpec;
 ///
 /// For types where value comparison is cheap and preferred, consider using
 /// [`SnapshotObserver`](crate::builtin::SnapshotObserver) for references.
-pub type PointerObserver<'ob, S, D, E = Zero> =
-    GeneralObserver<'ob, PointerHandler<<S as AsDeref<D>>::Target, E>, S, D>;
+pub type PointerObserver<'ob, S, D> = GeneralObserver<'ob, PointerHandler<<S as AsDeref<D>>::Target>, S, D>;
 
-pub struct PointerHandler<T, E = Zero>
-where
-    T: AsDeref<E> + ?Sized,
-    E: Unsigned,
-{
-    ptr: Option<NonNull<T::Target>>,
+pub struct PointerHandler<T: ?Sized> {
+    ptr: Option<NonNull<T>>,
 }
 
-impl<T, E> GeneralHandler for PointerHandler<T, E>
-where
-    T: AsDeref<E> + ?Sized,
-    E: Unsigned,
-{
+impl<T: ?Sized> GeneralHandler for PointerHandler<T> {
     type Target = T;
     type Spec = DefaultSpec;
 
@@ -53,7 +44,7 @@ where
     #[inline]
     fn observe(value: &T) -> Self {
         Self {
-            ptr: Some(NonNull::from(value.as_deref())),
+            ptr: Some(NonNull::from(value)),
         }
     }
 
@@ -61,15 +52,11 @@ where
     fn deref_mut(&mut self) {}
 }
 
-impl<T, E> ReplaceHandler for PointerHandler<T, E>
-where
-    T: AsDeref<E> + ?Sized,
-    E: Unsigned,
-{
+impl<T: ?Sized> ReplaceHandler for PointerHandler<T> {
     #[inline]
     fn flush_replace(&mut self, value: &T) -> bool {
         !std::ptr::eq(
-            value.as_deref(),
+            value,
             self.ptr
                 .expect("Pointer should not be null in GeneralHandler::flush")
                 .as_ptr(),
@@ -77,10 +64,6 @@ where
     }
 }
 
-impl<T, E> DebugHandler for PointerHandler<T, E>
-where
-    T: AsDeref<E> + ?Sized,
-    E: Unsigned,
-{
+impl<T: ?Sized> DebugHandler for PointerHandler<T> {
     const NAME: &'static str = "PointerObserver";
 }

@@ -59,7 +59,7 @@ impl<T> DebugHandler for AtomicHandler<T>
 where
     T: Atomic + ?Sized,
 {
-    const NAME: &'static str = "SnapshotObserver";
+    const NAME: &'static str = "AtomicObserver";
 }
 
 macro_rules! impl_atomic {

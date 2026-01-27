@@ -4,7 +4,7 @@ use std::ptr::NonNull;
 use serde::Serialize;
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
-use crate::helper::{AsDeref, Unsigned, Zero};
+use crate::helper::{AsDeref, Unsigned};
 use crate::observe::{DefaultSpec, RefObserve};
 use crate::{Adapter, MutationKind, Mutations};
 
@@ -26,19 +26,11 @@ impl<T> Len for [T] {
     }
 }
 
-pub struct UnsizeHandler<T, E = Zero>
-where
-    T: AsDeref<E> + ?Sized,
-    E: Unsigned,
-{
-    ptr: Option<NonNull<T::Target>>,
+pub struct UnsizeHandler<T: ?Sized> {
+    ptr: Option<NonNull<T>>,
 }
 
-impl<T, E> GeneralHandler for UnsizeHandler<T, E>
-where
-    T: AsDeref<E> + ?Sized,
-    E: Unsigned,
-{
+impl<T: ?Sized> GeneralHandler for UnsizeHandler<T> {
     type Target = T;
     type Spec = DefaultSpec;
 
@@ -50,7 +42,7 @@ where
     #[inline]
     fn observe(value: &T) -> Self {
         Self {
-            ptr: Some(NonNull::from(value.as_deref())),
+            ptr: Some(NonNull::from(value)),
         }
     }
 
@@ -58,14 +50,11 @@ where
     fn deref_mut(&mut self) {}
 }
 
-impl<T, E> SerializeHandler for UnsizeHandler<T, E>
+impl<T: ?Sized> SerializeHandler for UnsizeHandler<T>
 where
-    T: AsDeref<E> + ?Sized,
-    T::Target: Len + Index<RangeFrom<usize>, Output = T::Target> + Serialize,
-    E: Unsigned,
+    T: Len + Index<RangeFrom<usize>, Output = T> + Serialize,
 {
     unsafe fn flush<A: Adapter>(&mut self, new_value: &T) -> Result<Mutations<A::Value>, A::Error> {
-        let new_value = new_value.as_deref();
         let old_value = unsafe {
             self.ptr
                 .expect("Pointer should not be null in GeneralHandler::flush")
@@ -92,11 +81,7 @@ where
     }
 }
 
-impl<T, E> DebugHandler for UnsizeHandler<T, E>
-where
-    T: AsDeref<E> + ?Sized,
-    E: Unsigned,
-{
+impl<T: ?Sized> DebugHandler for UnsizeHandler<T> {
     const NAME: &'static str = "UnsizeObserver";
 }
 
