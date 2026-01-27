@@ -45,8 +45,9 @@ impl<V> Mutation<V> {
     }
 }
 
-/// A collection of mutations collected during observation. It is the return type for
-/// [`flush`](crate::observe::SerializeObserver::flush) operations.
+/// A collection of mutations collected during observation.
+///
+/// It is the return type for [`flush`](crate::observe::SerializeObserver::flush) operations.
 ///
 /// ## Behavior
 ///

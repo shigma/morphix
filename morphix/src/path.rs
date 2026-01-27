@@ -5,9 +5,9 @@ use std::ops::{Deref, DerefMut};
 /// A segment of a mutation path.
 ///
 /// [`PathSegment`] represents a single step in navigating to a nested value:
-/// - [`String`](PathSegment::String): Access an object/struct field by name
-/// - [`Positive`](PathSegment::Positive): Access an array/vec element by index from the start
-/// - [`Negative`](PathSegment::Negative): Access an array/vec element by index from the end
+/// - [`String`](PathSegment::String): Access an object / struct field by name
+/// - [`Positive`](PathSegment::Positive): Access an array / vec element by index from the start
+/// - [`Negative`](PathSegment::Negative): Access an array / vec element by index from the end
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PathSegment {
     /// A string key for accessing object/struct fields.
