@@ -4,9 +4,9 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::helper::{AsNormalized, Succ};
-use crate::observe::{Observer, ObserverPointer, SerializeObserver, Unsigned, Zero};
-use crate::{Adapter, Mutations, MutationKind};
+use crate::helper::{AsNormalized, Succ, Unsigned, Zero};
+use crate::observe::{Observer, ObserverPointer, SerializeObserver};
+use crate::{Adapter, MutationKind, Mutations};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
 ///
@@ -21,7 +21,8 @@ use crate::{Adapter, Mutations, MutationKind};
 ///
 /// ```
 /// # use std::marker::PhantomData;
-/// # use morphix::observe::{DefaultSpec, GeneralHandler, GeneralObserver};
+/// # use morphix::builtin::{GeneralHandler, GeneralObserver};
+/// # use morphix::observe::DefaultSpec;
 /// struct ShallowHandler<T> {
 ///     mutated: bool,
 ///     phantom: PhantomData<T>,
@@ -134,7 +135,8 @@ where
 ///
 /// ```
 /// # use std::marker::PhantomData;
-/// use morphix::observe::{DebugHandler, GeneralHandler, GeneralObserver, Observer};
+/// use morphix::builtin::{DebugHandler, GeneralHandler, GeneralObserver};
+/// use morphix::observe::Observer;
 ///
 /// pub struct MyHandler<T>(PhantomData<T>);
 ///

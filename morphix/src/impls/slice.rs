@@ -594,7 +594,8 @@ mod tests {
     use super::*;
     use crate::Mutation;
     use crate::adapter::Json;
-    use crate::observe::{ObserveExt, SerializeObserverExt, ShallowObserver};
+    use crate::builtin::ShallowObserver;
+    use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
     struct Number(i32);

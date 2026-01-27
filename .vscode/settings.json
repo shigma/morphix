@@ -9,8 +9,6 @@
         "editor.defaultFormatter": "rust-lang.rust-analyzer",
         "editor.formatOnSave": true,
         "editor.formatOnSaveMode": "file",
-        "files.autoSave": "afterDelay",
-        "files.autoSaveDelay": 1000,
         "editor.indentSize": 4,
         "editor.tabSize": 4
     },

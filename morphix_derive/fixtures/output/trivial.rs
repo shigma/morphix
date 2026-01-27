@@ -10,7 +10,7 @@ pub struct Foo<T> {
 const _: () = {
     #[automatically_derived]
     impl<T> ::morphix::Observe for Foo<T> {
-        type Observer<'ob, S, N> = ::morphix::observe::ShallowObserver<'ob, S, N>
+        type Observer<'ob, S, N> = ::morphix::builtin::ShallowObserver<'ob, S, N>
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
@@ -30,7 +30,7 @@ const _: () = {
     where
         Self: ::std::clone::Clone + ::std::cmp::PartialEq,
     {
-        type Observer<'ob, S, N> = ::morphix::observe::SnapshotObserver<'ob, S, N>
+        type Observer<'ob, S, N> = ::morphix::builtin::SnapshotObserver<'ob, S, N>
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
@@ -45,7 +45,7 @@ pub struct NoopStruct {}
 const _: () = {
     #[automatically_derived]
     impl ::morphix::Observe for NoopStruct {
-        type Observer<'ob, S, N> = ::morphix::observe::NoopObserver<'ob, S, N>
+        type Observer<'ob, S, N> = ::morphix::builtin::NoopObserver<'ob, S, N>
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,

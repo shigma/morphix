@@ -41,7 +41,7 @@ macro_rules! spec_impl_observe {
             T: Clone + PartialEq + Observe<Spec = $crate::observe::SnapshotSpec>,
         {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
-                = $crate::observe::SnapshotObserver<'ob, S, D>
+                = $crate::builtin::SnapshotObserver<'ob, S, D>
             where
                 Self: 'ob,
                 D: Unsigned,
@@ -84,7 +84,7 @@ macro_rules! spec_impl_ref_observe {
             T: $crate::observe::RefObserve<Spec = $crate::observe::DefaultSpec>,
         {
             type Observer<'ob, S, D, E $(, const $arg: $arg_ty)*>
-                = $crate::observe::RefObserver<'ob, S, D, E>
+                = $crate::builtin::PointerObserver<'ob, S, D, E>
             where
                 Self: 'ob,
                 D: Unsigned,
@@ -97,7 +97,7 @@ macro_rules! spec_impl_ref_observe {
             T: Clone + PartialEq + $crate::observe::RefObserve<Spec = $crate::observe::SnapshotSpec>,
         {
             type Observer<'ob, S, D, E $(, const $arg: $arg_ty)*>
-                = $crate::observe::SnapshotObserver<'ob, S, D, E>
+                = $crate::builtin::SnapshotObserver<'ob, S, D, E>
             where
                 Self: 'ob,
                 D: Unsigned,
@@ -112,7 +112,7 @@ macro_rules! default_impl_ref_observe {
         $(
             impl <$($($gen)*)?> $crate::observe::RefObserve for $ty {
                 type Observer<'ob, S, D, E>
-                    = $crate::observe::RefObserver<'ob, S, D, E>
+                    = $crate::builtin::PointerObserver<'ob, S, D, E>
                 where
                     Self: 'ob,
                     D: Unsigned,

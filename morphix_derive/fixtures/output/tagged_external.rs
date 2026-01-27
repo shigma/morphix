@@ -312,7 +312,7 @@ pub struct Qux {}
 const _: () = {
     #[automatically_derived]
     impl ::morphix::Observe for Qux {
-        type Observer<'ob, S, N> = ::morphix::observe::NoopObserver<'ob, S, N>
+        type Observer<'ob, S, N> = ::morphix::builtin::NoopObserver<'ob, S, N>
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,

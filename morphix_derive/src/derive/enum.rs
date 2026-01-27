@@ -116,7 +116,7 @@ pub fn derive_observe_for_enum(
                             ::morphix::observe::DefaultObserver<#ob_lt, #field_ty>
                         },
                         Some(GeneralImpl { ob_ident, .. }) => parse_quote_spanned! { field_span =>
-                            ::morphix::observe::#ob_ident<#ob_lt, #field_ty>
+                            ::morphix::builtin::#ob_ident<#ob_lt, #field_ty>
                         },
                     };
                     if !field_trivial {
@@ -180,7 +180,7 @@ pub fn derive_observe_for_enum(
                             ::morphix::observe::DefaultObserver<#ob_lt, #field_ty>
                         },
                         Some(GeneralImpl { ob_ident, .. }) => parse_quote_spanned! { field_span =>
-                            ::morphix::observe::#ob_ident<#ob_lt, #field_ty>
+                            ::morphix::builtin::#ob_ident<#ob_lt, #field_ty>
                         },
                     };
                     if !field_trivial {

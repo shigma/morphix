@@ -1,8 +1,9 @@
 use std::mem::MaybeUninit;
 use std::sync::atomic::Ordering;
 
+use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
 use crate::helper::{AsDeref, AsDerefMut, Unsigned, Zero};
-use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver, Observe, RefObserve, ReplaceHandler};
+use crate::observe::{DefaultSpec, Observe, RefObserve};
 
 pub trait Atomic {
     type Value: Copy + PartialEq;

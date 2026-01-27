@@ -232,7 +232,7 @@ const _: () = {
     {
         type Observer<'ob, S, N> = BarObserver<
             'ob,
-            ::morphix::observe::ShallowObserver<'ob, S, ::morphix::helper::Succ<N>>,
+            ::morphix::builtin::ShallowObserver<'ob, S, ::morphix::helper::Succ<N>>,
         >
         where
             Self: 'ob,

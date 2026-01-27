@@ -3,9 +3,10 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
+use crate::builtin::PointerObserver;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, ObserverPointer, RefObserve, RefObserver, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, ObserverPointer, RefObserve, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
 
 pub struct TupleObserver<'ob, O, S: ?Sized, D = Zero> {
@@ -220,7 +221,7 @@ macro_rules! tuple_observer {
             $($t: RefObserve,)*
         {
             type Observer<'ob, S, D, E>
-                = RefObserver<'ob, S, D, E>
+                = PointerObserver<'ob, S, D, E>
             where
                 Self: 'ob,
                 D: Unsigned,

@@ -1,14 +1,5 @@
 //! Types and traits for observing mutations to data structures.
 //!
-//! This module provides the core observation infrastructure for morphix, including:
-//!
-//! - **Core traits**: [`Observe`] and [`Observer`] define the observation protocol
-//! - **General-purpose observers**: [`GeneralObserver`], handler trait [`GeneralHandler`] for
-//!   implementing custom detection strategies, and pre-configured types: [`ShallowObserver`],
-//!   [`SnapshotObserver`], [`NoopObserver`]
-//! - **Specialized observers**: Type-specific implementations for common types, such as [`String`]
-//!   and [`Vec<T>`]
-//!
 //! ## How Observers Work
 //!
 //! Observers are types that implement [`DerefMut`](std::ops::DerefMut) to the target type being
@@ -28,29 +19,14 @@
 //!
 //! To solve this, we use a [`ObserverPointer`] type to create the dereference chain: `A'` → `B'` →
 //! `ObserverPointer<A>` → `A` → `B`. This allows tracking changes on both `A` and `B`.
-//!
-//! ## Usage
-//!
-//! Most users will interact with this module through attributes like `#[morphix(shallow)]` for
-//! field-level control. Direct use of types from this module is typically only needed for advanced
-//! use cases.
 
+pub use crate::builtin::snapshot::SnapshotSpec;
 use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Unsigned, Zero};
 use crate::{Adapter, Mutations};
 
-mod general;
-mod noop;
 mod pointer;
-mod r#ref;
-mod shallow;
-mod snapshot;
 
-pub use general::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler, SerializeHandler};
-pub use noop::NoopObserver;
 pub use pointer::ObserverPointer;
-pub use r#ref::RefObserver;
-pub use shallow::ShallowObserver;
-pub use snapshot::{SnapshotObserver, SnapshotSpec};
 
 /// A trait for types that can be observed for mutations.
 ///
@@ -189,7 +165,8 @@ where
     /// ## Example
     ///
     /// ```
-    /// use morphix::observe::{Observer, ShallowObserver};
+    /// use morphix::builtin::ShallowObserver;
+    /// use morphix::observe::Observer;
     ///
     /// let mut value = 42;
     /// let observer = ShallowObserver::<i32>::observe(&mut value);
@@ -425,7 +402,8 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
     ///
     /// ```
     /// use morphix::adapter::Json;
-    /// use morphix::observe::{ObserveExt, Observer, SerializeObserverExt, ShallowObserver};
+    /// use morphix::builtin::ShallowObserver;
+    /// use morphix::observe::{ObserveExt, Observer, SerializeObserverExt};
     ///
     /// // Normal usage
     /// let mut value = String::from("Hello");

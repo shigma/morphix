@@ -3,9 +3,10 @@ use std::ptr::NonNull;
 
 use serde::Serialize;
 
+use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 use crate::helper::{AsDeref, Unsigned};
-use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver, RefObserve, SerializeHandler};
-use crate::{Adapter, Mutations, MutationKind};
+use crate::observe::{DefaultSpec, RefObserve};
+use crate::{Adapter, MutationKind, Mutations};
 
 trait Len {
     fn len(&self) -> usize;

@@ -1,8 +1,8 @@
 use std::ptr::NonNull;
 
+use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
 use crate::helper::{AsDeref, Unsigned};
-use crate::observe::general::ReplaceHandler;
-use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver};
+use crate::observe::DefaultSpec;
 
 /// A general observer implementation for reference types.
 ///
@@ -19,14 +19,14 @@ use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver}
 ///
 /// ## When to Use
 ///
-/// Use [`RefObserver`] for types where:
+/// Use [`PointerObserver`] for types where:
 /// 1. Pointer identity is a reliable indicator of value identity
 /// 2. Value comparison is expensive or unavailable
 /// 3. The type has no interior mutability
 ///
 /// For types where value comparison is cheap and preferred, consider using [`SnapshotObserver`] for
 /// references.
-pub type RefObserver<'ob, S, D, E> = GeneralObserver<'ob, RefHandler<<S as AsDeref<D>>::Target, E>, S, D>;
+pub type PointerObserver<'ob, S, D, E> = GeneralObserver<'ob, RefHandler<<S as AsDeref<D>>::Target, E>, S, D>;
 
 pub struct RefHandler<T, E>
 where
@@ -81,5 +81,5 @@ where
     T: AsDeref<E> + ?Sized,
     E: Unsigned,
 {
-    const NAME: &'static str = "RefObserver";
+    const NAME: &'static str = "PointerObserver";
 }

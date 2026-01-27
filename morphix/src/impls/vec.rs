@@ -495,7 +495,8 @@ mod tests {
 
     use super::*;
     use crate::adapter::Json;
-    use crate::observe::{ObserveExt, SerializeObserverExt, ShallowObserver};
+    use crate::builtin::ShallowObserver;
+    use crate::observe::{ObserveExt, SerializeObserverExt};
     use crate::{Mutation, MutationKind, PathSegment};
 
     #[derive(Debug, Serialize, Clone, PartialEq, Eq)]

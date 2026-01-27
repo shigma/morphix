@@ -1,9 +1,9 @@
 use std::mem::MaybeUninit;
 
 use crate::Observe;
-use crate::helper::{AsDeref, AsDerefMut, Zero};
-use crate::observe::general::ReplaceHandler;
-use crate::observe::{DebugHandler, GeneralHandler, GeneralObserver, RefObserve, Unsigned};
+use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
+use crate::helper::{AsDeref, AsDerefMut, Unsigned, Zero};
+use crate::observe::RefObserve;
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
 ///

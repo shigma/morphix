@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
 use crate::Observe;
+use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
 use crate::helper::{AsDeref, AsDerefMut, Unsigned, Zero};
-use crate::observe::general::ReplaceHandler;
-use crate::observe::{DebugHandler, DefaultSpec, GeneralHandler, GeneralObserver, RefObserve, SnapshotSpec};
+use crate::observe::{DefaultSpec, RefObserve, SnapshotSpec};
 
 /// A general observer that never reports changes.
 ///

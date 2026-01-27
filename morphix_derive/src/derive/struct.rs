@@ -58,7 +58,7 @@ pub fn derive_observe_for_struct_fields(
                     ::morphix::observe::DefaultObserver<#ob_lt, #field_ty, #head, ::morphix::helper::Succ<#depth>>
                 },
                 Some(GeneralImpl { ob_ident, .. }) => quote_spanned! { field_span =>
-                    ::morphix::observe::#ob_ident<#ob_lt, #head, ::morphix::helper::Succ<#depth>>
+                    ::morphix::builtin::#ob_ident<#ob_lt, #head, ::morphix::helper::Succ<#depth>>
                 },
             };
             deref_fields.push((field, ob_field_ty, deref_ident));
@@ -76,7 +76,7 @@ pub fn derive_observe_for_struct_fields(
                     ::morphix::observe::DefaultObserver<#ob_lt, #field_ty>
                 },
                 Some(GeneralImpl { ob_ident, .. }) => quote_spanned! { field_span =>
-                    ::morphix::observe::#ob_ident<#ob_lt, #field_ty>
+                    ::morphix::builtin::#ob_ident<#ob_lt, #field_ty>
                 },
             };
             if !field_trivial {

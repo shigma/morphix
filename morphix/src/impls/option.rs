@@ -218,10 +218,9 @@ mod tests {
 
     use super::*;
     use crate::adapter::Json;
+    use crate::builtin::{GeneralObserver, PointerObserver, ShallowObserver};
     use crate::helper::AsDeref;
-    use crate::observe::{
-        DefaultSpec, GeneralObserver, ObserveExt, RefObserve, RefObserver, SerializeObserverExt, ShallowObserver,
-    };
+    use crate::observe::{DefaultSpec, ObserveExt, RefObserve, SerializeObserverExt};
 
     #[derive(Debug, Serialize, Default, PartialEq, Eq)]
     struct Number(i32);
@@ -239,7 +238,7 @@ mod tests {
 
     impl RefObserve for Number {
         type Observer<'ob, S, D, E>
-            = RefObserver<'ob, S, D, E>
+            = PointerObserver<'ob, S, D, E>
         where
             Self: 'ob,
             D: Unsigned,
@@ -355,7 +354,7 @@ mod tests {
 
         let mut opt = &Some(Number(0));
         let ob = opt.__observe();
-        assert_eq!(format!("{ob:?}"), r#"RefObserver(Some(Number(0)))"#);
+        assert_eq!(format!("{ob:?}"), r#"PointerObserver(Some(Number(0)))"#);
     }
 
     #[test]
