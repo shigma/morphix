@@ -24,8 +24,8 @@ use crate::observe::DefaultSpec;
 /// 2. Value comparison is expensive or unavailable
 /// 3. The type has no interior mutability
 ///
-/// For types where value comparison is cheap and preferred, consider using [`SnapshotObserver`] for
-/// references.
+/// For types where value comparison is cheap and preferred, consider using
+/// [`SnapshotObserver`](crate::builtin::SnapshotObserver) for references.
 pub type PointerObserver<'ob, S, D, E> = GeneralObserver<'ob, RefHandler<<S as AsDeref<D>>::Target, E>, S, D>;
 
 pub struct RefHandler<T, E>

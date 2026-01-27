@@ -480,7 +480,7 @@ pub fn derive_observe_for_enum(
             }
 
             unsafe fn refresh(this: &mut Self, value: &mut #head) {
-                ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
+                ::morphix::observe::ObserverPointer::set(this, value);
                 #(#if_has_variant
                     let __value = value.as_deref_mut();
                     unsafe { this.__variant.refresh(__value) }

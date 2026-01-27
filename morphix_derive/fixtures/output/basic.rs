@@ -66,7 +66,7 @@ const _: () = {
             }
         }
         unsafe fn refresh(this: &mut Self, value: &mut S) {
-            ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
+            ::morphix::observe::ObserverPointer::set(this, value);
             let __value = value.as_deref_mut();
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
@@ -133,7 +133,7 @@ const _: () = {
     {
         #[inline]
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let head = &**::morphix::observe::Observer::as_ptr(self);
+            let head = &**::morphix::helper::AsNormalized::as_normalized_ref(self);
             let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
             ::std::fmt::Display::fmt(value, f)
         }

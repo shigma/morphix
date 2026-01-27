@@ -207,7 +207,7 @@ pub fn derive_observe_for_struct_fields(
             }
 
             unsafe fn refresh(this: &mut Self, value: &mut #head) {
-                ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
+                ::morphix::observe::ObserverPointer::set(this, value);
                 let __value = value.as_deref_mut();
                 unsafe {
                     #(#refresh_stmts)*
@@ -470,7 +470,7 @@ pub fn derive_observe_for_struct_fields(
                 {
                     #[inline]
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let head = &**::morphix::observe::Observer::as_ptr(self);
+                        let head = &**::morphix::helper::AsNormalized::as_normalized_ref(self);
                         let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
                         ::std::fmt::Display::fmt(value, f)
                     }

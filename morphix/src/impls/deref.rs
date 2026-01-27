@@ -127,7 +127,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &U) -> bool {
-        AsDeref::<D>::as_deref(&**O::as_ptr(self)).eq(other)
+        AsDeref::<D>::as_deref(&**self.as_normalized_ref()).eq(other)
     }
 }
 
@@ -140,7 +140,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        AsDeref::<D>::as_deref(&**O::as_ptr(self)).partial_cmp(other)
+        AsDeref::<D>::as_deref(&**self.as_normalized_ref()).partial_cmp(other)
     }
 }
 

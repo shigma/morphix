@@ -240,7 +240,7 @@ where
 
     #[inline]
     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
-        ObserverPointer::set(&this.ptr, value);
+        ObserverPointer::set(this, value);
     }
 
     #[inline]

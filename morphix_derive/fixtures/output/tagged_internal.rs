@@ -135,7 +135,7 @@ const _: () = {
             }
         }
         unsafe fn refresh(this: &mut Self, value: &mut S) {
-            ::morphix::observe::ObserverPointer::set(&this.__ptr, value);
+            ::morphix::observe::ObserverPointer::set(this, value);
             let __value = value.as_deref_mut();
             unsafe { this.__variant.refresh(__value) }
         }

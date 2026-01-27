@@ -67,7 +67,7 @@ where
 
     #[inline]
     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
-        ObserverPointer::set(Self::as_ptr(this), value);
+        ObserverPointer::set(this, value);
         match (&mut this.inner, value.as_deref_mut()) {
             (Some(inner), Some(value)) => unsafe { Observer::refresh(inner, value) },
             (None, _) => {}

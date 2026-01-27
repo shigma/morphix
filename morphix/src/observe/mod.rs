@@ -86,7 +86,8 @@ pub trait Observe {
     ///
     /// - [`DefaultSpec`] → use [`OptionObserver`](crate::impls::option::OptionObserver) wrapping
     ///   `T`'s observer
-    /// - [`SnapshotSpec`] → use [`SnapshotObserver<Option<T>>`] for snapshot-based change detection
+    /// - [`SnapshotSpec`] → use [`SnapshotObserver<Option<T>>`](crate::builtin::SnapshotObserver)
+    ///   for snapshot-based change detection
     ///
     /// This allows [`Option<T>`] to automatically inherit more accurate or efficient change
     /// detection strategies based on its element type, without requiring manual implementation.
@@ -232,7 +233,7 @@ where
     ///     #
     ///     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
     ///         // Refresh the outer pointer
-    ///         ObserverPointer::set(Self::as_ptr(this), value);
+    ///         ObserverPointer::set(this, value);
     ///
     ///         // Refresh nested observer if present
     ///         match (&mut this.ob, value.as_deref_mut()) {
@@ -279,7 +280,7 @@ where
     /// - Lazily initialized on first access, and
     /// - Refreshed after container reallocation moves elements in memory.
     unsafe fn force(this: &mut Self, value: &'ob mut Self::Head) {
-        match ObserverPointer::get(Self::as_ptr(this)) {
+        match ObserverPointer::get((*this).as_normalized_ref()) {
             None => *this = Self::observe(value),
             Some(ptr) => {
                 if !std::ptr::addr_eq(ptr.as_ptr(), value) {
@@ -289,14 +290,6 @@ where
                 }
             }
         }
-    }
-
-    /// Gets a reference to the internal pointer.
-    ///
-    /// This is primarily used internally by observer implementations.
-    #[inline]
-    fn as_ptr(this: &Self) -> &ObserverPointer<Self::Head> {
-        this.as_deref_coinductive()
     }
 
     /// Gets a mutable reference to the inner observed value without triggering observation.
@@ -315,7 +308,7 @@ where
         'ob: 'i,
         Self::Head: AsDerefMut<Self::InnerDepth>,
     {
-        let head = unsafe { ObserverPointer::as_mut(Self::as_ptr(this)) };
+        let head = unsafe { ObserverPointer::as_mut(this.as_normalized_ref()) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
     }
 
@@ -424,7 +417,7 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
     /// assert!(mutation.is_none());
     /// ```
     fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        if ObserverPointer::is_null(Self::as_ptr(this)) {
+        if ObserverPointer::is_null((*this).as_normalized_ref()) {
             return Ok(Mutations::new());
         }
         unsafe { Self::flush_unchecked::<A>(this) }
