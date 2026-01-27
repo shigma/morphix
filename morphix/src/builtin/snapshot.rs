@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::mem::MaybeUninit;
 
 use crate::Observe;
@@ -50,14 +51,20 @@ use crate::observe::RefObserve;
 /// implementation since they're cheap to clone and compare.
 pub type SnapshotObserver<'ob, S, D = Zero> = GeneralObserver<'ob, SnapshotHandler<<S as AsDeref<D>>::Target>, S, D>;
 
-pub struct SnapshotHandler<T> {
-    snapshot: MaybeUninit<T>,
+pub trait Snapshot {
+    type Value;
+
+    fn to_snapshot(&self) -> Self::Value;
+
+    fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool;
 }
 
-impl<T> GeneralHandler for SnapshotHandler<T>
-where
-    T: Clone + PartialEq,
-{
+pub struct SnapshotHandler<T: Snapshot + ?Sized> {
+    snapshot: MaybeUninit<T::Value>,
+    phantom: PhantomData<T>,
+}
+
+impl<T: Snapshot + ?Sized> GeneralHandler for SnapshotHandler<T> {
     type Target = T;
     type Spec = SnapshotSpec;
 
@@ -65,13 +72,15 @@ where
     fn uninit() -> Self {
         Self {
             snapshot: MaybeUninit::uninit(),
+            phantom: PhantomData,
         }
     }
 
     #[inline]
     fn observe(value: &T) -> Self {
         Self {
-            snapshot: MaybeUninit::new(value.clone()),
+            snapshot: MaybeUninit::new(value.to_snapshot()),
+            phantom: PhantomData,
         }
     }
 
@@ -79,22 +88,16 @@ where
     fn deref_mut(&mut self) {}
 }
 
-impl<T> ReplaceHandler for SnapshotHandler<T>
-where
-    T: Clone + PartialEq,
-{
+impl<T: Snapshot + ?Sized> ReplaceHandler for SnapshotHandler<T> {
     #[inline]
     fn flush_replace(&mut self, value: &T) -> bool {
         // SAFETY: `ReplaceHandler::flush_replace` is only called in `Observer::flush_unchecked`, where the
         // observer is assumed to contain a valid pointer
-        value != unsafe { self.snapshot.assume_init_ref() }
+        value.cmp_snapshot(unsafe { self.snapshot.assume_init_ref() })
     }
 }
 
-impl<T> DebugHandler for SnapshotHandler<T>
-where
-    T: Clone + PartialEq,
-{
+impl<T: Snapshot + ?Sized> DebugHandler for SnapshotHandler<T> {
     const NAME: &'static str = "SnapshotObserver";
 }
 
@@ -108,6 +111,19 @@ pub struct SnapshotSpec;
 macro_rules! impl_snapshot_observe {
     ($($(#[$($meta:tt)*])* $ty:ty),* $(,)?) => {
         $(
+            $(#[$($meta)*])*
+            impl Snapshot for $ty {
+                type Value = Self;
+                #[inline]
+                fn to_snapshot(&self) -> Self {
+                    *self
+                }
+                #[inline]
+                fn cmp_snapshot(&self, snapshot: &Self) -> bool {
+                    self == snapshot
+                }
+            }
+
             $(#[$($meta)*])*
             impl Observe for $ty {
                 type Observer<'ob, S, D>
@@ -147,6 +163,19 @@ impl_snapshot_observe! {
 macro_rules! generic_impl_snapshot_observe {
     ($($(#[$($meta:tt)*])* impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
         $(
+            $(#[$($meta)*])*
+            impl <$($($gen)*)?> Snapshot for $ty {
+                type Value = Self;
+                #[inline]
+                fn to_snapshot(&self) -> Self {
+                    *self
+                }
+                #[inline]
+                fn cmp_snapshot(&self, snapshot: &Self) -> bool {
+                    self == snapshot
+                }
+            }
+
             $(#[$($meta)*])*
             impl <$($($gen)*)?> Observe for $ty {
                 type Observer<'ob, S, D>

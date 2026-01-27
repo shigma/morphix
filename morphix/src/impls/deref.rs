@@ -2,8 +2,9 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
+use crate::builtin::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, AsNormalized, Succ, Unsigned};
-use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
+use crate::observe::{Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
 /// Observer implementation for pointer types such as [`Box<T>`] and `&mut T`.
@@ -145,7 +146,7 @@ where
 }
 
 macro_rules! impl_deref_observe {
-    ($(impl $([$($gen:tt)*])? Observe for $ty:ty as $spec:ty $(where { $($where:tt)+ })?;)*) => {
+    ($(impl $([$($gen:tt)*])? Observe for $ty:ty $(where { $($where:tt)+ })?;)*) => {
         $(
             impl <$($($gen)*)?> Observe for $ty {
                 type Observer<'ob, S, D>
@@ -155,22 +156,22 @@ macro_rules! impl_deref_observe {
                     D: Unsigned,
                     S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
-                type Spec = $spec;
+                type Spec = T::Spec;
             }
         )*
     };
 }
 
 impl_deref_observe! {
-    impl [T: Observe + ?Sized] Observe for Box<T> as T::Spec;
-    impl [T: Observe + ?Sized] Observe for &mut T as T::Spec;
-    impl [T: RefObserve + ?Sized] Observe for &T as T::Spec;
-    impl [T: RefObserve + ?Sized] Observe for std::rc::Rc<T> as DefaultSpec;
-    impl [T: RefObserve + ?Sized] Observe for std::sync::Arc<T> as DefaultSpec;
+    impl [T: Observe + ?Sized] Observe for Box<T>;
+    impl [T: Observe + ?Sized] Observe for &mut T;
+    impl [T: RefObserve + ?Sized] Observe for &T;
+    impl [T: RefObserve + ?Sized] Observe for std::rc::Rc<T>;
+    impl [T: RefObserve + ?Sized] Observe for std::sync::Arc<T>;
 }
 
 macro_rules! impl_deref_ref_observe {
-    ($(impl $([$($gen:tt)*])? RefObserve for $ty:ty as $spec:ty $(where { $($where:tt)+ })?;)*) => {
+    ($(impl $([$($gen:tt)*])? RefObserve for $ty:ty $(where { $($where:tt)+ })?;)*) => {
         $(
             impl <$($($gen)*)?> RefObserve for $ty {
                 type Observer<'ob, S, D>
@@ -180,18 +181,46 @@ macro_rules! impl_deref_ref_observe {
                     D: Unsigned,
                     S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
-                type Spec = $spec;
+                type Spec = T::Spec;
             }
         )*
     };
 }
 
 impl_deref_ref_observe! {
-    impl [T: RefObserve + ?Sized] RefObserve for &T as T::Spec;
-    impl [T: RefObserve + ?Sized] RefObserve for &mut T as T::Spec;
-    impl [T: RefObserve + ?Sized] RefObserve for Box<T> as T::Spec;
-    impl [T: RefObserve + ?Sized] RefObserve for std::rc::Rc<T> as DefaultSpec;
-    impl [T: RefObserve + ?Sized] RefObserve for std::sync::Arc<T> as DefaultSpec;
+    impl [T: RefObserve + ?Sized] RefObserve for &T;
+    impl [T: RefObserve + ?Sized] RefObserve for &mut T;
+    impl [T: RefObserve + ?Sized] RefObserve for Box<T>;
+    impl [T: RefObserve + ?Sized] RefObserve for std::rc::Rc<T>;
+    impl [T: RefObserve + ?Sized] RefObserve for std::sync::Arc<T>;
+}
+
+macro_rules! impl_snapshot {
+    ($(impl $([$($gen:tt)*])? Snapshot for $ty:ty as $value:ty $(where { $($where:tt)+ })?;)*) => {
+        $(
+            impl <$($($gen)*)?> Snapshot for $ty {
+                type Value = $value;
+
+                #[inline]
+                fn to_snapshot(&self) -> Self::Value {
+                    (**self).to_snapshot()
+                }
+
+                #[inline]
+                fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool {
+                    (**self).cmp_snapshot(snapshot)
+                }
+            }
+        )*
+    };
+}
+
+impl_snapshot! {
+    impl [T: Snapshot + ?Sized] Snapshot for &T as T::Value;
+    impl [T: Snapshot + ?Sized] Snapshot for &mut T as T::Value;
+    impl [T: Snapshot + ?Sized] Snapshot for Box<T> as T::Value;
+    impl [T: Snapshot + ?Sized] Snapshot for std::rc::Rc<T> as T::Value;
+    impl [T: Snapshot + ?Sized] Snapshot for std::sync::Arc<T> as T::Value;
 }
 
 #[cfg(test)]

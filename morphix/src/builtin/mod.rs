@@ -16,4 +16,4 @@ pub use general::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler,
 pub use noop::NoopObserver;
 pub use pointer::PointerObserver;
 pub use shallow::ShallowObserver;
-pub use snapshot::SnapshotObserver;
+pub use snapshot::{Snapshot, SnapshotObserver};

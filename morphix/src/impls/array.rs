@@ -4,6 +4,7 @@ use std::slice::SliceIndex;
 
 use serde::Serialize;
 
+use crate::builtin::Snapshot;
 use crate::helper::macros::spec_impl_ref_observe;
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver};
@@ -224,4 +225,18 @@ spec_impl_ref_observe! {
     [Self; N],
     [T; N],
     const N: usize,
+}
+
+impl<T: Snapshot, const N: usize> Snapshot for [T; N] {
+    type Value = [T::Value; N];
+
+    #[inline]
+    fn to_snapshot(&self) -> Self::Value {
+        std::array::from_fn(|i| self[i].to_snapshot())
+    }
+
+    #[inline]
+    fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool {
+        (0..N).all(|i| self[i].cmp_snapshot(&snapshot[i]))
+    }
 }

@@ -38,7 +38,7 @@ macro_rules! spec_impl_observe {
 
         impl<T> $helper<$crate::observe::SnapshotSpec> for T
         where
-            T: Clone + PartialEq + Observe<Spec = $crate::observe::SnapshotSpec>,
+            T: $crate::builtin::Snapshot + Observe<Spec = $crate::observe::SnapshotSpec>,
         {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
                 = $crate::builtin::SnapshotObserver<'ob, S, D>
@@ -90,7 +90,7 @@ macro_rules! spec_impl_ref_observe {
 
         impl<T> $helper<$crate::observe::SnapshotSpec> for T
         where
-            T: Clone + PartialEq + $crate::observe::RefObserve<Spec = $crate::observe::SnapshotSpec>,
+            T: $crate::builtin::Snapshot + $crate::observe::RefObserve<Spec = $crate::observe::SnapshotSpec>,
         {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
                 = $crate::builtin::SnapshotObserver<'ob, S, D>

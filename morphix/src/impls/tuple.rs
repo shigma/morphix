@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::builtin::PointerObserver;
+use crate::builtin::{PointerObserver, Snapshot};
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
@@ -105,6 +105,22 @@ spec_impl_ref_observe! {
     #[cfg_attr(docsrs, doc(fake_variadic))]
     #[cfg_attr(docsrs, doc = "This trait is implemented for tuples up to 12 items long.")]
     TupleRefObserveImpl, (Self,), (T,)
+}
+
+#[cfg_attr(docsrs, doc(fake_variadic))]
+#[cfg_attr(docsrs, doc = "This trait is implemented for tuples up to 12 items long.")]
+impl<T: Snapshot> Snapshot for (T,) {
+    type Value = (T::Value,);
+
+    #[inline]
+    fn to_snapshot(&self) -> Self::Value {
+        (self.0.to_snapshot(),)
+    }
+
+    #[inline]
+    fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool {
+        self.0.cmp_snapshot(&snapshot.0)
+    }
 }
 
 macro_rules! tuple_observer {

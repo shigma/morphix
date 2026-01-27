@@ -4,6 +4,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
+use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{Observer, SerializeObserver};
@@ -210,6 +211,24 @@ where
 
 spec_impl_observe!(OptionObserveImpl, Option<Self>, Option<T>, OptionObserver);
 spec_impl_ref_observe!(OptionRefObserveImpl, Option<Self>, Option<T>);
+
+impl<T: Snapshot> Snapshot for Option<T> {
+    type Value = Option<T::Value>;
+
+    #[inline]
+    fn to_snapshot(&self) -> Self::Value {
+        self.as_ref().map(|v| v.to_snapshot())
+    }
+
+    #[inline]
+    fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool {
+        match (self, snapshot) {
+            (Some(v), Some(snapshot)) => v.cmp_snapshot(snapshot),
+            (None, None) => true,
+            _ => false,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
