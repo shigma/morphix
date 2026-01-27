@@ -5,19 +5,19 @@ use serde::Serialize;
 
 use crate::builtin::PointerObserver;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, ObserverPointer, RefObserve, SerializeObserver};
+use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
+use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
 
 pub struct TupleObserver<'ob, O, S: ?Sized, D = Zero> {
-    ptr: ObserverPointer<S>,
+    ptr: Pointer<S>,
     inner: (O,),
     mutated: bool,
     phantom: PhantomData<&'ob mut D>,
 }
 
 impl<'ob, O, S: ?Sized, D> Deref for TupleObserver<'ob, O, S, D> {
-    type Target = ObserverPointer<S>;
+    type Target = Pointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -50,7 +50,7 @@ where
     #[inline]
     fn uninit() -> Self {
         Self {
-            ptr: ObserverPointer::uninit(),
+            ptr: Pointer::uninit(),
             inner: (O::uninit(),),
             mutated: false,
             phantom: PhantomData,
@@ -59,7 +59,7 @@ where
 
     #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {
-        let ptr = ObserverPointer::new(value);
+        let ptr = Pointer::new(value);
         let value = value.as_deref_mut();
         Self {
             ptr,
@@ -71,7 +71,7 @@ where
 
     #[inline]
     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
-        ObserverPointer::set(&this.ptr, value);
+        Pointer::set(&this.ptr, value);
         let value = value.as_deref_mut();
         unsafe {
             O::refresh(&mut this.inner.0, &mut value.0);
@@ -110,14 +110,14 @@ spec_impl_ref_observe! {
 macro_rules! tuple_observer {
     ($ty:ident; $($o:ident, $t:ident, $n:tt);*) => {
         pub struct $ty<'ob, $($o,)* S: ?Sized, D = Zero> {
-            ptr: ObserverPointer<S>,
+            ptr: Pointer<S>,
             inner: ($($o,)*),
             mutated: bool,
             phantom: PhantomData<&'ob mut D>,
         }
 
         impl<'ob, $($o,)* S: ?Sized, D> Deref for $ty<'ob, $($o,)* S, D> {
-            type Target = ObserverPointer<S>;
+            type Target = Pointer<S>;
 
             #[inline]
             fn deref(&self) -> &Self::Target {
@@ -149,7 +149,7 @@ macro_rules! tuple_observer {
             #[inline]
             fn uninit() -> Self {
                 Self {
-                    ptr: ObserverPointer::uninit(),
+                    ptr: Pointer::uninit(),
                     inner: ($($o::uninit(),)*),
                     mutated: false,
                     phantom: PhantomData,
@@ -158,7 +158,7 @@ macro_rules! tuple_observer {
 
             #[inline]
             fn observe(value: &'ob mut Self::Head) -> Self {
-                let ptr = ObserverPointer::new(value);
+                let ptr = Pointer::new(value);
                 let value = value.as_deref_mut();
                 Self {
                     ptr,
@@ -170,7 +170,7 @@ macro_rules! tuple_observer {
 
             #[inline]
             unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
-                ObserverPointer::set(&this.ptr, value);
+                Pointer::set(&this.ptr, value);
                 let value = value.as_deref_mut();
                 unsafe {
                     $($o::refresh(&mut this.inner.$n, &mut value.$n);)*

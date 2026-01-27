@@ -21,12 +21,8 @@
 //! `ObserverPointer<A>` → `A` → `B`. This allows tracking changes on both `A` and `B`.
 
 pub use crate::builtin::snapshot::SnapshotSpec;
-use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Pointer, Unsigned, Zero};
 use crate::{Adapter, Mutations};
-
-mod pointer;
-
-pub use pointer::ObserverPointer;
 
 /// A trait for types that can be observed for mutations.
 ///
@@ -136,7 +132,7 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 /// chains.
 pub trait Observer<'ob>: Sized
 where
-    Self: AsNormalized<Target = ObserverPointer<Self::Head>>,
+    Self: AsNormalized<Target = Pointer<Self::Head>>,
     Self: AsDerefMutCoinductive<Self::OuterDepth>,
 {
     /// Type-level number of dereferences from [`Head`](Observer::Head) to the observed type.
@@ -280,7 +276,7 @@ where
     /// - Lazily initialized on first access, and
     /// - Refreshed after container reallocation moves elements in memory.
     unsafe fn force(this: &mut Self, value: &'ob mut Self::Head) {
-        match ObserverPointer::get((*this).as_normalized_ref()) {
+        match Pointer::get((*this).as_normalized_ref()) {
             None => *this = Self::observe(value),
             Some(ptr) => {
                 if !std::ptr::addr_eq(ptr.as_ptr(), value) {
@@ -308,7 +304,7 @@ where
         'ob: 'i,
         Self::Head: AsDerefMut<Self::InnerDepth>,
     {
-        let head = unsafe { ObserverPointer::as_mut(this.as_normalized_ref()) };
+        let head = unsafe { Pointer::as_mut(this.as_normalized_ref()) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
     }
 
@@ -348,7 +344,7 @@ where
         'ob: 'i,
         Self::Head: AsDerefMut<Self::InnerDepth>,
     {
-        let head = unsafe { ObserverPointer::as_mut(this.as_deref_mut_coinductive()) };
+        let head = unsafe { Pointer::as_mut(this.as_deref_mut_coinductive()) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
     }
 }
@@ -417,7 +413,7 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
     /// assert!(mutation.is_none());
     /// ```
     fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        if ObserverPointer::is_null((*this).as_normalized_ref()) {
+        if Pointer::is_null((*this).as_normalized_ref()) {
             return Ok(Mutations::new());
         }
         unsafe { Self::flush_unchecked::<A>(this) }

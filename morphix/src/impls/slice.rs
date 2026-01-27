@@ -9,8 +9,8 @@ use std::slice::{
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
+use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
 pub trait ObserverSlice<'ob> {
@@ -132,7 +132,7 @@ impl SliceMutation for TruncateAppend {
 }
 
 pub struct SliceObserver<'ob, V, M, S: ?Sized, D = Zero> {
-    ptr: ObserverPointer<S>,
+    ptr: Pointer<S>,
     pub(super) obs: V,
     pub(super) mutation: Option<M>,
     phantom: PhantomData<&'ob mut D>,
@@ -146,7 +146,7 @@ impl<'ob, V, M, S: ?Sized, D> SliceObserver<'ob, V, M, S, D> {
 }
 
 impl<'ob, V, M, S: ?Sized, D> Deref for SliceObserver<'ob, V, M, S, D> {
-    type Target = ObserverPointer<S>;
+    type Target = Pointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -185,7 +185,7 @@ where
     #[inline]
     fn uninit() -> Self {
         Self {
-            ptr: ObserverPointer::uninit(),
+            ptr: Pointer::uninit(),
             obs: V::uninit(),
             mutation: None,
             phantom: PhantomData,
@@ -195,7 +195,7 @@ where
     #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
-            ptr: ObserverPointer::new(value),
+            ptr: Pointer::new(value),
             obs: V::uninit(),
             mutation: Some(M::observe(value.as_deref().as_ref().len())),
             phantom: PhantomData,
@@ -204,7 +204,7 @@ where
 
     #[inline]
     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
-        ObserverPointer::set(this, value);
+        Pointer::set(this, value);
     }
 }
 

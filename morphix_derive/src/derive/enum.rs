@@ -395,7 +395,7 @@ pub fn derive_observe_for_enum(
             #(#input_predicates,)*
             #(#field_tys: ::morphix::Observe + #ob_lt),*
         {
-            __ptr: ::morphix::observe::ObserverPointer<#head>,
+            __ptr: ::morphix::helper::Pointer<#head>,
             #(#if_has_variant __mutated: bool,)*
             __phantom: ::std::marker::PhantomData<&#ob_lt mut #depth>,
             #(#if_has_initial __initial: #ob_initial_ident,)*
@@ -413,7 +413,7 @@ pub fn derive_observe_for_enum(
             #(#input_predicates,)*
             #(#field_tys: ::morphix::Observe,)*
         {
-            type Target = ::morphix::observe::ObserverPointer<#head>;
+            type Target = ::morphix::helper::Pointer<#head>;
             fn deref(&self) -> &Self::Target {
                 &self.__ptr
             }
@@ -459,7 +459,7 @@ pub fn derive_observe_for_enum(
 
             fn uninit() -> Self {
                 Self {
-                    __ptr: ::morphix::observe::ObserverPointer::uninit(),
+                    __ptr: ::morphix::helper::Pointer::uninit(),
                     #(#if_has_variant __mutated: false,)*
                     __phantom: ::std::marker::PhantomData,
                     #(#if_has_initial __initial: #ob_initial_ident::__None,)*
@@ -468,7 +468,7 @@ pub fn derive_observe_for_enum(
             }
 
             fn observe(value: &#ob_lt mut #head) -> Self {
-                let __ptr = ::morphix::observe::ObserverPointer::new(value);
+                let __ptr = ::morphix::helper::Pointer::new(value);
                 let __value = value.as_deref_mut();
                 Self {
                     __ptr,
@@ -480,7 +480,7 @@ pub fn derive_observe_for_enum(
             }
 
             unsafe fn refresh(this: &mut Self, value: &mut #head) {
-                ::morphix::observe::ObserverPointer::set(this, value);
+                ::morphix::helper::Pointer::set(this, value);
                 #(#if_has_variant
                     let __value = value.as_deref_mut();
                     unsafe { this.__variant.refresh(__value) }

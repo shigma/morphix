@@ -44,8 +44,8 @@
 //! ```
 //!
 //! - For normal values: `&mut T` returns `&mut &mut T`, becoming `**(&mut &mut value) = 42`
-//! - For observers: returns [`&mut ObserverPointer`](crate::observe::ObserverPointer), properly
-//!   dereferencing through the observer chain
+//! - For observers: returns [`&mut Pointer`](crate::helper::Pointer), properly dereferencing
+//!   through the observer chain
 //!
 //! ### Comparison Solution
 //!
@@ -60,8 +60,8 @@
 //! ```
 //!
 //! - For normal values: `&T` returns `&&T`, becoming `**(&&lhs) == **(&&rhs)`
-//! - For observers: returns [`&ObserverPointer`](crate::observe::ObserverPointer), comparing the
-//!   underlying observed values
+//! - For observers: returns [`&Pointer`](crate::helper::Pointer), comparing the underlying observed
+//!   values
 //!
 //! This creates a form of specialization without requiring the unstable specialization feature.
 

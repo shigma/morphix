@@ -165,14 +165,14 @@ pub fn derive_observe_for_struct_fields(
         type_fields.insert(
             0,
             quote! {
-                __ptr: ::morphix::observe::ObserverPointer<#head>,
+                __ptr: ::morphix::helper::Pointer<#head>,
                 __mutated: bool,
                 __phantom: ::std::marker::PhantomData<&#ob_lt mut #depth>,
             },
         );
 
         deref_ident = format_ident!("Deref");
-        deref_target = quote! { ::morphix::observe::ObserverPointer<#head> };
+        deref_target = quote! { ::morphix::helper::Pointer<#head> };
         deref_expr = quote! { self.__ptr };
         deref_mut_impl = quote! {
             self.__mutated = true;
@@ -188,7 +188,7 @@ pub fn derive_observe_for_struct_fields(
 
             fn uninit() -> Self {
                 Self {
-                    __ptr: ::morphix::observe::ObserverPointer::uninit(),
+                    __ptr: ::morphix::helper::Pointer::uninit(),
                     __mutated: false,
                     __phantom: ::std::marker::PhantomData,
                     #(#uninit_fields)*
@@ -196,7 +196,7 @@ pub fn derive_observe_for_struct_fields(
             }
 
             fn observe(value: &#ob_lt mut #head) -> Self {
-                let __ptr = ::morphix::observe::ObserverPointer::new(value);
+                let __ptr = ::morphix::helper::Pointer::new(value);
                 let __value = value.as_deref_mut();
                 Self {
                     __ptr,
@@ -207,7 +207,7 @@ pub fn derive_observe_for_struct_fields(
             }
 
             unsafe fn refresh(this: &mut Self, value: &mut #head) {
-                ::morphix::observe::ObserverPointer::set(this, value);
+                ::morphix::helper::Pointer::set(this, value);
                 let __value = value.as_deref_mut();
                 unsafe {
                     #(#refresh_stmts)*

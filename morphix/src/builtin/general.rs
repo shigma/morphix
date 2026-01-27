@@ -4,8 +4,8 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::helper::{AsNormalized, Succ, Unsigned, Zero};
-use crate::observe::{Observer, ObserverPointer, SerializeObserver};
+use crate::helper::{AsNormalized, Pointer, Succ, Unsigned, Zero};
+use crate::observe::{Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
@@ -191,13 +191,13 @@ pub trait DebugHandler: GeneralHandler {
 /// - [`NoopObserver`](super::NoopObserver) - Ignores all changes
 /// - [`SnapshotObserver`](super::SnapshotObserver) - Compares cloned snapshots to detect changes
 pub struct GeneralObserver<'ob, H, S: ?Sized, N = Zero> {
-    ptr: ObserverPointer<S>,
+    ptr: Pointer<S>,
     handler: H,
     phantom: PhantomData<&'ob mut N>,
 }
 
 impl<'ob, H, S: ?Sized, N> Deref for GeneralObserver<'ob, H, S, N> {
-    type Target = ObserverPointer<S>;
+    type Target = Pointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -232,7 +232,7 @@ where
     #[inline]
     fn uninit() -> Self {
         Self {
-            ptr: ObserverPointer::uninit(),
+            ptr: Pointer::uninit(),
             handler: H::uninit(),
             phantom: PhantomData,
         }
@@ -240,13 +240,13 @@ where
 
     #[inline]
     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
-        ObserverPointer::set(this, value);
+        Pointer::set(this, value);
     }
 
     #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
-            ptr: ObserverPointer::new(value),
+            ptr: Pointer::new(value),
             handler: H::observe(value.as_deref()),
             phantom: PhantomData,
         }

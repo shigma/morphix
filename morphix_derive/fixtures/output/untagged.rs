@@ -17,7 +17,7 @@ pub enum Foo {
 const _: () = {
     #[::std::prelude::v1::derive()]
     pub struct FooObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
-        __ptr: ::morphix::observe::ObserverPointer<S>,
+        __ptr: ::morphix::helper::Pointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut N>,
         __initial: FooObserverInitial,
@@ -127,7 +127,7 @@ const _: () = {
     }
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::ops::Deref for FooObserver<'ob, S, N> {
-        type Target = ::morphix::observe::ObserverPointer<S>;
+        type Target = ::morphix::helper::Pointer<S>;
         fn deref(&self) -> &Self::Target {
             &self.__ptr
         }
@@ -154,7 +154,7 @@ const _: () = {
         type InnerDepth = N;
         fn uninit() -> Self {
             Self {
-                __ptr: ::morphix::observe::ObserverPointer::uninit(),
+                __ptr: ::morphix::helper::Pointer::uninit(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
                 __initial: FooObserverInitial::__None,
@@ -162,7 +162,7 @@ const _: () = {
             }
         }
         fn observe(value: &'ob mut S) -> Self {
-            let __ptr = ::morphix::observe::ObserverPointer::new(value);
+            let __ptr = ::morphix::helper::Pointer::new(value);
             let __value = value.as_deref_mut();
             Self {
                 __ptr,
@@ -173,7 +173,7 @@ const _: () = {
             }
         }
         unsafe fn refresh(this: &mut Self, value: &mut S) {
-            ::morphix::observe::ObserverPointer::set(this, value);
+            ::morphix::helper::Pointer::set(this, value);
             let __value = value.as_deref_mut();
             unsafe { this.__variant.refresh(__value) }
         }

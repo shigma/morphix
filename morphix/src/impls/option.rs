@@ -5,8 +5,8 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
-use crate::observe::{Observer, ObserverPointer, SerializeObserver};
+use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
+use crate::observe::{Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
 
 /// Observer implementation for [`Option`].
@@ -15,7 +15,7 @@ use crate::{Adapter, MutationKind, Mutations, Observe};
 /// [`None`] states. It provides specialized methods for working with options while maintaining
 /// change tracking.
 pub struct OptionObserver<'ob, O, S: ?Sized, D = Zero> {
-    ptr: ObserverPointer<S>,
+    ptr: Pointer<S>,
     mutated: bool,
     initial: bool,
     inner: Option<O>,
@@ -23,7 +23,7 @@ pub struct OptionObserver<'ob, O, S: ?Sized, D = Zero> {
 }
 
 impl<'ob, O, S: ?Sized, D> Deref for OptionObserver<'ob, O, S, D> {
-    type Target = ObserverPointer<S>;
+    type Target = Pointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -57,7 +57,7 @@ where
     #[inline]
     fn uninit() -> Self {
         Self {
-            ptr: ObserverPointer::uninit(),
+            ptr: Pointer::uninit(),
             mutated: false,
             initial: false,
             inner: None,
@@ -67,7 +67,7 @@ where
 
     #[inline]
     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
-        ObserverPointer::set(this, value);
+        Pointer::set(this, value);
         match (&mut this.inner, value.as_deref_mut()) {
             (Some(inner), Some(value)) => unsafe { Observer::refresh(inner, value) },
             (None, _) => {}
@@ -78,7 +78,7 @@ where
     #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
-            ptr: ObserverPointer::new(value),
+            ptr: Pointer::new(value),
             mutated: false,
             initial: value.as_deref().is_some(),
             inner: value.as_deref_mut().as_mut().map(O::observe),

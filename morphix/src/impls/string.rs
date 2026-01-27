@@ -5,12 +5,12 @@ use std::ops::{AddAssign, Bound, Deref, DerefMut, Range, RangeBounds};
 use std::string::Drain;
 
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
-use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, ObserverPointer, SerializeObserver};
+use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
 
 pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
-    ptr: ObserverPointer<S>,
+    ptr: Pointer<S>,
     mutation: Option<TruncateAppend>,
     phantom: PhantomData<&'ob mut D>,
 }
@@ -28,7 +28,7 @@ impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D> {
 }
 
 impl<'ob, S: ?Sized, D> Deref for StringObserver<'ob, S, D> {
-    type Target = ObserverPointer<S>;
+    type Target = Pointer<S>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -59,7 +59,7 @@ where
     #[inline]
     fn uninit() -> Self {
         Self {
-            ptr: ObserverPointer::uninit(),
+            ptr: Pointer::uninit(),
             mutation: None,
             phantom: PhantomData,
         }
@@ -68,7 +68,7 @@ where
     #[inline]
     fn observe(value: &mut Self::Head) -> Self {
         Self {
-            ptr: ObserverPointer::new(value),
+            ptr: Pointer::new(value),
             mutation: Some(TruncateAppend {
                 append_index: value.as_deref().len(),
                 truncate_len: 0,
@@ -79,7 +79,7 @@ where
 
     #[inline]
     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
-        ObserverPointer::set(this, value);
+        Pointer::set(this, value);
     }
 }
 

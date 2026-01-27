@@ -21,7 +21,7 @@ const _: () = {
     where
         &'i mut [T; N]: ::morphix::Observe + 'ob,
     {
-        __ptr: ::morphix::observe::ObserverPointer<S>,
+        __ptr: ::morphix::helper::Pointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut _N>,
         pub a: ::morphix::observe::DefaultObserver<'ob, &'i mut [T; N]>,
@@ -32,7 +32,7 @@ const _: () = {
     where
         &'i mut [T; N]: ::morphix::Observe,
     {
-        type Target = ::morphix::observe::ObserverPointer<S>;
+        type Target = ::morphix::helper::Pointer<S>;
         fn deref(&self) -> &Self::Target {
             &self.__ptr
         }
@@ -68,14 +68,14 @@ const _: () = {
         type InnerDepth = _N;
         fn uninit() -> Self {
             Self {
-                __ptr: ::morphix::observe::ObserverPointer::uninit(),
+                __ptr: ::morphix::helper::Pointer::uninit(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
                 a: ::morphix::observe::Observer::uninit(),
             }
         }
         fn observe(value: &'ob mut S) -> Self {
-            let __ptr = ::morphix::observe::ObserverPointer::new(value);
+            let __ptr = ::morphix::helper::Pointer::new(value);
             let __value = value.as_deref_mut();
             Self {
                 __ptr,
@@ -85,7 +85,7 @@ const _: () = {
             }
         }
         unsafe fn refresh(this: &mut Self, value: &mut S) {
-            ::morphix::observe::ObserverPointer::set(this, value);
+            ::morphix::helper::Pointer::set(this, value);
             let __value = value.as_deref_mut();
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
