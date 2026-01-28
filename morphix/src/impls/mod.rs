@@ -2,6 +2,7 @@ pub mod array;
 pub mod atomic;
 pub mod btree_map;
 pub mod deref;
+pub mod hash_map;
 pub mod option;
 pub mod slice;
 pub mod string;
