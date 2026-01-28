@@ -135,6 +135,7 @@ where
     O::Head: Sized,
     K: 'ob,
 {
+    /// See [`BTreeMap::get`].
     pub fn get<Q>(&self, key: &Q) -> Option<&O>
     where
         K: Borrow<Q> + Ord,
@@ -154,6 +155,7 @@ where
         }
     }
 
+    /// See [`BTreeMap::get_mut`].
     pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut O>
     where
         K: Borrow<Q> + Ord,

@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::cell::UnsafeCell;
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, TryReserveError};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -11,7 +11,7 @@ use std::ptr::NonNull;
 use serde::Serialize;
 
 use crate::builtin::Snapshot;
-use crate::helper::macros::default_impl_ref_observe;
+use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
 use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
@@ -128,6 +128,22 @@ where
     }
 }
 
+impl<'ob, K, O, S: ?Sized, D, V> HashMapObserver<'ob, K, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = HashMap<K, V>> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero, Head = V> + 'ob,
+    K: Eq + Hash,
+    V: 'ob,
+{
+    untracked_methods! { HashMap =>
+        pub fn reserve(&mut self, additional: usize);
+        pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
+        pub fn shrink_to_fit(&mut self);
+        pub fn shrink_to(&mut self, min_capacity: usize);
+    }
+}
+
 impl<'ob, K, O, S: ?Sized, D> HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
@@ -136,6 +152,7 @@ where
     O::Head: Sized,
     K: 'ob,
 {
+    /// See [`HashMap::get`].
     pub fn get<Q>(&self, key: &Q) -> Option<&O>
     where
         K: Borrow<Q> + Eq + Hash,
@@ -155,6 +172,7 @@ where
         }
     }
 
+    /// See [`HashMap::get_mut`].
     pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut O>
     where
         K: Borrow<Q> + Eq + Hash,
