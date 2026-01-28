@@ -228,15 +228,15 @@ spec_impl_ref_observe! {
 }
 
 impl<T: Snapshot, const N: usize> Snapshot for [T; N] {
-    type Value = [T::Value; N];
+    type Snapshot = [T::Snapshot; N];
 
     #[inline]
-    fn to_snapshot(&self) -> Self::Value {
+    fn to_snapshot(&self) -> Self::Snapshot {
         std::array::from_fn(|i| self[i].to_snapshot())
     }
 
     #[inline]
-    fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+    fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         (0..N).all(|i| self[i].eq_snapshot(&snapshot[i]))
     }
 }

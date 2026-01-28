@@ -108,15 +108,15 @@ spec_impl_ref_observe! {
 #[cfg_attr(docsrs, doc(fake_variadic))]
 #[cfg_attr(docsrs, doc = "This trait is implemented for tuples up to 12 items long.")]
 impl<T: Snapshot> Snapshot for (T,) {
-    type Value = (T::Value,);
+    type Snapshot = (T::Snapshot,);
 
     #[inline]
-    fn to_snapshot(&self) -> Self::Value {
+    fn to_snapshot(&self) -> Self::Snapshot {
         (self.0.to_snapshot(),)
     }
 
     #[inline]
-    fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+    fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.0.eq_snapshot(&snapshot.0)
     }
 }

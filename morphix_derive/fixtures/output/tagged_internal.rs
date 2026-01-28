@@ -181,7 +181,7 @@ pub struct Qux {}
 #[rustfmt::skip]
 #[automatically_derived]
 impl ::morphix::builtin::Snapshot for Qux {
-    type Value = ();
+    type Snapshot = ();
     #[inline]
     fn to_snapshot(&self) {}
     #[inline]

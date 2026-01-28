@@ -490,15 +490,15 @@ default_impl_ref_observe! {
 }
 
 impl<T: Snapshot> Snapshot for Vec<T> {
-    type Value = Vec<T::Value>;
+    type Snapshot = Vec<T::Snapshot>;
 
     #[inline]
-    fn to_snapshot(&self) -> Self::Value {
+    fn to_snapshot(&self) -> Self::Snapshot {
         self.iter().map(|item| item.to_snapshot()).collect()
     }
 
     #[inline]
-    fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+    fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.len() == snapshot.len() && self.iter().zip(snapshot.iter()).all(|(a, b)| a.eq_snapshot(b))
     }
 }

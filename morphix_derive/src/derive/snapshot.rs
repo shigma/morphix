@@ -23,7 +23,7 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                             #field_ty: ::morphix::builtin::Snapshot
                         });
                         field.ty = parse_quote! {
-                            <#field_ty as ::morphix::builtin::Snapshot>::Value
+                            <#field_ty as ::morphix::builtin::Snapshot>::Snapshot
                         };
                     }
                 }
@@ -37,7 +37,7 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                             #field_ty: ::morphix::builtin::Snapshot
                         });
                         field.ty = parse_quote! {
-                            <#field_ty as ::morphix::builtin::Snapshot>::Value
+                            <#field_ty as ::morphix::builtin::Snapshot>::Snapshot
                         };
                     }
                 }
@@ -57,7 +57,7 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                                     #field_ty: ::morphix::builtin::Snapshot
                                 });
                                 field.ty = parse_quote! {
-                                    <#field_ty as ::morphix::builtin::Snapshot>::Value
+                                    <#field_ty as ::morphix::builtin::Snapshot>::Snapshot
                                 };
                             }
                         }
@@ -71,7 +71,7 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                                     #field_ty: ::morphix::builtin::Snapshot
                                 });
                                 field.ty = parse_quote! {
-                                    <#field_ty as ::morphix::builtin::Snapshot>::Value
+                                    <#field_ty as ::morphix::builtin::Snapshot>::Snapshot
                                 };
                             }
                         }
@@ -237,13 +237,13 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
 
             #[automatically_derived]
             impl #impl_generics ::morphix::builtin::Snapshot for #input_ident #ty_generics #where_clause {
-                type Value = #snap_ident #ty_generics;
+                type Snapshot = #snap_ident #ty_generics;
                 #[inline]
-                fn to_snapshot(&self) -> Self::Value {
+                fn to_snapshot(&self) -> Self::Snapshot {
                     #to_snapshot
                 }
                 #[inline]
-                fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+                fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
                     #eq_snapshot
                 }
             }
@@ -257,7 +257,7 @@ pub fn derive_noop_snapshot(input: &syn::DeriveInput) -> TokenStream {
     quote! {
         #[automatically_derived]
         impl #impl_generics ::morphix::builtin::Snapshot for #input_ident #ty_generics #where_clause {
-            type Value = ();
+            type Snapshot = ();
             #[inline]
             fn to_snapshot(&self) {}
             #[inline]

@@ -199,15 +199,15 @@ macro_rules! impl_snapshot {
     ($(impl $([$($gen:tt)*])? Snapshot for $ty:ty as $value:ty $(where { $($where:tt)+ })?;)*) => {
         $(
             impl <$($($gen)*)?> Snapshot for $ty {
-                type Value = $value;
+                type Snapshot = $value;
 
                 #[inline]
-                fn to_snapshot(&self) -> Self::Value {
+                fn to_snapshot(&self) -> Self::Snapshot {
                     (**self).to_snapshot()
                 }
 
                 #[inline]
-                fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+                fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
                     (**self).eq_snapshot(snapshot)
                 }
             }
@@ -216,11 +216,11 @@ macro_rules! impl_snapshot {
 }
 
 impl_snapshot! {
-    impl [T: Snapshot + ?Sized] Snapshot for &T as T::Value;
-    impl [T: Snapshot + ?Sized] Snapshot for &mut T as T::Value;
-    impl [T: Snapshot + ?Sized] Snapshot for Box<T> as T::Value;
-    impl [T: Snapshot + ?Sized] Snapshot for std::rc::Rc<T> as T::Value;
-    impl [T: Snapshot + ?Sized] Snapshot for std::sync::Arc<T> as T::Value;
+    impl [T: Snapshot + ?Sized] Snapshot for &T as T::Snapshot;
+    impl [T: Snapshot + ?Sized] Snapshot for &mut T as T::Snapshot;
+    impl [T: Snapshot + ?Sized] Snapshot for Box<T> as T::Snapshot;
+    impl [T: Snapshot + ?Sized] Snapshot for std::rc::Rc<T> as T::Snapshot;
+    impl [T: Snapshot + ?Sized] Snapshot for std::sync::Arc<T> as T::Snapshot;
 }
 
 #[cfg(test)]

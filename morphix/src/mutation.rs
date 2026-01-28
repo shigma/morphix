@@ -62,8 +62,8 @@ impl<V> Mutation<V> {
 ///
 /// let mut mutations = Mutations::new();
 ///
-/// mutations.insert("a", MutationKind::Replace(42).into());
-/// mutations.insert("b", MutationKind::Truncate(1).into());
+/// mutations.insert("a", MutationKind::Replace(42));
+/// mutations.insert("b", MutationKind::Truncate(1));
 ///
 /// let result = mutations.into_inner();
 /// assert!(matches!(result, Some(Mutation { kind: MutationKind::Batch(_), .. })));

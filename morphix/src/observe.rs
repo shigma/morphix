@@ -17,8 +17,8 @@
 //! - If `A'` → `B'` → `B`: Properties and methods on A become inaccessible (because no `A` in the
 //!   dereference chain)
 //!
-//! To solve this, we use a [`ObserverPointer`] type to create the dereference chain: `A'` → `B'` →
-//! `ObserverPointer<A>` → `A` → `B`. This allows tracking changes on both `A` and `B`.
+//! To solve this, we use a [`Pointer`] type to create the dereference chain: `A'` → `B'` →
+//! `Pointer<A>` → `A` → `B`. This allows tracking changes on both `A` and `B`.
 
 pub use crate::builtin::snapshot::SnapshotSpec;
 use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Pointer, Unsigned, Zero};
@@ -123,8 +123,8 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 ///
 /// ## Type Parameters
 ///
-/// - [`Head`](Observer::Head): The type stored in the internal [`ObserverPointer`], representing
-///   the head of the dereference chain
+/// - [`Head`](Observer::Head): The type stored in the internal [`Pointer`], representing the head
+///   of the dereference chain
 /// - [`InnerDepth`](Observer::InnerDepth): Type-level number indicating how many times
 ///   [`Head`](Observer::Head) must be dereferenced to reach the observed type
 ///

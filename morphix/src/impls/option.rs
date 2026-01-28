@@ -213,15 +213,15 @@ spec_impl_observe!(OptionObserveImpl, Option<Self>, Option<T>, OptionObserver);
 spec_impl_ref_observe!(OptionRefObserveImpl, Option<Self>, Option<T>);
 
 impl<T: Snapshot> Snapshot for Option<T> {
-    type Value = Option<T::Value>;
+    type Snapshot = Option<T::Snapshot>;
 
     #[inline]
-    fn to_snapshot(&self) -> Self::Value {
+    fn to_snapshot(&self) -> Self::Snapshot {
         self.as_ref().map(|v| v.to_snapshot())
     }
 
     #[inline]
-    fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+    fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         match (self, snapshot) {
             (Some(v), Some(snapshot)) => v.eq_snapshot(snapshot),
             (None, None) => true,

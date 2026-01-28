@@ -27,22 +27,22 @@ const _: () = {
     where
         Vec<T>: ::morphix::builtin::Snapshot,
     {
-        a: <Vec<T> as ::morphix::builtin::Snapshot>::Value,
+        a: <Vec<T> as ::morphix::builtin::Snapshot>::Snapshot,
     }
     #[automatically_derived]
     impl<T> ::morphix::builtin::Snapshot for Bar<T>
     where
         Vec<T>: ::morphix::builtin::Snapshot,
     {
-        type Value = BarSnapshot<T>;
+        type Snapshot = BarSnapshot<T>;
         #[inline]
-        fn to_snapshot(&self) -> Self::Value {
+        fn to_snapshot(&self) -> Self::Snapshot {
             BarSnapshot {
                 a: ::morphix::builtin::Snapshot::to_snapshot(&self.a),
             }
         }
         #[inline]
-        fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+        fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
             ::morphix::builtin::Snapshot::eq_snapshot(&self.a, &snapshot.a)
         }
     }
@@ -66,7 +66,7 @@ pub struct NoopStruct {}
 #[rustfmt::skip]
 #[automatically_derived]
 impl ::morphix::builtin::Snapshot for NoopStruct {
-    type Value = ();
+    type Snapshot = ();
     #[inline]
     fn to_snapshot(&self) {}
     #[inline]

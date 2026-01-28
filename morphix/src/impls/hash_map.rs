@@ -281,20 +281,20 @@ default_impl_ref_observe! {
 impl<K, V> Snapshot for HashMap<K, V>
 where
     K: Snapshot,
-    K::Value: Eq + Hash,
+    K::Snapshot: Eq + Hash,
     V: Snapshot,
 {
-    type Value = HashMap<K::Value, V::Value>;
+    type Snapshot = HashMap<K::Snapshot, V::Snapshot>;
 
     #[inline]
-    fn to_snapshot(&self) -> Self::Value {
+    fn to_snapshot(&self) -> Self::Snapshot {
         self.iter()
             .map(|(key, value)| (key.to_snapshot(), value.to_snapshot()))
             .collect()
     }
 
     #[inline]
-    fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+    fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.len() == snapshot.len()
             && self
                 .iter()

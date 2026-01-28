@@ -51,16 +51,40 @@ use crate::observe::RefObserve;
 /// implementation since they're cheap to clone and compare.
 pub type SnapshotObserver<'ob, S, D = Zero> = GeneralObserver<'ob, SnapshotHandler<<S as AsDeref<D>>::Target>, S, D>;
 
+/// A trait for creating and comparing snapshots of observable values.
+///
+/// [`Snapshot`] is used by [`SnapshotObserver`](crate::builtin::SnapshotObserver) to detect changes
+/// by comparing values before and after observation. It is similar to [`Clone`] + [`PartialEq`],
+/// but emphasizes serialization consistency rather than semantic equality.
+///
+/// ## Deep Copy Semantics
+///
+/// For most simple types, [`Snapshot`](Snapshot::Snapshot) is the type itself (i.e., `type Snapshot
+/// = Self`). However, for pointer types like [`Rc<T>`](std::rc::Rc), [`&T`](reference), and
+/// [`&mut T`](reference), the associated [`Snapshot`](Snapshot::Snapshot) type is `T::Snapshot`
+/// rather than `Self`. This means [`Snapshot`] performs a "deep copy" through indirections,
+/// capturing the underlying value rather than the pointer itself.
 pub trait Snapshot {
-    type Value;
+    /// The snapshot type used for comparison.
+    ///
+    /// For value types, this is typically `Self`. For pointer and reference types, this is the
+    /// snapshot type of the pointed-to value.
+    type Snapshot;
 
-    fn to_snapshot(&self) -> Self::Value;
+    /// Creates a snapshot of the current value.
+    ///
+    /// For pointer types, this performs a deep copy of the underlying value.
+    fn to_snapshot(&self) -> Self::Snapshot;
 
-    fn eq_snapshot(&self, snapshot: &Self::Value) -> bool;
+    /// Compares the current value against a previously captured snapshot.
+    ///
+    /// Returns `true` if the current value would serialize to the same output as the snapshot,
+    /// `false` otherwise.
+    fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool;
 }
 
 pub struct SnapshotHandler<T: Snapshot + ?Sized> {
-    snapshot: MaybeUninit<T::Value>,
+    snapshot: MaybeUninit<T::Snapshot>,
     phantom: PhantomData<T>,
 }
 
@@ -113,7 +137,7 @@ macro_rules! impl_snapshot_observe {
         $(
             $(#[$($meta)*])*
             impl Snapshot for $ty {
-                type Value = Self;
+                type Snapshot = Self;
                 #[inline]
                 fn to_snapshot(&self) -> Self {
                     *self
@@ -178,7 +202,7 @@ macro_rules! generic_impl_snapshot_observe {
         $(
             $(#[$($meta)*])*
             impl <$($($gen)*)?> Snapshot for $ty {
-                type Value = Self;
+                type Snapshot = Self;
                 #[inline]
                 fn to_snapshot(&self) -> Self {
                     self.clone()
