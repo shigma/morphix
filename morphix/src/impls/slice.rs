@@ -34,7 +34,7 @@ where
 
     #[inline]
     fn as_mut_slice(&mut self) -> &mut [Self::Item] {
-        unsafe { &mut *self.get() }
+        self.get_mut()
     }
 
     #[inline]

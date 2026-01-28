@@ -1,15 +1,19 @@
+use std::borrow::Borrow;
+use std::cell::UnsafeCell;
+use std::collections::hash_map::Entry;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::ptr::NonNull;
 
 use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::default_impl_ref_observe;
 use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
 struct Diff<K> {
@@ -29,8 +33,8 @@ impl<K> Default for Diff<K> {
 
 pub struct HashMapObserver<'ob, K, O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
-    diff: Option<Diff<K>>,
-    inner: HashMap<K, O>,
+    diff: Option<Diff<&'ob K>>,
+    inner: UnsafeCell<HashMap<&'ob K, O>>,
     phantom: PhantomData<&'ob mut D>,
 }
 
@@ -47,7 +51,7 @@ impl<'ob, K, O, S: ?Sized, D> DerefMut for HashMapObserver<'ob, K, O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.diff = None;
-        self.inner.clear();
+        self.inner.get_mut().clear();
         &mut self.ptr
     }
 }
@@ -71,7 +75,7 @@ where
         Self {
             ptr: Pointer::uninit(),
             diff: None,
-            inner: HashMap::new(),
+            inner: Default::default(),
             phantom: PhantomData,
         }
     }
@@ -86,7 +90,7 @@ where
         Self {
             ptr: Pointer::new(value),
             diff: Some(Diff::default()),
-            inner: HashMap::new(),
+            inner: Default::default(),
             phantom: PhantomData,
         }
     }
@@ -98,7 +102,8 @@ where
     S: AsDerefMut<D, Target = HashMap<K, O::Head>> + 'ob,
     O: SerializeObserver<'ob, InnerDepth = Zero>,
     O::Head: Serialize + Sized,
-    K: Serialize + Hash + Eq + Into<PathSegment>,
+    K: Serialize + Eq + Hash,
+    &'ob K: Into<PathSegment>,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let Some(diff) = this.diff.take() else {
@@ -114,11 +119,59 @@ where
         for key in diff.replaced {
             let observer = this
                 .inner
+                .get_mut()
                 .get_mut(&key)
                 .expect("replaced key not found in inner observers");
             mutations.insert(key, unsafe { O::flush_unchecked::<A>(observer)? });
         }
         Ok(mutations)
+    }
+}
+
+impl<'ob, K, O, S: ?Sized, D> HashMapObserver<'ob, K, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = HashMap<K, O::Head>> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero>,
+    O::Head: Sized,
+    K: 'ob,
+{
+    pub fn get<Q>(&self, key: &Q) -> Option<&O>
+    where
+        K: Borrow<Q> + Eq + Hash,
+        Q: Eq + Hash + ?Sized,
+    {
+        let inner = Observer::as_inner(self);
+        let key_ptr = NonNull::from_ref(inner.get_key_value(key)?.0);
+        let value = inner.get_mut(key)?;
+        // SAFETY: key_ptr is valid as it comes from inner.get_key_value
+        match unsafe { (*self.inner.get()).entry(key_ptr.as_ref()) } {
+            Entry::Occupied(occupied) => {
+                let observer = occupied.into_mut();
+                unsafe { O::refresh(observer, value) }
+                Some(observer)
+            }
+            Entry::Vacant(vacant) => Some(vacant.insert(O::observe(value))),
+        }
+    }
+
+    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut O>
+    where
+        K: Borrow<Q> + Eq + Hash,
+        Q: Eq + Hash + ?Sized,
+    {
+        let inner = Observer::as_inner(self);
+        let key_ptr = NonNull::from_ref(inner.get_key_value(key)?.0);
+        let value = inner.get_mut(key)?;
+        // SAFETY: key_ptr is valid as it comes from inner.get_key_value
+        match self.inner.get_mut().entry(unsafe { key_ptr.as_ref() }) {
+            Entry::Occupied(occupied) => {
+                let observer = occupied.into_mut();
+                unsafe { O::refresh(observer, value) }
+                Some(observer)
+            }
+            Entry::Vacant(vacant) => Some(vacant.insert(O::observe(value))),
+        }
     }
 }
 
@@ -162,6 +215,36 @@ where
     }
 }
 
+impl<'ob, 'q, K, O, S: ?Sized, D, V, Q> Index<&'q Q> for HashMapObserver<'ob, K, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = HashMap<K, V>> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero, Head = V>,
+    K: Borrow<Q> + Eq + Hash,
+    Q: Eq + Hash + ?Sized,
+{
+    type Output = O;
+
+    #[inline]
+    fn index(&self, index: &'q Q) -> &Self::Output {
+        self.get(index).expect("no entry found for key")
+    }
+}
+
+impl<'ob, 'q, K, O, S: ?Sized, D, V, Q> IndexMut<&'q Q> for HashMapObserver<'ob, K, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = HashMap<K, V>> + 'ob,
+    O: Observer<'ob, InnerDepth = Zero, Head = V>,
+    K: Borrow<Q> + Eq + Hash,
+    Q: Eq + Hash + ?Sized,
+{
+    #[inline]
+    fn index_mut(&mut self, index: &'q Q) -> &mut Self::Output {
+        self.get_mut(index).expect("no entry found for key")
+    }
+}
+
 impl<K, V: Observe> Observe for HashMap<K, V> {
     type Observer<'ob, S, D>
         = HashMapObserver<'ob, K, V::Observer<'ob, V, Zero>, S, D>
@@ -174,13 +257,13 @@ impl<K, V: Observe> Observe for HashMap<K, V> {
 }
 
 default_impl_ref_observe! {
-    impl [K, V: RefObserve] RefObserve for HashMap<K, V>;
+    impl [K, V] RefObserve for HashMap<K, V>;
 }
 
 impl<K, V> Snapshot for HashMap<K, V>
 where
     K: Snapshot,
-    K::Value: Hash + Eq,
+    K::Value: Eq + Hash,
     V: Snapshot,
 {
     type Value = HashMap<K::Value, V::Value>;

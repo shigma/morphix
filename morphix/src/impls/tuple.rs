@@ -73,9 +73,7 @@ where
     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
         Pointer::set(&this.ptr, value);
         let value = value.as_deref_mut();
-        unsafe {
-            O::refresh(&mut this.inner.0, &mut value.0);
-        }
+        unsafe { O::refresh(&mut this.inner.0, &mut value.0) }
     }
 }
 

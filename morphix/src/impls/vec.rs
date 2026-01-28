@@ -11,7 +11,7 @@ use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver, TruncateAppend};
-use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
 pub struct VecObserver<'ob, O, S: ?Sized, D = Zero> {
@@ -486,7 +486,7 @@ impl<T: Observe> Observe for Vec<T> {
 }
 
 default_impl_ref_observe! {
-    impl [T: RefObserve] RefObserve for Vec<T>;
+    impl [T] RefObserve for Vec<T>;
 }
 
 impl<T: Snapshot> Snapshot for Vec<T> {
