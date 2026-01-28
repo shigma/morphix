@@ -14,6 +14,7 @@ use crate::derive::meta::{AttributeKind, DeriveKind, GeneralImpl, ObserveMeta};
 
 mod r#enum;
 mod meta;
+mod snapshot;
 mod r#struct;
 
 pub const FMT_TRAITS: &[&str] = &[
@@ -45,6 +46,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 ob_ident: format_ident!("NoopObserver"),
                 spec_ident: format_ident!("DefaultSpec"),
                 bounds: Default::default(),
+                derive_snapshot: false,
             });
         }
     }
@@ -53,6 +55,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
         ob_ident,
         spec_ident,
         bounds,
+        derive_snapshot,
     }) = input_meta.general_impl
     {
         let input_ident = &input.ident;
@@ -68,21 +71,26 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
         if !bounds.is_empty() {
             where_predicates.push(parse_quote! { Self: #bounds });
         }
+        let extra = if derive_snapshot {
+            snapshot::derive_snapshot(&input)
+        } else {
+            quote! {}
+        };
         let (impl_generics, type_generics, _) = input.generics.split_for_impl();
         return quote! {
-            const _: () = {
-                #[automatically_derived]
-                impl #impl_generics ::morphix::Observe for #input_ident #type_generics where #where_predicates {
-                    type Observer<#ob_lt, #head, #depth>
-                        = ::morphix::builtin::#ob_ident<#ob_lt, #head, #depth>
-                    where
-                        Self: #ob_lt,
-                        #depth: ::morphix::helper::Unsigned,
-                        #head: ::morphix::helper::AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt;
+            #extra
 
-                    type Spec = ::morphix::observe::#spec_ident;
-                }
-            };
+            #[automatically_derived]
+            impl #impl_generics ::morphix::Observe for #input_ident #type_generics where #where_predicates {
+                type Observer<#ob_lt, #head, #depth>
+                    = ::morphix::builtin::#ob_ident<#ob_lt, #head, #depth>
+                where
+                    Self: #ob_lt,
+                    #depth: ::morphix::helper::Unsigned,
+                    #head: ::morphix::helper::AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt;
+
+                type Spec = ::morphix::observe::#spec_ident;
+            }
         };
     }
 
@@ -90,7 +98,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
         syn::Data::Struct(syn::DataStruct {
             fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
             ..
-        }) => r#struct::derive_observe_for_struct_fields(&input, named, &input_meta),
+        }) => r#struct::derive_observe_for_struct(&input, named, &input_meta),
         syn::Data::Enum(syn::DataEnum { variants, .. }) => {
             r#enum::derive_observe_for_enum(&input, variants, &input_meta)
         }

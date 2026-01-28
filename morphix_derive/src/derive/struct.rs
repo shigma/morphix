@@ -10,7 +10,7 @@ use syn::visit::Visit;
 use crate::derive::meta::{AttributeKind, DeriveKind, GeneralImpl, ObserveMeta};
 use crate::derive::{FMT_TRAITS, GenericsDetector, GenericsVisitor};
 
-pub fn derive_observe_for_struct_fields(
+pub fn derive_observe_for_struct(
     input: &syn::DeriveInput,
     fields: &Punctuated<syn::Field, syn::Token![,]>,
     input_meta: &ObserveMeta,

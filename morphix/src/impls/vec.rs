@@ -7,6 +7,7 @@ use std::vec::{Drain, ExtractIf, Splice};
 
 use serde::Serialize;
 
+use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
 use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver, TruncateAppend};
@@ -486,6 +487,20 @@ impl<T: Observe> Observe for Vec<T> {
 
 default_impl_ref_observe! {
     impl [T: RefObserve] RefObserve for Vec<T>;
+}
+
+impl<T: Snapshot> Snapshot for Vec<T> {
+    type Value = Vec<T::Value>;
+
+    #[inline]
+    fn to_snapshot(&self) -> Self::Value {
+        self.iter().map(|item| item.to_snapshot()).collect()
+    }
+
+    #[inline]
+    fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool {
+        self.len() == snapshot.len() && self.iter().zip(snapshot.iter()).all(|(a, b)| a.cmp_snapshot(b))
+    }
 }
 
 #[cfg(test)]

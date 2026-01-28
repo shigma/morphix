@@ -10,10 +10,10 @@ pub struct Foo<T> {
 }
 
 #[rustfmt::skip]
-#[derive(Serialize, Observe, Clone, PartialEq)]
+#[derive(Serialize, Observe)]
 #[morphix(snapshot)]
 pub struct Bar<T> {
-    a: T,
+    a: Vec<T>,
 }
 
 #[rustfmt::skip]

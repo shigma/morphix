@@ -7,49 +7,63 @@ pub struct Foo<T> {
     a: T,
 }
 #[rustfmt::skip]
-const _: () = {
-    #[automatically_derived]
-    impl<T> ::morphix::Observe for Foo<T> {
-        type Observer<'ob, S, N> = ::morphix::builtin::ShallowObserver<'ob, S, N>
-        where
-            Self: 'ob,
-            N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
-        type Spec = ::morphix::observe::DefaultSpec;
-    }
-};
+#[automatically_derived]
+impl<T> ::morphix::Observe for Foo<T> {
+    type Observer<'ob, S, N> = ::morphix::builtin::ShallowObserver<'ob, S, N>
+    where
+        Self: 'ob,
+        N: ::morphix::helper::Unsigned,
+        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+    type Spec = ::morphix::observe::DefaultSpec;
+}
 #[rustfmt::skip]
-#[derive(Serialize, Clone, PartialEq)]
+#[derive(Serialize)]
 pub struct Bar<T> {
-    a: T,
+    a: Vec<T>,
 }
 #[rustfmt::skip]
 const _: () = {
     #[automatically_derived]
-    impl<T> ::morphix::Observe for Bar<T>
+    impl<T> ::morphix::builtin::Snapshot for Bar<T>
     where
-        Self: ::std::clone::Clone + ::std::cmp::PartialEq,
+        Vec<T>: ::morphix::builtin::Snapshot,
     {
-        type Observer<'ob, S, N> = ::morphix::builtin::SnapshotObserver<'ob, S, N>
-        where
-            Self: 'ob,
-            N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
-        type Spec = ::morphix::observe::SnapshotSpec;
+        type Value = Self;
+        #[inline]
+        fn to_snapshot(&self) -> Self {
+            Self {
+                a: ::morphix::builtin::Snapshot::to_snapshot(&self.a),
+            }
+        }
+        #[inline]
+        fn cmp_snapshot(&self, snapshot: &Self) -> bool {
+            ::morphix::builtin::Snapshot::cmp_snapshot(&self.a, &snapshot.a)
+        }
     }
 };
+#[rustfmt::skip]
+#[automatically_derived]
+impl<T> ::morphix::Observe for Bar<T>
+where
+    Self: ::morphix::builtin::Snapshot,
+{
+    type Observer<'ob, S, N> = ::morphix::builtin::SnapshotObserver<'ob, S, N>
+    where
+        Self: 'ob,
+        N: ::morphix::helper::Unsigned,
+        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+    type Spec = ::morphix::observe::SnapshotSpec;
+}
 #[rustfmt::skip]
 #[derive(Serialize)]
 pub struct NoopStruct {}
 #[rustfmt::skip]
-const _: () = {
-    #[automatically_derived]
-    impl ::morphix::Observe for NoopStruct {
-        type Observer<'ob, S, N> = ::morphix::builtin::NoopObserver<'ob, S, N>
-        where
-            Self: 'ob,
-            N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
-        type Spec = ::morphix::observe::DefaultSpec;
-    }
-};
+#[automatically_derived]
+impl ::morphix::Observe for NoopStruct {
+    type Observer<'ob, S, N> = ::morphix::builtin::NoopObserver<'ob, S, N>
+    where
+        Self: 'ob,
+        N: ::morphix::helper::Unsigned,
+        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+    type Spec = ::morphix::observe::DefaultSpec;
+}

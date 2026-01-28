@@ -309,14 +309,12 @@ const _: () = {
 #[derive(Serialize)]
 pub struct Qux {}
 #[rustfmt::skip]
-const _: () = {
-    #[automatically_derived]
-    impl ::morphix::Observe for Qux {
-        type Observer<'ob, S, N> = ::morphix::builtin::NoopObserver<'ob, S, N>
-        where
-            Self: 'ob,
-            N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
-        type Spec = ::morphix::observe::DefaultSpec;
-    }
-};
+#[automatically_derived]
+impl ::morphix::Observe for Qux {
+    type Observer<'ob, S, N> = ::morphix::builtin::NoopObserver<'ob, S, N>
+    where
+        Self: 'ob,
+        N: ::morphix::helper::Unsigned,
+        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+    type Spec = ::morphix::observe::DefaultSpec;
+}

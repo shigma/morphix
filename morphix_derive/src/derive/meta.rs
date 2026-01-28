@@ -37,6 +37,7 @@ pub struct GeneralImpl {
     pub ob_ident: syn::Ident,
     pub spec_ident: syn::Ident,
     pub bounds: Punctuated<syn::TypeParamBound, syn::Token![+]>,
+    pub derive_snapshot: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -139,18 +140,21 @@ impl ObserveMeta {
                 ob_ident: syn::Ident::new("NoopObserver", arg.ident.span()),
                 spec_ident: syn::Ident::new("DefaultSpec", arg.ident.span()),
                 bounds: Default::default(),
+                derive_snapshot: false,
             });
         } else if arg.ident == "shallow" {
             self.general_impl = Some(GeneralImpl {
                 ob_ident: syn::Ident::new("ShallowObserver", arg.ident.span()),
                 spec_ident: syn::Ident::new("DefaultSpec", arg.ident.span()),
                 bounds: Default::default(),
+                derive_snapshot: false,
             });
         } else if arg.ident == "snapshot" {
             self.general_impl = Some(GeneralImpl {
                 ob_ident: syn::Ident::new("SnapshotObserver", arg.ident.span()),
                 spec_ident: syn::Ident::new("SnapshotSpec", arg.ident.span()),
-                bounds: parse_quote! { ::std::clone::Clone + ::std::cmp::PartialEq },
+                bounds: parse_quote! { ::morphix::builtin::Snapshot },
+                derive_snapshot: true,
             });
         } else if arg.ident == "deref" {
             if attribute_kind != AttributeKind::Field || derive_kind != DeriveKind::Struct {
