@@ -118,8 +118,8 @@ impl<T: Snapshot> Snapshot for (T,) {
     }
 
     #[inline]
-    fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool {
-        self.0.cmp_snapshot(&snapshot.0)
+    fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+        self.0.eq_snapshot(&snapshot.0)
     }
 }
 

@@ -11,6 +11,7 @@ use syn::visit::Visit;
 use syn::visit_mut::VisitMut;
 
 use crate::derive::meta::{AttributeKind, DeriveKind, GeneralImpl, ObserveMeta};
+use crate::derive::snapshot::derive_noop_snapshot;
 
 mod r#enum;
 mod meta;
@@ -44,9 +45,9 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
         {
             input_meta.general_impl = Some(GeneralImpl {
                 ob_ident: format_ident!("NoopObserver"),
-                spec_ident: format_ident!("DefaultSpec"),
+                spec_ident: format_ident!("SnapshotSpec"),
                 bounds: Default::default(),
-                derive_snapshot: false,
+                extra_derive: derive_noop_snapshot,
             });
         }
     }
@@ -55,7 +56,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
         ob_ident,
         spec_ident,
         bounds,
-        derive_snapshot,
+        extra_derive,
     }) = input_meta.general_impl
     {
         let input_ident = &input.ident;
@@ -71,11 +72,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
         if !bounds.is_empty() {
             where_predicates.push(parse_quote! { Self: #bounds });
         }
-        let extra = if derive_snapshot {
-            snapshot::derive_snapshot(&input)
-        } else {
-            quote! {}
-        };
+        let extra = extra_derive(&input);
         let (impl_generics, type_generics, _) = input.generics.split_for_impl();
         return quote! {
             #extra

@@ -23,21 +23,27 @@ pub struct Bar<T> {
 }
 #[rustfmt::skip]
 const _: () = {
+    pub struct BarSnapshot<T>
+    where
+        Vec<T>: ::morphix::builtin::Snapshot,
+    {
+        a: <Vec<T> as ::morphix::builtin::Snapshot>::Value,
+    }
     #[automatically_derived]
     impl<T> ::morphix::builtin::Snapshot for Bar<T>
     where
         Vec<T>: ::morphix::builtin::Snapshot,
     {
-        type Value = Self;
+        type Value = BarSnapshot<T>;
         #[inline]
-        fn to_snapshot(&self) -> Self {
-            Self {
+        fn to_snapshot(&self) -> Self::Value {
+            BarSnapshot {
                 a: ::morphix::builtin::Snapshot::to_snapshot(&self.a),
             }
         }
         #[inline]
-        fn cmp_snapshot(&self, snapshot: &Self) -> bool {
-            ::morphix::builtin::Snapshot::cmp_snapshot(&self.a, &snapshot.a)
+        fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+            ::morphix::builtin::Snapshot::eq_snapshot(&self.a, &snapshot.a)
         }
     }
 };
@@ -59,11 +65,22 @@ where
 pub struct NoopStruct {}
 #[rustfmt::skip]
 #[automatically_derived]
+impl ::morphix::builtin::Snapshot for NoopStruct {
+    type Value = ();
+    #[inline]
+    fn to_snapshot(&self) {}
+    #[inline]
+    fn eq_snapshot(&self, snapshot: &()) -> bool {
+        true
+    }
+}
+#[rustfmt::skip]
+#[automatically_derived]
 impl ::morphix::Observe for NoopStruct {
     type Observer<'ob, S, N> = ::morphix::builtin::NoopObserver<'ob, S, N>
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,
         S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
-    type Spec = ::morphix::observe::DefaultSpec;
+    type Spec = ::morphix::observe::SnapshotSpec;
 }

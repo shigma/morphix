@@ -221,9 +221,9 @@ impl<T: Snapshot> Snapshot for Option<T> {
     }
 
     #[inline]
-    fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool {
+    fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
         match (self, snapshot) {
-            (Some(v), Some(snapshot)) => v.cmp_snapshot(snapshot),
+            (Some(v), Some(snapshot)) => v.eq_snapshot(snapshot),
             (None, None) => true,
             _ => false,
         }

@@ -207,8 +207,8 @@ macro_rules! impl_snapshot {
                 }
 
                 #[inline]
-                fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool {
-                    (**self).cmp_snapshot(snapshot)
+                fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+                    (**self).eq_snapshot(snapshot)
                 }
             }
         )*

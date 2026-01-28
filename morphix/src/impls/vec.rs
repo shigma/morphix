@@ -498,8 +498,8 @@ impl<T: Snapshot> Snapshot for Vec<T> {
     }
 
     #[inline]
-    fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool {
-        self.len() == snapshot.len() && self.iter().zip(snapshot.iter()).all(|(a, b)| a.cmp_snapshot(b))
+    fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+        self.len() == snapshot.len() && self.iter().zip(snapshot.iter()).all(|(a, b)| a.eq_snapshot(b))
     }
 }
 

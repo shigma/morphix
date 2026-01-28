@@ -68,6 +68,7 @@ impl<V> Mutation<V> {
 /// let result = mutations.into_inner();
 /// assert!(matches!(result, Some(Mutation { kind: MutationKind::Batch(_), .. })));
 /// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Mutations<V> {
     inner: Option<Mutation<V>>,
     capacity: usize,

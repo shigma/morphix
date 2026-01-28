@@ -236,7 +236,7 @@ impl<T: Snapshot, const N: usize> Snapshot for [T; N] {
     }
 
     #[inline]
-    fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool {
-        (0..N).all(|i| self[i].cmp_snapshot(&snapshot[i]))
+    fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+        (0..N).all(|i| self[i].eq_snapshot(&snapshot[i]))
     }
 }

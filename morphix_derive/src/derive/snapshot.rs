@@ -6,52 +6,73 @@ use syn::spanned::Spanned;
 use crate::derive::GenericsDetector;
 
 pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
-    let mut generics = input.generics.clone();
-    let where_predicates = &mut generics.make_where_clause().predicates;
-    match &input.data {
-        syn::Data::Struct(data_struct) => match &data_struct.fields {
+    let mut snapshot = input.clone();
+    let snap_ident = syn::Ident::new(&format!("{}Snapshot", input.ident), input.ident.span());
+    snapshot.attrs = vec![];
+    snapshot.ident = snap_ident.clone();
+
+    let where_predicates = &mut snapshot.generics.make_where_clause().predicates;
+    match &mut snapshot.data {
+        syn::Data::Struct(data_struct) => match &mut data_struct.fields {
             syn::Fields::Named(fields) => {
-                for field in &fields.named {
-                    let field_ty = &field.ty;
-                    if GenericsDetector::detect(field_ty, &input.generics) {
+                for field in &mut fields.named {
+                    field.attrs = vec![];
+                    if GenericsDetector::detect(&field.ty, &input.generics) {
+                        let field_ty = &field.ty;
                         where_predicates.push(parse_quote! {
                             #field_ty: ::morphix::builtin::Snapshot
                         });
+                        field.ty = parse_quote! {
+                            <#field_ty as ::morphix::builtin::Snapshot>::Value
+                        };
                     }
                 }
             }
             syn::Fields::Unnamed(fields) => {
-                for field in &fields.unnamed {
-                    let field_ty = &field.ty;
-                    if GenericsDetector::detect(field_ty, &input.generics) {
+                for field in &mut fields.unnamed {
+                    field.attrs = vec![];
+                    if GenericsDetector::detect(&field.ty, &input.generics) {
+                        let field_ty = &field.ty;
                         where_predicates.push(parse_quote! {
                             #field_ty: ::morphix::builtin::Snapshot
                         });
+                        field.ty = parse_quote! {
+                            <#field_ty as ::morphix::builtin::Snapshot>::Value
+                        };
                     }
                 }
             }
             syn::Fields::Unit => {}
         },
         syn::Data::Enum(data_enum) => {
-            for variant in &data_enum.variants {
-                match &variant.fields {
+            for variant in &mut data_enum.variants {
+                variant.attrs = vec![];
+                match &mut variant.fields {
                     syn::Fields::Named(fields) => {
-                        for field in &fields.named {
-                            let field_ty = &field.ty;
-                            if GenericsDetector::detect(field_ty, &input.generics) {
+                        for field in &mut fields.named {
+                            field.attrs = vec![];
+                            if GenericsDetector::detect(&field.ty, &input.generics) {
+                                let field_ty = &field.ty;
                                 where_predicates.push(parse_quote! {
                                     #field_ty: ::morphix::builtin::Snapshot
                                 });
+                                field.ty = parse_quote! {
+                                    <#field_ty as ::morphix::builtin::Snapshot>::Value
+                                };
                             }
                         }
                     }
                     syn::Fields::Unnamed(fields) => {
-                        for field in &fields.unnamed {
-                            let field_ty = &field.ty;
-                            if GenericsDetector::detect(field_ty, &input.generics) {
+                        for field in &mut fields.unnamed {
+                            field.attrs = vec![];
+                            if GenericsDetector::detect(&field.ty, &input.generics) {
+                                let field_ty = &field.ty;
                                 where_predicates.push(parse_quote! {
                                     #field_ty: ::morphix::builtin::Snapshot
                                 });
+                                field.ty = parse_quote! {
+                                    <#field_ty as ::morphix::builtin::Snapshot>::Value
+                                };
                             }
                         }
                     }
@@ -64,7 +85,7 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
         }
     }
 
-    let (to_snapshot, cmp_snapshot) = match &input.data {
+    let (to_snapshot, eq_snapshot) = match &input.data {
         syn::Data::Struct(data_struct) => match &data_struct.fields {
             syn::Fields::Named(fields) => {
                 let field_values = fields.named.iter().map(|field| {
@@ -75,9 +96,12 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                 let cmp_values = fields.named.iter().map(|field| {
                     let ident = field.ident.as_ref().unwrap();
                     let span = field.span();
-                    quote_spanned! { span => ::morphix::builtin::Snapshot::cmp_snapshot(&self.#ident, &snapshot.#ident) }
+                    quote_spanned! { span => ::morphix::builtin::Snapshot::eq_snapshot(&self.#ident, &snapshot.#ident) }
                 });
-                (quote! { Self { #(#field_values),* } }, quote! { #(#cmp_values) &&* })
+                (
+                    quote! { #snap_ident { #(#field_values),* } },
+                    quote! { #(#cmp_values) &&* },
+                )
             }
             syn::Fields::Unnamed(fields) => {
                 let field_values = fields.unnamed.iter().enumerate().map(|(i, field)| {
@@ -88,14 +112,17 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                 let cmp_values = fields.unnamed.iter().enumerate().map(|(i, field)| {
                     let index = syn::Index::from(i);
                     let span = field.span();
-                    quote_spanned! { span => ::morphix::builtin::Snapshot::cmp_snapshot(&self.#index, &snapshot.#index) }
+                    quote_spanned! { span => ::morphix::builtin::Snapshot::eq_snapshot(&self.#index, &snapshot.#index) }
                 });
-                (quote! { Self ( #(#field_values),* ) }, quote! { #(#cmp_values) &&* })
+                (
+                    quote! { #snap_ident ( #(#field_values),* ) },
+                    quote! { #(#cmp_values) &&* },
+                )
             }
-            syn::Fields::Unit => (quote! { Self }, quote! { true }),
+            syn::Fields::Unit => (quote! { #snap_ident }, quote! { true }),
         },
         syn::Data::Enum(data_enum) => {
-            let (to_snapshot, cmp_snapshot): (Vec<_>, Vec<_>) = data_enum.variants.iter().map(|variant| {
+            let (to_snapshot, eq_snapshot): (Vec<_>, Vec<_>) = data_enum.variants.iter().map(|variant| {
                 let variant_ident = &variant.ident;
                 match &variant.fields {
                     syn::Fields::Named(fields) => {
@@ -125,16 +152,16 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                             let span = field.span();
                             let self_ident = &self_idents[i];
                             let snap_ident = &snap_idents[i];
-                            quote_spanned! { span => ::morphix::builtin::Snapshot::cmp_snapshot(&#self_ident, &#snap_ident) }
+                            quote_spanned! { span => ::morphix::builtin::Snapshot::eq_snapshot(&#self_ident, &#snap_ident) }
                         });
                         (
                             quote! {
-                                Self::#variant_ident { #(#field_idents),* } => Self::#variant_ident { #(#field_values),* }
+                                Self::#variant_ident { #(#field_idents),* } => #snap_ident::#variant_ident { #(#field_values),* }
                             },
                             quote! {
                                 (
                                     Self::#variant_ident { #(#field_idents: #self_idents),* },
-                                    Self::#variant_ident { #(#field_idents: #snap_idents),* },
+                                    #snap_ident::#variant_ident { #(#field_idents: #snap_idents),* },
                                 ) => #(#cmp_values) &&*
                             },
                         )
@@ -166,23 +193,23 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                             let span = field.span();
                             let self_ident = &self_idents[i];
                             let snap_ident = &snap_idents[i];
-                            quote_spanned! { span => ::morphix::builtin::Snapshot::cmp_snapshot(&#self_ident, &#snap_ident) }
+                            quote_spanned! { span => ::morphix::builtin::Snapshot::eq_snapshot(&#self_ident, &#snap_ident) }
                         });
                         (
                             quote! {
-                                Self::#variant_ident( #(#field_idents),* ) => Self::#variant_ident( #(#field_values),* )
+                                Self::#variant_ident( #(#field_idents),* ) => #snap_ident::#variant_ident( #(#field_values),* )
                             },
                             quote! {
                                 (
                                     Self::#variant_ident( #(#self_idents),* ),
-                                    Self::#variant_ident( #(#snap_idents),* ),
+                                    #snap_ident::#variant_ident( #(#snap_idents),* ),
                                 ) => #(#cmp_values) &&*
                             },
                         )
                     }
                     syn::Fields::Unit => (
-                        quote! { Self::#variant_ident => Self::#variant_ident },
-                        quote! { (Self::#variant_ident, Self::#variant_ident) => true },
+                        quote! { Self::#variant_ident => #snap_ident::#variant_ident },
+                        quote! { (Self::#variant_ident, #snap_ident::#variant_ident) => true },
                     ),
                 }
             }).unzip();
@@ -194,7 +221,7 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                 },
                 quote! {
                     match (self, snapshot) {
-                        #(#cmp_snapshot),*
+                        #(#eq_snapshot),*
                     }
                 },
             )
@@ -203,21 +230,44 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
     };
 
     let input_ident = &input.ident;
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let (impl_generics, ty_generics, where_clause) = snapshot.generics.split_for_impl();
     quote! {
         const _: () = {
+            #snapshot
+
             #[automatically_derived]
             impl #impl_generics ::morphix::builtin::Snapshot for #input_ident #ty_generics #where_clause {
-                type Value = Self;
+                type Value = #snap_ident #ty_generics;
                 #[inline]
-                fn to_snapshot(&self) -> Self {
+                fn to_snapshot(&self) -> Self::Value {
                     #to_snapshot
                 }
                 #[inline]
-                fn cmp_snapshot(&self, snapshot: &Self) -> bool {
-                    #cmp_snapshot
+                fn eq_snapshot(&self, snapshot: &Self::Value) -> bool {
+                    #eq_snapshot
                 }
             }
         };
     }
+}
+
+pub fn derive_noop_snapshot(input: &syn::DeriveInput) -> TokenStream {
+    let input_ident = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    quote! {
+        #[automatically_derived]
+        impl #impl_generics ::morphix::builtin::Snapshot for #input_ident #ty_generics #where_clause {
+            type Value = ();
+            #[inline]
+            fn to_snapshot(&self) {}
+            #[inline]
+            fn eq_snapshot(&self, snapshot: &()) -> bool {
+                true
+            }
+        }
+    }
+}
+
+pub fn derive_default(_input: &syn::DeriveInput) -> TokenStream {
+    quote! {}
 }

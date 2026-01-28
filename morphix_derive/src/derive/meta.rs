@@ -5,6 +5,8 @@ use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 
+use crate::derive::snapshot::{derive_default, derive_noop_snapshot, derive_snapshot};
+
 pub struct MetaArgument {
     ident: syn::Ident,
     args: Option<(syn::token::Paren, TokenStream)>,
@@ -37,7 +39,7 @@ pub struct GeneralImpl {
     pub ob_ident: syn::Ident,
     pub spec_ident: syn::Ident,
     pub bounds: Punctuated<syn::TypeParamBound, syn::Token![+]>,
-    pub derive_snapshot: bool,
+    pub extra_derive: fn(&syn::DeriveInput) -> TokenStream,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -138,23 +140,23 @@ impl ObserveMeta {
         if arg.ident == "noop" {
             self.general_impl = Some(GeneralImpl {
                 ob_ident: syn::Ident::new("NoopObserver", arg.ident.span()),
-                spec_ident: syn::Ident::new("DefaultSpec", arg.ident.span()),
+                spec_ident: syn::Ident::new("SnapshotSpec", arg.ident.span()),
                 bounds: Default::default(),
-                derive_snapshot: false,
+                extra_derive: derive_noop_snapshot,
             });
         } else if arg.ident == "shallow" {
             self.general_impl = Some(GeneralImpl {
                 ob_ident: syn::Ident::new("ShallowObserver", arg.ident.span()),
                 spec_ident: syn::Ident::new("DefaultSpec", arg.ident.span()),
                 bounds: Default::default(),
-                derive_snapshot: false,
+                extra_derive: derive_default,
             });
         } else if arg.ident == "snapshot" {
             self.general_impl = Some(GeneralImpl {
                 ob_ident: syn::Ident::new("SnapshotObserver", arg.ident.span()),
                 spec_ident: syn::Ident::new("SnapshotSpec", arg.ident.span()),
                 bounds: parse_quote! { ::morphix::builtin::Snapshot },
-                derive_snapshot: true,
+                extra_derive: derive_snapshot,
             });
         } else if arg.ident == "deref" {
             if attribute_kind != AttributeKind::Field || derive_kind != DeriveKind::Struct {

@@ -25,11 +25,11 @@ use crate::observe::RefObserve;
 /// ```
 /// # use morphix::Observe;
 /// # use serde::Serialize;
-/// # #[derive(Serialize, Clone, PartialEq)]
+/// # #[derive(Serialize, Observe)]
 /// # struct Uuid;
-/// # #[derive(Serialize, Clone, PartialEq)]
+/// # #[derive(Serialize, Observe)]
 /// # struct BitFlags;
-/// #[derive(Serialize, Clone, PartialEq, Observe)]
+/// #[derive(Serialize, Observe)]
 /// struct MyStruct {
 ///     #[morphix(snapshot)]
 ///     id: Uuid,           // Cheap to clone and compare
@@ -56,7 +56,7 @@ pub trait Snapshot {
 
     fn to_snapshot(&self) -> Self::Value;
 
-    fn cmp_snapshot(&self, snapshot: &Self::Value) -> bool;
+    fn eq_snapshot(&self, snapshot: &Self::Value) -> bool;
 }
 
 pub struct SnapshotHandler<T: Snapshot + ?Sized> {
@@ -93,7 +93,7 @@ impl<T: Snapshot + ?Sized> ReplaceHandler for SnapshotHandler<T> {
     fn flush_replace(&mut self, value: &T) -> bool {
         // SAFETY: `ReplaceHandler::flush_replace` is only called in `Observer::flush_unchecked`, where the
         // observer is assumed to contain a valid pointer
-        value.cmp_snapshot(unsafe { self.snapshot.assume_init_ref() })
+        !value.eq_snapshot(unsafe { self.snapshot.assume_init_ref() })
     }
 }
 
@@ -119,7 +119,7 @@ macro_rules! impl_snapshot_observe {
                     *self
                 }
                 #[inline]
-                fn cmp_snapshot(&self, snapshot: &Self) -> bool {
+                fn eq_snapshot(&self, snapshot: &Self) -> bool {
                     self == snapshot
                 }
             }
@@ -171,7 +171,7 @@ macro_rules! generic_impl_snapshot_observe {
                     *self
                 }
                 #[inline]
-                fn cmp_snapshot(&self, snapshot: &Self) -> bool {
+                fn eq_snapshot(&self, snapshot: &Self) -> bool {
                     self == snapshot
                 }
             }
