@@ -156,8 +156,21 @@ impl_snapshot_observe! {
     core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
     core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
     core::time::Duration, std::time::SystemTime,
-    #[cfg(feature = "uuid")]
-    uuid::Uuid,
+    #[cfg(feature = "chrono")] chrono::Days,
+    #[cfg(feature = "chrono")] chrono::FixedOffset,
+    #[cfg(feature = "chrono")] chrono::Month,
+    #[cfg(feature = "chrono")] chrono::Months,
+    #[cfg(feature = "chrono")] chrono::IsoWeek,
+    #[cfg(feature = "chrono")] chrono::NaiveDate,
+    #[cfg(feature = "chrono")] chrono::NaiveDateTime,
+    #[cfg(feature = "chrono")] chrono::NaiveTime,
+    #[cfg(feature = "chrono")] chrono::NaiveWeek,
+    #[cfg(feature = "chrono")] chrono::TimeDelta,
+    #[cfg(feature = "chrono")] chrono::Utc,
+    #[cfg(feature = "chrono")] chrono::Weekday,
+    #[cfg(feature = "chrono")] chrono::WeekdaySet,
+    #[cfg(feature = "uuid")] uuid::Uuid,
+    #[cfg(feature = "uuid")] uuid::NonNilUuid,
 }
 
 macro_rules! generic_impl_snapshot_observe {
@@ -168,7 +181,7 @@ macro_rules! generic_impl_snapshot_observe {
                 type Value = Self;
                 #[inline]
                 fn to_snapshot(&self) -> Self {
-                    *self
+                    self.clone()
                 }
                 #[inline]
                 fn eq_snapshot(&self, snapshot: &Self) -> bool {
@@ -205,4 +218,7 @@ macro_rules! generic_impl_snapshot_observe {
 
 generic_impl_snapshot_observe! {
     impl [T] _ for std::marker::PhantomData<T>;
+
+    #[cfg(feature = "chrono")]
+    impl [Tz: chrono::TimeZone] _ for chrono::DateTime<Tz>;
 }
