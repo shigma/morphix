@@ -263,6 +263,9 @@ impl<A: Adapter> BatchTree<A> {
                     }
                 }
             },
+
+            #[cfg(feature = "delete")]
+            MutationKind::Delete => todo!(),
         }
 
         Ok(())

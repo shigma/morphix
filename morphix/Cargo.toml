@@ -12,7 +12,8 @@ documentation = "https://docs.rs/morphix"
 
 [features]
 append = []
-default = ["append", "derive", "truncate"]
+default = ["append", "delete", "derive", "truncate"]
+delete = []
 derive = ["dep:morphix_derive"]
 full = ["append", "derive", "json", "truncate", "yaml"]
 json = ["dep:serde_json"]

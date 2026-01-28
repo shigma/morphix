@@ -8,7 +8,7 @@ use std::mem::take;
 
 use serde::Serialize;
 
-use crate::{Mutation, Mutations, MutationError, MutationKind, Path, PathSegment};
+use crate::{Mutation, MutationError, MutationKind, Mutations, Path, PathSegment};
 
 #[cfg(feature = "json")]
 mod json;
@@ -168,6 +168,8 @@ pub trait Adapter: Sized {
                     });
                 }
             }
+            #[cfg(feature = "delete")]
+            MutationKind::Delete => todo!(),
             MutationKind::Batch(mutations) => {
                 let len = path_stack.len();
                 for mutation in mutations {

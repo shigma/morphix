@@ -153,8 +153,8 @@ impl<V> Mutations<V> {
     /// The incoming mutations will have the given segment prepended to their path before being
     /// added to this collection.
     #[inline]
-    pub fn insert(&mut self, segment: impl Into<PathSegment>, mutations: Self) {
-        self.__insert(Some(segment.into()), mutations);
+    pub fn insert(&mut self, segment: impl Into<PathSegment>, mutations: impl Into<Self>) {
+        self.__insert(Some(segment.into()), mutations.into());
     }
 
     /// Inserts mutations at a two-level path.
@@ -162,10 +162,15 @@ impl<V> Mutations<V> {
     /// This is a convenience method primarily used for enum named variants, where mutations need to
     /// be inserted at a path like `variant_name.field_name`.
     #[inline]
-    pub fn insert2(&mut self, segment1: impl Into<PathSegment>, segment2: impl Into<PathSegment>, mutations: Self) {
+    pub fn insert2(
+        &mut self,
+        segment1: impl Into<PathSegment>,
+        segment2: impl Into<PathSegment>,
+        mutations: impl Into<Self>,
+    ) {
         self.__insert(
             Some(segment2.into()).into_iter().chain(Some(segment1.into())),
-            mutations,
+            mutations.into(),
         );
     }
 
@@ -320,6 +325,9 @@ pub enum MutationKind<T> {
     /// foo.vec.pop();              // Truncate 1 element from .vec
     #[cfg(feature = "truncate")]
     Truncate(usize),
+
+    #[cfg(feature = "delete")]
+    Delete,
 
     /// [`Batch`](MutationKind::Batch) combines multiple mutations that occurred during a single
     /// observation period. This is automatically created when multiple independent changes are
