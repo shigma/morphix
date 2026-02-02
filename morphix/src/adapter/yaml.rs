@@ -69,6 +69,14 @@ impl Adapter for Yaml {
         }
     }
 
+    #[cfg(feature = "delete")]
+    fn remove(value: &mut Self::Value, segment: &PathSegment) -> Option<Self::Value> {
+        match (value, segment) {
+            (Value::Mapping(map), PathSegment::String(key)) => map.remove(&**key),
+            _ => None,
+        }
+    }
+
     #[cfg(feature = "append")]
     fn append(value: &mut Self::Value, append_value: Self::Value) -> Option<usize> {
         match (value, append_value) {

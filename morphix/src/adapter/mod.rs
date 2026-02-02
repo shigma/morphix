@@ -68,6 +68,9 @@ pub trait Adapter: Sized {
         allow_create: bool,
     ) -> Option<&'a mut Self::Value>;
 
+    #[cfg(feature = "delete")]
+    fn remove(value: &mut Self::Value, segment: &PathSegment) -> Option<Self::Value>;
+
     /// Appends a value to the end of another value.
     ///
     /// This method performs an append operation similar to [`String::push_str`] or
@@ -135,14 +138,31 @@ pub trait Adapter: Sized {
         path_stack: &mut Path<false>,
     ) -> Result<(), MutationError> {
         let is_replace = matches!(mutation.kind, MutationKind::Replace { .. });
+        #[cfg(feature = "delete")]
+        let is_delete = matches!(mutation.kind, MutationKind::Delete);
+        #[cfg(not(feature = "delete"))]
+        const is_delete: bool = false;
 
         while let Some(segment) = mutation.path.pop() {
-            let inner_value = Self::get_mut(value, &segment, is_replace && mutation.path.is_empty());
+            let is_last_segment = mutation.path.is_empty();
+            if is_last_segment && is_delete {
+                match Self::remove(value, &segment) {
+                    Some(_) => return Ok(()),
+                    None => {
+                        path_stack.push(segment);
+                        return Err(MutationError::IndexError { path: take(path_stack) });
+                    }
+                }
+            }
+            let inner_value = Self::get_mut(value, &segment, is_replace && is_last_segment);
             path_stack.push(segment);
             let Some(inner_value) = inner_value else {
                 return Err(MutationError::IndexError { path: take(path_stack) });
             };
             value = inner_value;
+        }
+        if is_delete {
+            return Err(MutationError::IndexError { path: take(path_stack) });
         }
 
         match mutation.kind {
@@ -169,7 +189,7 @@ pub trait Adapter: Sized {
                 }
             }
             #[cfg(feature = "delete")]
-            MutationKind::Delete => todo!(),
+            MutationKind::Delete => unreachable!(),
             MutationKind::Batch(mutations) => {
                 let len = path_stack.len();
                 for mutation in mutations {

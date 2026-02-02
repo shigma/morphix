@@ -8,6 +8,8 @@ use crate::{Adapter, Mutation, MutationError, MutationKind, Mutations, Path, Pat
 enum BatchMutationKind<A: Adapter> {
     #[default]
     None,
+    #[cfg(feature = "delete")]
+    Delete,
     Replace(A::Value),
     #[cfg(any(feature = "append", feature = "truncate"))]
     TruncateAppend {
@@ -173,6 +175,12 @@ impl<A: Adapter> BatchTree<A> {
                 batch.children.take();
             }
 
+            #[cfg(feature = "delete")]
+            MutationKind::Delete => {
+                batch.kind = BatchMutationKind::Delete;
+                batch.children.take();
+            }
+
             MutationKind::Batch(mutations) => {
                 let len = path_stack.len();
                 for mutation in mutations {
@@ -184,6 +192,8 @@ impl<A: Adapter> BatchTree<A> {
             #[cfg(feature = "append")]
             MutationKind::Append(value) => match &mut batch.kind {
                 BatchMutationKind::Replace(_) => unreachable!(),
+                #[cfg(feature = "delete")]
+                BatchMutationKind::Delete => return Err(MutationError::OperationError { path: take(path_stack) }),
                 BatchMutationKind::None => {
                     let Some(append_len) = A::len(&value) else {
                         return Err(MutationError::OperationError { path: take(path_stack) });
@@ -220,6 +230,8 @@ impl<A: Adapter> BatchTree<A> {
             #[cfg(feature = "truncate")]
             MutationKind::Truncate(len) => match &mut batch.kind {
                 BatchMutationKind::Replace(_) => unreachable!(),
+                #[cfg(feature = "delete")]
+                BatchMutationKind::Delete => return Err(MutationError::OperationError { path: take(path_stack) }),
                 BatchMutationKind::None => {
                     if len == 0 {
                         return Ok(());
@@ -263,9 +275,6 @@ impl<A: Adapter> BatchTree<A> {
                     }
                 }
             },
-
-            #[cfg(feature = "delete")]
-            MutationKind::Delete => todo!(),
         }
 
         Ok(())
@@ -285,9 +294,9 @@ impl<A: Adapter> BatchTree<A> {
         }
         match take(&mut self.kind) {
             BatchMutationKind::None => {}
-            BatchMutationKind::Replace(value) => {
-                mutations.extend(MutationKind::Replace(value));
-            }
+            #[cfg(feature = "delete")]
+            BatchMutationKind::Delete => mutations.extend(MutationKind::Delete),
+            BatchMutationKind::Replace(value) => mutations.extend(MutationKind::Replace(value)),
             #[cfg(any(feature = "append", feature = "truncate"))]
             BatchMutationKind::TruncateAppend {
                 truncate_len,
