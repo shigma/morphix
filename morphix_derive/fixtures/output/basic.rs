@@ -144,8 +144,10 @@ impl Display for Foo {
         write!(f, "Foo {{ a: {}, b: {} }}", self.a, self.b)
     }
 }
+#[rustfmt::skip]
 #[derive(Serialize)]
 pub struct Bar(i32);
+#[rustfmt::skip]
 const _: () = {
     pub struct BarObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero>(
         ::morphix::observe::DefaultObserver<'ob, i32>,
@@ -228,7 +230,7 @@ const _: () = {
                 A,
             >(&mut this.0)?;
             let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
-            mutations.insert(0usize, mutations_0);
+            mutations.extend(mutations_0);
             Ok(mutations)
         }
     }
@@ -242,8 +244,10 @@ const _: () = {
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };
+#[rustfmt::skip]
 #[derive(Serialize)]
 pub struct Baz(i32, String);
+#[rustfmt::skip]
 const _: () = {
     pub struct BazObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero>(
         ::morphix::observe::DefaultObserver<'ob, i32>,
@@ -348,5 +352,11 @@ const _: () = {
             N: ::morphix::helper::Unsigned,
             S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
+    }
+    #[automatically_derived]
+    impl<'ob, S: ?Sized, N> ::std::fmt::Debug for BazObserver<'ob, S, N> {
+        fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+            f.debug_tuple("BazObserver").field(&self.0).field(&self.1).finish()
+        }
     }
 };

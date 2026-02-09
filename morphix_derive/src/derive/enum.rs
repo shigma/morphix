@@ -159,6 +159,7 @@ pub fn derive_observe_for_enum(
                 let mut value_idents = vec![];
                 let mut field_segments = vec![];
                 let mut observe_exprs = vec![];
+                let field_count = fields_unnamed.unnamed.len();
                 for (index, field) in fields_unnamed.unnamed.iter_mut().enumerate() {
                     let field_meta =
                         ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Enum);
@@ -171,7 +172,11 @@ pub fn derive_observe_for_enum(
                     let value_ident = syn::Ident::new(&format!("v{}", index), field_span);
                     ob_idents.push(quote! { #ob_ident });
                     value_idents.push(quote! { #value_ident });
-                    field_segments.push(quote! { #index });
+                    if field_count > 1 {
+                        field_segments.push(Some(quote! { #index }));
+                    } else {
+                        field_segments.push(None);
+                    }
                     observe_exprs.push(quote! {
                         ::morphix::observe::Observer::observe(#value_ident)
                     });
@@ -198,12 +203,16 @@ pub fn derive_observe_for_enum(
                     }
                 });
                 let flush_stmts = ob_idents.iter().zip(field_segments).map(|(ident, field_segment)| {
+                    let segment_count = field_segment.iter().len() + tag_segment.iter().len();
+                    let segments = tag_segment.iter().chain(&field_segment);
                     let children = quote! {
                         ::morphix::observe::SerializeObserver::flush::<A>(#ident)?
                     };
-                    match &tag_segment {
-                        Some(tag_segment) => quote! { mutations.insert2(#tag_segment, #field_segment, #children); },
-                        None => quote! { mutations.insert(#field_segment, #children); },
+                    match segment_count {
+                        0 => quote! { mutations.extend(#children); },
+                        1 => quote! { mutations.insert(#(#segments),*, #children); },
+                        2 => quote! { mutations.insert2(#(#segments),*, #children); },
+                        _ => unreachable!(),
                     }
                 });
                 variant_flush_arms.extend(quote! {

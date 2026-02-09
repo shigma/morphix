@@ -130,7 +130,7 @@ pub fn derive_observe_for_struct(
         mutation_batch_capacity.push(quote_spanned! { field_span =>
             #mutable_ident.len()
         });
-        if !field_meta.serde.flatten {
+        if !field_meta.serde.flatten && (is_named || fields.len() > 1) {
             let segment = if let Some(rename) = &field_meta.serde.rename {
                 quote! { #rename }
             } else {
@@ -570,6 +570,10 @@ pub fn derive_observe_for_struct(
                 }
             });
         } else if path.is_ident("Debug") {
+            let method = match is_named {
+                true => quote! { debug_struct },
+                false => quote! { debug_tuple },
+            };
             output.extend(quote! {
                 #[automatically_derived]
                 impl #ob_impl_generics ::std::fmt::Debug
@@ -580,7 +584,7 @@ pub fn derive_observe_for_struct(
                     #(#ob_field_tys: ::std::fmt::Debug,)*
                 {
                     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
-                        f.debug_struct(#ob_name) #debug_chain .finish()
+                        f.#method(#ob_name) #debug_chain .finish()
                     }
                 }
             });

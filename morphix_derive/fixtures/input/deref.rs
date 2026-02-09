@@ -29,28 +29,36 @@ impl<T> DerefMut for Foo<T> {
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-pub struct Bar {
-    #[morphix(deref, shallow)]
-    a: Qux,
-    b: i32,
-}
+pub struct Bar(#[morphix(deref, shallow)] Qux, i32);
 
 impl Deref for Bar {
     type Target = Qux;
 
     fn deref(&self) -> &Self::Target {
-        &self.a
+        &self.0
     }
 }
 
 impl DerefMut for Bar {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.a
+        &mut self.0
     }
 }
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-pub struct Qux {
-    a: i32,
+pub struct Qux(#[morphix(deref)] i32);
+
+impl Deref for Qux {
+    type Target = i32;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for Qux {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
 }

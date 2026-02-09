@@ -20,8 +20,11 @@ impl Display for Foo {
     }
 }
 
+#[rustfmt::skip]
 #[derive(Serialize, Observe)]
 pub struct Bar(i32);
 
+#[rustfmt::skip]
 #[derive(Serialize, Observe)]
+#[morphix(derive(Debug))]
 pub struct Baz(i32, String);

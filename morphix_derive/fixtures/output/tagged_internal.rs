@@ -64,10 +64,7 @@ const _: () = {
                 Self::A(u0) => {
                     let mut mutations = ::morphix::Mutations::new();
                     mutations
-                        .insert(
-                            0usize,
-                            ::morphix::observe::SerializeObserver::flush::<A>(u0)?,
-                        );
+                        .extend(::morphix::observe::SerializeObserver::flush::<A>(u0)?);
                     Ok(mutations)
                 }
                 Self::C { bar, qux } => {

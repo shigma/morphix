@@ -83,9 +83,8 @@ const _: () = {
                 Self::A(u0) => {
                     let mut mutations = ::morphix::Mutations::new();
                     mutations
-                        .insert2(
+                        .insert(
                             "data",
-                            0usize,
                             ::morphix::observe::SerializeObserver::flush::<A>(u0)?,
                         );
                     Ok(mutations)
