@@ -68,8 +68,23 @@ pub trait Adapter: Sized {
         allow_create: bool,
     ) -> Option<&'a mut Self::Value>;
 
+    /// Removes a value at the specified path segment.
+    ///
+    /// This method removes and returns the value at the location specified by `segment`
+    /// within `value`. It is used to apply [`Delete`](MutationKind::Delete) mutations.
+    ///
+    /// ## Parameters
+    ///
+    /// - `value`: The parent value containing the element to remove
+    /// - `segment`: The path segment indicating which nested value to remove
+    ///
+    /// ## Returns
+    ///
+    /// - `Some(removed_value)`: The removed value if the operation succeeded
+    /// - `None`: If the operation is not supported on this value type (e.g., not a map), or if the
+    ///   segment refers to a non-existent location
     #[cfg(feature = "delete")]
-    fn remove(value: &mut Self::Value, segment: &PathSegment) -> Option<Self::Value>;
+    fn delete(value: &mut Self::Value, segment: &PathSegment) -> Option<Self::Value>;
 
     /// Appends a value to the end of another value.
     ///
@@ -146,7 +161,7 @@ pub trait Adapter: Sized {
         while let Some(segment) = mutation.path.pop() {
             let is_last_segment = mutation.path.is_empty();
             if is_last_segment && is_delete {
-                match Self::remove(value, &segment) {
+                match Self::delete(value, &segment) {
                     Some(_) => return Ok(()),
                     None => {
                         path_stack.push(segment);

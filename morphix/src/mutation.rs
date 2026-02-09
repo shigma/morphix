@@ -218,6 +218,8 @@ impl<V> Mutations<V> {
 ///
 /// - [`Replace`](MutationKind::Replace): Complete replacement of a value
 /// - [`Append`](MutationKind::Append): Append operation for strings and vectors
+/// - [`Truncate`](MutationKind::Truncate): Truncate operation for strings and vectors
+/// - [`Delete`](MutationKind::Delete): Deletion of a value from a map or conditional skip
 /// - [`Batch`](MutationKind::Batch): Multiple mutations combined
 ///
 /// ## Example
@@ -326,6 +328,32 @@ pub enum MutationKind<T> {
     #[cfg(feature = "truncate")]
     Truncate(usize),
 
+    /// [`Delete`](MutationKind::Delete) represents the removal of a value entirely.
+    ///
+    /// This mutation kind is used in two scenarios:
+    ///
+    /// 1. **Map deletions**: When a key-value pair is removed from a map-like data structure (e.g.,
+    ///    [`HashMap::remove`](std::collections::HashMap::remove))
+    /// 2. **Conditional serialization skips**: When a value transitions from being serialized to
+    ///    being skipped due to conditions like `#[serde(skip_serializing_if)]`
+    ///
+    /// Unlike [`Replace`](MutationKind::Replace), which updates a value in place, `Delete`
+    /// removes the value at the specified path from the parent container entirely.
+    ///
+    /// ## Examples
+    ///
+    /// ```
+    /// # use std::collections::HashMap;
+    /// # #[derive(Default)]
+    /// # struct Foo {
+    /// #   map: HashMap<String, i32>,
+    /// #   optional: Option<i32>,
+    /// # }
+    /// # let mut foo = Foo::default();
+    /// foo.map.remove("key");      // Delete at .map.key
+    /// // #[serde(skip_serializing_if = "Option::is_none")]
+    /// foo.optional = None;        // Delete at .optional
+    /// ```
     #[cfg(feature = "delete")]
     Delete,
 

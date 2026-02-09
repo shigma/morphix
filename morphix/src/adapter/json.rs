@@ -62,7 +62,7 @@ impl Adapter for Json {
     }
 
     #[cfg(feature = "delete")]
-    fn remove(value: &mut Self::Value, segment: &PathSegment) -> Option<Self::Value> {
+    fn delete(value: &mut Self::Value, segment: &PathSegment) -> Option<Self::Value> {
         match (value, segment) {
             (Value::Object(map), PathSegment::String(key)) => map.remove(&**key),
             _ => None,

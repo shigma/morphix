@@ -1,6 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, feature(rustdoc_internals))]
 #![allow(rustdoc::private_intra_doc_links)]
+#![warn(missing_docs)]
 #![doc = include_str!("../README.md")]
 
 pub mod adapter;
@@ -8,7 +9,7 @@ mod batch;
 pub mod builtin;
 mod error;
 pub mod helper;
-mod impls;
+pub mod impls;
 mod mutation;
 pub mod observe;
 mod path;

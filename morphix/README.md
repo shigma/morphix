@@ -108,6 +108,16 @@ foo.a.b.truncate(5);        // Truncate n-5 chars from .a.b
 foo.vec.pop();              // Truncate 1 element from .vec
 ```
 
+### Delete
+
+Used for deleting values from maps or conditionally skipping mutations:
+
+```rs
+foo.map.remove("key");      // Delete key from .map
+// #[serde(skip_serializing_if = "Option::is_none")]
+foo.value = None;           // Delete at .optional
+```
+
 ### Batch
 
 Multiple mutations combined into a single operation.
