@@ -15,7 +15,7 @@ mod btree_map;
 mod deref;
 mod hash_map;
 mod option;
-mod slice;
+pub mod slice;
 mod string;
 mod tuple;
 mod unsize;

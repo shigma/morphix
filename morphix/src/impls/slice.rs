@@ -1,3 +1,10 @@
+//! Observer implementation for slices.
+//!
+//! This module provides [`SliceObserver`] for tracking element-level mutations on slices. It serves
+//! as the foundation for both [`VecObserver`](super::VecObserver) and
+//! [`ArrayObserver`](super::ArrayObserver), enabling them to track mutations to individual elements
+//! through indexing operations.
+
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -13,11 +20,27 @@ use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
+/// Trait for managing a collection of element observers within a slice observer.
+///
+/// This trait abstracts over the storage and initialization of element observers, allowing
+/// [`SliceObserver`] to lazily create observers for individual elements as they are accessed.
 pub trait ObserverSlice<'ob> {
+    /// The element observer type.
     type Item: Observer<'ob, InnerDepth = Zero, Head: Sized>;
+
+    /// Creates an uninitialized observer collection.
     fn uninit() -> Self;
+
+    /// Returns a shared slice of element observers.
     fn as_slice(&self) -> &[Self::Item];
+
+    /// Returns a mutable slice of element observers.
     fn as_mut_slice(&mut self) -> &mut [Self::Item];
+
+    /// Initializes element observers for the specified range.
+    ///
+    /// This method ensures that observers exist and are properly bound for elements in the range
+    /// `[start, end)`.
     fn init_range(&self, start: usize, end: usize, values: &'ob mut [<Self::Item as Observer<'ob>>::Head]);
 }
 
@@ -56,7 +79,7 @@ where
     }
 }
 
-pub trait SliceIndexImpl<T: ?Sized, Output: ?Sized> {
+pub(crate) trait SliceIndexImpl<T: ?Sized, Output: ?Sized> {
     fn start_inclusive(&self) -> usize;
     fn end_exclusive(&self, len: usize) -> usize;
 }
@@ -93,13 +116,24 @@ impl<T, I: SliceIndex<[T], Output = [T]> + RangeBounds<usize>> SliceIndexImpl<[T
     }
 }
 
+/// State container for tracking truncate and append boundaries.
 pub struct TruncateAppend {
+    /// Number of elements truncated from the end.
     pub truncate_len: usize,
+    /// Starting index of appended elements.
     pub append_index: usize,
 }
 
+/// Trait for tracking append and truncate mutations on slices.
+///
+/// This trait abstracts over the mutation state management, allowing different strategies for
+/// tracking length changes. The unit type `()` implements this trait for observers that don't track
+/// append / truncate operations.
 pub trait SliceMutation {
+    /// Creates the initial mutation state for a slice of the given length.
     fn observe(len: usize) -> Self;
+
+    /// Collects the final mutation state, returning truncate and append boundaries.
     fn collect(self, len: usize) -> TruncateAppend;
 }
 
