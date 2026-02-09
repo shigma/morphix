@@ -12,9 +12,9 @@ pub struct Foo<T> {
 #[rustfmt::skip]
 const _: () = {
     pub struct FooObserver<'ob, O> {
+        a: O,
+        b: ::morphix::observe::DefaultObserver<'ob, i32>,
         __phantom: ::std::marker::PhantomData<&'ob mut ()>,
-        pub a: O,
-        pub b: ::morphix::observe::DefaultObserver<'ob, i32>,
     }
     #[automatically_derived]
     impl<'ob, O> ::std::ops::Deref for FooObserver<'ob, O> {
@@ -48,9 +48,9 @@ const _: () = {
         type InnerDepth = N;
         fn uninit() -> Self {
             Self {
-                __phantom: ::std::marker::PhantomData,
                 a: ::morphix::observe::Observer::uninit(),
                 b: ::morphix::observe::Observer::uninit(),
+                __phantom: ::std::marker::PhantomData,
             }
         }
         fn observe(value: &'ob mut O::Head) -> Self {
@@ -59,9 +59,9 @@ const _: () = {
             });
             let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(value);
             Self {
-                __phantom: ::std::marker::PhantomData,
                 a: __inner,
                 b: ::morphix::observe::Observer::observe(&mut __value.b),
+                __phantom: ::std::marker::PhantomData,
             }
         }
         unsafe fn refresh(this: &mut Self, value: &mut O::Head) {
@@ -141,9 +141,9 @@ pub struct Bar {
 #[rustfmt::skip]
 const _: () = {
     pub struct BarObserver<'ob, O> {
+        a: O,
+        b: ::morphix::observe::DefaultObserver<'ob, i32>,
         __phantom: ::std::marker::PhantomData<&'ob mut ()>,
-        pub a: O,
-        pub b: ::morphix::observe::DefaultObserver<'ob, i32>,
     }
     #[automatically_derived]
     impl<'ob, O> ::std::ops::Deref for BarObserver<'ob, O> {
@@ -176,9 +176,9 @@ const _: () = {
         type InnerDepth = N;
         fn uninit() -> Self {
             Self {
-                __phantom: ::std::marker::PhantomData,
                 a: ::morphix::observe::Observer::uninit(),
                 b: ::morphix::observe::Observer::uninit(),
+                __phantom: ::std::marker::PhantomData,
             }
         }
         fn observe(value: &'ob mut O::Head) -> Self {
@@ -187,9 +187,9 @@ const _: () = {
             });
             let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(value);
             Self {
-                __phantom: ::std::marker::PhantomData,
                 a: __inner,
                 b: ::morphix::observe::Observer::observe(&mut __value.b),
+                __phantom: ::std::marker::PhantomData,
             }
         }
         unsafe fn refresh(this: &mut Self, value: &mut O::Head) {
@@ -260,10 +260,10 @@ pub struct Qux {
 #[rustfmt::skip]
 const _: () = {
     pub struct QuxObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
+        a: ::morphix::observe::DefaultObserver<'ob, i32>,
         __ptr: ::morphix::helper::Pointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut N>,
-        pub a: ::morphix::observe::DefaultObserver<'ob, i32>,
     }
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::ops::Deref for QuxObserver<'ob, S, N> {
@@ -293,20 +293,20 @@ const _: () = {
         type InnerDepth = N;
         fn uninit() -> Self {
             Self {
+                a: ::morphix::observe::Observer::uninit(),
                 __ptr: ::morphix::helper::Pointer::uninit(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                a: ::morphix::observe::Observer::uninit(),
             }
         }
         fn observe(value: &'ob mut S) -> Self {
             let __ptr = ::morphix::helper::Pointer::new(value);
             let __value = value.as_deref_mut();
             Self {
+                a: ::morphix::observe::Observer::observe(&mut __value.a),
                 __ptr,
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                a: ::morphix::observe::Observer::observe(&mut __value.a),
             }
         }
         unsafe fn refresh(this: &mut Self, value: &mut S) {

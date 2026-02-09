@@ -38,18 +38,16 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
         return errors;
     }
 
-    if input_meta.general_impl.is_none() {
-        // no collapse
-        if let syn::Data::Struct(syn::DataStruct { fields, .. }) = &input.data
-            && fields.is_empty()
-        {
-            input_meta.general_impl = Some(GeneralImpl {
-                ob_ident: format_ident!("NoopObserver"),
-                spec_ident: format_ident!("SnapshotSpec"),
-                bounds: Default::default(),
-                extra_derive: derive_noop_snapshot,
-            });
-        }
+    if input_meta.general_impl.is_none()
+        && let syn::Data::Struct(syn::DataStruct { fields, .. }) = &input.data
+        && fields.is_empty()
+    {
+        input_meta.general_impl = Some(GeneralImpl {
+            ob_ident: format_ident!("NoopObserver"),
+            spec_ident: format_ident!("SnapshotSpec"),
+            bounds: Default::default(),
+            extra_derive: derive_noop_snapshot,
+        });
     }
 
     if let Some(GeneralImpl {
@@ -95,11 +93,15 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
         syn::Data::Struct(syn::DataStruct {
             fields: syn::Fields::Named(syn::FieldsNamed { named, .. }),
             ..
-        }) => r#struct::derive_observe_for_struct(&input, named, &input_meta),
+        }) => r#struct::derive_observe_for_struct(&input, named, &input_meta, true),
+        syn::Data::Struct(syn::DataStruct {
+            fields: syn::Fields::Unnamed(syn::FieldsUnnamed { unnamed, .. }),
+            ..
+        }) => r#struct::derive_observe_for_struct(&input, unnamed, &input_meta, false),
         syn::Data::Enum(syn::DataEnum { variants, .. }) => {
             r#enum::derive_observe_for_enum(&input, variants, &input_meta)
         }
-        _ => syn::Error::new(input.span(), "Observe can only be derived for named structs").to_compile_error(),
+        _ => syn::Error::new(input.span(), "Observe can only be derived for structs or enums").to_compile_error(),
     }
 }
 

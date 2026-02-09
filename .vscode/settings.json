@@ -27,6 +27,7 @@
         "indexmap",
         "morphix",
         "prettyplease",
+        "qself",
         "rchunks",
         "rsplit",
         "rsplitn",

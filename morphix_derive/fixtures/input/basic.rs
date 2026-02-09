@@ -19,3 +19,9 @@ impl Display for Foo {
         write!(f, "Foo {{ a: {}, b: {} }}", self.a, self.b)
     }
 }
+
+#[derive(Serialize, Observe)]
+pub struct Bar(i32);
+
+#[derive(Serialize, Observe)]
+pub struct Baz(i32, String);
