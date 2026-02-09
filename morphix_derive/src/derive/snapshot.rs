@@ -7,7 +7,11 @@ use crate::derive::GenericsDetector;
 
 pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
     let mut snapshot = input.clone();
-    let snap_ident = syn::Ident::new(&format!("{}Snapshot", input.ident), input.ident.span());
+    let mut input_name = input.ident.to_string();
+    if input_name.starts_with("r#") {
+        input_name = input_name[2..].to_string();
+    }
+    let snap_ident = syn::Ident::new(&format!("{input_name}Snapshot"), input.ident.span());
     snapshot.attrs = vec![];
     snapshot.ident = snap_ident.clone();
 

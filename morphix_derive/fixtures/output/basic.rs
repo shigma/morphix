@@ -6,7 +6,7 @@ use serde::Serialize;
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub struct Foo {
-    a: i32,
+    r#a: i32,
     #[serde(rename = "bar")]
     b: String,
 }
@@ -16,7 +16,7 @@ const _: () = {
         __ptr: ::morphix::helper::Pointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut N>,
-        pub a: ::morphix::observe::DefaultObserver<'ob, i32>,
+        pub r#a: ::morphix::observe::DefaultObserver<'ob, i32>,
         pub b: ::morphix::observe::DefaultObserver<'ob, String>,
     }
     #[automatically_derived]
@@ -50,7 +50,7 @@ const _: () = {
                 __ptr: ::morphix::helper::Pointer::uninit(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                a: ::morphix::observe::Observer::uninit(),
+                r#a: ::morphix::observe::Observer::uninit(),
                 b: ::morphix::observe::Observer::uninit(),
             }
         }
@@ -61,7 +61,7 @@ const _: () = {
                 __ptr,
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
-                a: ::morphix::observe::Observer::observe(&mut __value.a),
+                r#a: ::morphix::observe::Observer::observe(&mut __value.r#a),
                 b: ::morphix::observe::Observer::observe(&mut __value.b),
             }
         }
@@ -69,7 +69,7 @@ const _: () = {
             ::morphix::helper::Pointer::set(this, value);
             let __value = value.as_deref_mut();
             unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
+                ::morphix::observe::Observer::refresh(&mut this.r#a, &mut __value.r#a);
                 ::morphix::observe::Observer::refresh(&mut this.b, &mut __value.b);
             }
         }
@@ -95,7 +95,7 @@ const _: () = {
             }
             let mutations_a = ::morphix::observe::SerializeObserver::flush::<
                 A,
-            >(&mut this.a)?;
+            >(&mut this.r#a)?;
             let mutations_b = ::morphix::observe::SerializeObserver::flush::<
                 A,
             >(&mut this.b)?;
@@ -120,7 +120,7 @@ const _: () = {
     impl<'ob, S: ?Sized, N> ::std::fmt::Debug for FooObserver<'ob, S, N> {
         fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
             f.debug_struct("FooObserver")
-                .field("a", &self.a)
+                .field("a", &self.r#a)
                 .field("b", &self.b)
                 .finish()
         }

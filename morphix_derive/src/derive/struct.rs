@@ -44,7 +44,10 @@ pub fn derive_observe_for_struct(
     for field in fields {
         let field_meta = ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Struct);
         let field_ident = field.ident.as_ref().unwrap();
-        let field_name = field_ident.to_string();
+        let mut field_name = field_ident.to_string();
+        if field_name.starts_with("r#") {
+            field_name = field_name[2..].to_string();
+        }
         let field_span = {
             let mut field_cloned = field.clone();
             field_cloned.attrs = vec![];
@@ -97,7 +100,7 @@ pub fn derive_observe_for_struct(
         debug_chain.extend(quote_spanned! { field_span =>
             .field(#field_name, &self.#field_ident)
         });
-        let mutable_ident = syn::Ident::new(&format!("mutations_{}", field_ident), field_span);
+        let mutable_ident = syn::Ident::new(&format!("mutations_{field_name}"), field_span);
         flush_fields.extend(quote_spanned! { field_span =>
             let #mutable_ident = ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_ident)?;
         });

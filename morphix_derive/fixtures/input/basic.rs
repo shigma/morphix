@@ -9,7 +9,7 @@ use serde::Serialize;
 #[morphix(derive(Debug, Display))]
 #[serde(rename_all = "UPPERCASE")]
 pub struct Foo {
-    a: i32,
+    r#a: i32,
     #[serde(rename = "bar")]
     b: String,
 }
