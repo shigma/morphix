@@ -127,6 +127,7 @@ pub struct ObserveMeta {
     pub deref: Option<syn::Ident>,
     pub serde: SerdeMeta,
     pub derive: (Vec<syn::Ident>, Vec<syn::Path>),
+    pub expose: bool,
 }
 
 impl ObserveMeta {
@@ -191,6 +192,14 @@ impl ObserveMeta {
                 Ok(paths) => self.derive.1.extend(paths),
                 Err(error) => errors.extend(error.to_compile_error()),
             };
+        } else if arg.ident == "expose" {
+            if attribute_kind != AttributeKind::Item {
+                errors.extend(
+                    syn::Error::new(arg.ident.span(), "the 'expose' argument is only allowed on items")
+                        .to_compile_error(),
+                );
+            }
+            self.expose = true;
         } else {
             errors.extend(
                 syn::Error::new(

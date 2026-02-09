@@ -22,6 +22,7 @@ impl Display for Foo {
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
+#[morphix(expose)]
 pub struct Bar(i32);
 
 #[rustfmt::skip]

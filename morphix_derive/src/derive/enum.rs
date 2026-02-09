@@ -564,9 +564,13 @@ pub fn derive_observe_for_enum(
         }
     }
 
-    quote! {
-        const _: () = {
-            #output
-        };
+    if input_meta.expose {
+        output
+    } else {
+        quote! {
+            const _: () = {
+                #output
+            };
+        }
     }
 }

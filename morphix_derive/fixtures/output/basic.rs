@@ -148,102 +148,104 @@ impl Display for Foo {
 #[derive(Serialize)]
 pub struct Bar(i32);
 #[rustfmt::skip]
-const _: () = {
-    pub struct BarObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero>(
-        ::morphix::observe::DefaultObserver<'ob, i32>,
-        ::morphix::helper::Pointer<S>,
-        bool,
-        ::std::marker::PhantomData<&'ob mut N>,
-    );
-    #[automatically_derived]
-    impl<'ob, S: ?Sized, N> ::std::ops::Deref for BarObserver<'ob, S, N> {
-        type Target = ::morphix::helper::Pointer<S>;
-        fn deref(&self) -> &Self::Target {
-            &self.1
+pub struct BarObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero>(
+    ::morphix::observe::DefaultObserver<'ob, i32>,
+    ::morphix::helper::Pointer<S>,
+    bool,
+    ::std::marker::PhantomData<&'ob mut N>,
+);
+#[rustfmt::skip]
+#[automatically_derived]
+impl<'ob, S: ?Sized, N> ::std::ops::Deref for BarObserver<'ob, S, N> {
+    type Target = ::morphix::helper::Pointer<S>;
+    fn deref(&self) -> &Self::Target {
+        &self.1
+    }
+}
+#[rustfmt::skip]
+#[automatically_derived]
+impl<'ob, S: ?Sized, N> ::std::ops::DerefMut for BarObserver<'ob, S, N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.2 = true;
+        &mut self.1
+    }
+}
+#[rustfmt::skip]
+#[automatically_derived]
+impl<'ob, S: ?Sized, N> ::morphix::helper::AsNormalized for BarObserver<'ob, S, N> {
+    type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+}
+#[rustfmt::skip]
+#[automatically_derived]
+impl<'ob, S: ?Sized, N> ::morphix::observe::Observer<'ob> for BarObserver<'ob, S, N>
+where
+    S: ::morphix::helper::AsDerefMut<N, Target = Bar> + 'ob,
+    N: ::morphix::helper::Unsigned,
+{
+    type Head = S;
+    type InnerDepth = N;
+    fn uninit() -> Self {
+        Self(
+            ::morphix::observe::Observer::uninit(),
+            ::morphix::helper::Pointer::uninit(),
+            false,
+            ::std::marker::PhantomData,
+        )
+    }
+    fn observe(value: &'ob mut S) -> Self {
+        let __ptr = ::morphix::helper::Pointer::new(value);
+        let __value = value.as_deref_mut();
+        Self(
+            ::morphix::observe::Observer::observe(&mut __value.0),
+            __ptr,
+            false,
+            ::std::marker::PhantomData,
+        )
+    }
+    unsafe fn refresh(this: &mut Self, value: &mut S) {
+        ::morphix::helper::Pointer::set(this, value);
+        let __value = value.as_deref_mut();
+        unsafe {
+            ::morphix::observe::Observer::refresh(&mut this.0, &mut __value.0);
         }
     }
-    #[automatically_derived]
-    impl<'ob, S: ?Sized, N> ::std::ops::DerefMut for BarObserver<'ob, S, N> {
-        fn deref_mut(&mut self) -> &mut Self::Target {
-            self.2 = true;
-            &mut self.1
+}
+#[rustfmt::skip]
+#[automatically_derived]
+impl<'ob, S: ?Sized, N> ::morphix::observe::SerializeObserver<'ob>
+for BarObserver<'ob, S, N>
+where
+    S: ::morphix::helper::AsDerefMut<N, Target = Bar> + 'ob,
+    N: ::morphix::helper::Unsigned,
+{
+    unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+        this: &mut Self,
+    ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        if this.2 {
+            this.2 = false;
+            return Ok(
+                ::morphix::MutationKind::Replace(A::serialize_value(this.as_deref())?)
+                    .into(),
+            );
         }
+        let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
+            A,
+        >(&mut this.0)?;
+        let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
+        mutations.extend(mutations_0);
+        Ok(mutations)
     }
-    #[automatically_derived]
-    impl<'ob, S: ?Sized, N> ::morphix::helper::AsNormalized for BarObserver<'ob, S, N> {
-        type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
-    }
-    #[automatically_derived]
-    impl<'ob, S: ?Sized, N> ::morphix::observe::Observer<'ob> for BarObserver<'ob, S, N>
+}
+#[rustfmt::skip]
+#[automatically_derived]
+impl ::morphix::Observe for Bar {
+    type Observer<'ob, S, N> = BarObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDerefMut<N, Target = Bar> + 'ob,
+        Self: 'ob,
         N: ::morphix::helper::Unsigned,
-    {
-        type Head = S;
-        type InnerDepth = N;
-        fn uninit() -> Self {
-            Self(
-                ::morphix::observe::Observer::uninit(),
-                ::morphix::helper::Pointer::uninit(),
-                false,
-                ::std::marker::PhantomData,
-            )
-        }
-        fn observe(value: &'ob mut S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(value);
-            let __value = value.as_deref_mut();
-            Self(
-                ::morphix::observe::Observer::observe(&mut __value.0),
-                __ptr,
-                false,
-                ::std::marker::PhantomData,
-            )
-        }
-        unsafe fn refresh(this: &mut Self, value: &mut S) {
-            ::morphix::helper::Pointer::set(this, value);
-            let __value = value.as_deref_mut();
-            unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.0, &mut __value.0);
-            }
-        }
-    }
-    #[automatically_derived]
-    impl<'ob, S: ?Sized, N> ::morphix::observe::SerializeObserver<'ob>
-    for BarObserver<'ob, S, N>
-    where
-        S: ::morphix::helper::AsDerefMut<N, Target = Bar> + 'ob,
-        N: ::morphix::helper::Unsigned,
-    {
-        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
-            this: &mut Self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
-            if this.2 {
-                this.2 = false;
-                return Ok(
-                    ::morphix::MutationKind::Replace(
-                            A::serialize_value(this.as_deref())?,
-                        )
-                        .into(),
-                );
-            }
-            let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.0)?;
-            let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
-            mutations.extend(mutations_0);
-            Ok(mutations)
-        }
-    }
-    #[automatically_derived]
-    impl ::morphix::Observe for Bar {
-        type Observer<'ob, S, N> = BarObserver<'ob, S, N>
-        where
-            Self: 'ob,
-            N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
-        type Spec = ::morphix::observe::DefaultSpec;
-    }
-};
+        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+    type Spec = ::morphix::observe::DefaultSpec;
+}
 #[rustfmt::skip]
 #[derive(Serialize)]
 pub struct Baz(i32, String);
