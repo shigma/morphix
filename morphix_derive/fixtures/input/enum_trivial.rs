@@ -9,3 +9,12 @@ pub enum Foo {
     B(),
     C {},
 }
+
+#[rustfmt::skip]
+#[derive(Serialize, Observe)]
+#[morphix(snapshot)]
+pub enum Bar {
+    A,
+    B(),
+    C {},
+}

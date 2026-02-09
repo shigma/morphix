@@ -112,3 +112,53 @@ const _: () = {
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };
+#[rustfmt::skip]
+#[derive(Serialize)]
+pub enum Bar {
+    A,
+    B(),
+    C {},
+}
+#[rustfmt::skip]
+const _: () = {
+    pub enum BarSnapshot {
+        A,
+        B(),
+        C {},
+    }
+    #[automatically_derived]
+    impl ::morphix::builtin::Snapshot for Bar {
+        type Snapshot = BarSnapshot;
+        #[inline]
+        fn to_snapshot(&self) -> Self::Snapshot {
+            match self {
+                Self::A => BarSnapshot::A,
+                Self::B() => BarSnapshot::B(),
+                Self::C {} => BarSnapshot::C {},
+            }
+        }
+        #[inline]
+        #[allow(clippy::match_like_matches_macro)]
+        fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
+            match (self, snapshot) {
+                (Self::A, BarSnapshot::A) => true,
+                (Self::B(), BarSnapshot::B()) => true,
+                (Self::C {}, BarSnapshot::C {}) => true,
+                _ => false,
+            }
+        }
+    }
+};
+#[rustfmt::skip]
+#[automatically_derived]
+impl ::morphix::Observe for Bar
+where
+    Self: ::morphix::builtin::Snapshot,
+{
+    type Observer<'ob, S, N> = ::morphix::builtin::SnapshotObserver<'ob, S, N>
+    where
+        Self: 'ob,
+        N: ::morphix::helper::Unsigned,
+        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+    type Spec = ::morphix::observe::SnapshotSpec;
+}

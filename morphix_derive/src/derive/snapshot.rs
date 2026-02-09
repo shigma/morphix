@@ -154,6 +154,10 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                             let snap_ident = &snap_idents[i];
                             quote_spanned! { span => ::morphix::builtin::Snapshot::eq_snapshot(&#self_ident, &#snap_ident) }
                         });
+                        let cmp_expr = match fields.named.is_empty() {
+                            true => quote! { true },
+                            false => quote! { #(#cmp_values) &&* },
+                        };
                         (
                             quote! {
                                 Self::#variant_ident { #(#field_idents),* } => #snap_ident::#variant_ident { #(#field_values),* }
@@ -162,7 +166,7 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                                 (
                                     Self::#variant_ident { #(#field_idents: #self_idents),* },
                                     #snap_ident::#variant_ident { #(#field_idents: #snap_idents),* },
-                                ) => #(#cmp_values) &&*
+                                ) => #cmp_expr
                             },
                         )
                     }
@@ -195,6 +199,10 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                             let snap_ident = &snap_idents[i];
                             quote_spanned! { span => ::morphix::builtin::Snapshot::eq_snapshot(&#self_ident, &#snap_ident) }
                         });
+                        let cmp_expr = match fields.unnamed.is_empty() {
+                            true => quote! { true },
+                            false => quote! { #(#cmp_values) &&* },
+                        };
                         (
                             quote! {
                                 Self::#variant_ident( #(#field_idents),* ) => #snap_ident::#variant_ident( #(#field_values),* )
@@ -203,7 +211,7 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                                 (
                                     Self::#variant_ident( #(#self_idents),* ),
                                     #snap_ident::#variant_ident( #(#snap_idents),* ),
-                                ) => #(#cmp_values) &&*
+                                ) => #cmp_expr
                             },
                         )
                     }
@@ -216,12 +224,13 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
             (
                 quote! {
                     match self {
-                        #(#to_snapshot),*
+                        #(#to_snapshot,)*
                     }
                 },
                 quote! {
                     match (self, snapshot) {
-                        #(#eq_snapshot),*
+                        #(#eq_snapshot,)*
+                        _ => false,
                     }
                 },
             )
@@ -243,6 +252,7 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
                     #to_snapshot
                 }
                 #[inline]
+                #[allow(clippy::match_like_matches_macro)]
                 fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
                     #eq_snapshot
                 }

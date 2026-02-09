@@ -42,6 +42,7 @@ const _: () = {
             }
         }
         #[inline]
+        #[allow(clippy::match_like_matches_macro)]
         fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
             ::morphix::builtin::Snapshot::eq_snapshot(&self.a, &snapshot.a)
         }
