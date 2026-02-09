@@ -13,9 +13,9 @@ use std::ptr::NonNull;
 ///
 /// When observing types that already implement [`Deref`] (like [`Vec<T>`]), we need a way to break
 /// the dereference chain to insert observer logic at multiple levels. [`Pointer`] provides this
-/// break point, enabling chains like: [`VecObserver`](crate::impls::vec::VecObserver) →
-/// [`SliceObserver`](crate::impls::slice::SliceObserver) →
-/// [`Pointer<Vec<T>>`](Pointer) → [`Vec<T>`] → [`[T]`](std::slice).
+/// break point, enabling chains like: [`VecObserver`](crate::impls::VecObserver) →
+/// [`SliceObserver`](crate::impls::SliceObserver) → [`Pointer<Vec<T>>`](Pointer) → [`Vec<T>`] →
+/// [`[T]`](std::slice).
 ///
 /// ## Safety
 ///

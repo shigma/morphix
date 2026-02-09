@@ -80,8 +80,8 @@ pub trait Observe {
     /// One important use of [`Spec`](Observe::Spec) is to select the appropriate observer
     /// implementation for wrapper types like [`Option<T>`]:
     ///
-    /// - [`DefaultSpec`] → use [`OptionObserver`](crate::impls::option::OptionObserver) wrapping
-    ///   `T`'s observer
+    /// - [`DefaultSpec`] → use [`OptionObserver`](crate::impls::OptionObserver) wrapping `T`'s
+    ///   observer
     /// - [`SnapshotSpec`] → use [`SnapshotObserver<Option<T>>`](crate::builtin::SnapshotObserver)
     ///   for snapshot-based change detection
     ///
@@ -272,7 +272,7 @@ where
     /// ## Use Cases
     ///
     /// This method is particularly useful in container observers (like
-    /// [`VecObserver`](crate::impls::vec::VecObserver)) where element observers may need to be:
+    /// [`VecObserver`](crate::impls::VecObserver)) where element observers may need to be:
     /// - Lazily initialized on first access, and
     /// - Refreshed after container reallocation moves elements in memory.
     unsafe fn force(this: &mut Self, value: &'ob mut Self::Head) {
@@ -322,7 +322,7 @@ where
     ///
     /// ## Example
     ///
-    /// Implementing [`Vec::pop`] for a [`VecObserver`](crate::impls::vec::VecObserver):
+    /// Implementing [`Vec::pop`] for a [`VecObserver`](crate::impls::VecObserver):
     ///
     /// ```ignore
     /// impl VecObserver<'ob> {
@@ -441,7 +441,7 @@ impl<'ob, T: SerializeObserver<'ob>> SerializeObserverExt<'ob> for T {}
 /// [`DefaultSpec`] indicates that no special observation behavior is required for the type. For
 /// most types, this means they use their standard [`Observer`] implementation. For example, if `T`
 /// implements [`Observe`] with `Spec = DefaultSpec`, then [`Option<T>`] will be observed using
-/// [`OptionObserver`](crate::impls::option::OptionObserver) which wraps `T`'s observer.
+/// [`OptionObserver`](crate::impls::OptionObserver) which wraps `T`'s observer.
 ///
 /// All `#[derive(Observe)]` implementations use [`DefaultSpec`] unless overridden with field
 /// attributes.
