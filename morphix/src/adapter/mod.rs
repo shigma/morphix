@@ -155,11 +155,10 @@ pub trait Adapter: Sized {
         let is_replace = matches!(mutation.kind, MutationKind::Replace { .. });
         #[cfg(feature = "delete")]
         let is_delete = matches!(mutation.kind, MutationKind::Delete);
-        #[cfg(not(feature = "delete"))]
-        const is_delete: bool = false;
 
         while let Some(segment) = mutation.path.pop() {
             let is_last_segment = mutation.path.is_empty();
+            #[cfg(feature = "delete")]
             if is_last_segment && is_delete {
                 match Self::delete(value, &segment) {
                     Some(_) => return Ok(()),
@@ -176,6 +175,7 @@ pub trait Adapter: Sized {
             };
             value = inner_value;
         }
+        #[cfg(feature = "delete")]
         if is_delete {
             return Err(MutationError::IndexError { path: take(path_stack) });
         }
