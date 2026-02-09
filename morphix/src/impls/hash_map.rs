@@ -31,6 +31,7 @@ impl<K> Default for Diff<K> {
     }
 }
 
+/// Observer implementation for [`HashMap<K, V>`].
 pub struct HashMapObserver<'ob, K, O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
     diff: Option<Diff<&'ob K>>,

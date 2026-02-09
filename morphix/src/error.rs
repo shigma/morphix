@@ -8,14 +8,23 @@ use crate::Path;
 #[non_exhaustive]
 pub enum MutationError {
     /// The specified path does not exist.
-    IndexError { path: Path<false> },
+    IndexError {
+        /// The path that could not be found.
+        path: Path<false>,
+    },
     /// Mutation could not be performed at the specified path.
-    OperationError { path: Path<false> },
+    OperationError {
+        /// The path where the operation could not be performed.
+        path: Path<false>,
+    },
     /// Error applying a truncate operation.
     #[cfg(feature = "truncate")]
     TruncateError {
+        /// The path where the truncation failed.
         path: Path<false>,
+        /// The actual length of the value being truncated.
         actual_len: usize,
+        /// The requested truncation length.
         truncate_len: usize,
     },
 }

@@ -10,7 +10,7 @@ use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
 
-/// Observer implementation for [`Option`].
+/// Observer implementation for [`Option<T>`].
 ///
 /// This observer tracks changes to optional values, including transitions between [`Some`] and
 /// [`None`] states. It provides specialized methods for working with options while maintaining

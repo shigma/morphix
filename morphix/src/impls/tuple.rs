@@ -9,6 +9,7 @@ use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
 
+/// Observer implementation for tuple `(T,)`.
 pub struct TupleObserver<'ob, O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
     inner: (O,),
@@ -123,6 +124,7 @@ impl<T: Snapshot> Snapshot for (T,) {
 
 macro_rules! tuple_observer {
     ($ty:ident; $($o:ident, $t:ident, $n:tt);*) => {
+        #[doc = concat!("Observer implementation for tuple `(", $(stringify!($t), ", ",)* ")`.")]
         pub struct $ty<'ob, $($o,)* S: ?Sized, D = Zero> {
             ptr: Pointer<S>,
             inner: ($($o,)*),

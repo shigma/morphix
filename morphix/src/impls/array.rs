@@ -38,6 +38,7 @@ where
     }
 }
 
+/// Observer implementation for arrays `[T; N]`.
 pub struct ArrayObserver<'ob, const N: usize, O, S: ?Sized, D = Zero> {
     inner: SliceObserver<'ob, [O; N], (), S, D>,
 }

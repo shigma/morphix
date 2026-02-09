@@ -14,6 +14,7 @@ use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver, Truncate
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
+/// Observer implementation for [`Vec<T>`].
 pub struct VecObserver<'ob, O, S: ?Sized, D = Zero> {
     inner: SliceObserver<'ob, UnsafeCell<Vec<O>>, TruncateAppend, S, Succ<D>>,
 }

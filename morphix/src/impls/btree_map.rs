@@ -30,6 +30,7 @@ impl<K> Default for Diff<K> {
     }
 }
 
+/// Observer implementation for [`BTreeMap<K, V>`].
 pub struct BTreeMapObserver<'ob, K, O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
     diff: Option<Diff<&'ob K>>,

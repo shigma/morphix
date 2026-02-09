@@ -131,6 +131,7 @@ impl SliceMutation for TruncateAppend {
     }
 }
 
+/// Observer implementation for slices `[T]`.
 pub struct SliceObserver<'ob, V, M, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
     pub(super) obs: V,

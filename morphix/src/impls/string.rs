@@ -9,6 +9,7 @@ use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
 
+/// Observer implementation for [`String`].
 pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
     mutation: Option<TruncateAppend>,
