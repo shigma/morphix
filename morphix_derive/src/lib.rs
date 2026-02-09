@@ -1,4 +1,4 @@
-#![allow(rustdoc::private_intra_doc_links)]
+#![allow(rustdoc::broken_intra_doc_links)]
 #![doc = include_str!("../README.md")]
 
 use proc_macro::TokenStream;
@@ -6,12 +6,11 @@ use proc_macro::TokenStream;
 mod derive;
 mod observe;
 
-/// Derive the [`Observe`](morphix::Observe) trait for structs to enable mutation tracking.
+/// Derive the [`Observe`](morphix::Observe) trait to enable mutation tracking.
 ///
-/// This macro automatically generates an [`Observe`](morphix::Observe) implementation for the
-/// struct, producing a default [`Observer`](morphix::observe::Observer) type that wraps the struct
-/// and tracks mutations to each field according to that field's own [`Observe`](morphix::Observe)
-/// implementation.
+/// This macro automatically generates an [`Observe`](morphix::Observe) implementation, producing a
+/// default [`Observer`](morphix::observe::Observer) type that wraps the struct and tracks mutations
+/// to each field according to that field's own [`Observe`](morphix::Observe) implementation.
 ///
 /// ## Requirements
 ///
