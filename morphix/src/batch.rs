@@ -351,7 +351,7 @@ mod test {
     }
 
     #[test]
-    fn replace_on_replace() {
+    fn replace_after_replace() {
         let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
@@ -375,7 +375,7 @@ mod test {
     }
 
     #[test]
-    fn append_on_replace() {
+    fn append_after_replace() {
         let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
@@ -639,7 +639,7 @@ mod test {
     }
 
     #[test]
-    fn truncate_on_append_1() {
+    fn truncate_after_append_1() {
         let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
@@ -663,7 +663,7 @@ mod test {
     }
 
     #[test]
-    fn truncate_on_append_2() {
+    fn truncate_after_append_2() {
         let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
@@ -681,7 +681,7 @@ mod test {
     }
 
     #[test]
-    fn truncate_on_append_3() {
+    fn truncate_after_append_3() {
         let mut batch = BatchTree::<Json>::new();
         batch
             .load(Mutation {
@@ -880,5 +880,94 @@ mod test {
                 ]),
             }),
         );
+    }
+
+    #[test]
+    fn delete_after_delete() {
+        let mut batch = BatchTree::<Json>::new();
+        batch
+            .load(Mutation {
+                path: vec!["foo".into()].into(),
+                kind: MutationKind::Delete,
+            })
+            .unwrap();
+        batch
+            .load(Mutation {
+                path: vec!["foo".into()].into(),
+                kind: MutationKind::Delete,
+            })
+            .unwrap();
+        assert_eq!(
+            batch.dump().into_inner(),
+            Some(Mutation {
+                path: vec!["foo".into()].into(),
+                kind: MutationKind::Delete,
+            }),
+        );
+    }
+
+    #[test]
+    fn delete_after_truncate() {
+        let mut batch = BatchTree::<Json>::new();
+        batch
+            .load(Mutation {
+                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
+                kind: MutationKind::Truncate(3),
+            })
+            .unwrap();
+        batch
+            .load(Mutation {
+                path: vec!["foo".into(), "bar".into()].into(),
+                kind: MutationKind::Delete,
+            })
+            .unwrap();
+        assert_eq!(
+            batch.dump().into_inner(),
+            Some(Mutation {
+                path: vec!["foo".into(), "bar".into()].into(),
+                kind: MutationKind::Delete,
+            }),
+        );
+    }
+
+    #[test]
+    fn replace_after_delete() {
+        let mut batch = BatchTree::<Json>::new();
+        batch
+            .load(Mutation {
+                path: vec!["foo".into()].into(),
+                kind: MutationKind::Delete,
+            })
+            .unwrap();
+        batch
+            .load(Mutation {
+                path: vec!["foo".into()].into(),
+                kind: MutationKind::Replace(json!({})),
+            })
+            .unwrap();
+        assert_eq!(
+            batch.dump().into_inner(),
+            Some(Mutation {
+                path: vec!["foo".into()].into(),
+                kind: MutationKind::Replace(json!({})),
+            }),
+        );
+    }
+
+    #[test]
+    fn append_after_delete() {
+        let mut batch = BatchTree::<Json>::new();
+        batch
+            .load(Mutation {
+                path: vec!["foo".into()].into(),
+                kind: MutationKind::Delete,
+            })
+            .unwrap();
+        batch
+            .load(Mutation {
+                path: vec!["foo".into()].into(),
+                kind: MutationKind::Append(json!("test")),
+            })
+            .unwrap_err();
     }
 }
