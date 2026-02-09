@@ -21,6 +21,7 @@
         "coinductive",
         "deque",
         "docsrs",
+        "elems",
         "idents",
         "impls",
         "indexmap",
