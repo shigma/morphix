@@ -25,6 +25,7 @@
         "idents",
         "impls",
         "indexmap",
+        "metas",
         "morphix",
         "prettyplease",
         "qself",

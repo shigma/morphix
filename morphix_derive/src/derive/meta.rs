@@ -128,6 +128,8 @@ pub struct ObserveMeta {
     pub serde: SerdeMeta,
     pub derive: (Vec<syn::Ident>, Vec<syn::Path>),
     pub expose: bool,
+    pub __variant: Vec<syn::Meta>,
+    pub __initial: Vec<syn::Meta>,
 }
 
 impl ObserveMeta {
@@ -200,6 +202,54 @@ impl ObserveMeta {
                 );
             }
             self.expose = true;
+        } else if arg.ident == "__variant" {
+            if derive_kind != DeriveKind::Enum {
+                errors.extend(
+                    syn::Error::new(
+                        arg.ident.span(),
+                        "the '__variant' argument is only allowed on enum items",
+                    )
+                    .to_compile_error(),
+                );
+            }
+            let Some((_, tokens)) = arg.args else {
+                errors.extend(
+                    syn::Error::new(
+                        arg.ident.span(),
+                        "the '__variant' argument requires meta list, e.g., __variant(derive(Debug))",
+                    )
+                    .to_compile_error(),
+                );
+                return;
+            };
+            match syn::parse2(tokens) {
+                Ok(meta) => self.__variant.push(meta),
+                Err(err) => errors.extend(err.to_compile_error()),
+            }
+        } else if arg.ident == "__initial" {
+            if derive_kind != DeriveKind::Enum {
+                errors.extend(
+                    syn::Error::new(
+                        arg.ident.span(),
+                        "the '__initial' argument is only allowed on enum items",
+                    )
+                    .to_compile_error(),
+                );
+            }
+            let Some((_, tokens)) = arg.args else {
+                errors.extend(
+                    syn::Error::new(
+                        arg.ident.span(),
+                        "the '__initial' argument requires meta list, e.g., __initial(derive(Debug))",
+                    )
+                    .to_compile_error(),
+                );
+                return;
+            };
+            match syn::parse2(tokens) {
+                Ok(meta) => self.__initial.push(meta),
+                Err(err) => errors.extend(err.to_compile_error()),
+            }
         } else {
             errors.extend(
                 syn::Error::new(

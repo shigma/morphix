@@ -339,7 +339,9 @@ pub fn derive_observe_for_enum(
 
     let derive_idents = &input_meta.derive.0;
 
+    let ob_initial_metas = &input_meta.__initial;
     let ob_initial_impl = quote! {
+        #(#[#ob_initial_metas])*
         #[derive(Clone, Copy)]
         #input_vis enum #ob_initial_ident {
             #ob_initial_variants
@@ -357,7 +359,9 @@ pub fn derive_observe_for_enum(
         }
     };
 
+    let ob_variant_metas = &input_meta.__variant;
     let ob_variant_impl = quote! {
+        #(#[#ob_variant_metas])*
         #input_vis enum #ob_variant_ident #ob_variant_generics
         where
             #(#input_predicates,)*
