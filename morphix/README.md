@@ -113,9 +113,9 @@ foo.vec.pop();              // Truncate 1 element from .vec
 Used for deleting values from maps or conditionally skipping mutations:
 
 ```rs
-foo.map.remove("key");      // Delete key from .map
+foo.map.remove("key");      // Delete at .map.key
 // #[serde(skip_serializing_if = "Option::is_none")]
-foo.value = None;           // Delete at .optional
+foo.value = None;           // Delete at .value
 ```
 
 ### Batch

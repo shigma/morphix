@@ -347,12 +347,12 @@ pub enum MutationKind<T> {
     /// # #[derive(Default)]
     /// # struct Foo {
     /// #   map: HashMap<String, i32>,
-    /// #   optional: Option<i32>,
+    /// #   value: Option<i32>,
     /// # }
     /// # let mut foo = Foo::default();
     /// foo.map.remove("key");      // Delete at .map.key
     /// // #[serde(skip_serializing_if = "Option::is_none")]
-    /// foo.optional = None;        // Delete at .optional
+    /// foo.value = None;           // Delete at .value
     /// ```
     #[cfg(feature = "delete")]
     Delete,
