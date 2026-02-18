@@ -65,6 +65,9 @@ pub struct SerdeMeta {
     pub rename: Option<syn::Expr>,
     pub rename_all: RenameRule,
     pub rename_all_fields: RenameRule,
+    pub skip: bool,
+    pub skip_serializing: bool,
+    pub skip_serializing_if: Option<String>,
 }
 
 #[derive(Default, Copy, Clone, PartialEq, Eq)]
@@ -263,55 +266,55 @@ impl ObserveMeta {
 
     // do not handle serde attributes parsing errors
     fn parse_serde(&mut self, arg: MetaArgument) {
-        if arg.ident == "flatten" {
-            self.serde.flatten = true;
-        } else if arg.ident == "untagged" {
-            self.serde.untagged = true;
-        } else if arg.ident == "tag" {
-            let Some((_, expr)) = arg.value else {
-                return;
-            };
-            self.serde.tag = Some(expr);
-        } else if arg.ident == "content" {
-            let Some((_, expr)) = arg.value else {
-                return;
-            };
-            self.serde.content = Some(expr);
-        } else if arg.ident == "rename" {
-            let Some((_, expr)) = arg.value else {
-                return;
-            };
-            self.serde.rename = Some(expr);
-        } else if arg.ident == "rename_all" {
-            let Some((
-                _,
-                syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Str(lit_str),
-                    ..
-                }),
-            )) = arg.value
-            else {
-                return;
-            };
-            let Some(rule) = RenameRule::from_str(&lit_str.value()) else {
-                return;
-            };
-            self.serde.rename_all = rule;
-        } else if arg.ident == "rename_all_fields" {
-            let Some((
-                _,
-                syn::Expr::Lit(syn::ExprLit {
-                    lit: syn::Lit::Str(lit_str),
-                    ..
-                }),
-            )) = arg.value
-            else {
-                return;
-            };
-            let Some(rule) = RenameRule::from_str(&lit_str.value()) else {
-                return;
-            };
-            self.serde.rename_all_fields = rule;
+        match (arg.ident.to_string().as_str(), arg.value) {
+            ("flatten", _) => self.serde.flatten = true,
+            ("untagged", _) => self.serde.untagged = true,
+            ("tag", Some((_, expr))) => self.serde.tag = Some(expr),
+            ("content", Some((_, expr))) => self.serde.content = Some(expr),
+            ("rename", Some((_, expr))) => self.serde.rename = Some(expr),
+            (
+                "rename_all",
+                Some((
+                    _,
+                    syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(lit_str),
+                        ..
+                    }),
+                )),
+            ) => {
+                let Some(rule) = RenameRule::from_str(&lit_str.value()) else {
+                    return;
+                };
+                self.serde.rename_all = rule;
+            }
+            (
+                "rename_all_fields",
+                Some((
+                    _,
+                    syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(lit_str),
+                        ..
+                    }),
+                )),
+            ) => {
+                let Some(rule) = RenameRule::from_str(&lit_str.value()) else {
+                    return;
+                };
+                self.serde.rename_all_fields = rule;
+            }
+            ("skip", _) => self.serde.skip = true,
+            ("skip_serializing", _) => self.serde.skip_serializing = true,
+            (
+                "skip_serializing_if",
+                Some((
+                    _,
+                    syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(lit_str),
+                        ..
+                    }),
+                )),
+            ) => self.serde.skip_serializing_if = Some(lit_str.value()),
+            _ => {}
         }
     }
 
