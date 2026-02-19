@@ -46,11 +46,11 @@ const _: () = {
             unsafe {
                 match (self, value) {
                     (Self::A(u0), Foo::A(v0)) => {
-                        ::morphix::observe::Observer::refresh(u0, v0)
+                        ::morphix::observe::Observer::refresh(u0, v0);
                     }
                     (Self::C { bar: u0, qux: u1 }, Foo::C { bar: v0, qux: v1 }) => {
                         ::morphix::observe::Observer::refresh(u0, v0);
-                        ::morphix::observe::Observer::refresh(u1, v1)
+                        ::morphix::observe::Observer::refresh(u1, v1);
                     }
                     (Self::__None, _) => {}
                     _ => panic!("inconsistent state for FooObserver"),

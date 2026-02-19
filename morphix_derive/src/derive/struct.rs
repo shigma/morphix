@@ -34,10 +34,10 @@ pub fn derive_observe_for_struct(
         false => vec![],
     };
 
-    let mut type_fields = quote! {};
-    let mut inst_fields = quote! {};
+    let mut ob_fields = quote! {};
+    let mut observe_fields = quote! {};
     let mut uninit_fields = quote! {};
-    let mut refresh_stmts = vec![];
+    let mut refresh_stmts = quote! {};
     let mut flush_fields = quote! {};
     let mut push_mutations = quote! {};
     let mut mutation_batch_capacity = vec![];
@@ -64,12 +64,12 @@ pub fn derive_observe_for_struct(
         let field_trivial = !GenericsDetector::detect(field_ty, &input.generics);
         if field_meta.serde.skip || field_meta.serde.skip_serializing {
             if !field_trivial {
-                field_tys.push(quote! { #field_ty });
+                deref_erased_tys.push(quote! { #field_ty });
             }
-            type_fields.extend(quote_spanned! { field_span =>
+            ob_fields.extend(quote_spanned! { field_span =>
                 #field_vis #(#if_named #field_ident:)* ::std::marker::PhantomData<#field_ty>,
             });
-            inst_fields.extend(quote_spanned! { field_span =>
+            observe_fields.extend(quote_spanned! { field_span =>
                 #(#if_named #field_ident:)* ::std::marker::PhantomData,
             });
             uninit_fields.extend(quote_spanned! { field_span =>
@@ -88,10 +88,10 @@ pub fn derive_observe_for_struct(
             };
             deref_fields.push((i, field, ob_field_ty, deref_ident));
             ob_field_tys.push(quote! { #inner });
-            type_fields.extend(quote_spanned! { field_span =>
+            ob_fields.extend(quote_spanned! { field_span =>
                 #field_vis #(#if_named #field_ident:)* #inner,
             });
-            inst_fields.extend(quote_spanned! { field_span =>
+            observe_fields.extend(quote_spanned! { field_span =>
                 #(#if_named #field_ident:)* __inner,
             });
         } else {
@@ -107,13 +107,13 @@ pub fn derive_observe_for_struct(
                 field_tys.push(quote! { #field_ty });
                 ob_field_tys.push(quote! { #ob_field_ty });
             }
-            refresh_stmts.push(quote_spanned! { field_span =>
+            refresh_stmts.extend(quote_spanned! { field_span =>
                 ::morphix::observe::Observer::refresh(&mut this.#field_member, &mut __value.#field_member);
             });
-            type_fields.extend(quote_spanned! { field_span =>
+            ob_fields.extend(quote_spanned! { field_span =>
                 #field_vis #(#if_named #field_ident:)* #ob_field_ty,
             });
-            inst_fields.extend(quote_spanned! { field_span =>
+            observe_fields.extend(quote_spanned! { field_span =>
                 #(#if_named #field_ident:)* ::morphix::observe::Observer::observe(&mut __value.#field_member),
             });
         };
@@ -203,7 +203,7 @@ pub fn derive_observe_for_struct(
             #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics> + #ob_lt,
         };
 
-        type_fields.extend(quote! {
+        ob_fields.extend(quote! {
             #(#if_named __ptr:)* ::morphix::helper::Pointer<#head>,
             #(#if_named __mutated:)* bool,
             #(#if_named __phantom:)* ::std::marker::PhantomData<&#ob_lt mut #depth>,
@@ -249,7 +249,7 @@ pub fn derive_observe_for_struct(
         let observer_observe_expr = match is_named {
             true => quote! {
                 Self {
-                    #inst_fields
+                    #observe_fields
                     __ptr,
                     __mutated: false,
                     __phantom: ::std::marker::PhantomData,
@@ -257,7 +257,7 @@ pub fn derive_observe_for_struct(
             },
             false => quote! {
                 Self (
-                    #inst_fields
+                    #observe_fields
                     __ptr,
                     false,
                     ::std::marker::PhantomData,
@@ -283,7 +283,7 @@ pub fn derive_observe_for_struct(
                 ::morphix::helper::Pointer::set(this, value);
                 let __value = value.as_deref_mut();
                 unsafe {
-                    #(#refresh_stmts)*
+                    #refresh_stmts
                 }
             }
         };
@@ -349,7 +349,7 @@ pub fn derive_observe_for_struct(
             #inner::Head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics>,
         };
 
-        type_fields.extend(quote! {
+        ob_fields.extend(quote! {
             #(#if_named __phantom:)* ::std::marker::PhantomData<&#ob_lt mut ()>,
         });
 
@@ -380,13 +380,13 @@ pub fn derive_observe_for_struct(
         let observer_observe_expr = match is_named {
             true => quote! {
                 Self {
-                    #inst_fields
+                    #observe_fields
                     #(#if_named __phantom:)* ::std::marker::PhantomData,
                 }
             },
             false => quote! {
                 Self (
-                    #inst_fields
+                    #observe_fields
                     ::std::marker::PhantomData
                 )
             },
@@ -410,7 +410,7 @@ pub fn derive_observe_for_struct(
                 unsafe {
                     ::morphix::observe::Observer::refresh(&mut this.#field_member, value);
                     let __value = ::morphix::helper::AsDerefMut::<#depth>::as_deref_mut(value);
-                    #(#refresh_stmts)*
+                    #refresh_stmts
                 }
             }
         };
@@ -459,11 +459,11 @@ pub fn derive_observe_for_struct(
                 #(#input_predicates,)*
                 #(#field_tys: ::morphix::Observe + #ob_lt),*
             {
-                #type_fields
+                #ob_fields
             }
         },
         false => quote! {
-            #input_vis struct #ob_ident #ob_generics (#type_fields)
+            #input_vis struct #ob_ident #ob_generics (#ob_fields)
             where
                 #(#input_predicates,)*
                 #(#field_tys: ::morphix::Observe + #ob_lt),*;

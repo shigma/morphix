@@ -11,6 +11,7 @@ pub enum Foo<S, T> where T: Clone {
     #[serde(rename_all = "UPPERCASE")]
     #[serde(rename = "OwO")]
     C {
+        #[serde(skip)]
         bar: T,
         #[serde(rename = "QwQ")]
         qux: Qux,

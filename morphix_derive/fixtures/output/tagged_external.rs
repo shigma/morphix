@@ -12,7 +12,7 @@ where
     B(u32, S),
     #[serde(rename_all = "UPPERCASE")]
     #[serde(rename = "OwO")]
-    C { bar: T, #[serde(rename = "QwQ")] qux: Qux },
+    C { #[serde(skip)] bar: T, #[serde(rename = "QwQ")] qux: Qux },
     D,
     E(),
     F {},
@@ -23,7 +23,6 @@ const _: () = {
     where
         T: Clone,
         S: ::morphix::Observe + 'ob,
-        T: ::morphix::Observe + 'ob,
     {
         __ptr: ::morphix::helper::Pointer<_S>,
         __mutated: bool,
@@ -55,24 +54,19 @@ const _: () = {
     where
         T: Clone,
         S: ::morphix::Observe + 'ob,
-        T: ::morphix::Observe + 'ob,
     {
         A(::morphix::observe::DefaultObserver<'ob, u32>),
         B(
             ::morphix::observe::DefaultObserver<'ob, u32>,
             ::morphix::observe::DefaultObserver<'ob, S>,
         ),
-        C {
-            bar: ::morphix::observe::DefaultObserver<'ob, T>,
-            qux: ::morphix::observe::DefaultObserver<'ob, Qux>,
-        },
+        C { qux: ::morphix::observe::DefaultObserver<'ob, Qux> },
         __None,
     }
     impl<'ob, S, T> FooObserverVariant<'ob, S, T>
     where
         T: Clone,
         S: ::morphix::Observe,
-        T: ::morphix::Observe,
     {
         fn observe(value: &'ob mut Foo<S, T>) -> Self {
             match value {
@@ -83,9 +77,8 @@ const _: () = {
                         ::morphix::observe::Observer::observe(v1),
                     )
                 }
-                Foo::C { bar, qux } => {
+                Foo::C { qux, .. } => {
                     Self::C {
-                        bar: ::morphix::observe::Observer::observe(bar),
                         qux: ::morphix::observe::Observer::observe(qux),
                     }
                 }
@@ -96,15 +89,14 @@ const _: () = {
             unsafe {
                 match (self, value) {
                     (Self::A(u0), Foo::A(v0)) => {
-                        ::morphix::observe::Observer::refresh(u0, v0)
+                        ::morphix::observe::Observer::refresh(u0, v0);
                     }
                     (Self::B(u0, u1), Foo::B(v0, v1)) => {
                         ::morphix::observe::Observer::refresh(u0, v0);
-                        ::morphix::observe::Observer::refresh(u1, v1)
+                        ::morphix::observe::Observer::refresh(u1, v1);
                     }
-                    (Self::C { bar: u0, qux: u1 }, Foo::C { bar: v0, qux: v1 }) => {
-                        ::morphix::observe::Observer::refresh(u0, v0);
-                        ::morphix::observe::Observer::refresh(u1, v1)
+                    (Self::C { qux: u1 }, Foo::C { qux: v1, .. }) => {
+                        ::morphix::observe::Observer::refresh(u1, v1);
                     }
                     (Self::__None, _) => {}
                     _ => panic!("inconsistent state for FooObserver"),
@@ -118,10 +110,6 @@ const _: () = {
             ::morphix::observe::DefaultObserver<
                 'ob,
                 S,
-            >: ::morphix::observe::SerializeObserver<'ob>,
-            ::morphix::observe::DefaultObserver<
-                'ob,
-                T,
             >: ::morphix::observe::SerializeObserver<'ob>,
         {
             match self {
@@ -150,14 +138,8 @@ const _: () = {
                         );
                     Ok(mutations)
                 }
-                Self::C { bar, qux } => {
+                Self::C { qux } => {
                     let mut mutations = ::morphix::Mutations::new();
-                    mutations
-                        .insert2(
-                            "OwO",
-                            "BAR",
-                            ::morphix::observe::SerializeObserver::flush::<A>(bar)?,
-                        );
                     mutations
                         .insert2(
                             "OwO",
@@ -175,7 +157,6 @@ const _: () = {
     where
         T: Clone,
         S: ::morphix::Observe,
-        T: ::morphix::Observe,
     {
         type Target = ::morphix::helper::Pointer<_S>;
         fn deref(&self) -> &Self::Target {
@@ -187,7 +168,6 @@ const _: () = {
     where
         T: Clone,
         S: ::morphix::Observe,
-        T: ::morphix::Observe,
     {
         fn deref_mut(&mut self) -> &mut Self::Target {
             self.__mutated = true;
@@ -201,7 +181,6 @@ const _: () = {
     where
         T: Clone,
         S: ::morphix::Observe,
-        T: ::morphix::Observe,
     {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
@@ -211,7 +190,6 @@ const _: () = {
     where
         T: Clone,
         S: ::morphix::Observe,
-        T: ::morphix::Observe,
         _S: ::morphix::helper::AsDerefMut<N, Target = Foo<S, T>> + 'ob,
         N: ::morphix::helper::Unsigned,
     {
@@ -250,16 +228,11 @@ const _: () = {
         Foo<S, T>: ::serde::Serialize,
         T: Clone,
         S: ::morphix::Observe,
-        T: ::morphix::Observe,
         _S: ::morphix::helper::AsDerefMut<N, Target = Foo<S, T>> + 'ob,
         N: ::morphix::helper::Unsigned,
         ::morphix::observe::DefaultObserver<
             'ob,
             S,
-        >: ::morphix::observe::SerializeObserver<'ob>,
-        ::morphix::observe::DefaultObserver<
-            'ob,
-            T,
         >: ::morphix::observe::SerializeObserver<'ob>,
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
@@ -292,13 +265,11 @@ const _: () = {
         Self: ::serde::Serialize,
         T: Clone,
         S: ::morphix::Observe,
-        T: ::morphix::Observe,
     {
         type Observer<'ob, _S, N> = FooObserver<'ob, S, T, _S, N>
         where
             Self: 'ob,
             S: 'ob,
-            T: 'ob,
             N: ::morphix::helper::Unsigned,
             _S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
