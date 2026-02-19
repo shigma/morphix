@@ -143,144 +143,149 @@ impl ObserveMeta {
         attribute_kind: AttributeKind,
         derive_kind: DeriveKind,
     ) {
-        if arg.ident == "noop" {
-            self.general_impl = Some(GeneralImpl {
-                ob_ident: syn::Ident::new("NoopObserver", arg.ident.span()),
-                spec_ident: syn::Ident::new("SnapshotSpec", arg.ident.span()),
-                bounds: Default::default(),
-                extra_derive: derive_noop_snapshot,
-            });
-        } else if arg.ident == "shallow" {
-            self.general_impl = Some(GeneralImpl {
-                ob_ident: syn::Ident::new("ShallowObserver", arg.ident.span()),
-                spec_ident: syn::Ident::new("DefaultSpec", arg.ident.span()),
-                bounds: Default::default(),
-                extra_derive: derive_default,
-            });
-        } else if arg.ident == "snapshot" {
-            self.general_impl = Some(GeneralImpl {
-                ob_ident: syn::Ident::new("SnapshotObserver", arg.ident.span()),
-                spec_ident: syn::Ident::new("SnapshotSpec", arg.ident.span()),
-                bounds: parse_quote! { ::morphix::builtin::Snapshot },
-                extra_derive: derive_snapshot,
-            });
-        } else if arg.ident == "deref" {
-            if attribute_kind != AttributeKind::Field || derive_kind != DeriveKind::Struct {
-                errors.extend(
-                    syn::Error::new(
-                        arg.ident.span(),
-                        "the 'deref' argument is only allowed on struct fields",
-                    )
-                    .to_compile_error(),
-                );
+        match arg.ident.to_string().as_str() {
+            "noop" => {
+                self.general_impl = Some(GeneralImpl {
+                    ob_ident: syn::Ident::new("NoopObserver", arg.ident.span()),
+                    spec_ident: syn::Ident::new("SnapshotSpec", arg.ident.span()),
+                    bounds: Default::default(),
+                    extra_derive: derive_noop_snapshot,
+                });
             }
-            self.deref = Some(arg.ident);
-        } else if arg.ident == "derive" {
-            if attribute_kind != AttributeKind::Item {
-                errors.extend(
-                    syn::Error::new(arg.ident.span(), "the 'derive' argument is only allowed on items")
+            "shallow" => {
+                self.general_impl = Some(GeneralImpl {
+                    ob_ident: syn::Ident::new("ShallowObserver", arg.ident.span()),
+                    spec_ident: syn::Ident::new("DefaultSpec", arg.ident.span()),
+                    bounds: Default::default(),
+                    extra_derive: derive_default,
+                });
+            }
+            "snapshot" => {
+                self.general_impl = Some(GeneralImpl {
+                    ob_ident: syn::Ident::new("SnapshotObserver", arg.ident.span()),
+                    spec_ident: syn::Ident::new("SnapshotSpec", arg.ident.span()),
+                    bounds: parse_quote! { ::morphix::builtin::Snapshot },
+                    extra_derive: derive_snapshot,
+                });
+            }
+            "deref" => {
+                if attribute_kind != AttributeKind::Field || derive_kind != DeriveKind::Struct {
+                    errors.extend(
+                        syn::Error::new(
+                            arg.ident.span(),
+                            "the 'deref' argument is only allowed on struct fields",
+                        )
                         .to_compile_error(),
-                );
+                    );
+                }
+                self.deref = Some(arg.ident);
             }
-            let Some((_, derive_args)) = arg.args else {
-                errors.extend(
-                    syn::Error::new(
-                        arg.ident.span(),
-                        "the 'derive' argument requires a list of traits, e.g., derive(Debug)",
-                    )
-                    .to_compile_error(),
-                );
-                return;
-            };
-            self.derive.0.push(arg.ident);
-            match Punctuated::<syn::Path, syn::Token![,]>::parse_terminated.parse2(derive_args) {
-                Ok(paths) => self.derive.1.extend(paths),
-                Err(error) => errors.extend(error.to_compile_error()),
-            };
-        } else if arg.ident == "expose" {
-            if attribute_kind != AttributeKind::Item {
-                errors.extend(
-                    syn::Error::new(arg.ident.span(), "the 'expose' argument is only allowed on items")
+            "derive" => {
+                if attribute_kind != AttributeKind::Item {
+                    errors.extend(
+                        syn::Error::new(arg.ident.span(), "the 'derive' argument is only allowed on items")
+                            .to_compile_error(),
+                    );
+                }
+                let Some((_, derive_args)) = arg.args else {
+                    errors.extend(
+                        syn::Error::new(
+                            arg.ident.span(),
+                            "the 'derive' argument requires a list of traits, e.g., derive(Debug)",
+                        )
                         .to_compile_error(),
-                );
+                    );
+                    return;
+                };
+                self.derive.0.push(arg.ident);
+                match Punctuated::<syn::Path, syn::Token![,]>::parse_terminated.parse2(derive_args) {
+                    Ok(paths) => self.derive.1.extend(paths),
+                    Err(error) => errors.extend(error.to_compile_error()),
+                };
             }
-            self.expose = true;
-        } else if arg.ident == "__variant" {
-            if derive_kind != DeriveKind::Enum {
-                errors.extend(
-                    syn::Error::new(
-                        arg.ident.span(),
-                        "the '__variant' argument is only allowed on enum items",
-                    )
-                    .to_compile_error(),
-                );
+            "expose" => {
+                if attribute_kind != AttributeKind::Item {
+                    errors.extend(
+                        syn::Error::new(arg.ident.span(), "the 'expose' argument is only allowed on items")
+                            .to_compile_error(),
+                    );
+                }
+                self.expose = true;
             }
-            let Some((_, tokens)) = arg.args else {
-                errors.extend(
-                    syn::Error::new(
-                        arg.ident.span(),
-                        "the '__variant' argument requires meta list, e.g., __variant(derive(Debug))",
-                    )
-                    .to_compile_error(),
-                );
-                return;
-            };
-            match syn::parse2(tokens) {
-                Ok(meta) => self.__variant.push(meta),
-                Err(err) => errors.extend(err.to_compile_error()),
+            "__variant" => {
+                if derive_kind != DeriveKind::Enum {
+                    errors.extend(
+                        syn::Error::new(
+                            arg.ident.span(),
+                            "the '__variant' argument is only allowed on enum items",
+                        )
+                        .to_compile_error(),
+                    );
+                }
+                let Some((_, tokens)) = arg.args else {
+                    errors.extend(
+                        syn::Error::new(
+                            arg.ident.span(),
+                            "the '__variant' argument requires meta list, e.g., __variant(derive(Debug))",
+                        )
+                        .to_compile_error(),
+                    );
+                    return;
+                };
+                match syn::parse2(tokens) {
+                    Ok(meta) => self.__variant.push(meta),
+                    Err(err) => errors.extend(err.to_compile_error()),
+                }
             }
-        } else if arg.ident == "__initial" {
-            if derive_kind != DeriveKind::Enum {
-                errors.extend(
-                    syn::Error::new(
-                        arg.ident.span(),
-                        "the '__initial' argument is only allowed on enum items",
-                    )
-                    .to_compile_error(),
-                );
+            "__initial" => {
+                if derive_kind != DeriveKind::Enum {
+                    errors.extend(
+                        syn::Error::new(
+                            arg.ident.span(),
+                            "the '__initial' argument is only allowed on enum items",
+                        )
+                        .to_compile_error(),
+                    );
+                }
+                let Some((_, tokens)) = arg.args else {
+                    errors.extend(
+                        syn::Error::new(
+                            arg.ident.span(),
+                            "the '__initial' argument requires meta list, e.g., __initial(derive(Debug))",
+                        )
+                        .to_compile_error(),
+                    );
+                    return;
+                };
+                match syn::parse2(tokens) {
+                    Ok(meta) => self.__initial.push(meta),
+                    Err(err) => errors.extend(err.to_compile_error()),
+                }
             }
-            let Some((_, tokens)) = arg.args else {
-                errors.extend(
-                    syn::Error::new(
-                        arg.ident.span(),
-                        "the '__initial' argument requires meta list, e.g., __initial(derive(Debug))",
-                    )
-                    .to_compile_error(),
-                );
-                return;
-            };
-            match syn::parse2(tokens) {
-                Ok(meta) => self.__initial.push(meta),
-                Err(err) => errors.extend(err.to_compile_error()),
-            }
-        } else {
-            errors.extend(
+            _ => errors.extend(
                 syn::Error::new(
                     arg.ident.span(),
                     "unknown argument, expected 'deref', 'noop', 'shallow' or 'snapshot'",
                 )
                 .to_compile_error(),
-            );
+            ),
         }
     }
 
     // do not handle serde attributes parsing errors
     fn parse_serde(&mut self, arg: MetaArgument) {
-        match (arg.ident.to_string().as_str(), arg.value) {
+        match (arg.ident.to_string().as_str(), arg.value.map(|(_, expr)| expr)) {
             ("flatten", _) => self.serde.flatten = true,
             ("untagged", _) => self.serde.untagged = true,
-            ("tag", Some((_, expr))) => self.serde.tag = Some(expr),
-            ("content", Some((_, expr))) => self.serde.content = Some(expr),
-            ("rename", Some((_, expr))) => self.serde.rename = Some(expr),
+            ("tag", Some(expr)) => self.serde.tag = Some(expr),
+            ("content", Some(expr)) => self.serde.content = Some(expr),
+            ("rename", Some(expr)) => self.serde.rename = Some(expr),
             (
                 "rename_all",
-                Some((
-                    _,
-                    syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Str(lit_str),
-                        ..
-                    }),
-                )),
+                Some(syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit_str),
+                    ..
+                })),
             ) => {
                 let Some(rule) = RenameRule::from_str(&lit_str.value()) else {
                     return;
@@ -289,13 +294,10 @@ impl ObserveMeta {
             }
             (
                 "rename_all_fields",
-                Some((
-                    _,
-                    syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Str(lit_str),
-                        ..
-                    }),
-                )),
+                Some(syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit_str),
+                    ..
+                })),
             ) => {
                 let Some(rule) = RenameRule::from_str(&lit_str.value()) else {
                     return;
@@ -306,13 +308,10 @@ impl ObserveMeta {
             ("skip_serializing", _) => self.serde.skip_serializing = true,
             (
                 "skip_serializing_if",
-                Some((
-                    _,
-                    syn::Expr::Lit(syn::ExprLit {
-                        lit: syn::Lit::Str(lit_str),
-                        ..
-                    }),
-                )),
+                Some(syn::Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Str(lit_str),
+                    ..
+                })),
             ) => self.serde.skip_serializing_if = Some(lit_str.value()),
             _ => {}
         }

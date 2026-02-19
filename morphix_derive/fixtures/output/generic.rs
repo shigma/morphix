@@ -4,33 +4,39 @@ use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize)]
 #[serde(bound = "T: Serialize")]
-pub struct Foo<'i, T, const N: usize> {
+pub struct Foo<'a, T, U, const N: usize> {
     #[serde(serialize_with = "serialize_mut_array")]
-    a: &'i mut [T; N],
+    a: &'a mut [T; N],
+    #[serde(skip)]
+    pub b: U,
 }
 #[rustfmt::skip]
 const _: () = {
     pub struct FooObserver<
         'ob,
-        'i,
+        'a,
         T,
+        U,
         const N: usize,
         S: ?Sized,
         _N = ::morphix::helper::Zero,
     >
     where
-        &'i mut [T; N]: ::morphix::Observe + 'ob,
+        &'a mut [T; N]: ::morphix::Observe + 'ob,
+        U: ::morphix::Observe + 'ob,
     {
-        a: ::morphix::observe::DefaultObserver<'ob, &'i mut [T; N]>,
+        a: ::morphix::observe::DefaultObserver<'ob, &'a mut [T; N]>,
+        pub b: ::std::marker::PhantomData<U>,
         __ptr: ::morphix::helper::Pointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut _N>,
     }
     #[automatically_derived]
-    impl<'ob, 'i, T, const N: usize, S: ?Sized, _N> ::std::ops::Deref
-    for FooObserver<'ob, 'i, T, N, S, _N>
+    impl<'ob, 'a, T, U, const N: usize, S: ?Sized, _N> ::std::ops::Deref
+    for FooObserver<'ob, 'a, T, U, N, S, _N>
     where
-        &'i mut [T; N]: ::morphix::Observe,
+        &'a mut [T; N]: ::morphix::Observe,
+        U: ::morphix::Observe,
     {
         type Target = ::morphix::helper::Pointer<S>;
         fn deref(&self) -> &Self::Target {
@@ -38,10 +44,11 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, 'i, T, const N: usize, S: ?Sized, _N> ::std::ops::DerefMut
-    for FooObserver<'ob, 'i, T, N, S, _N>
+    impl<'ob, 'a, T, U, const N: usize, S: ?Sized, _N> ::std::ops::DerefMut
+    for FooObserver<'ob, 'a, T, U, N, S, _N>
     where
-        &'i mut [T; N]: ::morphix::Observe,
+        &'a mut [T; N]: ::morphix::Observe,
+        U: ::morphix::Observe,
     {
         fn deref_mut(&mut self) -> &mut Self::Target {
             self.__mutated = true;
@@ -49,19 +56,21 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, 'i, T, const N: usize, S: ?Sized, _N> ::morphix::helper::AsNormalized
-    for FooObserver<'ob, 'i, T, N, S, _N>
+    impl<'ob, 'a, T, U, const N: usize, S: ?Sized, _N> ::morphix::helper::AsNormalized
+    for FooObserver<'ob, 'a, T, U, N, S, _N>
     where
-        &'i mut [T; N]: ::morphix::Observe,
+        &'a mut [T; N]: ::morphix::Observe,
+        U: ::morphix::Observe,
     {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]
-    impl<'ob, 'i, T, const N: usize, S: ?Sized, _N> ::morphix::observe::Observer<'ob>
-    for FooObserver<'ob, 'i, T, N, S, _N>
+    impl<'ob, 'a, T, U, const N: usize, S: ?Sized, _N> ::morphix::observe::Observer<'ob>
+    for FooObserver<'ob, 'a, T, U, N, S, _N>
     where
-        &'i mut [T; N]: ::morphix::Observe,
-        S: ::morphix::helper::AsDerefMut<_N, Target = Foo<'i, T, N>> + 'ob,
+        &'a mut [T; N]: ::morphix::Observe,
+        U: ::morphix::Observe,
+        S: ::morphix::helper::AsDerefMut<_N, Target = Foo<'a, T, U, N>> + 'ob,
         _N: ::morphix::helper::Unsigned,
     {
         type Head = S;
@@ -69,6 +78,7 @@ const _: () = {
         fn uninit() -> Self {
             Self {
                 a: ::morphix::observe::Observer::uninit(),
+                b: ::std::marker::PhantomData,
                 __ptr: ::morphix::helper::Pointer::uninit(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
@@ -79,6 +89,7 @@ const _: () = {
             let __value = value.as_deref_mut();
             Self {
                 a: ::morphix::observe::Observer::observe(&mut __value.a),
+                b: ::std::marker::PhantomData,
                 __ptr,
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
@@ -95,20 +106,22 @@ const _: () = {
     #[automatically_derived]
     impl<
         'ob,
-        'i,
+        'a,
         T,
+        U,
         const N: usize,
         S: ?Sized,
         _N,
-    > ::morphix::observe::SerializeObserver<'ob> for FooObserver<'ob, 'i, T, N, S, _N>
+    > ::morphix::observe::SerializeObserver<'ob> for FooObserver<'ob, 'a, T, U, N, S, _N>
     where
-        Foo<'i, T, N>: ::serde::Serialize,
-        &'i mut [T; N]: ::morphix::Observe,
-        S: ::morphix::helper::AsDerefMut<_N, Target = Foo<'i, T, N>> + 'ob,
+        Foo<'a, T, U, N>: ::serde::Serialize,
+        &'a mut [T; N]: ::morphix::Observe,
+        U: ::morphix::Observe,
+        S: ::morphix::helper::AsDerefMut<_N, Target = Foo<'a, T, U, N>> + 'ob,
         _N: ::morphix::helper::Unsigned,
         ::morphix::observe::DefaultObserver<
             'ob,
-            &'i mut [T; N],
+            &'a mut [T; N],
         >: ::morphix::observe::SerializeObserver<'ob>,
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
@@ -132,15 +145,17 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'i, T, const N: usize> ::morphix::Observe for Foo<'i, T, N>
+    impl<'a, T, U, const N: usize> ::morphix::Observe for Foo<'a, T, U, N>
     where
         Self: ::serde::Serialize,
-        &'i mut [T; N]: ::morphix::Observe,
+        &'a mut [T; N]: ::morphix::Observe,
+        U: ::morphix::Observe,
     {
-        type Observer<'ob, S, _N> = FooObserver<'ob, 'i, T, N, S, _N>
+        type Observer<'ob, S, _N> = FooObserver<'ob, 'a, T, U, N, S, _N>
         where
             Self: 'ob,
-            &'i mut [T; N]: 'ob,
+            &'a mut [T; N]: 'ob,
+            U: 'ob,
             _N: ::morphix::helper::Unsigned,
             S: ::morphix::helper::AsDerefMut<_N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;

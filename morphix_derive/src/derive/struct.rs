@@ -62,7 +62,22 @@ pub fn derive_observe_for_struct(
         };
         let field_ty = &field.ty;
         let field_trivial = !GenericsDetector::detect(field_ty, &input.generics);
-        let ob_field_ty = if let Some(deref_ident) = field_meta.deref {
+        if field_meta.serde.skip || field_meta.serde.skip_serializing {
+            if !field_trivial {
+                field_tys.push(quote! { #field_ty });
+            }
+            type_fields.extend(quote_spanned! { field_span =>
+                #field_vis #(#if_named #field_ident:)* ::std::marker::PhantomData<#field_ty>,
+            });
+            inst_fields.extend(quote_spanned! { field_span =>
+                #(#if_named #field_ident:)* ::std::marker::PhantomData,
+            });
+            uninit_fields.extend(quote_spanned! { field_span =>
+                #(#if_named #field_ident:)* ::std::marker::PhantomData,
+            });
+            continue;
+        }
+        if let Some(deref_ident) = field_meta.deref {
             let ob_field_ty = match &field_meta.general_impl {
                 None => quote_spanned! { field_span =>
                     ::morphix::observe::DefaultObserver<#ob_lt, #field_ty, #head, ::morphix::helper::Succ<#depth>>
@@ -72,15 +87,14 @@ pub fn derive_observe_for_struct(
                 },
             };
             deref_fields.push((i, field, ob_field_ty, deref_ident));
+            ob_field_tys.push(quote! { #inner });
+            type_fields.extend(quote_spanned! { field_span =>
+                #field_vis #(#if_named #field_ident:)* #inner,
+            });
             inst_fields.extend(quote_spanned! { field_span =>
                 #(#if_named #field_ident:)* __inner,
             });
-            ob_field_tys.push(quote! { #inner });
-            quote! { #inner }
         } else {
-            inst_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* ::morphix::observe::Observer::observe(&mut __value.#field_member),
-            });
             let ob_field_ty = match &field_meta.general_impl {
                 None => quote_spanned! { field_span =>
                     ::morphix::observe::DefaultObserver<#ob_lt, #field_ty>
@@ -96,11 +110,13 @@ pub fn derive_observe_for_struct(
             refresh_stmts.push(quote_spanned! { field_span =>
                 ::morphix::observe::Observer::refresh(&mut this.#field_member, &mut __value.#field_member);
             });
-            ob_field_ty
+            type_fields.extend(quote_spanned! { field_span =>
+                #field_vis #(#if_named #field_ident:)* #ob_field_ty,
+            });
+            inst_fields.extend(quote_spanned! { field_span =>
+                #(#if_named #field_ident:)* ::morphix::observe::Observer::observe(&mut __value.#field_member),
+            });
         };
-        type_fields.extend(quote_spanned! { field_span =>
-            #field_vis #(#if_named #field_ident:)* #ob_field_ty,
-        });
         uninit_fields.extend(quote_spanned! { field_span =>
             #(#if_named #field_ident:)* ::morphix::observe::Observer::uninit(),
         });

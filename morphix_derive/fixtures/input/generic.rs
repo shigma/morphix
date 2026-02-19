@@ -5,9 +5,11 @@ use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
 #[serde(bound = "T: Serialize")]
-pub struct Foo<'i, T, const N: usize> {
+pub struct Foo<'a, T, U, const N: usize> {
     #[serde(serialize_with = "serialize_mut_array")]
-    a: &'i mut [T; N],
+    a: &'a mut [T; N],
+    #[serde(skip)]
+    pub b: U,
 }
 
 #[rustfmt::skip]
