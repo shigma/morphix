@@ -12,7 +12,7 @@ pub enum Foo<S, T> where T: Clone {
     #[serde(rename = "OwO")]
     C {
         #[serde(skip)]
-        bar: T,
+        bar: Option<T>,
         #[serde(rename = "QwQ")]
         qux: Qux,
     },

@@ -25,7 +25,7 @@ const _: () = {
         &'a mut [T; N]: ::morphix::Observe + 'ob,
     {
         a: ::morphix::observe::DefaultObserver<'ob, &'a mut [T; N]>,
-        pub b: ::std::marker::PhantomData<U>,
+        pub b: ::morphix::helper::Pointer<U>,
         __ptr: ::morphix::helper::Pointer<S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut _N>,
@@ -74,7 +74,7 @@ const _: () = {
         fn uninit() -> Self {
             Self {
                 a: ::morphix::observe::Observer::uninit(),
-                b: ::std::marker::PhantomData,
+                b: ::morphix::helper::Pointer::uninit(),
                 __ptr: ::morphix::helper::Pointer::uninit(),
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
@@ -85,7 +85,7 @@ const _: () = {
             let __value = value.as_deref_mut();
             Self {
                 a: ::morphix::observe::Observer::observe(&mut __value.a),
-                b: ::std::marker::PhantomData,
+                b: ::morphix::helper::Pointer::new(&mut __value.b),
                 __ptr,
                 __mutated: false,
                 __phantom: ::std::marker::PhantomData,
@@ -96,6 +96,7 @@ const _: () = {
             let __value = value.as_deref_mut();
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
+                ::morphix::helper::Pointer::set(&this.b, &mut __value.b);
             }
         }
     }

@@ -44,7 +44,7 @@ pub fn derive_observe_for_struct(
     let mut debug_chain = quote! {};
 
     let mut field_tys = vec![];
-    let mut deref_erased_tys = vec![];
+    let mut skipped_tys = vec![];
     let mut ob_field_tys = vec![];
     let mut deref_fields = vec![];
     for (i, field) in fields.iter().enumerate() {
@@ -64,16 +64,19 @@ pub fn derive_observe_for_struct(
         let field_trivial = !GenericsDetector::detect(field_ty, &input.generics);
         if field_meta.serde.skip || field_meta.serde.skip_serializing {
             if !field_trivial {
-                deref_erased_tys.push(quote! { #field_ty });
+                skipped_tys.push(quote! { #field_ty });
             }
             ob_fields.extend(quote_spanned! { field_span =>
-                #field_vis #(#if_named #field_ident:)* ::std::marker::PhantomData<#field_ty>,
+                #field_vis #(#if_named #field_ident:)* ::morphix::helper::Pointer<#field_ty>,
             });
             observe_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* ::std::marker::PhantomData,
+                #(#if_named #field_ident:)* ::morphix::helper::Pointer::new(&mut __value.#field_member),
             });
             uninit_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* ::std::marker::PhantomData,
+                #(#if_named #field_ident:)* ::morphix::helper::Pointer::uninit(),
+            });
+            refresh_stmts.extend(quote_spanned! { field_span =>
+                ::morphix::helper::Pointer::set(&this.#field_member, &mut __value.#field_member);
             });
             continue;
         }
@@ -86,6 +89,9 @@ pub fn derive_observe_for_struct(
                     ::morphix::builtin::#ob_ident<#ob_lt, #head, ::morphix::helper::Succ<#depth>>
                 },
             };
+            if !field_trivial {
+                skipped_tys.push(quote! { #field_ty });
+            }
             deref_fields.push((i, field, ob_field_ty, deref_ident));
             ob_field_tys.push(quote! { #inner });
             ob_fields.extend(quote_spanned! { field_span =>
@@ -324,16 +330,9 @@ pub fn derive_observe_for_struct(
             .params
             .into_iter()
             .filter(|param| match param {
-                syn::GenericParam::Type(ty_param) => {
-                    let ident = &ty_param.ident;
-                    let is_retain = generics_visitor.contains_ty(ident);
-                    if !is_retain {
-                        deref_erased_tys.push(quote! { #ident });
-                    }
-                    is_retain
-                }
-                syn::GenericParam::Lifetime(lt_param) => generics_visitor.contains_lt(&lt_param.lifetime),
-                syn::GenericParam::Const(_) => true,
+                syn::GenericParam::Const(param) => generics_visitor.contains_ty(&param.ident),
+                syn::GenericParam::Type(param) => generics_visitor.contains_ty(&param.ident),
+                syn::GenericParam::Lifetime(param) => generics_visitor.contains_lt(&param.lifetime),
             })
             .collect();
         ob_generics.params.insert(0, parse_quote! { #ob_lt });
@@ -515,7 +514,7 @@ pub fn derive_observe_for_struct(
         for #ob_ident #ob_type_generics
         where
             #(#input_predicates,)*
-            #(#deref_erased_tys: #ob_lt,)*
+            #(#skipped_tys: #ob_lt,)*
             #(#field_tys: ::morphix::Observe,)*
             #ob_observer_predicates
             #depth: ::morphix::helper::Unsigned,
@@ -529,7 +528,7 @@ pub fn derive_observe_for_struct(
         where
             #input_serialize_predicates
             #(#input_predicates,)*
-            #(#deref_erased_tys: #ob_lt,)*
+            #(#skipped_tys: #ob_lt,)*
             #(#field_tys: ::morphix::Observe,)*
             #ob_observer_predicates
             #depth: ::morphix::helper::Unsigned,
@@ -572,7 +571,7 @@ pub fn derive_observe_for_struct(
                 for #ob_ident #ob_type_generics
                 where
                     #(#input_predicates,)*
-                    #(#deref_erased_tys: #ob_lt,)*
+                    #(#skipped_tys: #ob_lt,)*
                     #(#field_tys: ::morphix::Observe,)*
                     #ob_observer_predicates
                     #depth: ::morphix::helper::Unsigned,

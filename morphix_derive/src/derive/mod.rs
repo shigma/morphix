@@ -8,7 +8,6 @@ use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::visit::Visit;
-use syn::visit_mut::VisitMut;
 
 use crate::derive::meta::{AttributeKind, DeriveKind, GeneralImpl, ObserveMeta};
 use crate::derive::snapshot::derive_noop_snapshot;
@@ -113,11 +112,11 @@ struct GenericsVisitor<'i> {
 
 impl<'i> GenericsVisitor<'i> {
     fn contains_ty(&self, ident: &syn::Ident) -> bool {
-        self.ty_idents.contains(&Cow::Borrowed(ident))
+        self.ty_idents.contains(ident)
     }
 
     fn contains_lt(&self, lifetime: &syn::Lifetime) -> bool {
-        self.lt_idents.contains(&Cow::Borrowed(&lifetime.ident))
+        self.lt_idents.contains(&lifetime.ident)
     }
 
     fn allocate_ty(&mut self, ident: syn::Ident) -> syn::Ident {
@@ -200,13 +199,5 @@ impl<'i> Visit<'_> for GenericsDetector<'i> {
                 self.is_detected = true;
             }
         }
-    }
-}
-
-pub struct StripAttributes;
-
-impl VisitMut for StripAttributes {
-    fn visit_attributes_mut(&mut self, attributes: &mut Vec<syn::Attribute>) {
-        attributes.clear();
     }
 }

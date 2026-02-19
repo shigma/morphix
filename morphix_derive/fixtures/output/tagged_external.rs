@@ -12,7 +12,7 @@ where
     B(u32, S),
     #[serde(rename_all = "UPPERCASE")]
     #[serde(rename = "OwO")]
-    C { #[serde(skip)] bar: T, #[serde(rename = "QwQ")] qux: Qux },
+    C { #[serde(skip)] bar: Option<T>, #[serde(rename = "QwQ")] qux: Qux },
     D,
     E(),
     F {},
@@ -60,7 +60,10 @@ const _: () = {
             ::morphix::observe::DefaultObserver<'ob, u32>,
             ::morphix::observe::DefaultObserver<'ob, S>,
         ),
-        C { qux: ::morphix::observe::DefaultObserver<'ob, Qux> },
+        C {
+            bar: ::morphix::helper::Pointer<Option<T>>,
+            qux: ::morphix::observe::DefaultObserver<'ob, Qux>,
+        },
         __None,
     }
     impl<'ob, S, T> FooObserverVariant<'ob, S, T>
@@ -77,8 +80,9 @@ const _: () = {
                         ::morphix::observe::Observer::observe(v1),
                     )
                 }
-                Foo::C { qux, .. } => {
+                Foo::C { bar, qux } => {
                     Self::C {
+                        bar: ::morphix::helper::Pointer::new(bar),
                         qux: ::morphix::observe::Observer::observe(qux),
                     }
                 }
@@ -95,7 +99,8 @@ const _: () = {
                         ::morphix::observe::Observer::refresh(u0, v0);
                         ::morphix::observe::Observer::refresh(u1, v1);
                     }
-                    (Self::C { qux: u1 }, Foo::C { qux: v1, .. }) => {
+                    (Self::C { bar: u0, qux: u1 }, Foo::C { bar: v0, qux: v1 }) => {
+                        ::morphix::helper::Pointer::set(u0, v0);
                         ::morphix::observe::Observer::refresh(u1, v1);
                     }
                     (Self::__None, _) => {}
@@ -138,7 +143,7 @@ const _: () = {
                         );
                     Ok(mutations)
                 }
-                Self::C { qux } => {
+                Self::C { qux, .. } => {
                     let mut mutations = ::morphix::Mutations::new();
                     mutations
                         .insert2(
@@ -189,6 +194,7 @@ const _: () = {
     for FooObserver<'ob, S, T, _S, N>
     where
         T: Clone,
+        Option<T>: 'ob,
         S: ::morphix::Observe,
         _S: ::morphix::helper::AsDerefMut<N, Target = Foo<S, T>> + 'ob,
         N: ::morphix::helper::Unsigned,
@@ -227,6 +233,7 @@ const _: () = {
     where
         Foo<S, T>: ::serde::Serialize,
         T: Clone,
+        Option<T>: 'ob,
         S: ::morphix::Observe,
         _S: ::morphix::helper::AsDerefMut<N, Target = Foo<S, T>> + 'ob,
         N: ::morphix::helper::Unsigned,
