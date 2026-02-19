@@ -5,9 +5,9 @@ use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
 #[serde(rename_all = "lowercase")]
-pub enum Foo<S, T> where T: Clone {
+pub enum Foo<S, T, U> where T: Clone {
     A(u32),
-    B(u32, S),
+    B(#[morphix(skip)] S, U),
     #[serde(rename_all = "UPPERCASE")]
     #[serde(rename = "OwO")]
     C {

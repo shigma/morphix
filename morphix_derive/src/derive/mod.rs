@@ -33,13 +33,13 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             syn::Data::Union(_) => DeriveKind::Union,
         },
     );
-    if !errors.is_empty() {
-        return errors;
-    }
 
     if input_meta.general_impl.is_none()
         && let syn::Data::Struct(syn::DataStruct { fields, .. }) = &input.data
-        && fields.is_empty()
+        && fields.iter().all(|field| {
+            let meta = ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Struct);
+            meta.skip || meta.serde.skip || meta.serde.skip_serializing
+        })
     {
         input_meta.general_impl = Some(GeneralImpl {
             ob_ident: format_ident!("NoopObserver"),
@@ -47,6 +47,10 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             bounds: Default::default(),
             extra_derive: derive_noop_snapshot,
         });
+    }
+
+    if !errors.is_empty() {
+        return errors;
     }
 
     if let Some(GeneralImpl {

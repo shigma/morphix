@@ -5,7 +5,7 @@ use syn::parse_quote;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 
-use crate::derive::snapshot::{derive_default, derive_noop_snapshot, derive_snapshot};
+use crate::derive::snapshot::{derive_default, derive_snapshot};
 
 pub struct MetaArgument {
     ident: syn::Ident,
@@ -126,6 +126,7 @@ impl RenameRule {
 
 #[derive(Default)]
 pub struct ObserveMeta {
+    pub skip: bool,
     pub general_impl: Option<GeneralImpl>,
     pub deref: Option<syn::Ident>,
     pub serde: SerdeMeta,
@@ -144,14 +145,7 @@ impl ObserveMeta {
         derive_kind: DeriveKind,
     ) {
         match arg.ident.to_string().as_str() {
-            "noop" => {
-                self.general_impl = Some(GeneralImpl {
-                    ob_ident: syn::Ident::new("NoopObserver", arg.ident.span()),
-                    spec_ident: syn::Ident::new("SnapshotSpec", arg.ident.span()),
-                    bounds: Default::default(),
-                    extra_derive: derive_noop_snapshot,
-                });
-            }
+            "noop" | "skip" => self.skip = true,
             "shallow" => {
                 self.general_impl = Some(GeneralImpl {
                     ob_ident: syn::Ident::new("ShallowObserver", arg.ident.span()),
@@ -265,7 +259,7 @@ impl ObserveMeta {
             _ => errors.extend(
                 syn::Error::new(
                     arg.ident.span(),
-                    "unknown argument, expected 'deref', 'noop', 'shallow' or 'snapshot'",
+                    "unknown argument, expected 'deref', 'shallow', 'skip' or 'snapshot'",
                 )
                 .to_compile_error(),
             ),

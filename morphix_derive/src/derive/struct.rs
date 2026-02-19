@@ -62,7 +62,7 @@ pub fn derive_observe_for_struct(
         };
         let field_ty = &field.ty;
         let field_trivial = !GenericsDetector::detect(field_ty, &input.generics);
-        if field_meta.serde.skip || field_meta.serde.skip_serializing {
+        if field_meta.skip || field_meta.serde.skip || field_meta.serde.skip_serializing {
             if !field_trivial {
                 skipped_tys.push(quote! { #field_ty });
             }

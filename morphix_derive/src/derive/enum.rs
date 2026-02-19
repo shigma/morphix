@@ -100,7 +100,7 @@ pub fn derive_observe_for_enum(
                     ob_idents.push(quote! { #ob_ident });
                     value_idents.push(quote! { #value_ident });
 
-                    if field_meta.serde.skip || field_meta.serde.skip_serializing {
+                    if field_meta.skip || field_meta.serde.skip || field_meta.serde.skip_serializing {
                         has_skipped = true;
                         if !field_trivial {
                             skipped_tys.push(quote! { #field_ty });
@@ -189,10 +189,12 @@ pub fn derive_observe_for_enum(
             syn::Fields::Unnamed(fields_unnamed) => {
                 let mut ob_idents = vec![];
                 let mut value_idents = vec![];
+                let mut flush_idents = vec![];
                 let mut variant_fields = quote! {};
                 let mut observe_fields = quote! {};
                 let mut refresh_stmts = quote! {};
                 let mut flush_stmts = quote! {};
+
                 let field_count = fields_unnamed.unnamed.len();
                 for (index, field) in fields_unnamed.unnamed.iter().enumerate() {
                     let field_meta =
@@ -206,6 +208,25 @@ pub fn derive_observe_for_enum(
                     let value_ident = syn::Ident::new(&format!("v{}", index), field_span);
                     ob_idents.push(quote! { #ob_ident });
                     value_idents.push(quote! { #value_ident });
+
+                    if field_meta.skip || field_meta.serde.skip || field_meta.serde.skip_serializing {
+                        if !field_trivial {
+                            skipped_tys.push(quote! { #field_ty });
+                        }
+                        variant_fields.extend(quote! {
+                            ::morphix::helper::Pointer<#field_ty>,
+                        });
+                        observe_fields.extend(quote_spanned! { field_span =>
+                            ::morphix::helper::Pointer::new(#value_ident),
+                        });
+                        refresh_stmts.extend(quote_spanned! { field_span =>
+                            ::morphix::helper::Pointer::set(#ob_ident, #value_ident);
+                        });
+                        flush_idents.push(quote! { _ });
+                        continue;
+                    }
+
+                    flush_idents.push(quote! { #ob_ident });
                     let field_segment = if field_count > 1 { Some(quote! { #index }) } else { None };
                     let ob_field_ty: syn::Type = match &field_meta.general_impl {
                         None => parse_quote_spanned! { field_span =>
@@ -228,6 +249,7 @@ pub fn derive_observe_for_enum(
                         field_tys.push(quote! { #field_ty });
                         ob_field_tys.push(quote! { #ob_field_ty });
                     }
+                    
                     let segment_count = field_segment.iter().len() + tag_segment.iter().len();
                     let segments = tag_segment.iter().chain(&field_segment);
                     let children = quote! {
@@ -240,6 +262,7 @@ pub fn derive_observe_for_enum(
                         _ => unreachable!(),
                     })
                 }
+
                 ob_variant_variants.extend(quote! {
                     #variant_ident(#variant_fields),
                 });
@@ -250,7 +273,7 @@ pub fn derive_observe_for_enum(
                     (Self::#variant_ident(#(#ob_idents),*), #input_ident::#variant_ident(#(#value_idents),*)) => { #refresh_stmts }
                 });
                 variant_flush_arms.extend(quote! {
-                    Self::#variant_ident(#(#ob_idents),*) => {
+                    Self::#variant_ident(#(#flush_idents),*) => {
                         let mut mutations = ::morphix::Mutations::new();
                         #flush_stmts
                         Ok(mutations)

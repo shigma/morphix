@@ -4,12 +4,12 @@ use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize)]
 #[serde(rename_all = "lowercase")]
-pub enum Foo<S, T>
+pub enum Foo<S, T, U>
 where
     T: Clone,
 {
     A(u32),
-    B(u32, S),
+    B(S, U),
     #[serde(rename_all = "UPPERCASE")]
     #[serde(rename = "OwO")]
     C { #[serde(skip)] bar: Option<T>, #[serde(rename = "QwQ")] qux: Qux },
@@ -19,16 +19,16 @@ where
 }
 #[rustfmt::skip]
 const _: () = {
-    pub struct FooObserver<'ob, S, T, _S: ?Sized, N = ::morphix::helper::Zero>
+    pub struct FooObserver<'ob, S, T, U, _S: ?Sized, N = ::morphix::helper::Zero>
     where
         T: Clone,
-        S: ::morphix::Observe + 'ob,
+        U: ::morphix::Observe + 'ob,
     {
         __ptr: ::morphix::helper::Pointer<_S>,
         __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut N>,
         __initial: FooObserverInitial,
-        __variant: FooObserverVariant<'ob, S, T>,
+        __variant: FooObserverVariant<'ob, S, T, U>,
     }
     #[derive(Clone, Copy)]
     pub enum FooObserverInitial {
@@ -38,7 +38,7 @@ const _: () = {
         __None,
     }
     impl FooObserverInitial {
-        fn new<S, T>(value: &Foo<S, T>) -> Self
+        fn new<S, T, U>(value: &Foo<S, T, U>) -> Self
         where
             T: Clone,
         {
@@ -50,33 +50,30 @@ const _: () = {
             }
         }
     }
-    pub enum FooObserverVariant<'ob, S, T>
+    pub enum FooObserverVariant<'ob, S, T, U>
     where
         T: Clone,
-        S: ::morphix::Observe + 'ob,
+        U: ::morphix::Observe + 'ob,
     {
         A(::morphix::observe::DefaultObserver<'ob, u32>),
-        B(
-            ::morphix::observe::DefaultObserver<'ob, u32>,
-            ::morphix::observe::DefaultObserver<'ob, S>,
-        ),
+        B(::morphix::helper::Pointer<S>, ::morphix::observe::DefaultObserver<'ob, U>),
         C {
             bar: ::morphix::helper::Pointer<Option<T>>,
             qux: ::morphix::observe::DefaultObserver<'ob, Qux>,
         },
         __None,
     }
-    impl<'ob, S, T> FooObserverVariant<'ob, S, T>
+    impl<'ob, S, T, U> FooObserverVariant<'ob, S, T, U>
     where
         T: Clone,
-        S: ::morphix::Observe,
+        U: ::morphix::Observe,
     {
-        fn observe(value: &'ob mut Foo<S, T>) -> Self {
+        fn observe(value: &'ob mut Foo<S, T, U>) -> Self {
             match value {
                 Foo::A(v0) => Self::A(::morphix::observe::Observer::observe(v0)),
                 Foo::B(v0, v1) => {
                     Self::B(
-                        ::morphix::observe::Observer::observe(v0),
+                        ::morphix::helper::Pointer::new(v0),
                         ::morphix::observe::Observer::observe(v1),
                     )
                 }
@@ -89,14 +86,14 @@ const _: () = {
                 _ => Self::__None,
             }
         }
-        unsafe fn refresh(&mut self, value: &mut Foo<S, T>) {
+        unsafe fn refresh(&mut self, value: &mut Foo<S, T, U>) {
             unsafe {
                 match (self, value) {
                     (Self::A(u0), Foo::A(v0)) => {
                         ::morphix::observe::Observer::refresh(u0, v0);
                     }
                     (Self::B(u0, u1), Foo::B(v0, v1)) => {
-                        ::morphix::observe::Observer::refresh(u0, v0);
+                        ::morphix::helper::Pointer::set(u0, v0);
                         ::morphix::observe::Observer::refresh(u1, v1);
                     }
                     (Self::C { bar: u0, qux: u1 }, Foo::C { bar: v0, qux: v1 }) => {
@@ -114,7 +111,7 @@ const _: () = {
         where
             ::morphix::observe::DefaultObserver<
                 'ob,
-                S,
+                U,
             >: ::morphix::observe::SerializeObserver<'ob>,
         {
             match self {
@@ -127,14 +124,8 @@ const _: () = {
                         );
                     Ok(mutations)
                 }
-                Self::B(u0, u1) => {
+                Self::B(_, u1) => {
                     let mut mutations = ::morphix::Mutations::new();
-                    mutations
-                        .insert2(
-                            "b",
-                            0usize,
-                            ::morphix::observe::SerializeObserver::flush::<A>(u0)?,
-                        );
                     mutations
                         .insert2(
                             "b",
@@ -158,10 +149,11 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S, T, _S: ?Sized, N> ::std::ops::Deref for FooObserver<'ob, S, T, _S, N>
+    impl<'ob, S, T, U, _S: ?Sized, N> ::std::ops::Deref
+    for FooObserver<'ob, S, T, U, _S, N>
     where
         T: Clone,
-        S: ::morphix::Observe,
+        U: ::morphix::Observe,
     {
         type Target = ::morphix::helper::Pointer<_S>;
         fn deref(&self) -> &Self::Target {
@@ -169,10 +161,11 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S, T, _S: ?Sized, N> ::std::ops::DerefMut for FooObserver<'ob, S, T, _S, N>
+    impl<'ob, S, T, U, _S: ?Sized, N> ::std::ops::DerefMut
+    for FooObserver<'ob, S, T, U, _S, N>
     where
         T: Clone,
-        S: ::morphix::Observe,
+        U: ::morphix::Observe,
     {
         fn deref_mut(&mut self) -> &mut Self::Target {
             self.__mutated = true;
@@ -181,22 +174,23 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S, T, _S: ?Sized, N> ::morphix::helper::AsNormalized
-    for FooObserver<'ob, S, T, _S, N>
+    impl<'ob, S, T, U, _S: ?Sized, N> ::morphix::helper::AsNormalized
+    for FooObserver<'ob, S, T, U, _S, N>
     where
         T: Clone,
-        S: ::morphix::Observe,
+        U: ::morphix::Observe,
     {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]
-    impl<'ob, S, T, _S: ?Sized, N> ::morphix::observe::Observer<'ob>
-    for FooObserver<'ob, S, T, _S, N>
+    impl<'ob, S, T, U, _S: ?Sized, N> ::morphix::observe::Observer<'ob>
+    for FooObserver<'ob, S, T, U, _S, N>
     where
         T: Clone,
+        S: 'ob,
         Option<T>: 'ob,
-        S: ::morphix::Observe,
-        _S: ::morphix::helper::AsDerefMut<N, Target = Foo<S, T>> + 'ob,
+        U: ::morphix::Observe,
+        _S: ::morphix::helper::AsDerefMut<N, Target = Foo<S, T, U>> + 'ob,
         N: ::morphix::helper::Unsigned,
     {
         type Head = _S;
@@ -228,18 +222,19 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S, T, _S: ?Sized, N> ::morphix::observe::SerializeObserver<'ob>
-    for FooObserver<'ob, S, T, _S, N>
+    impl<'ob, S, T, U, _S: ?Sized, N> ::morphix::observe::SerializeObserver<'ob>
+    for FooObserver<'ob, S, T, U, _S, N>
     where
-        Foo<S, T>: ::serde::Serialize,
+        Foo<S, T, U>: ::serde::Serialize,
         T: Clone,
+        S: 'ob,
         Option<T>: 'ob,
-        S: ::morphix::Observe,
-        _S: ::morphix::helper::AsDerefMut<N, Target = Foo<S, T>> + 'ob,
+        U: ::morphix::Observe,
+        _S: ::morphix::helper::AsDerefMut<N, Target = Foo<S, T, U>> + 'ob,
         N: ::morphix::helper::Unsigned,
         ::morphix::observe::DefaultObserver<
             'ob,
-            S,
+            U,
         >: ::morphix::observe::SerializeObserver<'ob>,
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
@@ -267,16 +262,16 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<S, T> ::morphix::Observe for Foo<S, T>
+    impl<S, T, U> ::morphix::Observe for Foo<S, T, U>
     where
         Self: ::serde::Serialize,
         T: Clone,
-        S: ::morphix::Observe,
+        U: ::morphix::Observe,
     {
-        type Observer<'ob, _S, N> = FooObserver<'ob, S, T, _S, N>
+        type Observer<'ob, _S, N> = FooObserver<'ob, S, T, U, _S, N>
         where
             Self: 'ob,
-            S: 'ob,
+            U: 'ob,
             N: ::morphix::helper::Unsigned,
             _S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
