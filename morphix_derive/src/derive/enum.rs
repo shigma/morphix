@@ -87,7 +87,9 @@ pub fn derive_observe_for_enum(
         let mut variant_fields = quote! {};
         let mut observe_fields = quote! {};
         let mut refresh_stmts = quote! {};
-        let mut flush_stmts = quote! {};
+        let mut pre_flush_stmts = quote! {};
+        let mut post_flush_stmts = quote! {};
+        let mut flush_capacity = vec![];
         let mut has_skipped = false;
 
         let field_count = variant.fields.len();
@@ -161,6 +163,35 @@ pub fn derive_observe_for_enum(
                 ::morphix::observe::Observer::refresh(#ob_ident, #value_ident);
             });
 
+            let mutable_ident = if let Some(field_ident) = &field_ident {
+                let mut field_name = field_ident.to_string();
+                if field_name.starts_with("r#") {
+                    field_name = field_name[2..].to_string();
+                }
+                syn::Ident::new(&format!("mutations_{field_name}"), field_span)
+            } else {
+                syn::Ident::new(&format!("mutations_{index}"), field_span)
+            };
+            pre_flush_stmts.extend(
+                if cfg!(feature = "delete")
+                    && let Some(path) = field_meta.serde.skip_serializing_if
+                {
+                    quote_spanned! { field_span =>
+                        let mut #mutable_ident = ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)?;
+                        if !#mutable_ident.is_empty() && #path(::morphix::observe::Observer::as_inner(#flush_ident)) {
+                            #mutable_ident = ::morphix::MutationKind::Delete.into();
+                        }
+                    }
+                } else {
+                    quote_spanned! { field_span =>
+                        let #mutable_ident = ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)?;
+                    }
+                },
+            );
+            flush_capacity.push(quote_spanned! { field_span =>
+                #mutable_ident.len()
+            });
+
             let field_segment = if let Some(field_ident) = field_ident {
                 // named
                 if field_meta.serde.flatten {
@@ -182,13 +213,10 @@ pub fn derive_observe_for_enum(
             };
             let segment_count = field_segment.iter().len() + tag_segment.iter().len();
             let segments = tag_segment.iter().chain(&field_segment);
-            let children = quote! {
-                ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)?
-            };
-            flush_stmts.extend(match segment_count {
-                0 => quote! { mutations.extend(#children); },
-                1 => quote! { mutations.insert(#(#segments),*, #children); },
-                2 => quote! { mutations.insert2(#(#segments),*, #children); },
+            post_flush_stmts.extend(match segment_count {
+                0 => quote! { mutations.extend(#mutable_ident); },
+                1 => quote! { mutations.insert(#(#segments),*, #mutable_ident); },
+                2 => quote! { mutations.insert2(#(#segments),*, #mutable_ident); },
                 _ => unreachable!(),
             });
         }
@@ -209,8 +237,9 @@ pub fn derive_observe_for_enum(
                 });
                 variant_flush_arms.extend(quote! {
                     Self::#variant_ident { #(#flush_idents),* } => {
-                        let mut mutations = ::morphix::Mutations::new();
-                        #flush_stmts
+                        #pre_flush_stmts
+                        let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
+                        #post_flush_stmts
                         Ok(mutations)
                     },
                 });
@@ -227,8 +256,9 @@ pub fn derive_observe_for_enum(
                 });
                 variant_flush_arms.extend(quote! {
                     Self::#variant_ident(#(#flush_idents),*) => {
-                        let mut mutations = ::morphix::Mutations::new();
-                        #flush_stmts
+                        #pre_flush_stmts
+                        let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
+                        #post_flush_stmts
                         Ok(mutations)
                     },
                 });

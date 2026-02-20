@@ -116,32 +116,33 @@ const _: () = {
         {
             match self {
                 Self::A(u0) => {
-                    let mut mutations = ::morphix::Mutations::new();
-                    mutations
-                        .insert(
-                            "a",
-                            ::morphix::observe::SerializeObserver::flush::<A>(u0)?,
-                        );
+                    let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(u0)?;
+                    let mut mutations = ::morphix::Mutations::with_capacity(
+                        mutations_0.len(),
+                    );
+                    mutations.insert("a", mutations_0);
                     Ok(mutations)
                 }
                 Self::B(_, u1) => {
-                    let mut mutations = ::morphix::Mutations::new();
-                    mutations
-                        .insert2(
-                            "b",
-                            1usize,
-                            ::morphix::observe::SerializeObserver::flush::<A>(u1)?,
-                        );
+                    let mutations_1 = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(u1)?;
+                    let mut mutations = ::morphix::Mutations::with_capacity(
+                        mutations_1.len(),
+                    );
+                    mutations.insert2("b", 1usize, mutations_1);
                     Ok(mutations)
                 }
                 Self::C { qux, .. } => {
-                    let mut mutations = ::morphix::Mutations::new();
-                    mutations
-                        .insert2(
-                            "OwO",
-                            "QwQ",
-                            ::morphix::observe::SerializeObserver::flush::<A>(qux)?,
-                        );
+                    let mutations_qux = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(qux)?;
+                    let mut mutations = ::morphix::Mutations::with_capacity(
+                        mutations_qux.len(),
+                    );
+                    mutations.insert2("OwO", "QwQ", mutations_qux);
                     Ok(mutations)
                 }
                 Self::__None => Ok(::morphix::Mutations::new()),

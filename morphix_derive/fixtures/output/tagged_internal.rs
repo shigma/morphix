@@ -7,7 +7,12 @@ use serde::Serialize;
 pub enum Foo<const N: usize> {
     #[serde(serialize_with = "<[_]>::serialize")]
     A([u32; N]),
-    C { bar: String, #[serde(flatten)] qux: Qux },
+    C {
+        #[serde(skip_serializing_if = "String::is_empty")]
+        bar: String,
+        #[serde(flatten)]
+        qux: Qux,
+    },
 }
 #[rustfmt::skip]
 const _: () = {
@@ -62,20 +67,32 @@ const _: () = {
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             match self {
                 Self::A(u0) => {
-                    let mut mutations = ::morphix::Mutations::new();
-                    mutations
-                        .extend(::morphix::observe::SerializeObserver::flush::<A>(u0)?);
+                    let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(u0)?;
+                    let mut mutations = ::morphix::Mutations::with_capacity(
+                        mutations_0.len(),
+                    );
+                    mutations.extend(mutations_0);
                     Ok(mutations)
                 }
                 Self::C { bar, qux } => {
-                    let mut mutations = ::morphix::Mutations::new();
-                    mutations
-                        .insert(
-                            "bar",
-                            ::morphix::observe::SerializeObserver::flush::<A>(bar)?,
-                        );
-                    mutations
-                        .extend(::morphix::observe::SerializeObserver::flush::<A>(qux)?);
+                    let mut mutations_bar = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(bar)?;
+                    if !mutations_bar.is_empty()
+                        && String::is_empty(::morphix::observe::Observer::as_inner(bar))
+                    {
+                        mutations_bar = ::morphix::MutationKind::Delete.into();
+                    }
+                    let mutations_qux = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(qux)?;
+                    let mut mutations = ::morphix::Mutations::with_capacity(
+                        mutations_bar.len() + mutations_qux.len(),
+                    );
+                    mutations.insert("bar", mutations_bar);
+                    mutations.extend(mutations_qux);
                     Ok(mutations)
                 }
                 Self::__None => Ok(::morphix::Mutations::new()),

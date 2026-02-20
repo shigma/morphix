@@ -81,38 +81,37 @@ const _: () = {
         {
             match self {
                 Self::A(u0) => {
-                    let mut mutations = ::morphix::Mutations::new();
-                    mutations
-                        .insert(
-                            "data",
-                            ::morphix::observe::SerializeObserver::flush::<A>(u0)?,
-                        );
+                    let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(u0)?;
+                    let mut mutations = ::morphix::Mutations::with_capacity(
+                        mutations_0.len(),
+                    );
+                    mutations.insert("data", mutations_0);
                     Ok(mutations)
                 }
                 Self::B(u0, u1) => {
-                    let mut mutations = ::morphix::Mutations::new();
-                    mutations
-                        .insert2(
-                            "data",
-                            0usize,
-                            ::morphix::observe::SerializeObserver::flush::<A>(u0)?,
-                        );
-                    mutations
-                        .insert2(
-                            "data",
-                            1usize,
-                            ::morphix::observe::SerializeObserver::flush::<A>(u1)?,
-                        );
+                    let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(u0)?;
+                    let mutations_1 = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(u1)?;
+                    let mut mutations = ::morphix::Mutations::with_capacity(
+                        mutations_0.len() + mutations_1.len(),
+                    );
+                    mutations.insert2("data", 0usize, mutations_0);
+                    mutations.insert2("data", 1usize, mutations_1);
                     Ok(mutations)
                 }
                 Self::C { bar } => {
-                    let mut mutations = ::morphix::Mutations::new();
-                    mutations
-                        .insert2(
-                            "data",
-                            "bar",
-                            ::morphix::observe::SerializeObserver::flush::<A>(bar)?,
-                        );
+                    let mutations_bar = ::morphix::observe::SerializeObserver::flush::<
+                        A,
+                    >(bar)?;
+                    let mut mutations = ::morphix::Mutations::with_capacity(
+                        mutations_bar.len(),
+                    );
+                    mutations.insert2("data", "bar", mutations_bar);
                     Ok(mutations)
                 }
                 Self::__None => Ok(::morphix::Mutations::new()),

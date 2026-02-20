@@ -38,9 +38,9 @@ pub fn derive_observe_for_struct(
     let mut observe_fields = quote! {};
     let mut uninit_fields = quote! {};
     let mut refresh_stmts = quote! {};
-    let mut flush_fields = quote! {};
-    let mut push_mutations = quote! {};
-    let mut mutation_batch_capacity = vec![];
+    let mut pre_flush_stmts = quote! {};
+    let mut post_flush_stmts = quote! {};
+    let mut flush_capacity = vec![];
     let mut debug_chain = quote! {};
 
     let mut field_tys = vec![];
@@ -149,21 +149,21 @@ pub fn derive_observe_for_struct(
             default_segment = quote! { #i };
         }
 
-        if cfg!(feature = "delete")
+        pre_flush_stmts.extend(if cfg!(feature = "delete")
             && let Some(path) = field_meta.serde.skip_serializing_if
         {
-            flush_fields.extend(quote_spanned! { field_span =>
+            quote_spanned! { field_span =>
                 let mut #mutable_ident = ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_member)?;
                 if !#mutable_ident.is_empty() && #path(::morphix::observe::Observer::as_inner(&this.#field_member)) {
                     #mutable_ident = ::morphix::MutationKind::Delete.into();
                 }
-            });
+            }
         } else {
-            flush_fields.extend(quote_spanned! { field_span =>
+            quote_spanned! { field_span =>
                 let #mutable_ident = ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_member)?;
-            });
-        }
-        mutation_batch_capacity.push(quote_spanned! { field_span =>
+            }
+        });
+        flush_capacity.push(quote_spanned! { field_span =>
             #mutable_ident.len()
         });
         if !field_meta.serde.flatten && (is_named || fields.len() > 1) {
@@ -172,11 +172,11 @@ pub fn derive_observe_for_struct(
             } else {
                 default_segment
             };
-            push_mutations.extend(quote_spanned! { field_span =>
+            post_flush_stmts.extend(quote_spanned! { field_span =>
                 mutations.insert(#segment, #mutable_ident);
             });
         } else {
-            push_mutations.extend(quote_spanned! { field_span =>
+            post_flush_stmts.extend(quote_spanned! { field_span =>
                 mutations.extend(#mutable_ident);
             });
         }
@@ -440,9 +440,9 @@ pub fn derive_observe_for_struct(
     }
 
     let serialize_observer_impl = quote! {
-        #flush_fields
-        let mut mutations = ::morphix::Mutations::with_capacity(#(#mutation_batch_capacity)+*);
-        #push_mutations
+        #pre_flush_stmts
+        let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
+        #post_flush_stmts
         Ok(mutations)
     };
 

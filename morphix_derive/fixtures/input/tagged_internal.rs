@@ -11,6 +11,7 @@ pub enum Foo<const N: usize> {
     // #[serde(tag = "...")] cannot be used with tuple variants
     // B(u32, u32),
     C {
+        #[serde(skip_serializing_if = "String::is_empty")]
         bar: String,
         #[serde(flatten)]
         qux: Qux,
