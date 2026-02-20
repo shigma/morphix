@@ -154,60 +154,29 @@ where
     }
 }
 
-// impl<T, U, const N: usize> PartialEq<[U; N]> for [T; N] where T: PartialEq<U>
-impl<'ob, const N: usize, O, S: ?Sized, D, T, U> PartialEq<[U; N]> for ArrayObserver<'ob, N, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T; N]: PartialEq<[U; N]>,
-{
-    #[inline]
-    fn eq(&self, other: &[U; N]) -> bool {
-        self.as_deref().eq(other)
-    }
+macro_rules! generic_impl_partial_eq {
+    ($(impl $([$($gen:tt)*])? PartialEq<$ty:ty> for [_; N]);* $(;)?) => {
+        $(
+            impl<'ob, $($($gen)*,)? const N: usize, O, S: ?Sized, D> PartialEq<$ty> for ArrayObserver<'ob, N, O, S, D>
+            where
+                D: Unsigned,
+                S: AsDerefMut<D>,
+                S::Target: PartialEq<$ty>,
+            {
+                #[inline]
+                fn eq(&self, other: &$ty) -> bool {
+                    self.as_deref().eq(other)
+                }
+            }
+        )*
+    };
 }
 
-// impl<T, U, const N: usize> PartialEq<[U]> for [T; N] where T: PartialEq<U>
-impl<'ob, const N: usize, O, S: ?Sized, D, T, U> PartialEq<[U]> for ArrayObserver<'ob, N, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T; N]: PartialEq<[U]>,
-{
-    #[inline]
-    fn eq(&self, other: &[U]) -> bool {
-        self.as_deref().eq(other)
-    }
-}
-
-// impl<T, U, const N: usize> PartialEq<&[U]> for [T; N] where T: PartialEq<U>
-impl<'ob, 'a, const N: usize, O, S: ?Sized, D, T, U> PartialEq<&'a U> for ArrayObserver<'ob, N, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T; N]: PartialEq<&'a U>,
-{
-    #[inline]
-    fn eq(&self, other: &&'a U) -> bool {
-        self.as_deref().eq(other)
-    }
-}
-
-// impl<T, U, const N: usize> PartialEq<&mut [U]> for [T; N] where T: PartialEq<U>
-impl<'ob, 'a, const N: usize, O, S: ?Sized, D, T, U> PartialEq<&'a mut U> for ArrayObserver<'ob, N, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T; N]: PartialEq<&'a mut U>,
-{
-    #[inline]
-    fn eq(&self, other: &&'a mut U) -> bool {
-        self.as_deref().eq(other)
-    }
+generic_impl_partial_eq! {
+    impl [U] PartialEq<[U; N]> for [_; N];
+    impl [U] PartialEq<[U]> for [_; N];
+    impl ['a, U] PartialEq<&'a U> for [_; N];
+    impl ['a, U] PartialEq<&'a mut U> for [_; N];
 }
 
 impl<'ob, const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, T1, T2> PartialEq<ArrayObserver<'ob, N, O2, S2, D2>>
@@ -236,7 +205,6 @@ where
 {
 }
 
-// impl<T, const N: usize> PartialOrd for [T; N] where T: PartialOrd
 impl<'ob, const N: usize, O, S: ?Sized, D, T, U> PartialOrd<[U; N]> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,

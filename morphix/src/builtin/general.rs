@@ -486,3 +486,121 @@ where
         (*self.as_deref()).not()
     }
 }
+
+macro_rules! impl_partial_eq {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl<'ob, H, S: ?Sized, D> PartialEq<$ty> for GeneralObserver<'ob, H, S, D>
+            where
+                S: crate::helper::AsDeref<D, Target = $ty>,
+                H: GeneralHandler<Target = $ty>,
+                D: Unsigned,
+            {
+                #[inline]
+                fn eq(&self, other: &$ty) -> bool {
+                    (***self).as_deref().eq(other)
+                }
+            }
+        )*
+    };
+}
+
+impl_partial_eq! {
+    (), usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
+    core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
+    core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
+    core::time::Duration, std::time::SystemTime,
+    str,
+}
+
+#[cfg(feature = "chrono")]
+impl_partial_eq! {
+    chrono::Days, chrono::FixedOffset, chrono::Month, chrono::Months, chrono::IsoWeek,
+    chrono::NaiveDate, chrono::NaiveDateTime, chrono::NaiveTime, chrono::NaiveWeek,
+    chrono::TimeDelta, chrono::Utc, chrono::Weekday, chrono::WeekdaySet,
+}
+
+#[cfg(feature = "uuid")]
+impl_partial_eq! {
+    uuid::Uuid, uuid::NonNilUuid,
+}
+
+macro_rules! impl_partial_ord {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl<'ob, H, S: ?Sized, D> PartialOrd<$ty> for GeneralObserver<'ob, H, S, D>
+            where
+                S: crate::helper::AsDeref<D, Target = $ty>,
+                H: GeneralHandler<Target = $ty>,
+                D: Unsigned,
+            {
+                #[inline]
+                fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
+                    (***self).as_deref().partial_cmp(other)
+                }
+            }
+        )*
+    };
+}
+
+impl_partial_ord! {
+    (), usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
+    core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
+    core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
+    core::time::Duration, std::time::SystemTime,
+    str,
+}
+
+#[cfg(feature = "chrono")]
+impl_partial_ord! {
+    chrono::Days, chrono::Month, chrono::Months, chrono::IsoWeek,
+    chrono::NaiveDate, chrono::NaiveDateTime, chrono::NaiveTime,
+    chrono::TimeDelta, chrono::WeekdaySet,
+}
+
+#[cfg(feature = "uuid")]
+impl_partial_ord! {
+    uuid::Uuid, uuid::NonNilUuid,
+}
+
+macro_rules! generic_impl_cmp {
+    ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
+        $(
+            impl<'ob, $($($gen)*,)? H, S: ?Sized, D, T: ?Sized> PartialEq<$ty> for GeneralObserver<'ob, H, S, D>
+            where
+                S: crate::helper::AsDeref<D, Target = T>,
+                H: GeneralHandler<Target = T>,
+                D: Unsigned,
+                T: PartialEq<$ty>,
+            {
+                #[inline]
+                fn eq(&self, other: &$ty) -> bool {
+                    (***self).as_deref().eq(other)
+                }
+            }
+
+            impl<'ob, $($($gen)*,)? H, S: ?Sized, D, T: ?Sized> PartialOrd<$ty> for GeneralObserver<'ob, H, S, D>
+            where
+                S: crate::helper::AsDeref<D, Target = T>,
+                H: GeneralHandler<Target = T>,
+                D: Unsigned,
+                T: PartialOrd<$ty>,
+            {
+                #[inline]
+                fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
+                    (***self).as_deref().partial_cmp(other)
+                }
+            }
+        )*
+    };
+}
+
+generic_impl_cmp! {
+    impl [U] _ for std::marker::PhantomData<U>;
+    impl ['a, U] _ for &'a [U];
+}
+
+#[cfg(feature = "chrono")]
+generic_impl_cmp! {
+    impl [Tz: chrono::TimeZone] _ for chrono::DateTime<Tz>;
+}

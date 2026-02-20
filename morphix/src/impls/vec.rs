@@ -419,60 +419,29 @@ where
     }
 }
 
-// impl<T, U> PartialEq<Vec<U>> for Vec<T> where T: PartialEq<U>
-impl<'ob, O, S: ?Sized, D, T, U> PartialEq<Vec<U>> for VecObserver<'ob, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    Vec<T>: PartialEq<Vec<U>>,
-{
-    #[inline]
-    fn eq(&self, other: &Vec<U>) -> bool {
-        self.as_deref().eq(other)
-    }
+macro_rules! generic_impl_partial_eq {
+    ($(impl $([$($gen:tt)*])? PartialEq<$ty:ty> for Vec<_>);* $(;)?) => {
+        $(
+            impl<'ob, $($($gen)*,)? O, S: ?Sized, D> PartialEq<$ty> for VecObserver<'ob, O, S, D>
+            where
+                D: Unsigned,
+                S: AsDerefMut<D>,
+                S::Target: PartialEq<$ty>,
+            {
+                #[inline]
+                fn eq(&self, other: &$ty) -> bool {
+                    self.as_deref().eq(other)
+                }
+            }
+        )*
+    };
 }
 
-// impl<T, U> PartialEq<[U]> for Vec<T> where T: PartialEq<U>
-impl<'ob, O, S: ?Sized, D, T, U> PartialEq<[U]> for VecObserver<'ob, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    Vec<T>: PartialEq<[U]>,
-{
-    #[inline]
-    fn eq(&self, other: &[U]) -> bool {
-        self.as_deref().eq(other)
-    }
-}
-
-// impl<T, U> PartialEq<&[U]> for Vec<T> where T: PartialEq<U>
-impl<'ob, 'a, O, S: ?Sized, D, T, U> PartialEq<&'a U> for VecObserver<'ob, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    Vec<T>: PartialEq<&'a U>,
-{
-    #[inline]
-    fn eq(&self, other: &&'a U) -> bool {
-        self.as_deref().eq(other)
-    }
-}
-
-// impl<T, U> PartialEq<&mut [U]> for Vec<T> where T: PartialEq<U>
-impl<'ob, 'a, O, S: ?Sized, D, T, U> PartialEq<&'a mut U> for VecObserver<'ob, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    Vec<T>: PartialEq<&'a mut U>,
-{
-    #[inline]
-    fn eq(&self, other: &&'a mut U) -> bool {
-        self.as_deref().eq(other)
-    }
+generic_impl_partial_eq! {
+    impl [U] PartialEq<Vec<U>> for Vec<_>;
+    impl [U] PartialEq<[U]> for Vec<_>;
+    impl ['a, U] PartialEq<&'a U> for Vec<_>;
+    impl ['a, U] PartialEq<&'a mut U> for Vec<_>;
 }
 
 impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, T1, T2> PartialEq<VecObserver<'ob, O2, S2, D2>>
@@ -501,13 +470,11 @@ where
 {
 }
 
-// impl<T, U> PartialOrd for Vec<T> where T: PartialOrd
-impl<'ob, O, S: ?Sized, D, T, U> PartialOrd<Vec<U>> for VecObserver<'ob, O, S, D>
+impl<'ob, O, S: ?Sized, D, U> PartialOrd<Vec<U>> for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    Vec<T>: PartialOrd<Vec<U>>,
+    S: AsDerefMut<D>,
+    S::Target: PartialOrd<Vec<U>>,
 {
     #[inline]
     fn partial_cmp(&self, other: &Vec<U>) -> Option<std::cmp::Ordering> {

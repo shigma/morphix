@@ -400,9 +400,9 @@ where
     /// See [`slice::swap`].
     #[inline]
     pub fn swap(&mut self, a: usize, b: usize) {
-        Self::as_inner(self).as_mut().swap(a, b);
         self[a].as_deref_mut_coinductive();
         self[b].as_deref_mut_coinductive();
+        Self::as_inner(self).as_mut().swap(a, b);
     }
 
     /// See [`slice::iter_mut`].
@@ -544,68 +544,28 @@ where
     }
 }
 
-// impl<T, U> PartialEq<[U]> for [T] where T: PartialEq<U>
-impl<'ob, V, M, S: ?Sized, D, O, T, U> PartialEq<[U]> for SliceObserver<'ob, V, M, S, D>
-where
-    V: ObserverSlice<'ob, Item = O>,
-    D: Unsigned,
-    S: AsDerefMut<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T]: PartialEq<[U]>,
-{
-    #[inline]
-    fn eq(&self, other: &[U]) -> bool {
-        self.as_deref().as_ref().eq(other)
-    }
+macro_rules! generic_impl_partial_eq {
+    ($(impl $([$($gen:tt)*])? PartialEq<$ty:ty> for [_]);* $(;)?) => {
+        $(
+            impl<'ob, $($($gen)*,)? V, M, S: ?Sized, D> PartialEq<$ty> for SliceObserver<'ob, V, M, S, D>
+            where
+                D: Unsigned,
+                S: AsDerefMut<D>,
+                S::Target: PartialEq<$ty>,
+            {
+                #[inline]
+                fn eq(&self, other: &$ty) -> bool {
+                    self.as_deref().eq(other)
+                }
+            }
+        )*
+    };
 }
 
-// impl<T, U> PartialEq<Vec<U>> for [T] where T: PartialEq<U>
-impl<'ob, V, M, S: ?Sized, D, O, T, U> PartialEq<Vec<U>> for SliceObserver<'ob, V, M, S, D>
-where
-    V: ObserverSlice<'ob, Item = O>,
-    D: Unsigned,
-    S: AsDerefMut<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T]: PartialEq<Vec<U>>,
-{
-    #[inline]
-    fn eq(&self, other: &Vec<U>) -> bool {
-        self.as_deref().as_ref().eq(other)
-    }
-}
-
-// impl<T, U, const N: usize> PartialEq<[U; N]> for [T; N] where T: PartialEq<U>
-impl<'ob, V, M, S: ?Sized, D, O, T, U, const N: usize> PartialEq<[U; N]> for SliceObserver<'ob, V, M, S, D>
-where
-    V: ObserverSlice<'ob, Item = O>,
-    D: Unsigned,
-    S: AsDerefMut<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T]: PartialEq<[U; N]>,
-{
-    #[inline]
-    fn eq(&self, other: &[U; N]) -> bool {
-        self.as_deref().as_ref().eq(other)
-    }
-}
-
-// impl<T> PartialOrd for [T] where T: PartialOrd
-impl<'ob, V, M, S: ?Sized, D, O, T, U> PartialOrd<[U]> for SliceObserver<'ob, V, M, S, D>
-where
-    V: ObserverSlice<'ob, Item = O>,
-    D: Unsigned,
-    S: AsDerefMut<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T]: PartialOrd<[U]>,
-{
-    #[inline]
-    fn partial_cmp(&self, other: &[U]) -> Option<std::cmp::Ordering> {
-        self.as_deref().as_ref().partial_cmp(other)
-    }
+generic_impl_partial_eq! {
+    impl [U] PartialEq<[U]> for [_];
+    impl [U] PartialEq<Vec<U>> for [_];
+    impl [U, const N: usize] PartialEq<[U; N]> for [_];
 }
 
 impl<'ob, V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2, O1, O2, T1, T2> PartialEq<SliceObserver<'ob, V2, M2, S2, D2>>
@@ -638,6 +598,18 @@ where
     O: Observer<'ob, InnerDepth = Zero, Head = T>,
     [T]: Eq,
 {
+}
+
+impl<'ob, V, M, S: ?Sized, D, U> PartialOrd<[U]> for SliceObserver<'ob, V, M, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D>,
+    S::Target: PartialOrd<[U]>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &[U]) -> Option<std::cmp::Ordering> {
+        self.as_deref().partial_cmp(other)
+    }
 }
 
 impl<'ob, V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2, O1, O2, T1, T2> PartialOrd<SliceObserver<'ob, V2, M2, S2, D2>>

@@ -208,39 +208,52 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D, V, U> PartialEq<U> for HashMapObserver<'ob, K, O, S, D>
+impl<'ob, K, O, S: ?Sized, D, V> PartialEq<HashMap<K, V>> for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, V>>,
     O: Observer<'ob, InnerDepth = Zero, Head = V>,
-    HashMap<K, V>: PartialEq<U>,
+    HashMap<K, V>: PartialEq,
 {
     #[inline]
-    fn eq(&self, other: &U) -> bool {
+    fn eq(&self, other: &HashMap<K, V>) -> bool {
         self.as_deref().eq(other)
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D, V, U> PartialOrd<U> for HashMapObserver<'ob, K, O, S, D>
+impl<'ob, K1, K2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, V1, V2> PartialEq<HashMapObserver<'ob, K2, O2, S2, D2>>
+    for HashMapObserver<'ob, K1, O1, S1, D1>
+where
+    D1: Unsigned,
+    D2: Unsigned,
+    S1: AsDerefMut<D1, Target = HashMap<K1, V1>>,
+    S2: AsDerefMut<D2, Target = HashMap<K2, V2>>,
+    O1: Observer<'ob, InnerDepth = Zero, Head = V1>,
+    O2: Observer<'ob, InnerDepth = Zero, Head = V2>,
+    HashMap<K1, V1>: PartialEq<HashMap<K2, V2>>,
+{
+    #[inline]
+    fn eq(&self, other: &HashMapObserver<'ob, K2, O2, S2, D2>) -> bool {
+        self.as_deref().eq(other.as_deref())
+    }
+}
+
+impl<'ob, K, O, S: ?Sized, D, V> Eq for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, V>>,
     O: Observer<'ob, InnerDepth = Zero, Head = V>,
-    HashMap<K, V>: PartialOrd<U>,
+    HashMap<K, V>: Eq,
 {
-    #[inline]
-    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other)
-    }
 }
 
-impl<'ob, 'q, K, O, S: ?Sized, D, V, Q> Index<&'q Q> for HashMapObserver<'ob, K, O, S, D>
+impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> Index<&'q Q> for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, V>> + 'ob,
     O: Observer<'ob, InnerDepth = Zero, Head = V>,
     K: Borrow<Q> + Eq + Hash,
-    Q: Eq + Hash + ?Sized,
+    Q: Eq + Hash,
 {
     type Output = O;
 
@@ -250,13 +263,13 @@ where
     }
 }
 
-impl<'ob, 'q, K, O, S: ?Sized, D, V, Q> IndexMut<&'q Q> for HashMapObserver<'ob, K, O, S, D>
+impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> IndexMut<&'q Q> for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, V>> + 'ob,
     O: Observer<'ob, InnerDepth = Zero, Head = V>,
     K: Borrow<Q> + Eq + Hash,
-    Q: Eq + Hash + ?Sized,
+    Q: Eq + Hash,
 {
     #[inline]
     fn index_mut(&mut self, index: &'q Q) -> &mut Self::Output {

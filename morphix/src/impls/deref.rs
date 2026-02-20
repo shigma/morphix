@@ -119,29 +119,35 @@ where
     }
 }
 
-impl<'ob, O, D, T: ?Sized, U: ?Sized> PartialEq<U> for DerefObserver<'ob, O>
+impl<'ob, O1, O2> PartialEq<DerefObserver<'ob, O2>> for DerefObserver<'ob, O1>
 where
-    O: Observer<'ob, InnerDepth = Succ<D>>,
-    O::Head: AsDeref<D, Target = T>,
-    D: Unsigned,
-    T: PartialEq<U>,
+    O1: PartialEq<O2>,
 {
     #[inline]
-    fn eq(&self, other: &U) -> bool {
-        AsDeref::<D>::as_deref(&**self.as_normalized_ref()).eq(other)
+    fn eq(&self, other: &DerefObserver<'ob, O2>) -> bool {
+        self.inner.eq(&other.inner)
     }
 }
 
-impl<'ob, O, D, T: ?Sized, U: ?Sized> PartialOrd<U> for DerefObserver<'ob, O>
+impl<'ob, O> Eq for DerefObserver<'ob, O> where O: Eq {}
+
+impl<'ob, O1, O2> PartialOrd<DerefObserver<'ob, O2>> for DerefObserver<'ob, O1>
 where
-    O: Observer<'ob, InnerDepth = Succ<D>>,
-    O::Head: AsDeref<D, Target = T>,
-    D: Unsigned,
-    T: PartialOrd<U>,
+    O1: PartialOrd<O2>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        AsDeref::<D>::as_deref(&**self.as_normalized_ref()).partial_cmp(other)
+    fn partial_cmp(&self, other: &DerefObserver<'ob, O2>) -> Option<std::cmp::Ordering> {
+        self.inner.partial_cmp(&other.inner)
+    }
+}
+
+impl<'ob, O> Ord for DerefObserver<'ob, O>
+where
+    O: Ord,
+{
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.cmp(&other.inner)
     }
 }
 
@@ -221,6 +227,46 @@ impl_snapshot! {
     impl [T: Snapshot + ?Sized] Snapshot for Box<T> as T::Snapshot;
     impl [T: Snapshot + ?Sized] Snapshot for std::rc::Rc<T> as T::Snapshot;
     impl [T: Snapshot + ?Sized] Snapshot for std::sync::Arc<T> as T::Snapshot;
+}
+
+macro_rules! generic_impl_cmp {
+    ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
+        $(
+            impl<'ob, $($($gen)*,)? O, D, T: ?Sized> PartialEq<$ty> for DerefObserver<'ob, O>
+            where
+                O: Observer<'ob, InnerDepth = Succ<D>>,
+                O::Head: AsDeref<D, Target = T>,
+                D: Unsigned,
+                T: PartialEq<$ty>,
+            {
+                #[inline]
+                fn eq(&self, other: &$ty) -> bool {
+                    AsDeref::<D>::as_deref(&**self.as_normalized_ref()).eq(other)
+                }
+            }
+
+            impl<'ob, $($($gen)*,)? O, D, T: ?Sized> PartialOrd<$ty> for DerefObserver<'ob, O>
+            where
+                O: Observer<'ob, InnerDepth = Succ<D>>,
+                O::Head: AsDeref<D, Target = T>,
+                D: Unsigned,
+                T: PartialOrd<$ty>,
+            {
+                #[inline]
+                fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
+                    AsDeref::<D>::as_deref(&**self.as_normalized_ref()).partial_cmp(other)
+                }
+            }
+        )*
+    };
+}
+
+generic_impl_cmp! {
+    impl [U: ?Sized] _ for Box<U>;
+    impl ['a, U: ?Sized] _ for &'a U;
+    impl ['a, U: ?Sized] _ for &'a mut U;
+    impl [U: ?Sized] _ for std::rc::Rc<U>;
+    impl [U: ?Sized] _ for std::sync::Arc<U>;
 }
 
 #[cfg(test)]

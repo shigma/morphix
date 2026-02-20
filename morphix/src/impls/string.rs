@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::TryReserveError;
 use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
@@ -364,27 +365,89 @@ where
     }
 }
 
-impl<'ob, S, D, U: ?Sized> PartialEq<U> for StringObserver<'ob, S, D>
+macro_rules! generic_impl_partial_eq {
+    ($(impl $([$($gen:tt)*])? PartialEq<$ty:ty> for String);* $(;)?) => {
+        $(
+            impl<'ob, $($($gen)*,)? S, D> PartialEq<$ty> for StringObserver<'ob, S, D>
+            where
+                D: Unsigned,
+                S: AsDerefMut<D>,
+                S::Target: PartialEq<$ty>,
+            {
+                #[inline]
+                fn eq(&self, other: &$ty) -> bool {
+                    self.as_deref().eq(other)
+                }
+            }
+        )*
+    };
+}
+
+generic_impl_partial_eq! {
+    impl PartialEq<String> for String;
+    impl ['a, U: ?Sized] PartialEq<&'a U> for String;
+    impl ['a, U: ToOwned + ?Sized] PartialEq<Cow<'a, U>> for String;
+    impl PartialEq<std::path::Path> for String;
+    impl PartialEq<std::path::PathBuf> for String;
+}
+
+impl<'ob, S1, S2, D1, D2> PartialEq<StringObserver<'ob, S2, D2>> for StringObserver<'ob, S1, D1>
 where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = String>,
-    String: PartialEq<U>,
+    D1: Unsigned,
+    D2: Unsigned,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
-    fn eq(&self, other: &U) -> bool {
-        self.as_deref().eq(other)
+    fn eq(&self, other: &StringObserver<'ob, S2, D2>) -> bool {
+        self.as_deref().eq(other.as_deref())
     }
 }
 
-impl<'ob, S, D, U: ?Sized> PartialOrd<U> for StringObserver<'ob, S, D>
+impl<'ob, S, D> Eq for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = String>,
-    String: PartialOrd<U>,
+    S: AsDerefMut<D>,
+    S::Target: Eq,
+{
+}
+
+impl<'ob, S, D> PartialOrd<String> for StringObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D>,
+    S::Target: PartialOrd<String>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &String) -> Option<std::cmp::Ordering> {
         self.as_deref().partial_cmp(other)
+    }
+}
+
+impl<'ob, S1, S2, D1, D2> PartialOrd<StringObserver<'ob, S2, D2>> for StringObserver<'ob, S1, D1>
+where
+    D1: Unsigned,
+    D2: Unsigned,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: PartialOrd<S2::Target>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &StringObserver<'ob, S2, D2>) -> Option<std::cmp::Ordering> {
+        self.as_deref().partial_cmp(other.as_deref())
+    }
+}
+
+impl<'ob, S, D> Ord for StringObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D>,
+    S::Target: Ord,
+{
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_deref().cmp(other.as_deref())
     }
 }
 
