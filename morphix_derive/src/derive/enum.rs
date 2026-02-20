@@ -64,12 +64,14 @@ pub fn derive_observe_for_enum(
         has_variant = true;
         let variant_meta =
             ObserveMeta::parse_attrs(&variant.attrs, &mut errors, AttributeKind::Variant, DeriveKind::Enum);
-        let tag_segment = if let Some(expr) = &input_meta.serde.content {
-            Some(quote! { #expr })
-        } else if input_meta.serde.untagged || input_meta.serde.tag.is_some() {
+        let tag_segment = if variant_meta.serde.untagged {
             None
         } else if let Some(rename) = &variant_meta.serde.rename {
             Some(quote! { #rename })
+        } else if let Some(expr) = &input_meta.serde.content {
+            Some(quote! { #expr })
+        } else if input_meta.serde.untagged || input_meta.serde.tag.is_some() {
+            None
         } else {
             let segment = input_meta.serde.rename_all.apply(&variant_name);
             Some(quote! { #segment })
