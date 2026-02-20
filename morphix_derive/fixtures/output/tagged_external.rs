@@ -8,8 +8,8 @@ pub enum Foo<S, T, U>
 where
     T: Clone,
 {
-    A(u32),
-    B(S, U),
+    A(S),
+    B(u32, U),
     #[serde(rename_all = "UPPERCASE")]
     #[serde(rename = "OwO")]
     C { #[serde(skip)] bar: Option<T>, #[serde(rename = "QwQ")] qux: Qux },
@@ -55,8 +55,11 @@ const _: () = {
         T: Clone,
         U: ::morphix::Observe + 'ob,
     {
-        A(::morphix::observe::DefaultObserver<'ob, u32>),
-        B(::morphix::helper::Pointer<S>, ::morphix::observe::DefaultObserver<'ob, U>),
+        A(::morphix::helper::Pointer<S>),
+        B(
+            ::morphix::observe::DefaultObserver<'ob, u32>,
+            ::morphix::observe::DefaultObserver<'ob, U>,
+        ),
         C {
             bar: ::morphix::helper::Pointer<Option<T>>,
             qux: ::morphix::observe::DefaultObserver<'ob, Qux>,
@@ -70,10 +73,10 @@ const _: () = {
     {
         fn observe(value: &'ob mut Foo<S, T, U>) -> Self {
             match value {
-                Foo::A(v0) => Self::A(::morphix::observe::Observer::observe(v0)),
+                Foo::A(v0) => Self::A(::morphix::helper::Pointer::new(v0)),
                 Foo::B(v0, v1) => {
                     Self::B(
-                        ::morphix::helper::Pointer::new(v0),
+                        ::morphix::observe::Observer::observe(v0),
                         ::morphix::observe::Observer::observe(v1),
                     )
                 }
@@ -90,10 +93,10 @@ const _: () = {
             unsafe {
                 match (self, value) {
                     (Self::A(u0), Foo::A(v0)) => {
-                        ::morphix::observe::Observer::refresh(u0, v0);
+                        ::morphix::helper::Pointer::set(u0, v0);
                     }
                     (Self::B(u0, u1), Foo::B(v0, v1)) => {
-                        ::morphix::helper::Pointer::set(u0, v0);
+                        ::morphix::observe::Observer::refresh(u0, v0);
                         ::morphix::observe::Observer::refresh(u1, v1);
                     }
                     (Self::C { bar: u0, qux: u1 }, Foo::C { bar: v0, qux: v1 }) => {
@@ -115,23 +118,18 @@ const _: () = {
             >: ::morphix::observe::SerializeObserver<'ob>,
         {
             match self {
-                Self::A(u0) => {
+                Self::A(_) => Ok(::morphix::Mutations::new()),
+                Self::B(u0, u1) => {
                     let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
                         A,
                     >(u0)?;
-                    let mut mutations = ::morphix::Mutations::with_capacity(
-                        mutations_0.len(),
-                    );
-                    mutations.insert("a", mutations_0);
-                    Ok(mutations)
-                }
-                Self::B(_, u1) => {
                     let mutations_1 = ::morphix::observe::SerializeObserver::flush::<
                         A,
                     >(u1)?;
                     let mut mutations = ::morphix::Mutations::with_capacity(
-                        mutations_1.len(),
+                        mutations_0.len() + mutations_1.len(),
                     );
+                    mutations.insert2("b", 0usize, mutations_0);
                     mutations.insert2("b", 1usize, mutations_1);
                     Ok(mutations)
                 }

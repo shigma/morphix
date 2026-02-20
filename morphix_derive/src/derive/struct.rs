@@ -439,11 +439,17 @@ pub fn derive_observe_for_struct(
         input_observer_type_generics = quote! { <#(#ob_type_arguments),*> };
     }
 
-    let serialize_observer_impl = quote! {
-        #pre_flush_stmts
-        let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
-        #post_flush_stmts
-        Ok(mutations)
+    let serialize_observer_impl = if flush_capacity.is_empty() {
+        quote! {
+            Ok(::morphix::Mutations::new())
+        }
+    } else {
+        quote! {
+            #pre_flush_stmts
+            let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
+            #post_flush_stmts
+            Ok(mutations)
+        }
     };
 
     let (ob_impl_generics, ob_type_generics, _) = ob_generics.split_for_impl();

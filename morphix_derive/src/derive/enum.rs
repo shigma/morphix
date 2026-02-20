@@ -221,6 +221,17 @@ pub fn derive_observe_for_enum(
             });
         }
 
+        let variant_flush_expr = if flush_capacity.is_empty() {
+            quote! { Ok(::morphix::Mutations::new()) }
+        } else {
+            quote! {{
+                #pre_flush_stmts
+                let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
+                #post_flush_stmts
+                Ok(mutations)
+            }}
+        };
+
         match &variant.fields {
             syn::Fields::Named(_) => {
                 if has_skipped {
@@ -236,12 +247,7 @@ pub fn derive_observe_for_enum(
                     (Self::#variant_ident { #(#idents: #ob_idents,)* }, #input_ident::#variant_ident { #(#idents: #value_idents,)* }) => { #refresh_stmts }
                 });
                 variant_flush_arms.extend(quote! {
-                    Self::#variant_ident { #(#flush_idents),* } => {
-                        #pre_flush_stmts
-                        let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
-                        #post_flush_stmts
-                        Ok(mutations)
-                    },
+                    Self::#variant_ident { #(#flush_idents),* } => #variant_flush_expr,
                 });
             }
             syn::Fields::Unnamed(_) => {
@@ -255,12 +261,7 @@ pub fn derive_observe_for_enum(
                     (Self::#variant_ident(#(#ob_idents),*), #input_ident::#variant_ident(#(#value_idents),*)) => { #refresh_stmts }
                 });
                 variant_flush_arms.extend(quote! {
-                    Self::#variant_ident(#(#flush_idents),*) => {
-                        #pre_flush_stmts
-                        let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
-                        #post_flush_stmts
-                        Ok(mutations)
-                    },
+                    Self::#variant_ident(#(#flush_idents),*) => #variant_flush_expr,
                 });
             }
             syn::Fields::Unit => {

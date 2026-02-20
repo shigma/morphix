@@ -6,8 +6,8 @@ use serde::Serialize;
 #[derive(Serialize, Observe)]
 #[serde(rename_all = "lowercase")]
 pub enum Foo<S, T, U> where T: Clone {
-    A(u32),
-    B(#[morphix(skip)] S, U),
+    A(#[morphix(skip)] S),
+    B(u32, U),
     #[serde(rename_all = "UPPERCASE")]
     #[serde(rename = "OwO")]
     C {
