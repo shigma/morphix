@@ -177,26 +177,23 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D, V> Debug for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, O, S: ?Sized, D> Debug for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeMap<K, V>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = V>,
-    K: Debug,
-    V: Debug,
+    S: AsDerefMut<D>,
+    S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("BTreeMapObserver").field(self.as_deref()).finish()
+        f.debug_tuple("BTreeMapObserver").field(&self.as_deref()).finish()
     }
 }
 
 impl<'ob, K, O, S: ?Sized, D, V> PartialEq<BTreeMap<K, V>> for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeMap<K, V>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = V>,
-    BTreeMap<K, V>: PartialEq,
+    S: AsDerefMut<D>,
+    S::Target: PartialEq<BTreeMap<K, V>>,
 {
     #[inline]
     fn eq(&self, other: &BTreeMap<K, V>) -> bool {
@@ -204,16 +201,14 @@ where
     }
 }
 
-impl<'ob, K1, K2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, V1, V2> PartialEq<BTreeMapObserver<'ob, K2, O2, S2, D2>>
+impl<'ob, K1, K2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<BTreeMapObserver<'ob, K2, O2, S2, D2>>
     for BTreeMapObserver<'ob, K1, O1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1, Target = BTreeMap<K1, V1>>,
-    S2: AsDerefMut<D2, Target = BTreeMap<K2, V2>>,
-    O1: Observer<'ob, InnerDepth = Zero, Head = V1>,
-    O2: Observer<'ob, InnerDepth = Zero, Head = V2>,
-    BTreeMap<K1, V1>: PartialEq<BTreeMap<K2, V2>>,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &BTreeMapObserver<'ob, K2, O2, S2, D2>) -> bool {
@@ -221,21 +216,19 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D, V> Eq for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, O, S: ?Sized, D> Eq for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeMap<K, V>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = V>,
-    BTreeMap<K, V>: Eq,
+    S: AsDerefMut<D>,
+    S::Target: Eq,
 {
 }
 
 impl<'ob, K, O, S: ?Sized, D, V> PartialOrd<BTreeMap<K, V>> for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeMap<K, V>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = V>,
-    BTreeMap<K, V>: PartialOrd,
+    S: AsDerefMut<D>,
+    S::Target: PartialOrd<BTreeMap<K, V>>,
 {
     #[inline]
     fn partial_cmp(&self, other: &BTreeMap<K, V>) -> Option<std::cmp::Ordering> {
@@ -243,16 +236,14 @@ where
     }
 }
 
-impl<'ob, K1, K2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, V1, V2> PartialOrd<BTreeMapObserver<'ob, K2, O2, S2, D2>>
+impl<'ob, K1, K2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<BTreeMapObserver<'ob, K2, O2, S2, D2>>
     for BTreeMapObserver<'ob, K1, O1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1, Target = BTreeMap<K1, V1>>,
-    S2: AsDerefMut<D2, Target = BTreeMap<K2, V2>>,
-    O1: Observer<'ob, InnerDepth = Zero, Head = V1>,
-    O2: Observer<'ob, InnerDepth = Zero, Head = V2>,
-    BTreeMap<K1, V1>: PartialOrd<BTreeMap<K2, V2>>,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &BTreeMapObserver<'ob, K2, O2, S2, D2>) -> Option<std::cmp::Ordering> {
@@ -260,12 +251,11 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D, V> Ord for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, O, S: ?Sized, D> Ord for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeMap<K, V>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = V>,
-    BTreeMap<K, V>: Ord,
+    S: AsDerefMut<D>,
+    S::Target: Ord,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {

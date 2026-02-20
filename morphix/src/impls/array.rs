@@ -141,16 +141,15 @@ where
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T> Debug for ArrayObserver<'ob, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D> Debug for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    T: Debug,
+    S: AsDerefMut<D>,
+    S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("ArrayObserver").field(self.as_deref()).finish()
+        f.debug_tuple("ArrayObserver").field(&self.as_deref()).finish()
     }
 }
 
@@ -179,16 +178,14 @@ generic_impl_partial_eq! {
     impl ['a, U] PartialEq<&'a mut U> for [_; N];
 }
 
-impl<'ob, const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, T1, T2> PartialEq<ArrayObserver<'ob, N, O2, S2, D2>>
+impl<'ob, const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<ArrayObserver<'ob, N, O2, S2, D2>>
     for ArrayObserver<'ob, N, O1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1, Target = [T1; N]>,
-    S2: AsDerefMut<D2, Target = [T2; N]>,
-    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
-    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
-    [T1; N]: PartialEq<[T2; N]>,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &ArrayObserver<'ob, N, O2, S2, D2>) -> bool {
@@ -196,21 +193,19 @@ where
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T> Eq for ArrayObserver<'ob, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D> Eq for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T; N]: Eq,
+    S: AsDerefMut<D>,
+    S::Target: Eq,
 {
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T, U> PartialOrd<[U; N]> for ArrayObserver<'ob, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D, U> PartialOrd<[U; N]> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T; N]: PartialOrd<[U; N]>,
+    S: AsDerefMut<D>,
+    S::Target: PartialOrd<[U; N]>,
 {
     #[inline]
     fn partial_cmp(&self, other: &[U; N]) -> Option<std::cmp::Ordering> {
@@ -218,16 +213,14 @@ where
     }
 }
 
-impl<'ob, const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, T1, T2> PartialOrd<ArrayObserver<'ob, N, O2, S2, D2>>
+impl<'ob, const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<ArrayObserver<'ob, N, O2, S2, D2>>
     for ArrayObserver<'ob, N, O1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1, Target = [T1; N]>,
-    S2: AsDerefMut<D2, Target = [T2; N]>,
-    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
-    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
-    [T1; N]: PartialOrd<[T2; N]>,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &ArrayObserver<'ob, N, O2, S2, D2>) -> Option<std::cmp::Ordering> {
@@ -235,12 +228,11 @@ where
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T> Ord for ArrayObserver<'ob, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D> Ord for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T; N]: Ord,
+    S: AsDerefMut<D>,
+    S::Target: Ord,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -251,7 +243,7 @@ where
 impl<'ob, const N: usize, O, S: ?Sized, D, T, I> Index<I> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'ob,
+    S: AsDerefMut<D, Target = [T; N]> + 'ob,
     O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
@@ -267,7 +259,7 @@ where
 impl<'ob, const N: usize, O, S: ?Sized, D, T, I> IndexMut<I> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>> + 'ob,
+    S: AsDerefMut<D, Target = [T; N]> + 'ob,
     O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,

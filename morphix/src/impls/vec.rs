@@ -406,16 +406,15 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D, T> Debug for VecObserver<'ob, O, S, D>
+impl<'ob, O, S: ?Sized, D> Debug for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    T: Debug,
+    S: AsDerefMut<D>,
+    S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("VecObserver").field(self.as_deref()).finish()
+        f.debug_tuple("VecObserver").field(&self.as_deref()).finish()
     }
 }
 
@@ -444,16 +443,14 @@ generic_impl_partial_eq! {
     impl ['a, U] PartialEq<&'a mut U> for Vec<_>;
 }
 
-impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, T1, T2> PartialEq<VecObserver<'ob, O2, S2, D2>>
+impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<VecObserver<'ob, O2, S2, D2>>
     for VecObserver<'ob, O1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1, Target = Vec<T1>>,
-    S2: AsDerefMut<D2, Target = Vec<T2>>,
-    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
-    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
-    Vec<T1>: PartialEq<Vec<T2>>,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &VecObserver<'ob, O2, S2, D2>) -> bool {
@@ -461,12 +458,11 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D, T> Eq for VecObserver<'ob, O, S, D>
+impl<'ob, O, S: ?Sized, D> Eq for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    T: Eq,
+    S: AsDerefMut<D>,
+    S::Target: Eq,
 {
 }
 
@@ -482,16 +478,14 @@ where
     }
 }
 
-impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, T1, T2> PartialOrd<VecObserver<'ob, O2, S2, D2>>
+impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<VecObserver<'ob, O2, S2, D2>>
     for VecObserver<'ob, O1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1, Target = Vec<T1>>,
-    S2: AsDerefMut<D2, Target = Vec<T2>>,
-    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
-    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
-    Vec<T1>: PartialOrd<Vec<T2>>,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &VecObserver<'ob, O2, S2, D2>) -> Option<std::cmp::Ordering> {
@@ -499,12 +493,11 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D, T> Ord for VecObserver<'ob, O, S, D>
+impl<'ob, O, S: ?Sized, D> Ord for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    T: Ord,
+    S: AsDerefMut<D>,
+    S::Target: Ord,
 {
     #[inline]
     fn cmp(&self, other: &VecObserver<'ob, O, S, D>) -> std::cmp::Ordering {

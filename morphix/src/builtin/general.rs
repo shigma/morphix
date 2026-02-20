@@ -267,12 +267,11 @@ where
 macro_rules! impl_fmt {
     ($($trait:ident),* $(,)?) => {
         $(
-            impl<'ob, H, S: ?Sized, D, T: ?Sized> std::fmt::$trait for GeneralObserver<'ob, H, S, D>
+            impl<'ob, H, S: ?Sized, D> std::fmt::$trait for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<D, Target = T>,
-                H: GeneralHandler<Target = T>,
+                S: crate::helper::AsDeref<D>,
                 D: Unsigned,
-                T: std::fmt::$trait,
+                S::Target: std::fmt::$trait,
             {
                 #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -307,12 +306,11 @@ where
     }
 }
 
-impl<'ob, H, S: ?Sized, D, T: ?Sized, I> std::ops::Index<I> for GeneralObserver<'ob, H, S, D>
+impl<'ob, H, S: ?Sized, D, I> std::ops::Index<I> for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D, Target = T>,
-    H: GeneralHandler<Target = T>,
+    S: crate::helper::AsDeref<D>,
     D: Unsigned,
-    T: std::ops::Index<I> + 'ob,
+    S::Target: std::ops::Index<I>,
 {
     type Output = <S::Target as std::ops::Index<I>>::Output;
 
@@ -335,16 +333,14 @@ where
     }
 }
 
-impl<'ob, H1, H2, S1: ?Sized, S2: ?Sized, D1, D2, T1: ?Sized, T2: ?Sized> PartialEq<GeneralObserver<'ob, H2, S2, D2>>
+impl<'ob, H1, H2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<GeneralObserver<'ob, H2, S2, D2>>
     for GeneralObserver<'ob, H1, S1, D1>
 where
-    S1: crate::helper::AsDeref<D1, Target = T1>,
-    S2: crate::helper::AsDeref<D2, Target = T2>,
-    H1: GeneralHandler<Target = T1>,
-    H2: GeneralHandler<Target = T2>,
+    S1: crate::helper::AsDeref<D1>,
+    S2: crate::helper::AsDeref<D2>,
     D1: Unsigned,
     D2: Unsigned,
-    T1: PartialEq<T2>,
+    S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> bool {
@@ -352,25 +348,22 @@ where
     }
 }
 
-impl<'ob, H, S: ?Sized, D, T: ?Sized> Eq for GeneralObserver<'ob, H, S, D>
+impl<'ob, H, S: ?Sized, D> Eq for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D, Target = T>,
-    H: GeneralHandler<Target = T>,
+    S: crate::helper::AsDeref<D>,
     D: Unsigned,
-    T: Eq,
+    S::Target: Eq,
 {
 }
 
-impl<'ob, H1, H2, S1: ?Sized, S2: ?Sized, D1, D2, T1: ?Sized, T2: ?Sized> PartialOrd<GeneralObserver<'ob, H2, S2, D2>>
+impl<'ob, H1, H2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<GeneralObserver<'ob, H2, S2, D2>>
     for GeneralObserver<'ob, H1, S1, D1>
 where
-    S1: crate::helper::AsDeref<D1, Target = T1>,
-    S2: crate::helper::AsDeref<D2, Target = T2>,
-    H1: GeneralHandler<Target = T1>,
-    H2: GeneralHandler<Target = T2>,
+    S1: crate::helper::AsDeref<D1>,
+    S2: crate::helper::AsDeref<D2>,
     D1: Unsigned,
     D2: Unsigned,
-    T1: PartialOrd<T2>,
+    S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> Option<std::cmp::Ordering> {
@@ -378,12 +371,11 @@ where
     }
 }
 
-impl<'ob, H, S: ?Sized, D, T: ?Sized> Ord for GeneralObserver<'ob, H, S, D>
+impl<'ob, H, S: ?Sized, D> Ord for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D, Target = T>,
-    H: GeneralHandler<Target = T>,
+    S: crate::helper::AsDeref<D>,
     D: Unsigned,
-    T: Ord,
+    S::Target: Ord,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -426,12 +418,11 @@ impl_assign_ops! {
 macro_rules! impl_ops_copy {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
-            impl<'ob, H, S: ?Sized, D, T, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, D>
+            impl<'ob, H, S: ?Sized, D, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<D, Target = T>,
-                H: GeneralHandler<Target = T>,
+                S: crate::helper::AsDeref<D>,
                 D: Unsigned,
-                T: std::ops::$trait<U> + Copy,
+                S::Target: std::ops::$trait<U> + Copy,
             {
                 type Output = <S::Target as std::ops::$trait<U>>::Output;
 
@@ -457,12 +448,11 @@ impl_ops_copy! {
     Shr => shr,
 }
 
-impl<'ob, H, S: ?Sized, D, T> std::ops::Neg for GeneralObserver<'ob, H, S, D>
+impl<'ob, H, S: ?Sized, D> std::ops::Neg for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D, Target = T>,
-    H: GeneralHandler<Target = T>,
+    S: crate::helper::AsDeref<D>,
     D: Unsigned,
-    T: std::ops::Neg + Copy,
+    S::Target: std::ops::Neg + Copy,
 {
     type Output = <S::Target as std::ops::Neg>::Output;
 
@@ -472,12 +462,11 @@ where
     }
 }
 
-impl<'ob, H, S: ?Sized, D, T> std::ops::Not for GeneralObserver<'ob, H, S, D>
+impl<'ob, H, S: ?Sized, D> std::ops::Not for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D, Target = T>,
-    H: GeneralHandler<Target = T>,
+    S: crate::helper::AsDeref<D>,
     D: Unsigned,
-    T: std::ops::Not + Copy,
+    S::Target: std::ops::Not + Copy,
 {
     type Output = <S::Target as std::ops::Not>::Output;
 
@@ -493,7 +482,6 @@ macro_rules! impl_partial_eq {
             impl<'ob, H, S: ?Sized, D> PartialEq<$ty> for GeneralObserver<'ob, H, S, D>
             where
                 S: crate::helper::AsDeref<D, Target = $ty>,
-                H: GeneralHandler<Target = $ty>,
                 D: Unsigned,
             {
                 #[inline]
@@ -531,7 +519,6 @@ macro_rules! impl_partial_ord {
             impl<'ob, H, S: ?Sized, D> PartialOrd<$ty> for GeneralObserver<'ob, H, S, D>
             where
                 S: crate::helper::AsDeref<D, Target = $ty>,
-                H: GeneralHandler<Target = $ty>,
                 D: Unsigned,
             {
                 #[inline]
@@ -566,12 +553,11 @@ impl_partial_ord! {
 macro_rules! generic_impl_cmp {
     ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
         $(
-            impl<'ob, $($($gen)*,)? H, S: ?Sized, D, T: ?Sized> PartialEq<$ty> for GeneralObserver<'ob, H, S, D>
+            impl<'ob, $($($gen)*,)? H, S: ?Sized, D> PartialEq<$ty> for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<D, Target = T>,
-                H: GeneralHandler<Target = T>,
+                S: crate::helper::AsDeref<D>,
                 D: Unsigned,
-                T: PartialEq<$ty>,
+                S::Target: PartialEq<$ty>,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
@@ -579,12 +565,11 @@ macro_rules! generic_impl_cmp {
                 }
             }
 
-            impl<'ob, $($($gen)*,)? H, S: ?Sized, D, T: ?Sized> PartialOrd<$ty> for GeneralObserver<'ob, H, S, D>
+            impl<'ob, $($($gen)*,)? H, S: ?Sized, D> PartialOrd<$ty> for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<D, Target = T>,
-                H: GeneralHandler<Target = T>,
+                S: crate::helper::AsDeref<D>,
                 D: Unsigned,
-                T: PartialOrd<$ty>,
+                S::Target: PartialOrd<$ty>,
             {
                 #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {

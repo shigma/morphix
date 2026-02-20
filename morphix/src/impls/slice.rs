@@ -529,18 +529,15 @@ where
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D, O, T> Debug for SliceObserver<'ob, V, M, S, D>
+impl<'ob, V, M, S: ?Sized, D> Debug for SliceObserver<'ob, V, M, S, D>
 where
-    V: ObserverSlice<'ob, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    T: Debug,
+    S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("SliceObserver").field(&self.as_deref().as_ref()).finish()
+        f.debug_tuple("SliceObserver").field(&self.as_deref()).finish()
     }
 }
 
@@ -568,35 +565,26 @@ generic_impl_partial_eq! {
     impl [U, const N: usize] PartialEq<[U; N]> for [_];
 }
 
-impl<'ob, V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2, O1, O2, T1, T2> PartialEq<SliceObserver<'ob, V2, M2, S2, D2>>
+impl<'ob, V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<SliceObserver<'ob, V2, M2, S2, D2>>
     for SliceObserver<'ob, V1, M1, S1, D1>
 where
-    V1: ObserverSlice<'ob, Item = O1>,
-    V2: ObserverSlice<'ob, Item = O2>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDerefMut<D1>,
     S2: AsDerefMut<D2>,
-    S1::Target: AsRef<[T1]> + AsMut<[T1]>,
-    S2::Target: AsRef<[T2]> + AsMut<[T2]>,
-    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
-    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
-    [T1]: PartialEq<[T2]>,
+    S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &SliceObserver<'ob, V2, M2, S2, D2>) -> bool {
-        self.as_deref().as_ref().eq(other.as_deref().as_ref())
+        self.as_deref().eq(other.as_deref())
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D, O, T> Eq for SliceObserver<'ob, V, M, S, D>
+impl<'ob, V, M, S: ?Sized, D> Eq for SliceObserver<'ob, V, M, S, D>
 where
-    V: ObserverSlice<'ob, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T]: Eq,
+    S::Target: Eq,
 {
 }
 
@@ -612,39 +600,30 @@ where
     }
 }
 
-impl<'ob, V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2, O1, O2, T1, T2> PartialOrd<SliceObserver<'ob, V2, M2, S2, D2>>
+impl<'ob, V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<SliceObserver<'ob, V2, M2, S2, D2>>
     for SliceObserver<'ob, V1, M1, S1, D1>
 where
-    V1: ObserverSlice<'ob, Item = O1>,
-    V2: ObserverSlice<'ob, Item = O2>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDerefMut<D1>,
     S2: AsDerefMut<D2>,
-    S1::Target: AsRef<[T1]> + AsMut<[T1]>,
-    S2::Target: AsRef<[T2]> + AsMut<[T2]>,
-    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
-    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
-    [T1]: PartialOrd<[T2]>,
+    S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &SliceObserver<'ob, V2, M2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.as_deref().as_ref().partial_cmp(other.as_deref().as_ref())
+        self.as_deref().partial_cmp(other.as_deref())
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D, O, T> Ord for SliceObserver<'ob, V, M, S, D>
+impl<'ob, V, M, S: ?Sized, D> Ord for SliceObserver<'ob, V, M, S, D>
 where
-    V: ObserverSlice<'ob, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T]: Ord,
+    S::Target: Ord,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.as_deref().as_ref().cmp(other.as_deref().as_ref())
+        self.as_deref().cmp(other.as_deref())
     }
 }
 

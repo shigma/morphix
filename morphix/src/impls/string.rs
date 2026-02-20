@@ -346,18 +346,20 @@ where
 impl<'ob, S: ?Sized, D> Debug for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = String>,
+    S: AsDerefMut<D>,
+    S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("StringObserver").field(self.as_deref()).finish()
+        f.debug_tuple("StringObserver").field(&self.as_deref()).finish()
     }
 }
 
 impl<'ob, S: ?Sized, D> Display for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = String>,
+    S: AsDerefMut<D>,
+    S::Target: Display,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

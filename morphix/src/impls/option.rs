@@ -179,7 +179,8 @@ where
 impl<'ob, O, S: ?Sized, D> Debug for OptionObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target: Debug>,
+    S: AsDerefMut<D>,
+    S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
