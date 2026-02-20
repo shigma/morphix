@@ -23,7 +23,7 @@ uuid = ["dep:uuid"]
 yaml = ["dep:serde_yaml_ng"]
 
 [package.metadata.docs.rs]
-all-features = true
+features = ["full"]
 
 [dependencies]
 morphix_derive = { version = "0.14.8", path = "../morphix_derive", optional = true }

@@ -45,18 +45,6 @@ pub fn derive_observe_for_enum(
     for variant in variants {
         let variant_ident = &variant.ident;
         let variant_name = variant.ident.to_string();
-        let variant_meta =
-            ObserveMeta::parse_attrs(&variant.attrs, &mut errors, AttributeKind::Variant, DeriveKind::Enum);
-        let tag_segment = if let Some(expr) = &input_meta.serde.content {
-            Some(quote! { #expr })
-        } else if input_meta.serde.untagged || input_meta.serde.tag.is_some() {
-            None
-        } else if let Some(rename) = &variant_meta.serde.rename {
-            Some(quote! { #rename })
-        } else {
-            let segment = input_meta.serde.rename_all.apply(&variant_name);
-            Some(quote! { #segment })
-        };
         if variant.fields.is_empty() {
             has_initial = true;
             let mut variant = variant.clone();
@@ -72,100 +60,141 @@ pub fn derive_observe_for_enum(
             });
             continue;
         }
+
         has_variant = true;
-        match &variant.fields {
-            syn::Fields::Named(fields_named) => {
-                let mut idents = vec![];
-                let mut ob_idents = vec![];
-                let mut value_idents = vec![];
-                let mut flush_idents = vec![];
-                let mut variant_fields = quote! {};
-                let mut observe_fields = quote! {};
-                let mut refresh_stmts = quote! {};
-                let mut flush_stmts = quote! {};
-                let mut has_skipped = false;
+        let variant_meta =
+            ObserveMeta::parse_attrs(&variant.attrs, &mut errors, AttributeKind::Variant, DeriveKind::Enum);
+        let tag_segment = if let Some(expr) = &input_meta.serde.content {
+            Some(quote! { #expr })
+        } else if input_meta.serde.untagged || input_meta.serde.tag.is_some() {
+            None
+        } else if let Some(rename) = &variant_meta.serde.rename {
+            Some(quote! { #rename })
+        } else {
+            let segment = input_meta.serde.rename_all.apply(&variant_name);
+            Some(quote! { #segment })
+        };
 
-                for (index, field) in fields_named.named.iter().enumerate() {
-                    let field_meta =
-                        ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Enum);
-                    let mut field_cloned = field.clone();
-                    field_cloned.attrs = vec![];
-                    let field_span = field_cloned.span();
-                    let field_ident = field.ident.as_ref().unwrap();
-                    let field_trivial = !GenericsDetector::detect(&field.ty, &input.generics);
-                    let field_ty = &field.ty;
-                    let ob_ident = syn::Ident::new(&format!("u{}", index), field_ident.span());
-                    let value_ident = syn::Ident::new(&format!("v{}", index), field_ident.span());
-                    idents.push(quote! { #field_ident });
-                    ob_idents.push(quote! { #ob_ident });
-                    value_idents.push(quote! { #value_ident });
+        let if_named: Vec<TokenStream> = match &variant.fields {
+            syn::Fields::Named(_) => vec![quote! {}],
+            _ => vec![],
+        };
 
-                    if field_meta.skip || field_meta.serde.skip || field_meta.serde.skip_serializing {
-                        has_skipped = true;
-                        if !field_trivial {
-                            skipped_tys.push(quote! { #field_ty });
-                        }
-                        variant_fields.extend(quote! {
-                            #field_ident: ::morphix::helper::Pointer<#field_ty>,
-                        });
-                        observe_fields.extend(quote_spanned! { field_span =>
-                            #field_ident: ::morphix::helper::Pointer::new(#field_ident),
-                        });
-                        refresh_stmts.extend(quote_spanned! { field_span =>
-                            ::morphix::helper::Pointer::set(#ob_ident, #value_ident);
-                        });
-                        continue;
-                    }
+        let mut idents = vec![];
+        let mut ob_idents = vec![];
+        let mut value_idents = vec![];
+        let mut flush_idents = vec![];
+        let mut variant_fields = quote! {};
+        let mut observe_fields = quote! {};
+        let mut refresh_stmts = quote! {};
+        let mut flush_stmts = quote! {};
+        let mut has_skipped = false;
 
-                    flush_idents.push(quote! { #field_ident });
-                    let ob_field_ty: syn::Type = match &field_meta.general_impl {
-                        None => parse_quote_spanned! { field_span =>
-                            ::morphix::observe::DefaultObserver<#ob_lt, #field_ty>
-                        },
-                        Some(GeneralImpl { ob_ident, .. }) => parse_quote_spanned! { field_span =>
-                            ::morphix::builtin::#ob_ident<#ob_lt, #field_ty>
-                        },
-                    };
-                    variant_fields.extend(quote! {
-                        #field_ident: #ob_field_ty,
-                    });
-                    observe_fields.extend(quote_spanned! { field_span =>
-                        #field_ident: ::morphix::observe::Observer::observe(#field_ident),
-                    });
-                    refresh_stmts.extend(quote_spanned! { field_span =>
-                        ::morphix::observe::Observer::refresh(#ob_ident, #value_ident);
-                    });
-                    if !field_trivial {
-                        field_tys.push(quote! { #field_ty });
-                        ob_field_tys.push(quote! { #ob_field_ty });
-                    }
+        let field_count = variant.fields.len();
+        for (index, field) in variant.fields.iter().enumerate() {
+            let field_meta =
+                ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Enum);
+            let mut field_cloned = field.clone();
+            field_cloned.attrs = vec![];
+            let field_span = field_cloned.span();
+            let field_trivial = !GenericsDetector::detect(&field.ty, &input.generics);
+            let field_ty = &field.ty;
+            let field_ident = &field.ident;
+            let ob_ident = syn::Ident::new(&format!("u{}", index), field_span);
+            let value_ident = syn::Ident::new(&format!("v{}", index), field_span);
+            if let Some(field_ident) = field_ident {
+                idents.push(quote! { #field_ident });
+            }
+            ob_idents.push(quote! { #ob_ident });
+            value_idents.push(quote! { #value_ident });
+            let observe_ident = if let Some(field_ident) = field_ident {
+                field_ident
+            } else {
+                &value_ident
+            };
+            let flush_ident = if let Some(field_ident) = field_ident {
+                field_ident
+            } else {
+                &ob_ident
+            };
 
-                    let field_segment = if field_meta.serde.flatten {
-                        None
-                    } else if let Some(rename) = &field_meta.serde.rename {
-                        Some(quote! { #rename })
-                    } else {
-                        let field_name = field_ident.to_string();
-                        let segment = variant_meta
-                            .serde
-                            .rename_all
-                            .or(input_meta.serde.rename_all_fields)
-                            .apply(&field_name);
-                        Some(quote! { #segment })
-                    };
-                    let segment_count = field_segment.iter().len() + tag_segment.iter().len();
-                    let segments = tag_segment.iter().chain(&field_segment);
-                    let children = quote! {
-                        ::morphix::observe::SerializeObserver::flush::<A>(#field_ident)?
-                    };
-                    flush_stmts.extend(match segment_count {
-                        0 => quote! { mutations.extend(#children); },
-                        1 => quote! { mutations.insert(#(#segments),*, #children); },
-                        2 => quote! { mutations.insert2(#(#segments),*, #children); },
-                        _ => unreachable!(),
-                    });
+            if field_meta.skip || field_meta.serde.skip || field_meta.serde.skip_serializing {
+                has_skipped = true;
+                if !field_trivial {
+                    skipped_tys.push(quote! { #field_ty });
                 }
+                variant_fields.extend(quote! {
+                    #(#if_named #field_ident:)* ::morphix::helper::Pointer<#field_ty>,
+                });
+                observe_fields.extend(quote_spanned! { field_span =>
+                    #(#if_named #field_ident:)* ::morphix::helper::Pointer::new(#observe_ident),
+                });
+                refresh_stmts.extend(quote_spanned! { field_span =>
+                    ::morphix::helper::Pointer::set(#ob_ident, #value_ident);
+                });
+                if field_ident.is_none() {
+                    flush_idents.push(quote! { _ });
+                }
+                continue;
+            }
 
+            flush_idents.push(quote! { #flush_ident });
+            let ob_field_ty: syn::Type = match &field_meta.general_impl {
+                None => parse_quote_spanned! { field_span =>
+                    ::morphix::observe::DefaultObserver<#ob_lt, #field_ty>
+                },
+                Some(GeneralImpl { ob_ident, .. }) => parse_quote_spanned! { field_span =>
+                    ::morphix::builtin::#ob_ident<#ob_lt, #field_ty>
+                },
+            };
+            if !field_trivial {
+                field_tys.push(quote! { #field_ty });
+                ob_field_tys.push(quote! { #ob_field_ty });
+            }
+            variant_fields.extend(quote! {
+                #(#if_named #field_ident:)* #ob_field_ty,
+            });
+            observe_fields.extend(quote_spanned! { field_span =>
+                #(#if_named #field_ident:)* ::morphix::observe::Observer::observe(#observe_ident),
+            });
+            refresh_stmts.extend(quote_spanned! { field_span =>
+                ::morphix::observe::Observer::refresh(#ob_ident, #value_ident);
+            });
+
+            let field_segment = if let Some(field_ident) = field_ident {
+                // named
+                if field_meta.serde.flatten {
+                    None
+                } else if let Some(rename) = &field_meta.serde.rename {
+                    Some(quote! { #rename })
+                } else {
+                    let field_name = field_ident.to_string();
+                    let segment = variant_meta
+                        .serde
+                        .rename_all
+                        .or(input_meta.serde.rename_all_fields)
+                        .apply(&field_name);
+                    Some(quote! { #segment })
+                }
+            } else {
+                // unnamed
+                if field_count > 1 { Some(quote! { #index }) } else { None }
+            };
+            let segment_count = field_segment.iter().len() + tag_segment.iter().len();
+            let segments = tag_segment.iter().chain(&field_segment);
+            let children = quote! {
+                ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)?
+            };
+            flush_stmts.extend(match segment_count {
+                0 => quote! { mutations.extend(#children); },
+                1 => quote! { mutations.insert(#(#segments),*, #children); },
+                2 => quote! { mutations.insert2(#(#segments),*, #children); },
+                _ => unreachable!(),
+            });
+        }
+
+        match &variant.fields {
+            syn::Fields::Named(_) => {
                 if has_skipped {
                     flush_idents.push(quote! { .. });
                 }
@@ -186,83 +215,7 @@ pub fn derive_observe_for_enum(
                     },
                 });
             }
-            syn::Fields::Unnamed(fields_unnamed) => {
-                let mut ob_idents = vec![];
-                let mut value_idents = vec![];
-                let mut flush_idents = vec![];
-                let mut variant_fields = quote! {};
-                let mut observe_fields = quote! {};
-                let mut refresh_stmts = quote! {};
-                let mut flush_stmts = quote! {};
-
-                let field_count = fields_unnamed.unnamed.len();
-                for (index, field) in fields_unnamed.unnamed.iter().enumerate() {
-                    let field_meta =
-                        ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Enum);
-                    let mut field_cloned = field.clone();
-                    field_cloned.attrs = vec![];
-                    let field_span = field_cloned.span();
-                    let field_trivial = !GenericsDetector::detect(&field.ty, &input.generics);
-                    let field_ty = &field.ty;
-                    let ob_ident = syn::Ident::new(&format!("u{}", index), field_span);
-                    let value_ident = syn::Ident::new(&format!("v{}", index), field_span);
-                    ob_idents.push(quote! { #ob_ident });
-                    value_idents.push(quote! { #value_ident });
-
-                    if field_meta.skip || field_meta.serde.skip || field_meta.serde.skip_serializing {
-                        if !field_trivial {
-                            skipped_tys.push(quote! { #field_ty });
-                        }
-                        variant_fields.extend(quote! {
-                            ::morphix::helper::Pointer<#field_ty>,
-                        });
-                        observe_fields.extend(quote_spanned! { field_span =>
-                            ::morphix::helper::Pointer::new(#value_ident),
-                        });
-                        refresh_stmts.extend(quote_spanned! { field_span =>
-                            ::morphix::helper::Pointer::set(#ob_ident, #value_ident);
-                        });
-                        flush_idents.push(quote! { _ });
-                        continue;
-                    }
-
-                    flush_idents.push(quote! { #ob_ident });
-                    let field_segment = if field_count > 1 { Some(quote! { #index }) } else { None };
-                    let ob_field_ty: syn::Type = match &field_meta.general_impl {
-                        None => parse_quote_spanned! { field_span =>
-                            ::morphix::observe::DefaultObserver<#ob_lt, #field_ty>
-                        },
-                        Some(GeneralImpl { ob_ident, .. }) => parse_quote_spanned! { field_span =>
-                            ::morphix::builtin::#ob_ident<#ob_lt, #field_ty>
-                        },
-                    };
-                    variant_fields.extend(quote! {
-                        #ob_field_ty,
-                    });
-                    observe_fields.extend(quote_spanned! { field_span =>
-                        ::morphix::observe::Observer::observe(#value_ident),
-                    });
-                    refresh_stmts.extend(quote_spanned! { field_span =>
-                        ::morphix::observe::Observer::refresh(#ob_ident, #value_ident);
-                    });
-                    if !field_trivial {
-                        field_tys.push(quote! { #field_ty });
-                        ob_field_tys.push(quote! { #ob_field_ty });
-                    }
-                    
-                    let segment_count = field_segment.iter().len() + tag_segment.iter().len();
-                    let segments = tag_segment.iter().chain(&field_segment);
-                    let children = quote! {
-                        ::morphix::observe::SerializeObserver::flush::<A>(#ob_ident)?
-                    };
-                    flush_stmts.extend(match segment_count {
-                        0 => quote! { mutations.extend(#children); },
-                        1 => quote! { mutations.insert(#(#segments),*, #children); },
-                        2 => quote! { mutations.insert2(#(#segments),*, #children); },
-                        _ => unreachable!(),
-                    })
-                }
-
+            syn::Fields::Unnamed(_) => {
                 ob_variant_variants.extend(quote! {
                     #variant_ident(#variant_fields),
                 });
