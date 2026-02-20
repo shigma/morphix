@@ -80,6 +80,7 @@ pub fn derive_observe_for_struct(
             });
             continue;
         }
+
         if let Some(deref_ident) = field_meta.deref {
             let ob_field_ty = match &field_meta.general_impl {
                 None => quote_spanned! { field_span =>
@@ -126,6 +127,7 @@ pub fn derive_observe_for_struct(
         uninit_fields.extend(quote_spanned! { field_span =>
             #(#if_named #field_ident:)* ::morphix::observe::Observer::uninit(),
         });
+
         let mutable_ident;
         let default_segment;
         if let Some(ident) = &field.ident {
@@ -146,9 +148,21 @@ pub fn derive_observe_for_struct(
             mutable_ident = syn::Ident::new(&format!("mutations_{i}"), field_span);
             default_segment = quote! { #i };
         }
-        flush_fields.extend(quote_spanned! { field_span =>
-            let #mutable_ident = ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_member)?;
-        });
+
+        if cfg!(feature = "delete")
+            && let Some(path) = field_meta.serde.skip_serializing_if
+        {
+            flush_fields.extend(quote_spanned! { field_span =>
+                let mut #mutable_ident = ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_member)?;
+                if !#mutable_ident.is_empty() && #path(::morphix::observe::Observer::as_inner(&this.#field_member)) {
+                    #mutable_ident = ::morphix::MutationKind::Delete.into();
+                }
+            });
+        } else {
+            flush_fields.extend(quote_spanned! { field_span =>
+                let #mutable_ident = ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_member)?;
+            });
+        }
         mutation_batch_capacity.push(quote_spanned! { field_span =>
             #mutable_ident.len()
         });

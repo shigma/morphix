@@ -11,7 +11,8 @@ repository = "https://github.com/shigma/morphix"
 documentation = "https://docs.rs/morphix_derive"
 
 [features]
-default = []
+default = ["delete"]
+delete = []
 
 [lib]
 proc-macro = true

@@ -67,7 +67,7 @@ pub struct SerdeMeta {
     pub rename_all_fields: RenameRule,
     pub skip: bool,
     pub skip_serializing: bool,
-    pub skip_serializing_if: Option<String>,
+    pub skip_serializing_if: Option<syn::Path>,
 }
 
 #[derive(Default, Copy, Clone, PartialEq, Eq)]
@@ -306,7 +306,7 @@ impl ObserveMeta {
                     lit: syn::Lit::Str(lit_str),
                     ..
                 })),
-            ) => self.serde.skip_serializing_if = Some(lit_str.value()),
+            ) => self.serde.skip_serializing_if = Some(syn::parse_str(&lit_str.value()).unwrap()),
             _ => {}
         }
     }

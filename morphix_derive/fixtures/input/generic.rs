@@ -4,12 +4,14 @@ use serde::Serialize;
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-#[serde(bound = "T: Serialize")]
-pub struct Foo<'a, T, U, const N: usize> {
+#[serde(bound = "S: Serialize, U: Serialize")]
+pub struct Foo<'a, S, T, U, const N: usize> {
     #[serde(serialize_with = "serialize_mut_array")]
-    a: &'a mut [T; N],
+    a: &'a mut [S; N],
     #[serde(skip)]
-    pub b: U,
+    pub b: Option<T>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub c: Option<U>,
 }
 
 #[rustfmt::skip]
