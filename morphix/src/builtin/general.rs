@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::helper::{AsNormalized, Pointer, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations};
 
@@ -190,13 +190,13 @@ pub trait DebugHandler: GeneralHandler {
 /// - [`ShallowObserver`](super::ShallowObserver) - Tracks any [`DerefMut`] access as a change
 /// - [`NoopObserver`](super::NoopObserver) - Ignores all changes
 /// - [`SnapshotObserver`](super::SnapshotObserver) - Compares cloned snapshots to detect changes
-pub struct GeneralObserver<'ob, H, S: ?Sized, N = Zero> {
+pub struct GeneralObserver<'ob, H, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
     handler: H,
-    phantom: PhantomData<&'ob mut N>,
+    phantom: PhantomData<&'ob mut D>,
 }
 
-impl<'ob, H, S: ?Sized, N> Deref for GeneralObserver<'ob, H, S, N> {
+impl<'ob, H, S: ?Sized, D> Deref for GeneralObserver<'ob, H, S, D> {
     type Target = Pointer<S>;
 
     #[inline]
@@ -205,7 +205,7 @@ impl<'ob, H, S: ?Sized, N> Deref for GeneralObserver<'ob, H, S, N> {
     }
 }
 
-impl<'ob, H, S: ?Sized, N> DerefMut for GeneralObserver<'ob, H, S, N>
+impl<'ob, H, S: ?Sized, D> DerefMut for GeneralObserver<'ob, H, S, D>
 where
     H: GeneralHandler,
 {
@@ -216,17 +216,17 @@ where
     }
 }
 
-impl<'ob, H, S: ?Sized, N> AsNormalized for GeneralObserver<'ob, H, S, N> {
+impl<'ob, H, S: ?Sized, D> AsNormalized for GeneralObserver<'ob, H, S, D> {
     type OuterDepth = Succ<Zero>;
 }
 
-impl<'ob, H, S: ?Sized, N> Observer<'ob> for GeneralObserver<'ob, H, S, N>
+impl<'ob, H, S: ?Sized, D, T: ?Sized> Observer<'ob> for GeneralObserver<'ob, H, S, D>
 where
-    N: Unsigned,
-    S: crate::helper::AsDeref<N> + 'ob,
-    H: GeneralHandler<Target = S::Target>,
+    S: crate::helper::AsDeref<D, Target = T> + 'ob,
+    H: GeneralHandler<Target = T>,
+    D: Unsigned,
 {
-    type InnerDepth = N;
+    type InnerDepth = D;
     type Head = S;
 
     #[inline]
@@ -253,11 +253,11 @@ where
     }
 }
 
-impl<'ob, H, S: ?Sized, N> SerializeObserver<'ob> for GeneralObserver<'ob, H, S, N>
+impl<'ob, H, S: ?Sized, D, T: ?Sized> SerializeObserver<'ob> for GeneralObserver<'ob, H, S, D>
 where
-    N: Unsigned,
-    S: crate::helper::AsDeref<N> + 'ob,
-    H: SerializeHandler<Target = S::Target>,
+    S: crate::helper::AsDeref<D, Target = T> + 'ob,
+    H: SerializeHandler<Target = T>,
+    D: Unsigned,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         unsafe { this.handler.flush::<A>(this.ptr.as_deref()) }
@@ -267,10 +267,12 @@ where
 macro_rules! impl_fmt {
     ($($trait:ident),* $(,)?) => {
         $(
-            impl<'ob, H, S, N: Unsigned> std::fmt::$trait for GeneralObserver<'ob, H, S, N>
+            impl<'ob, H, S: ?Sized, D, T: ?Sized> std::fmt::$trait for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<N, Target: std::fmt::$trait> + ?Sized,
-                H: GeneralHandler<Target = S::Target>
+                S: crate::helper::AsDeref<D, Target = T>,
+                H: GeneralHandler<Target = T>,
+                D: Unsigned,
+                T: std::fmt::$trait,
             {
                 #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -292,10 +294,12 @@ impl_fmt! {
     UpperHex,
 }
 
-impl<'ob, H, S, N: Unsigned> Debug for GeneralObserver<'ob, H, S, N>
+impl<'ob, H, S: ?Sized, D, T: ?Sized> Debug for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<N, Target: Debug> + ?Sized,
-    H: DebugHandler<Target = S::Target>,
+    S: crate::helper::AsDeref<D, Target = T>,
+    H: DebugHandler<Target = T>,
+    D: Unsigned,
+    T: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -303,10 +307,12 @@ where
     }
 }
 
-impl<'ob, H, S, N: Unsigned, I> std::ops::Index<I> for GeneralObserver<'ob, H, S, N>
+impl<'ob, H, S: ?Sized, D, T: ?Sized, I> std::ops::Index<I> for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<N, Target: std::ops::Index<I>> + ?Sized,
-    H: GeneralHandler<Target = S::Target>,
+    S: crate::helper::AsDeref<D, Target = T>,
+    H: GeneralHandler<Target = T>,
+    D: Unsigned,
+    T: std::ops::Index<I> + 'ob,
 {
     type Output = <S::Target as std::ops::Index<I>>::Output;
 
@@ -316,10 +322,12 @@ where
     }
 }
 
-impl<'ob, H, S, N: Unsigned, I> std::ops::IndexMut<I> for GeneralObserver<'ob, H, S, N>
+impl<'ob, H, S: ?Sized, D, T: ?Sized, I> std::ops::IndexMut<I> for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDerefMut<N, Target: std::ops::IndexMut<I>> + ?Sized,
-    H: GeneralHandler<Target = S::Target>,
+    S: AsDerefMut<D, Target = T>,
+    H: GeneralHandler<Target = T>,
+    D: Unsigned,
+    T: std::ops::IndexMut<I> + 'ob,
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
@@ -327,35 +335,71 @@ where
     }
 }
 
-impl<'ob, H, S, N: Unsigned, U: ?Sized> PartialEq<U> for GeneralObserver<'ob, H, S, N>
+impl<'ob, H1, H2, S1: ?Sized, S2: ?Sized, D1, D2, T1: ?Sized, T2: ?Sized> PartialEq<GeneralObserver<'ob, H2, S2, D2>>
+    for GeneralObserver<'ob, H1, S1, D1>
 where
-    S: crate::helper::AsDeref<N, Target: PartialEq<U>> + ?Sized,
-    H: GeneralHandler<Target = S::Target>,
+    S1: crate::helper::AsDeref<D1, Target = T1>,
+    S2: crate::helper::AsDeref<D2, Target = T2>,
+    H1: GeneralHandler<Target = T1>,
+    H2: GeneralHandler<Target = T2>,
+    D1: Unsigned,
+    D2: Unsigned,
+    T1: PartialEq<T2>,
 {
     #[inline]
-    fn eq(&self, other: &U) -> bool {
-        self.as_deref().eq(other)
+    fn eq(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> bool {
+        self.as_deref().eq(other.as_deref())
     }
 }
 
-impl<'ob, H, S, N: Unsigned, U: ?Sized> PartialOrd<U> for GeneralObserver<'ob, H, S, N>
+impl<'ob, H, S: ?Sized, D, T: ?Sized> Eq for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<N, Target: PartialOrd<U>> + ?Sized,
-    H: GeneralHandler<Target = S::Target>,
+    S: crate::helper::AsDeref<D, Target = T>,
+    H: GeneralHandler<Target = T>,
+    D: Unsigned,
+    T: Eq,
+{
+}
+
+impl<'ob, H1, H2, S1: ?Sized, S2: ?Sized, D1, D2, T1: ?Sized, T2: ?Sized> PartialOrd<GeneralObserver<'ob, H2, S2, D2>>
+    for GeneralObserver<'ob, H1, S1, D1>
+where
+    S1: crate::helper::AsDeref<D1, Target = T1>,
+    S2: crate::helper::AsDeref<D2, Target = T2>,
+    H1: GeneralHandler<Target = T1>,
+    H2: GeneralHandler<Target = T2>,
+    D1: Unsigned,
+    D2: Unsigned,
+    T1: PartialOrd<T2>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other)
+    fn partial_cmp(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> Option<std::cmp::Ordering> {
+        self.as_deref().partial_cmp(other.as_deref())
+    }
+}
+
+impl<'ob, H, S: ?Sized, D, T: ?Sized> Ord for GeneralObserver<'ob, H, S, D>
+where
+    S: crate::helper::AsDeref<D, Target = T>,
+    H: GeneralHandler<Target = T>,
+    D: Unsigned,
+    T: Ord,
+{
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_deref().cmp(other.as_deref())
     }
 }
 
 macro_rules! impl_assign_ops {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
-            impl<'ob, H, S, N: Unsigned, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, N>
+            impl<'ob, H, S: ?Sized, D, T: ?Sized, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDerefMut<N, Target: std::ops::$trait<U>> + ?Sized,
-                H: GeneralHandler<Target = S::Target>,
+                S: AsDerefMut<D, Target = T>,
+                H: GeneralHandler<Target = T>,
+                D: Unsigned,
+                T: std::ops::$trait<U>,
             {
                 #[inline]
                 fn $method(&mut self, rhs: U) {
@@ -382,10 +426,12 @@ impl_assign_ops! {
 macro_rules! impl_ops_copy {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
-            impl<'ob, H, S, N: Unsigned, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, N>
+            impl<'ob, H, S: ?Sized, D, T, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<N, Target: std::ops::$trait<U> + Copy> + ?Sized,
-                H: GeneralHandler<Target = S::Target>,
+                S: crate::helper::AsDeref<D, Target = T>,
+                H: GeneralHandler<Target = T>,
+                D: Unsigned,
+                T: std::ops::$trait<U> + Copy,
             {
                 type Output = <S::Target as std::ops::$trait<U>>::Output;
 
@@ -411,10 +457,12 @@ impl_ops_copy! {
     Shr => shr,
 }
 
-impl<'ob, H, S, N: Unsigned> std::ops::Neg for GeneralObserver<'ob, H, S, N>
+impl<'ob, H, S: ?Sized, D, T> std::ops::Neg for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<N, Target: std::ops::Neg + Copy> + ?Sized,
-    H: GeneralHandler<Target = S::Target>,
+    S: crate::helper::AsDeref<D, Target = T>,
+    H: GeneralHandler<Target = T>,
+    D: Unsigned,
+    T: std::ops::Neg + Copy,
 {
     type Output = <S::Target as std::ops::Neg>::Output;
 
@@ -424,10 +472,12 @@ where
     }
 }
 
-impl<'ob, H, S, N: Unsigned> std::ops::Not for GeneralObserver<'ob, H, S, N>
+impl<'ob, H, S: ?Sized, D, T> std::ops::Not for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<N, Target: std::ops::Not + Copy> + ?Sized,
-    H: GeneralHandler<Target = S::Target>,
+    S: crate::helper::AsDeref<D, Target = T>,
+    H: GeneralHandler<Target = T>,
+    D: Unsigned,
+    T: std::ops::Not + Copy,
 {
     type Output = <S::Target as std::ops::Not>::Output;
 

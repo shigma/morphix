@@ -133,9 +133,8 @@ impl<T: Snapshot + ?Sized> DebugHandler for SnapshotHandler<T> {
 pub struct SnapshotSpec;
 
 macro_rules! impl_snapshot_observe {
-    ($($(#[$($meta:tt)*])* $ty:ty),* $(,)?) => {
+    ($($ty:ty),* $(,)?) => {
         $(
-            $(#[$($meta)*])*
             impl Snapshot for $ty {
                 type Snapshot = Self;
                 #[inline]
@@ -148,7 +147,6 @@ macro_rules! impl_snapshot_observe {
                 }
             }
 
-            $(#[$($meta)*])*
             impl Observe for $ty {
                 type Observer<'ob, S, D>
                     = SnapshotObserver<'ob, S, D>
@@ -160,7 +158,6 @@ macro_rules! impl_snapshot_observe {
                 type Spec = SnapshotSpec;
             }
 
-            $(#[$($meta)*])*
             impl RefObserve for $ty {
                 type Observer<'ob, S, D>
                     = SnapshotObserver<'ob, S, D>
@@ -171,11 +168,48 @@ macro_rules! impl_snapshot_observe {
 
                 type Spec = SnapshotSpec;
             }
+
+            impl<'ob, H, S: ?Sized, D> PartialEq<$ty> for GeneralObserver<'ob, H, S, D>
+            where
+                S: AsDeref<D, Target = $ty>,
+                H: GeneralHandler<Target = $ty>,
+                D: Unsigned,
+            {
+                #[inline]
+                fn eq(&self, other: &$ty) -> bool {
+                    (***self).as_deref().eq(other)
+                }
+            }
+        )*
+    };
+}
+
+macro_rules! impl_partial_ord {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl<'ob, H, S: ?Sized, D> PartialOrd<$ty> for GeneralObserver<'ob, H, S, D>
+            where
+                S: AsDeref<D, Target = $ty>,
+                H: GeneralHandler<Target = $ty>,
+                D: Unsigned,
+            {
+                #[inline]
+                fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
+                    (***self).as_deref().partial_cmp(other)
+                }
+            }
         )*
     };
 }
 
 impl_snapshot_observe! {
+    (), usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
+    core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
+    core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
+    core::time::Duration, std::time::SystemTime,
+}
+
+impl_partial_ord! {
     (), usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
     core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
     core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
@@ -189,16 +223,27 @@ impl_snapshot_observe! {
     chrono::TimeDelta, chrono::Utc, chrono::Weekday, chrono::WeekdaySet,
 }
 
+#[cfg(feature = "chrono")]
+impl_partial_ord! {
+    chrono::Days, chrono::Month, chrono::Months, chrono::IsoWeek,
+    chrono::NaiveDate, chrono::NaiveDateTime, chrono::NaiveTime,
+    chrono::TimeDelta, chrono::WeekdaySet,
+}
+
 #[cfg(feature = "uuid")]
 impl_snapshot_observe! {
     uuid::Uuid, uuid::NonNilUuid,
 }
 
+#[cfg(feature = "uuid")]
+impl_partial_ord! {
+    uuid::Uuid, uuid::NonNilUuid,
+}
+
 macro_rules! generic_impl_snapshot_observe {
-    ($($(#[$($meta:tt)*])* impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
+    ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
         $(
-            $(#[$($meta)*])*
-            impl <$($($gen)*)?> Snapshot for $ty {
+            impl<$($($gen)*)?> Snapshot for $ty {
                 type Snapshot = Self;
                 #[inline]
                 fn to_snapshot(&self) -> Self {
@@ -210,8 +255,7 @@ macro_rules! generic_impl_snapshot_observe {
                 }
             }
 
-            $(#[$($meta)*])*
-            impl <$($($gen)*)?> Observe for $ty {
+            impl<$($($gen)*)?> Observe for $ty {
                 type Observer<'ob, S, D>
                     = SnapshotObserver<'ob, S, D>
                 where
@@ -222,8 +266,7 @@ macro_rules! generic_impl_snapshot_observe {
                 type Spec = SnapshotSpec;
             }
 
-            $(#[$($meta)*])*
-            impl <$($($gen)*)?> RefObserve for $ty {
+            impl<$($($gen)*)?> RefObserve for $ty {
                 type Observer<'ob, S, D>
                     = SnapshotObserver<'ob, S, D>
                 where
@@ -232,6 +275,30 @@ macro_rules! generic_impl_snapshot_observe {
                     S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
                 type Spec = SnapshotSpec;
+            }
+
+            impl<'ob, $($($gen)*)?, H, S: ?Sized, D> PartialEq<$ty> for GeneralObserver<'ob, H, S, D>
+            where
+                S: AsDeref<D, Target = $ty>,
+                H: GeneralHandler<Target = $ty>,
+                D: Unsigned,
+            {
+                #[inline]
+                fn eq(&self, other: &$ty) -> bool {
+                    (***self).as_deref().eq(other)
+                }
+            }
+
+            impl<'ob, $($($gen)*)?, H, S: ?Sized, D> PartialOrd<$ty> for GeneralObserver<'ob, H, S, D>
+            where
+                S: AsDeref<D, Target = $ty>,
+                H: GeneralHandler<Target = $ty>,
+                D: Unsigned,
+            {
+                #[inline]
+                fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
+                    (***self).as_deref().partial_cmp(other)
+                }
             }
         )*
     };
