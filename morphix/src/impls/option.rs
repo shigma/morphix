@@ -187,25 +187,77 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D, U: ?Sized> PartialEq<U> for OptionObserver<'ob, O, S, D>
+impl<'ob, O, S: ?Sized, D, U> PartialEq<Option<U>> for OptionObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target: PartialEq<U>>,
+    S: AsDerefMut<D>,
+    S::Target: PartialEq<Option<U>>,
 {
     #[inline]
-    fn eq(&self, other: &U) -> bool {
+    fn eq(&self, other: &Option<U>) -> bool {
         self.as_deref().eq(other)
     }
 }
 
-impl<'ob, O, S: ?Sized, D, U: ?Sized> PartialOrd<U> for OptionObserver<'ob, O, S, D>
+impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<OptionObserver<'ob, O2, S2, D2>>
+    for OptionObserver<'ob, O1, S1, D1>
 where
-    D: Unsigned,
-    S: AsDerefMut<D, Target: PartialOrd<U>>,
+    D1: Unsigned,
+    D2: Unsigned,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
+    fn eq(&self, other: &OptionObserver<'ob, O2, S2, D2>) -> bool {
+        self.as_deref().eq(other.as_deref())
+    }
+}
+
+impl<'ob, O, S: ?Sized, D> Eq for OptionObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D>,
+    S::Target: Eq,
+{
+}
+
+impl<'ob, O, S: ?Sized, D, U> PartialOrd<Option<U>> for OptionObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D>,
+    S::Target: PartialOrd<Option<U>>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Option<U>) -> Option<std::cmp::Ordering> {
         self.as_deref().partial_cmp(other)
+    }
+}
+
+impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<OptionObserver<'ob, O2, S2, D2>>
+    for OptionObserver<'ob, O1, S1, D1>
+where
+    D1: Unsigned,
+    D2: Unsigned,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: PartialOrd<S2::Target>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &OptionObserver<'ob, O2, S2, D2>) -> Option<std::cmp::Ordering> {
+        self.as_deref().partial_cmp(other.as_deref())
+    }
+}
+
+impl<'ob, O, S: ?Sized, D> Ord for OptionObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D>,
+    S::Target: Ord,
+{
+    #[inline]
+    fn cmp(&self, other: &OptionObserver<'ob, O, S, D>) -> std::cmp::Ordering {
+        self.as_deref().cmp(other.as_deref())
     }
 }
 
@@ -232,48 +284,21 @@ impl<T: Snapshot> Snapshot for Option<T> {
 
 #[cfg(test)]
 mod tests {
-    use serde::Serialize;
     use serde_json::json;
 
     use super::*;
     use crate::adapter::Json;
-    use crate::builtin::{GeneralObserver, PointerObserver, ShallowObserver};
-    use crate::helper::AsDeref;
-    use crate::observe::{DefaultSpec, ObserveExt, RefObserve, SerializeObserverExt};
-
-    #[derive(Debug, Serialize, Default, PartialEq, Eq)]
-    struct Number(i32);
-
-    impl Observe for Number {
-        type Observer<'ob, S, D>
-            = ShallowObserver<'ob, S, D>
-        where
-            Self: 'ob,
-            D: Unsigned,
-            S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
-
-        type Spec = DefaultSpec;
-    }
-
-    impl RefObserve for Number {
-        type Observer<'ob, S, D>
-            = PointerObserver<'ob, S, D>
-        where
-            Self: 'ob,
-            D: Unsigned,
-            S: AsDeref<D, Target = Self> + ?Sized + 'ob;
-
-        type Spec = DefaultSpec;
-    }
+    use crate::builtin::GeneralObserver;
+    use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
     fn no_change_returns_none() {
-        let mut opt: Option<Number> = None;
+        let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
 
-        let mut opt = Some(Number(1));
+        let mut opt: Option<i32> = Some(1);
         let mut ob = opt.__observe();
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
@@ -281,31 +306,31 @@ mod tests {
 
     #[test]
     fn deref_triggers_replace() {
-        let mut opt = Some(Number(42));
+        let mut opt: Option<i32> = Some(42);
         let mut ob = opt.__observe();
         **ob = None;
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(null)));
 
-        let mut opt: Option<Number> = None;
+        let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
-        **ob = Some(Number(42));
+        **ob = Some(42);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(42)));
 
-        let mut opt: Option<Number> = None;
+        let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
-        **ob = Some(Number(42));
+        **ob = Some(42);
         **ob = None;
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
 
-        let mut opt = Some(Number(42));
+        let mut opt: Option<&str> = Some("42");
         let mut ob = opt.__observe();
         **ob = None;
-        **ob = Some(Number(42));
+        **ob = Some("42");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(42)));
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("42")));
     }
 
     #[test]
@@ -331,36 +356,36 @@ mod tests {
     #[test]
     fn get_or_insert() {
         // get_or_insert
-        let mut opt: Option<Number> = None;
+        let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
-        ob.get_or_insert(Number(5)).0 = 6;
+        *ob.get_or_insert(5) = 6;
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(6)));
 
         // get_or_insert_default
-        let mut opt: Option<Number> = None;
+        let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
-        ob.get_or_insert_default().0 = 77;
+        *ob.get_or_insert_default() = 77;
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(77)));
 
         // get_or_insert_with
-        let mut opt: Option<Number> = None;
+        let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
-        ob.get_or_insert_with(|| Number(88)).0 = 99;
+        *ob.get_or_insert_with(|| 88) = 99;
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(99)));
     }
 
     #[test]
     fn specialization() {
-        let mut opt = Some(0i32);
+        let mut opt: Option<i32> = Some(0i32);
         let ob: GeneralObserver<_, _, _> = opt.__observe();
         assert_eq!(format!("{ob:?}"), r#"SnapshotObserver(Some(0))"#);
 
-        let mut opt = Some(Number(0));
+        let mut opt: Option<&str> = Some("");
         let ob: OptionObserver<_, _, _> = opt.__observe();
-        assert_eq!(format!("{ob:?}"), r#"OptionObserver(Some(Number(0)))"#);
+        assert_eq!(format!("{ob:?}"), r#"OptionObserver(Some(""))"#);
     }
 
     #[test]
@@ -369,18 +394,18 @@ mod tests {
         let ob = opt.__observe();
         assert_eq!(format!("{ob:?}"), r#"DerefObserver(SnapshotObserver(Some(0)))"#);
 
-        let mut opt = &Some(Number(0));
+        let mut opt = &Some("");
         let ob = opt.__observe();
-        assert_eq!(format!("{ob:?}"), r#"DerefObserver(PointerObserver(Some(Number(0))))"#);
+        assert_eq!(format!("{ob:?}"), r#"DerefObserver(PointerObserver(Some("")))"#);
     }
 
     #[test]
     fn refresh() {
-        let mut vec = vec![None::<Number>];
+        let mut vec = vec![None::<i32>];
         let mut ob = vec.__observe();
-        **ob[0] = Some(Number(1));
+        **ob[0] = Some(1);
         ob.reserve(10); // force reallocation
-        assert_eq!(**ob[0], Some(Number(1)));
+        assert_eq!(**ob[0], Some(1));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(1)));
     }

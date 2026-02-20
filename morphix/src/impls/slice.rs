@@ -544,33 +544,135 @@ where
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D, O, T, U> PartialEq<U> for SliceObserver<'ob, V, M, S, D>
+// impl<T, U> PartialEq<[U]> for [T] where T: PartialEq<U>
+impl<'ob, V, M, S: ?Sized, D, O, T, U> PartialEq<[U]> for SliceObserver<'ob, V, M, S, D>
 where
     V: ObserverSlice<'ob, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T]: PartialEq<U>,
+    [T]: PartialEq<[U]>,
 {
     #[inline]
-    fn eq(&self, other: &U) -> bool {
+    fn eq(&self, other: &[U]) -> bool {
         self.as_deref().as_ref().eq(other)
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D, O, T, U> PartialOrd<U> for SliceObserver<'ob, V, M, S, D>
+// impl<T, U> PartialEq<Vec<U>> for [T] where T: PartialEq<U>
+impl<'ob, V, M, S: ?Sized, D, O, T, U> PartialEq<Vec<U>> for SliceObserver<'ob, V, M, S, D>
 where
     V: ObserverSlice<'ob, Item = O>,
     D: Unsigned,
     S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T]: PartialOrd<U>,
+    [T]: PartialEq<Vec<U>>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
+    fn eq(&self, other: &Vec<U>) -> bool {
+        self.as_deref().as_ref().eq(other)
+    }
+}
+
+// impl<T, U, const N: usize> PartialEq<[U; N]> for [T; N] where T: PartialEq<U>
+impl<'ob, V, M, S: ?Sized, D, O, T, U, const N: usize> PartialEq<[U; N]> for SliceObserver<'ob, V, M, S, D>
+where
+    V: ObserverSlice<'ob, Item = O>,
+    D: Unsigned,
+    S: AsDerefMut<D>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    [T]: PartialEq<[U; N]>,
+{
+    #[inline]
+    fn eq(&self, other: &[U; N]) -> bool {
+        self.as_deref().as_ref().eq(other)
+    }
+}
+
+// impl<T> PartialOrd for [T] where T: PartialOrd
+impl<'ob, V, M, S: ?Sized, D, O, T, U> PartialOrd<[U]> for SliceObserver<'ob, V, M, S, D>
+where
+    V: ObserverSlice<'ob, Item = O>,
+    D: Unsigned,
+    S: AsDerefMut<D>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    [T]: PartialOrd<[U]>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &[U]) -> Option<std::cmp::Ordering> {
         self.as_deref().as_ref().partial_cmp(other)
+    }
+}
+
+impl<'ob, V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2, O1, O2, T1, T2> PartialEq<SliceObserver<'ob, V2, M2, S2, D2>>
+    for SliceObserver<'ob, V1, M1, S1, D1>
+where
+    V1: ObserverSlice<'ob, Item = O1>,
+    V2: ObserverSlice<'ob, Item = O2>,
+    D1: Unsigned,
+    D2: Unsigned,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: AsRef<[T1]> + AsMut<[T1]>,
+    S2::Target: AsRef<[T2]> + AsMut<[T2]>,
+    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
+    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
+    [T1]: PartialEq<[T2]>,
+{
+    #[inline]
+    fn eq(&self, other: &SliceObserver<'ob, V2, M2, S2, D2>) -> bool {
+        self.as_deref().as_ref().eq(other.as_deref().as_ref())
+    }
+}
+
+impl<'ob, V, M, S: ?Sized, D, O, T> Eq for SliceObserver<'ob, V, M, S, D>
+where
+    V: ObserverSlice<'ob, Item = O>,
+    D: Unsigned,
+    S: AsDerefMut<D>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    [T]: Eq,
+{
+}
+
+impl<'ob, V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2, O1, O2, T1, T2> PartialOrd<SliceObserver<'ob, V2, M2, S2, D2>>
+    for SliceObserver<'ob, V1, M1, S1, D1>
+where
+    V1: ObserverSlice<'ob, Item = O1>,
+    V2: ObserverSlice<'ob, Item = O2>,
+    D1: Unsigned,
+    D2: Unsigned,
+    S1: AsDerefMut<D1>,
+    S2: AsDerefMut<D2>,
+    S1::Target: AsRef<[T1]> + AsMut<[T1]>,
+    S2::Target: AsRef<[T2]> + AsMut<[T2]>,
+    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
+    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
+    [T1]: PartialOrd<[T2]>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &SliceObserver<'ob, V2, M2, S2, D2>) -> Option<std::cmp::Ordering> {
+        self.as_deref().as_ref().partial_cmp(other.as_deref().as_ref())
+    }
+}
+
+impl<'ob, V, M, S: ?Sized, D, O, T> Ord for SliceObserver<'ob, V, M, S, D>
+where
+    V: ObserverSlice<'ob, Item = O>,
+    D: Unsigned,
+    S: AsDerefMut<D>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    [T]: Ord,
+{
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_deref().as_ref().cmp(other.as_deref().as_ref())
     }
 }
 
@@ -623,73 +725,57 @@ impl<T: Observe> Observe for [T] {
 
 #[cfg(test)]
 mod tests {
-    use serde::Serialize;
     use serde_json::json;
 
     use super::*;
     use crate::Mutation;
     use crate::adapter::Json;
-    use crate::builtin::ShallowObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
-
-    #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
-    struct Number(i32);
-
-    impl Observe for Number {
-        type Observer<'ob, S, D>
-            = ShallowObserver<'ob, S, D>
-        where
-            Self: 'ob,
-            D: Unsigned,
-            S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
-
-        type Spec = DefaultSpec;
-    }
 
     #[test]
     fn index_by_usize() {
-        let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
+        let slice: &mut [u32] = &mut [0, 1, 2];
         let mut ob = slice.__observe();
-        assert_eq!(ob[2], Number(2));
+        assert_eq!(ob[2], 2);
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
-        **ob[2] = Number(42);
-        assert_eq!(ob[2], Number(42));
+        **ob[2] = 42;
+        assert_eq!(ob[2], 42);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
             Some(Mutation {
                 path: vec![PathSegment::Negative(1)].into(),
-                kind: MutationKind::Replace(json!(Number(42)))
+                kind: MutationKind::Replace(json!(42))
             })
         );
     }
 
     #[test]
     fn get_mut() {
-        let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
+        let slice: &mut [u32] = &mut [0, 1, 2];
         let mut ob = slice.__observe();
-        assert_eq!(*ob.get_mut(2).unwrap(), Number(2));
+        assert_eq!(*ob.get_mut(2).unwrap(), 2);
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
-        ***ob.get_mut(2).unwrap() = Number(42);
-        assert_eq!(*ob.get_mut(2).unwrap(), Number(42));
+        ***ob.get_mut(2).unwrap() = 42;
+        assert_eq!(*ob.get_mut(2).unwrap(), 42);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
             Some(Mutation {
                 path: vec![PathSegment::Negative(1)].into(),
-                kind: MutationKind::Replace(json!(Number(42)))
+                kind: MutationKind::Replace(json!(42))
             })
         );
     }
 
     #[test]
     fn swap() {
-        let slice: &mut [Number] = &mut [Number(0), Number(1), Number(2)];
+        let slice: &mut [u32] = &mut [0, 1, 2];
         let mut ob = slice.__observe();
         ob.swap(0, 1);
-        assert_eq!(**ob, [Number(1), Number(0), Number(2)]);
+        assert_eq!(**ob, [1, 0, 2]);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
@@ -698,11 +784,11 @@ mod tests {
                 kind: MutationKind::Batch(vec![
                     Mutation {
                         path: vec![PathSegment::Negative(3)].into(),
-                        kind: MutationKind::Replace(json!(Number(1))),
+                        kind: MutationKind::Replace(json!(1)),
                     },
                     Mutation {
                         path: vec![PathSegment::Negative(2)].into(),
-                        kind: MutationKind::Replace(json!(Number(0))),
+                        kind: MutationKind::Replace(json!(0)),
                     }
                 ]),
             })

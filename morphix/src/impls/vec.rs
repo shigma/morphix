@@ -419,29 +419,129 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D, T, U> PartialEq<U> for VecObserver<'ob, O, S, D>
+// impl<T, U> PartialEq<Vec<U>> for Vec<T> where T: PartialEq<U>
+impl<'ob, O, S: ?Sized, D, T, U> PartialEq<Vec<U>> for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    Vec<T>: PartialEq<U>,
+    Vec<T>: PartialEq<Vec<U>>,
 {
     #[inline]
-    fn eq(&self, other: &U) -> bool {
+    fn eq(&self, other: &Vec<U>) -> bool {
         self.as_deref().eq(other)
     }
 }
 
-impl<'ob, O, S: ?Sized, D, T, U> PartialOrd<U> for VecObserver<'ob, O, S, D>
+// impl<T, U> PartialEq<[U]> for Vec<T> where T: PartialEq<U>
+impl<'ob, O, S: ?Sized, D, T, U> PartialEq<[U]> for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    Vec<T>: PartialOrd<U>,
+    Vec<T>: PartialEq<[U]>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
+    fn eq(&self, other: &[U]) -> bool {
+        self.as_deref().eq(other)
+    }
+}
+
+// impl<T, U> PartialEq<&[U]> for Vec<T> where T: PartialEq<U>
+impl<'ob, 'a, O, S: ?Sized, D, T, U> PartialEq<&'a U> for VecObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    Vec<T>: PartialEq<&'a U>,
+{
+    #[inline]
+    fn eq(&self, other: &&'a U) -> bool {
+        self.as_deref().eq(other)
+    }
+}
+
+// impl<T, U> PartialEq<&mut [U]> for Vec<T> where T: PartialEq<U>
+impl<'ob, 'a, O, S: ?Sized, D, T, U> PartialEq<&'a mut U> for VecObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    Vec<T>: PartialEq<&'a mut U>,
+{
+    #[inline]
+    fn eq(&self, other: &&'a mut U) -> bool {
+        self.as_deref().eq(other)
+    }
+}
+
+impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, T1, T2> PartialEq<VecObserver<'ob, O2, S2, D2>>
+    for VecObserver<'ob, O1, S1, D1>
+where
+    D1: Unsigned,
+    D2: Unsigned,
+    S1: AsDerefMut<D1, Target = Vec<T1>>,
+    S2: AsDerefMut<D2, Target = Vec<T2>>,
+    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
+    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
+    Vec<T1>: PartialEq<Vec<T2>>,
+{
+    #[inline]
+    fn eq(&self, other: &VecObserver<'ob, O2, S2, D2>) -> bool {
+        self.as_deref().eq(other.as_deref())
+    }
+}
+
+impl<'ob, O, S: ?Sized, D, T> Eq for VecObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    T: Eq,
+{
+}
+
+// impl<T, U> PartialOrd for Vec<T> where T: PartialOrd
+impl<'ob, O, S: ?Sized, D, T, U> PartialOrd<Vec<U>> for VecObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    Vec<T>: PartialOrd<Vec<U>>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &Vec<U>) -> Option<std::cmp::Ordering> {
         self.as_deref().partial_cmp(other)
+    }
+}
+
+impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, T1, T2> PartialOrd<VecObserver<'ob, O2, S2, D2>>
+    for VecObserver<'ob, O1, S1, D1>
+where
+    D1: Unsigned,
+    D2: Unsigned,
+    S1: AsDerefMut<D1, Target = Vec<T1>>,
+    S2: AsDerefMut<D2, Target = Vec<T2>>,
+    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
+    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
+    Vec<T1>: PartialOrd<Vec<T2>>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &VecObserver<'ob, O2, S2, D2>) -> Option<std::cmp::Ordering> {
+        self.as_deref().partial_cmp(other.as_deref())
+    }
+}
+
+impl<'ob, O, S: ?Sized, D, T> Ord for VecObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    T: Ord,
+{
+    #[inline]
+    fn cmp(&self, other: &VecObserver<'ob, O, S, D>) -> std::cmp::Ordering {
+        self.as_deref().cmp(other.as_deref())
     }
 }
 
@@ -506,32 +606,15 @@ impl<T: Snapshot> Snapshot for Vec<T> {
 
 #[cfg(test)]
 mod tests {
-    use serde::Serialize;
     use serde_json::json;
 
-    use super::*;
     use crate::adapter::Json;
-    use crate::builtin::ShallowObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
     use crate::{Mutation, MutationKind, PathSegment};
 
-    #[derive(Debug, Serialize, Clone, PartialEq, Eq)]
-    struct Number(i32);
-
-    impl Observe for Number {
-        type Observer<'ob, S, D>
-            = ShallowObserver<'ob, S, D>
-        where
-            Self: 'ob,
-            D: Unsigned,
-            S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
-
-        type Spec = DefaultSpec;
-    }
-
     #[test]
     fn no_change_returns_none() {
-        let mut vec: Vec<Number> = vec![];
+        let mut vec: Vec<i32> = vec![];
         let mut ob = vec.__observe();
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
@@ -539,7 +622,7 @@ mod tests {
 
     #[test]
     fn deref_mut_triggers_replace() {
-        let mut vec: Vec<Number> = vec![Number(1)];
+        let mut vec: Vec<i32> = vec![1];
         let mut ob = vec.__observe();
         ob.clear();
         let Json(mutation) = ob.flush().unwrap();
@@ -548,19 +631,19 @@ mod tests {
 
     #[test]
     fn push_triggers_append() {
-        let mut vec: Vec<Number> = vec![Number(1)];
+        let mut vec: Vec<i32> = vec![1];
         let mut ob = vec.__observe();
-        ob.push(Number(2));
-        ob.push(Number(3));
+        ob.push(2);
+        ob.push(3);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!([2, 3])));
     }
 
     #[test]
     fn append_vec() {
-        let mut vec: Vec<Number> = vec![Number(1)];
+        let mut vec: Vec<i32> = vec![1];
         let mut ob = vec.__observe();
-        let mut extra = vec![Number(4), Number(5)];
+        let mut extra = vec![4, 5];
         ob.append(&mut extra);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!([4, 5])));
@@ -568,22 +651,22 @@ mod tests {
 
     #[test]
     fn extend_from_slice() {
-        let mut vec: Vec<Number> = vec![Number(1)];
+        let mut vec: Vec<i32> = vec![1];
         let mut ob = vec.__observe();
-        ob.extend_from_slice(&[Number(6), Number(7)]);
+        ob.extend_from_slice(&[6, 7]);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!([6, 7])));
     }
 
     #[test]
     fn index_by_usize() {
-        let mut vec: Vec<Number> = vec![Number(1), Number(2)];
+        let mut vec: Vec<i32> = vec![1, 2];
         let mut ob = vec.__observe();
-        assert_eq!(ob[0].0, 1);
+        assert_eq!(ob[0], 1);
         ob.reserve(4); // force reallocation
-        ob[0].0 = 99;
+        **ob[0] = 99;
         ob.reserve(64); // force reallocation
-        assert_eq!(ob[0].0, 99);
+        assert_eq!(ob[0], 99);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
@@ -596,11 +679,11 @@ mod tests {
 
     #[test]
     fn append_and_index() {
-        let mut vec: Vec<Number> = vec![Number(1)];
+        let mut vec: Vec<i32> = vec![1];
         let mut ob = vec.__observe();
-        ob[0].0 = 11;
-        ob.push(Number(2));
-        ob[1].0 = 12;
+        **ob[0] = 11;
+        ob.push(2);
+        **ob[1] = 12;
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
@@ -622,15 +705,15 @@ mod tests {
 
     #[test]
     fn index_by_range() {
-        let mut vec: Vec<Number> = vec![Number(1), Number(2), Number(3), Number(4)];
+        let mut vec: Vec<i32> = vec![1, 2, 3, 4];
         let mut ob = vec.__observe();
         {
             let slice = &mut ob[1..];
-            slice[0].0 = 222;
-            slice[1].0 = 333;
+            **slice[0] = 222;
+            **slice[1] = 333;
         }
-        assert_eq!(ob, vec![Number(1), Number(222), Number(333), Number(4)]);
-        assert_eq!(ob[..], vec![Number(1), Number(222), Number(333), Number(4)]);
+        assert_eq!(ob, vec![1, 222, 333, 4]);
+        assert_eq!(&ob[..], &[1, 222, 333, 4]);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,

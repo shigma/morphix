@@ -154,29 +154,129 @@ where
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T, U> PartialEq<U> for ArrayObserver<'ob, N, O, S, D>
+// impl<T, U, const N: usize> PartialEq<[U; N]> for [T; N] where T: PartialEq<U>
+impl<'ob, const N: usize, O, S: ?Sized, D, T, U> PartialEq<[U; N]> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]>,
     O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T; N]: PartialEq<U>,
+    [T; N]: PartialEq<[U; N]>,
 {
     #[inline]
-    fn eq(&self, other: &U) -> bool {
+    fn eq(&self, other: &[U; N]) -> bool {
         self.as_deref().eq(other)
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T, U> PartialOrd<U> for ArrayObserver<'ob, N, O, S, D>
+// impl<T, U, const N: usize> PartialEq<[U]> for [T; N] where T: PartialEq<U>
+impl<'ob, const N: usize, O, S: ?Sized, D, T, U> PartialEq<[U]> for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]>,
     O: Observer<'ob, InnerDepth = Zero, Head = T>,
-    [T; N]: PartialOrd<U>,
+    [T; N]: PartialEq<[U]>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &U) -> Option<std::cmp::Ordering> {
+    fn eq(&self, other: &[U]) -> bool {
+        self.as_deref().eq(other)
+    }
+}
+
+// impl<T, U, const N: usize> PartialEq<&[U]> for [T; N] where T: PartialEq<U>
+impl<'ob, 'a, const N: usize, O, S: ?Sized, D, T, U> PartialEq<&'a U> for ArrayObserver<'ob, N, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    [T; N]: PartialEq<&'a U>,
+{
+    #[inline]
+    fn eq(&self, other: &&'a U) -> bool {
+        self.as_deref().eq(other)
+    }
+}
+
+// impl<T, U, const N: usize> PartialEq<&mut [U]> for [T; N] where T: PartialEq<U>
+impl<'ob, 'a, const N: usize, O, S: ?Sized, D, T, U> PartialEq<&'a mut U> for ArrayObserver<'ob, N, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    [T; N]: PartialEq<&'a mut U>,
+{
+    #[inline]
+    fn eq(&self, other: &&'a mut U) -> bool {
+        self.as_deref().eq(other)
+    }
+}
+
+impl<'ob, const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, T1, T2> PartialEq<ArrayObserver<'ob, N, O2, S2, D2>>
+    for ArrayObserver<'ob, N, O1, S1, D1>
+where
+    D1: Unsigned,
+    D2: Unsigned,
+    S1: AsDerefMut<D1, Target = [T1; N]>,
+    S2: AsDerefMut<D2, Target = [T2; N]>,
+    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
+    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
+    [T1; N]: PartialEq<[T2; N]>,
+{
+    #[inline]
+    fn eq(&self, other: &ArrayObserver<'ob, N, O2, S2, D2>) -> bool {
+        self.as_deref().eq(other.as_deref())
+    }
+}
+
+impl<'ob, const N: usize, O, S: ?Sized, D, T> Eq for ArrayObserver<'ob, N, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    [T; N]: Eq,
+{
+}
+
+// impl<T, const N: usize> PartialOrd for [T; N] where T: PartialOrd
+impl<'ob, const N: usize, O, S: ?Sized, D, T, U> PartialOrd<[U; N]> for ArrayObserver<'ob, N, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    [T; N]: PartialOrd<[U; N]>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &[U; N]) -> Option<std::cmp::Ordering> {
         self.as_deref().partial_cmp(other)
+    }
+}
+
+impl<'ob, const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2, T1, T2> PartialOrd<ArrayObserver<'ob, N, O2, S2, D2>>
+    for ArrayObserver<'ob, N, O1, S1, D1>
+where
+    D1: Unsigned,
+    D2: Unsigned,
+    S1: AsDerefMut<D1, Target = [T1; N]>,
+    S2: AsDerefMut<D2, Target = [T2; N]>,
+    O1: Observer<'ob, InnerDepth = Zero, Head = T1>,
+    O2: Observer<'ob, InnerDepth = Zero, Head = T2>,
+    [T1; N]: PartialOrd<[T2; N]>,
+{
+    #[inline]
+    fn partial_cmp(&self, other: &ArrayObserver<'ob, N, O2, S2, D2>) -> Option<std::cmp::Ordering> {
+        self.as_deref().partial_cmp(other.as_deref())
+    }
+}
+
+impl<'ob, const N: usize, O, S: ?Sized, D, T> Ord for ArrayObserver<'ob, N, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    [T; N]: Ord,
+{
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_deref().cmp(other.as_deref())
     }
 }
 
