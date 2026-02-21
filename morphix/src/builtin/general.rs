@@ -498,7 +498,6 @@ impl_partial_eq! {
     core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
     core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
     core::time::Duration, std::time::SystemTime,
-    str,
 }
 
 #[cfg(feature = "chrono")]
@@ -535,7 +534,6 @@ impl_partial_ord! {
     core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
     core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
     core::time::Duration, std::time::SystemTime,
-    str,
 }
 
 #[cfg(feature = "chrono")]
@@ -583,6 +581,13 @@ macro_rules! generic_impl_cmp {
 generic_impl_cmp! {
     impl [U] _ for std::marker::PhantomData<U>;
     impl ['a, U] _ for &'a [U];
+    impl _ for str;
+    impl _ for String;
+    impl _ for std::ffi::OsStr;
+    impl _ for std::ffi::OsString;
+    impl _ for std::path::Path;
+    impl _ for std::path::PathBuf;
+    impl ['a] _ for std::borrow::Cow<'a, str>;
 }
 
 #[cfg(feature = "chrono")]
