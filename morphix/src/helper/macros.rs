@@ -29,7 +29,7 @@ macro_rules! spec_impl_observe {
             T: Observe<Spec = $crate::observe::DefaultSpec>,
         {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
-                = $default<'ob, T::Observer<'ob, T, Zero>, S, D>
+                = $default<T::Observer<'ob, T, Zero>, S, D>
             where
                 Self: 'ob,
                 D: Unsigned,

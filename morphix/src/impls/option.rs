@@ -15,15 +15,15 @@ use crate::{Adapter, MutationKind, Mutations, Observe};
 /// This observer tracks changes to optional values, including transitions between [`Some`] and
 /// [`None`] states. It provides specialized methods for working with options while maintaining
 /// change tracking.
-pub struct OptionObserver<'ob, O, S: ?Sized, D = Zero> {
+pub struct OptionObserver<O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
     mutated: bool,
     initial: bool,
     inner: Option<O>,
-    phantom: PhantomData<&'ob mut D>,
+    phantom: PhantomData<D>,
 }
 
-impl<'ob, O, S: ?Sized, D> Deref for OptionObserver<'ob, O, S, D> {
+impl<O, S: ?Sized, D> Deref for OptionObserver<O, S, D> {
     type Target = Pointer<S>;
 
     #[inline]
@@ -32,7 +32,7 @@ impl<'ob, O, S: ?Sized, D> Deref for OptionObserver<'ob, O, S, D> {
     }
 }
 
-impl<'ob, O, S: ?Sized, D> DerefMut for OptionObserver<'ob, O, S, D> {
+impl<O, S: ?Sized, D> DerefMut for OptionObserver<O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.mutated = true;
@@ -41,11 +41,11 @@ impl<'ob, O, S: ?Sized, D> DerefMut for OptionObserver<'ob, O, S, D> {
     }
 }
 
-impl<'ob, O, S: ?Sized, D> AsNormalized for OptionObserver<'ob, O, S, D> {
+impl<O, S: ?Sized, D> AsNormalized for OptionObserver<O, S, D> {
     type OuterDepth = Succ<Zero>;
 }
 
-impl<'ob, O, S: ?Sized, D> Observer<'ob> for OptionObserver<'ob, O, S, D>
+impl<'ob, O, S: ?Sized, D> Observer<'ob> for OptionObserver<O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Option<O::Head>> + 'ob,
@@ -88,7 +88,7 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D> SerializeObserver<'ob> for OptionObserver<'ob, O, S, D>
+impl<'ob, O, S: ?Sized, D> SerializeObserver<'ob> for OptionObserver<O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Option<O::Head>> + 'ob,
@@ -116,7 +116,7 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D> OptionObserver<'ob, O, S, D>
+impl<'ob, O, S: ?Sized, D> OptionObserver<O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Option<O::Head>> + 'ob,
@@ -176,7 +176,7 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D> Debug for OptionObserver<'ob, O, S, D>
+impl<O, S: ?Sized, D> Debug for OptionObserver<O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -188,7 +188,7 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D, U> PartialEq<Option<U>> for OptionObserver<'ob, O, S, D>
+impl<O, S: ?Sized, D, U> PartialEq<Option<U>> for OptionObserver<O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -200,8 +200,7 @@ where
     }
 }
 
-impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<OptionObserver<'ob, O2, S2, D2>>
-    for OptionObserver<'ob, O1, S1, D1>
+impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<OptionObserver<O2, S2, D2>> for OptionObserver<O1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
@@ -210,12 +209,12 @@ where
     S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
-    fn eq(&self, other: &OptionObserver<'ob, O2, S2, D2>) -> bool {
+    fn eq(&self, other: &OptionObserver<O2, S2, D2>) -> bool {
         self.as_deref().eq(other.as_deref())
     }
 }
 
-impl<'ob, O, S: ?Sized, D> Eq for OptionObserver<'ob, O, S, D>
+impl<O, S: ?Sized, D> Eq for OptionObserver<O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -223,7 +222,7 @@ where
 {
 }
 
-impl<'ob, O, S: ?Sized, D, U> PartialOrd<Option<U>> for OptionObserver<'ob, O, S, D>
+impl<O, S: ?Sized, D, U> PartialOrd<Option<U>> for OptionObserver<O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -235,8 +234,7 @@ where
     }
 }
 
-impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<OptionObserver<'ob, O2, S2, D2>>
-    for OptionObserver<'ob, O1, S1, D1>
+impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<OptionObserver<O2, S2, D2>> for OptionObserver<O1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
@@ -245,19 +243,19 @@ where
     S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &OptionObserver<'ob, O2, S2, D2>) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &OptionObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
         self.as_deref().partial_cmp(other.as_deref())
     }
 }
 
-impl<'ob, O, S: ?Sized, D> Ord for OptionObserver<'ob, O, S, D>
+impl<O, S: ?Sized, D> Ord for OptionObserver<O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
     S::Target: Ord,
 {
     #[inline]
-    fn cmp(&self, other: &OptionObserver<'ob, O, S, D>) -> std::cmp::Ordering {
+    fn cmp(&self, other: &OptionObserver<O, S, D>) -> std::cmp::Ordering {
         self.as_deref().cmp(other.as_deref())
     }
 }
