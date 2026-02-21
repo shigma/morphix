@@ -1,9 +1,8 @@
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use crate::builtin::Snapshot;
-use crate::helper::{AsDeref, AsDerefMut, AsNormalized, Succ, Unsigned};
+use crate::helper::{AsDeref, AsDerefMut, AsNormalized, Pointer, Succ, Unsigned};
 use crate::observe::{Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
@@ -11,12 +10,11 @@ use crate::{Adapter, Mutations, Observe};
 ///
 /// This observer wraps the inner type's observer and forwards all operations to it, maintaining
 /// proper dereference chains for pointer types.
-pub struct DerefObserver<'ob, O> {
+pub struct DerefObserver<O> {
     inner: O,
-    phantom: PhantomData<&'ob mut ()>,
 }
 
-impl<'ob, O> Deref for DerefObserver<'ob, O> {
+impl<O> Deref for DerefObserver<O> {
     type Target = O;
 
     #[inline]
@@ -25,21 +23,21 @@ impl<'ob, O> Deref for DerefObserver<'ob, O> {
     }
 }
 
-impl<'ob, O> DerefMut for DerefObserver<'ob, O> {
+impl<O> DerefMut for DerefObserver<O> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<'ob, O> AsNormalized for DerefObserver<'ob, O>
+impl<O> AsNormalized for DerefObserver<O>
 where
     O: AsNormalized,
 {
     type OuterDepth = Succ<O::OuterDepth>;
 }
 
-impl<'ob, O, D> Observer<'ob> for DerefObserver<'ob, O>
+impl<'ob, O, D> Observer<'ob> for DerefObserver<O>
 where
     O: Observer<'ob, InnerDepth = Succ<D>>,
     O::Head: AsDeref<D>,
@@ -50,17 +48,13 @@ where
 
     #[inline]
     fn uninit() -> Self {
-        Self {
-            inner: O::uninit(),
-            phantom: PhantomData,
-        }
+        Self { inner: O::uninit() }
     }
 
     #[inline]
     fn observe(value: &'ob mut Self::Head) -> Self {
         Self {
             inner: O::observe(value),
-            phantom: PhantomData,
         }
     }
 
@@ -70,7 +64,7 @@ where
     }
 }
 
-impl<'ob, O, D> SerializeObserver<'ob> for DerefObserver<'ob, O>
+impl<'ob, O, D> SerializeObserver<'ob> for DerefObserver<O>
 where
     O: SerializeObserver<'ob, InnerDepth = Succ<D>>,
     O::Head: AsDeref<D>,
@@ -85,7 +79,7 @@ where
 macro_rules! impl_fmt {
     ($($trait:ident),* $(,)?) => {
         $(
-            impl<'ob, O> std::fmt::$trait for DerefObserver<'ob, O>
+            impl<O> std::fmt::$trait for DerefObserver<O>
             where
                 O: std::fmt::$trait,
             {
@@ -109,7 +103,7 @@ impl_fmt! {
     UpperHex,
 }
 
-impl<'ob, O> Debug for DerefObserver<'ob, O>
+impl<O> Debug for DerefObserver<O>
 where
     O: Debug,
 {
@@ -119,29 +113,29 @@ where
     }
 }
 
-impl<'ob, O1, O2> PartialEq<DerefObserver<'ob, O2>> for DerefObserver<'ob, O1>
+impl<O1, O2> PartialEq<DerefObserver<O2>> for DerefObserver<O1>
 where
     O1: PartialEq<O2>,
 {
     #[inline]
-    fn eq(&self, other: &DerefObserver<'ob, O2>) -> bool {
+    fn eq(&self, other: &DerefObserver<O2>) -> bool {
         self.inner.eq(&other.inner)
     }
 }
 
-impl<'ob, O> Eq for DerefObserver<'ob, O> where O: Eq {}
+impl<O> Eq for DerefObserver<O> where O: Eq {}
 
-impl<'ob, O1, O2> PartialOrd<DerefObserver<'ob, O2>> for DerefObserver<'ob, O1>
+impl<O1, O2> PartialOrd<DerefObserver<O2>> for DerefObserver<O1>
 where
     O1: PartialOrd<O2>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &DerefObserver<'ob, O2>) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &DerefObserver<O2>) -> Option<std::cmp::Ordering> {
         self.inner.partial_cmp(&other.inner)
     }
 }
 
-impl<'ob, O> Ord for DerefObserver<'ob, O>
+impl<O> Ord for DerefObserver<O>
 where
     O: Ord,
 {
@@ -156,7 +150,7 @@ macro_rules! impl_deref_observe {
         $(
             impl <$($($gen)*)?> Observe for $ty {
                 type Observer<'ob, S, D>
-                    = DerefObserver<'ob, T::Observer<'ob, S, Succ<D>>>
+                    = DerefObserver<T::Observer<'ob, S, Succ<D>>>
                 where
                     Self: 'ob,
                     D: Unsigned,
@@ -181,7 +175,7 @@ macro_rules! impl_deref_ref_observe {
         $(
             impl <$($($gen)*)?> RefObserve for $ty {
                 type Observer<'ob, S, D>
-                    = DerefObserver<'ob, T::Observer<'ob, S, Succ<D>>>
+                    = DerefObserver<T::Observer<'ob, S, Succ<D>>>
                 where
                     Self: 'ob,
                     D: Unsigned,
@@ -232,29 +226,25 @@ impl_snapshot! {
 macro_rules! generic_impl_cmp {
     ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
         $(
-            impl<'ob, $($($gen)*,)? O, D, T: ?Sized> PartialEq<$ty> for DerefObserver<'ob, O>
+            impl<$($($gen)*,)? O, T: ?Sized> PartialEq<$ty> for DerefObserver<O>
             where
-                O: Observer<'ob, InnerDepth = Succ<D>>,
-                O::Head: AsDeref<D, Target = T>,
-                D: Unsigned,
+                O: AsNormalized<Target = Pointer<T>>,
                 T: PartialEq<$ty>,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    AsDeref::<D>::as_deref(&**self.as_normalized_ref()).eq(other)
+                    (**self.as_normalized_ref()).eq(other)
                 }
             }
 
-            impl<'ob, $($($gen)*,)? O, D, T: ?Sized> PartialOrd<$ty> for DerefObserver<'ob, O>
+            impl<$($($gen)*,)? O, T: ?Sized> PartialOrd<$ty> for DerefObserver<O>
             where
-                O: Observer<'ob, InnerDepth = Succ<D>>,
-                O::Head: AsDeref<D, Target = T>,
-                D: Unsigned,
+                O: AsNormalized<Target = Pointer<T>>,
                 T: PartialOrd<$ty>,
             {
                 #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
-                    AsDeref::<D>::as_deref(&**self.as_normalized_ref()).partial_cmp(other)
+                    (**self.as_normalized_ref()).partial_cmp(other)
                 }
             }
         )*
