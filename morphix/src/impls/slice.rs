@@ -250,8 +250,8 @@ where
     D: Unsigned,
     S: AsDerefMut<D> + 'ob,
     S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: SerializeObserver<'ob, InnerDepth = Zero, Head = T>,
-    T: Serialize,
+    O: SerializeObserver<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    T: Serialize + 'ob,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let len = this.as_deref().as_ref().len();
@@ -273,7 +273,7 @@ where
                 &this.as_deref().as_ref()[append_index..],
             )?));
         }
-        for (index, observer) in this.obs.as_mut_slice().iter_mut().take(append_index).enumerate() {
+        for (index, observer) in this[..append_index].iter_mut().enumerate() {
             mutations.insert(
                 PathSegment::Negative(len - index),
                 SerializeObserver::flush::<A>(observer)?,

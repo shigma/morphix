@@ -132,8 +132,8 @@ impl<'ob, const N: usize, O, S: ?Sized, D, T> SerializeObserver<'ob> for ArrayOb
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]> + 'ob,
-    O: SerializeObserver<'ob, InnerDepth = Zero, Head = T>,
-    T: Serialize,
+    O: SerializeObserver<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    T: Serialize + 'ob,
 {
     #[inline]
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {

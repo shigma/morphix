@@ -72,8 +72,8 @@ impl<'ob, O, S: ?Sized, D, T> SerializeObserver<'ob> for VecObserver<'ob, O, S, 
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: SerializeObserver<'ob, InnerDepth = Zero, Head = T>,
-    T: Serialize,
+    O: SerializeObserver<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    T: Serialize + 'ob,
 {
     #[inline]
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
@@ -619,7 +619,7 @@ mod tests {
     }
 
     #[test]
-    fn index_by_usize() {
+    fn index_by_usize_1() {
         let mut vec: Vec<i32> = vec![1, 2];
         let mut ob = vec.__observe();
         assert_eq!(ob[0], 1);
@@ -627,6 +627,22 @@ mod tests {
         **ob[0] = 99;
         ob.reserve(64); // force reallocation
         assert_eq!(ob[0], 99);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![PathSegment::Negative(2)].into(),
+                kind: MutationKind::Replace(json!(99))
+            })
+        );
+    }
+
+    #[test]
+    fn index_by_usize_2() {
+        let mut vec: Vec<i32> = vec![1, 2];
+        let mut ob = vec.__observe();
+        **ob[0] = 99;
+        ob.reserve(64); // force reallocation
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
