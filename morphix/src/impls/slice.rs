@@ -166,21 +166,21 @@ impl SliceMutation for TruncateAppend {
 }
 
 /// Observer implementation for slices `[T]`.
-pub struct SliceObserver<'ob, V, M, S: ?Sized, D = Zero> {
+pub struct SliceObserver<V, M, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
     pub(super) obs: V,
     pub(super) mutation: Option<M>,
-    phantom: PhantomData<&'ob mut D>,
+    phantom: PhantomData<D>,
 }
 
-impl<'ob, V, M, S: ?Sized, D> SliceObserver<'ob, V, M, S, D> {
+impl<V, M, S: ?Sized, D> SliceObserver<V, M, S, D> {
     #[inline]
     pub(super) fn __mark_replace(&mut self) {
         self.mutation = None;
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D> Deref for SliceObserver<'ob, V, M, S, D> {
+impl<V, M, S: ?Sized, D> Deref for SliceObserver<V, M, S, D> {
     type Target = Pointer<S>;
 
     #[inline]
@@ -189,7 +189,7 @@ impl<'ob, V, M, S: ?Sized, D> Deref for SliceObserver<'ob, V, M, S, D> {
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D> DerefMut for SliceObserver<'ob, V, M, S, D>
+impl<V, M, S: ?Sized, D> DerefMut for SliceObserver<V, M, S, D>
 where
     V: ObserverSlice,
 {
@@ -201,7 +201,7 @@ where
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D> QuasiObserver for SliceObserver<'ob, V, M, S, D>
+impl<V, M, S: ?Sized, D> QuasiObserver for SliceObserver<V, M, S, D>
 where
     V: ObserverSlice,
     D: Unsigned,
@@ -211,12 +211,12 @@ where
     type InnerDepth = D;
 }
 
-impl<'ob, V, M, S: ?Sized, D, O, T> Observer for SliceObserver<'ob, V, M, S, D>
+impl<V, M, S: ?Sized, D, O, T> Observer for SliceObserver<V, M, S, D>
 where
     V: ObserverSlice<Item = O>,
     M: SliceMutation,
     D: Unsigned,
-    S: AsDerefMut<D> + 'ob,
+    S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
@@ -246,15 +246,15 @@ where
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D, O, T> SerializeObserver for SliceObserver<'ob, V, M, S, D>
+impl<V, M, S: ?Sized, D, O, T> SerializeObserver for SliceObserver<V, M, S, D>
 where
     V: ObserverSlice<Item = O>,
     M: SliceMutation,
     D: Unsigned,
-    S: AsDerefMut<D> + 'ob,
+    S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: SerializeObserver<InnerDepth = Zero, Head = T> + 'ob,
-    T: Serialize + 'ob,
+    O: SerializeObserver<InnerDepth = Zero, Head = T>,
+    T: Serialize,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let len = this.as_deref().as_ref().len();
@@ -286,19 +286,19 @@ where
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D, O, T> SliceObserver<'ob, V, M, S, D>
+#[allow(clippy::type_complexity)]
+impl<V, M, S: ?Sized, D, T> SliceObserver<V, M, S, D>
 where
-    V: ObserverSlice<Item = O>,
+    V: ObserverSlice,
+    V::Item: Observer<InnerDepth = Zero, Head = T>,
     M: SliceMutation,
     D: Unsigned,
-    S: AsDerefMut<D> + 'ob,
+    S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
-    T: 'ob,
 {
     fn __init_index<I>(&self, index: &I) -> Option<()>
     where
-        I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+        I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
     {
         let len = self.as_deref().as_ref().len();
         let start = index.start_inclusive();
@@ -313,7 +313,7 @@ where
     #[inline]
     fn __get<I>(&self, index: I) -> Option<&I::Output>
     where
-        I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+        I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
     {
         self.__init_index(&index)?;
         Some(self.obs.as_slice().index(index))
@@ -322,7 +322,7 @@ where
     #[inline]
     fn __get_mut<I>(&mut self, index: I) -> Option<&mut I::Output>
     where
-        I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+        I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
     {
         self.__init_index(&index)?;
         Some(self.obs.as_mut_slice().index_mut(index))
@@ -336,33 +336,33 @@ where
 
     /// See [`slice::first_mut`].
     #[inline]
-    pub fn first_mut(&mut self) -> Option<&mut O> {
+    pub fn first_mut(&mut self) -> Option<&mut V::Item> {
         self.__get_mut(0)
     }
 
     /// See [`slice::split_first_mut`].
     #[inline]
-    pub fn split_first_mut(&mut self) -> Option<(&mut O, &mut [O])> {
+    pub fn split_first_mut(&mut self) -> Option<(&mut V::Item, &mut [V::Item])> {
         self.__force();
         self.obs.as_mut_slice().split_first_mut()
     }
 
     /// See [`slice::split_last_mut`].
     #[inline]
-    pub fn split_last_mut(&mut self) -> Option<(&mut O, &mut [O])> {
+    pub fn split_last_mut(&mut self) -> Option<(&mut V::Item, &mut [V::Item])> {
         self.__force();
         self.obs.as_mut_slice().split_last_mut()
     }
 
     /// See [`slice::last_mut`].
     #[inline]
-    pub fn last_mut(&mut self) -> Option<&mut O> {
+    pub fn last_mut(&mut self) -> Option<&mut V::Item> {
         self.__get_mut(..)?.last_mut()
     }
 
     /// See [`slice::first_chunk_mut`].
     #[inline]
-    pub fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [O; N]> {
+    pub fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [V::Item; N]> {
         let len = self.as_deref().as_ref().len();
         if len < N {
             return None;
@@ -372,21 +372,21 @@ where
 
     /// See [`slice::split_first_chunk_mut`].
     #[inline]
-    pub fn split_first_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [O; N], &mut [O])> {
+    pub fn split_first_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [V::Item; N], &mut [V::Item])> {
         self.__force();
         self.obs.as_mut_slice().split_first_chunk_mut()
     }
 
     /// See [`slice::split_last_chunk_mut`].
     #[inline]
-    pub fn split_last_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [O], &mut [O; N])> {
+    pub fn split_last_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [V::Item], &mut [V::Item; N])> {
         self.__force();
         self.obs.as_mut_slice().split_last_chunk_mut()
     }
 
     /// See [`slice::last_chunk_mut`].
     #[inline]
-    pub fn last_chunk_mut<const N: usize>(&mut self) -> Option<&mut [O; N]> {
+    pub fn last_chunk_mut<const N: usize>(&mut self) -> Option<&mut [V::Item; N]> {
         let len = self.as_deref().as_ref().len();
         if len < N {
             return None;
@@ -396,72 +396,72 @@ where
 
     /// See [`slice::get_mut`].
     #[inline]
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut O> {
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut V::Item> {
         self.__get_mut(index)
     }
 
     /// See [`slice::swap`].
     #[inline]
     pub fn swap(&mut self, a: usize, b: usize) {
-        self[a].as_deref_mut_coinductive();
-        self[b].as_deref_mut_coinductive();
+        self[a].inner_tracked();
+        self[b].inner_tracked();
         Self::as_inner(self).as_mut().swap(a, b);
     }
 
     /// See [`slice::iter_mut`].
     #[inline]
-    pub fn iter_mut(&mut self) -> IterMut<'_, O> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, V::Item> {
         self.__force();
         self.obs.as_mut_slice().iter_mut()
     }
 
     /// See [`slice::chunks_mut`].
     #[inline]
-    pub fn chunks_mut(&mut self, chunk_size: usize) -> ChunksMut<'_, O> {
+    pub fn chunks_mut(&mut self, chunk_size: usize) -> ChunksMut<'_, V::Item> {
         self.__force();
         self.obs.as_mut_slice().chunks_mut(chunk_size)
     }
 
     /// See [`slice::chunks_exact_mut`].
     #[inline]
-    pub fn chunks_exact_mut(&mut self, chunk_size: usize) -> ChunksExactMut<'_, O> {
+    pub fn chunks_exact_mut(&mut self, chunk_size: usize) -> ChunksExactMut<'_, V::Item> {
         self.__force();
         self.obs.as_mut_slice().chunks_exact_mut(chunk_size)
     }
 
     /// See [`slice::as_chunks_mut`].
     #[inline]
-    pub fn as_chunks_mut<const N: usize>(&mut self) -> (&mut [[O; N]], &mut [O]) {
+    pub fn as_chunks_mut<const N: usize>(&mut self) -> (&mut [[V::Item; N]], &mut [V::Item]) {
         self.__force();
         self.obs.as_mut_slice().as_chunks_mut()
     }
 
     /// See [`slice::as_rchunks_mut`].
     #[inline]
-    pub fn as_rchunks_mut<const N: usize>(&mut self) -> (&mut [O], &mut [[O; N]]) {
+    pub fn as_rchunks_mut<const N: usize>(&mut self) -> (&mut [V::Item], &mut [[V::Item; N]]) {
         self.__force();
         self.obs.as_mut_slice().as_rchunks_mut()
     }
 
     /// See [`slice::rchunks_mut`].
     #[inline]
-    pub fn rchunks_mut(&mut self, chunk_size: usize) -> RChunksMut<'_, O> {
+    pub fn rchunks_mut(&mut self, chunk_size: usize) -> RChunksMut<'_, V::Item> {
         self.__force();
         self.obs.as_mut_slice().rchunks_mut(chunk_size)
     }
 
     /// See [`slice::rchunks_exact_mut`].
     #[inline]
-    pub fn rchunks_exact_mut(&mut self, chunk_size: usize) -> RChunksExactMut<'_, O> {
+    pub fn rchunks_exact_mut(&mut self, chunk_size: usize) -> RChunksExactMut<'_, V::Item> {
         self.__force();
         self.obs.as_mut_slice().rchunks_exact_mut(chunk_size)
     }
 
     /// See [`slice::chunk_by_mut`].
     #[inline]
-    pub fn chunk_by_mut<F>(&mut self, pred: F) -> ChunkByMut<'_, O, F>
+    pub fn chunk_by_mut<F>(&mut self, pred: F) -> ChunkByMut<'_, V::Item, F>
     where
-        F: FnMut(&O, &O) -> bool,
+        F: FnMut(&V::Item, &V::Item) -> bool,
     {
         self.__force();
         self.obs.as_mut_slice().chunk_by_mut(pred)
@@ -469,23 +469,23 @@ where
 
     /// See [`slice::split_at_mut`].
     #[inline]
-    pub fn split_at_mut(&mut self, mid: usize) -> (&mut [O], &mut [O]) {
+    pub fn split_at_mut(&mut self, mid: usize) -> (&mut [V::Item], &mut [V::Item]) {
         self.__force();
         self.obs.as_mut_slice().split_at_mut(mid)
     }
 
     /// See [`slice::split_at_mut_checked`].
     #[inline]
-    pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut [O], &mut [O])> {
+    pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut [V::Item], &mut [V::Item])> {
         self.__force();
         self.obs.as_mut_slice().split_at_mut_checked(mid)
     }
 
     /// See [`slice::split_mut`].
     #[inline]
-    pub fn split_mut<F>(&mut self, pred: F) -> SplitMut<'_, O, F>
+    pub fn split_mut<F>(&mut self, pred: F) -> SplitMut<'_, V::Item, F>
     where
-        F: FnMut(&O) -> bool,
+        F: FnMut(&V::Item) -> bool,
     {
         self.__force();
         self.obs.as_mut_slice().split_mut(pred)
@@ -493,9 +493,9 @@ where
 
     /// See [`slice::split_inclusive_mut`].
     #[inline]
-    pub fn split_inclusive_mut<F>(&mut self, pred: F) -> SplitInclusiveMut<'_, O, F>
+    pub fn split_inclusive_mut<F>(&mut self, pred: F) -> SplitInclusiveMut<'_, V::Item, F>
     where
-        F: FnMut(&O) -> bool,
+        F: FnMut(&V::Item) -> bool,
     {
         self.__force();
         self.obs.as_mut_slice().split_inclusive_mut(pred)
@@ -503,9 +503,9 @@ where
 
     /// See [`slice::rsplit_mut`].
     #[inline]
-    pub fn rsplit_mut<F>(&mut self, pred: F) -> RSplitMut<'_, O, F>
+    pub fn rsplit_mut<F>(&mut self, pred: F) -> RSplitMut<'_, V::Item, F>
     where
-        F: FnMut(&O) -> bool,
+        F: FnMut(&V::Item) -> bool,
     {
         self.__force();
         self.obs.as_mut_slice().rsplit_mut(pred)
@@ -513,9 +513,9 @@ where
 
     /// See [`slice::splitn_mut`].
     #[inline]
-    pub fn splitn_mut<F>(&mut self, n: usize, pred: F) -> SplitNMut<'_, O, F>
+    pub fn splitn_mut<F>(&mut self, n: usize, pred: F) -> SplitNMut<'_, V::Item, F>
     where
-        F: FnMut(&O) -> bool,
+        F: FnMut(&V::Item) -> bool,
     {
         self.__force();
         self.obs.as_mut_slice().splitn_mut(n, pred)
@@ -523,16 +523,16 @@ where
 
     /// See [`slice::rsplitn_mut`].
     #[inline]
-    pub fn rsplitn_mut<F>(&mut self, n: usize, pred: F) -> RSplitNMut<'_, O, F>
+    pub fn rsplitn_mut<F>(&mut self, n: usize, pred: F) -> RSplitNMut<'_, V::Item, F>
     where
-        F: FnMut(&O) -> bool,
+        F: FnMut(&V::Item) -> bool,
     {
         self.__force();
         self.obs.as_mut_slice().rsplitn_mut(n, pred)
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D> Debug for SliceObserver<'ob, V, M, S, D>
+impl<V, M, S: ?Sized, D> Debug for SliceObserver<V, M, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -547,7 +547,7 @@ where
 macro_rules! generic_impl_partial_eq {
     ($(impl $([$($gen:tt)*])? PartialEq<$ty:ty> for [_]);* $(;)?) => {
         $(
-            impl<'ob, $($($gen)*,)? V, M, S: ?Sized, D> PartialEq<$ty> for SliceObserver<'ob, V, M, S, D>
+            impl<$($($gen)*,)? V, M, S: ?Sized, D> PartialEq<$ty> for SliceObserver<V, M, S, D>
             where
                 D: Unsigned,
                 S: AsDerefMut<D>,
@@ -568,8 +568,8 @@ generic_impl_partial_eq! {
     impl [U, const N: usize] PartialEq<[U; N]> for [_];
 }
 
-impl<'ob, V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<SliceObserver<'ob, V2, M2, S2, D2>>
-    for SliceObserver<'ob, V1, M1, S1, D1>
+impl<V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<SliceObserver<V2, M2, S2, D2>>
+    for SliceObserver<V1, M1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
@@ -578,12 +578,12 @@ where
     S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
-    fn eq(&self, other: &SliceObserver<'ob, V2, M2, S2, D2>) -> bool {
+    fn eq(&self, other: &SliceObserver<V2, M2, S2, D2>) -> bool {
         self.as_deref().eq(other.as_deref())
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D> Eq for SliceObserver<'ob, V, M, S, D>
+impl<V, M, S: ?Sized, D> Eq for SliceObserver<V, M, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -591,7 +591,7 @@ where
 {
 }
 
-impl<'ob, V, M, S: ?Sized, D, U> PartialOrd<[U]> for SliceObserver<'ob, V, M, S, D>
+impl<V, M, S: ?Sized, D, U> PartialOrd<[U]> for SliceObserver<V, M, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -603,8 +603,8 @@ where
     }
 }
 
-impl<'ob, V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<SliceObserver<'ob, V2, M2, S2, D2>>
-    for SliceObserver<'ob, V1, M1, S1, D1>
+impl<V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<SliceObserver<V2, M2, S2, D2>>
+    for SliceObserver<V1, M1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
@@ -613,12 +613,12 @@ where
     S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &SliceObserver<'ob, V2, M2, S2, D2>) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &SliceObserver<V2, M2, S2, D2>) -> Option<std::cmp::Ordering> {
         self.as_deref().partial_cmp(other.as_deref())
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D> Ord for SliceObserver<'ob, V, M, S, D>
+impl<V, M, S: ?Sized, D> Ord for SliceObserver<V, M, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -630,15 +630,14 @@ where
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D, O, T, I> Index<I> for SliceObserver<'ob, V, M, S, D>
+impl<V, M, S: ?Sized, D, O, T, I> Index<I> for SliceObserver<V, M, S, D>
 where
     V: ObserverSlice<Item = O>,
     M: SliceMutation,
     D: Unsigned,
-    S: AsDerefMut<D> + 'ob,
+    S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
-    T: 'ob,
+    O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
     type Output = I::Output;
@@ -649,15 +648,14 @@ where
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D, O, T, I> IndexMut<I> for SliceObserver<'ob, V, M, S, D>
+impl<V, M, S: ?Sized, D, O, T, I> IndexMut<I> for SliceObserver<V, M, S, D>
 where
     V: ObserverSlice<Item = O>,
     M: SliceMutation,
     D: Unsigned,
-    S: AsDerefMut<D> + 'ob,
+    S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
-    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
-    T: 'ob,
+    O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
     #[inline]
@@ -668,7 +666,7 @@ where
 
 impl<T: Observe> Observe for [T] {
     type Observer<'ob, S, D>
-        = SliceObserver<'ob, UnsafeCell<Vec<T::Observer<'ob, T, Zero>>>, (), S, D>
+        = SliceObserver<UnsafeCell<Vec<T::Observer<'ob, T, Zero>>>, (), S, D>
     where
         Self: 'ob,
         D: Unsigned,

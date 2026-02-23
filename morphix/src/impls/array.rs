@@ -39,16 +39,15 @@ where
 }
 
 /// Observer implementation for arrays `[T; N]`.
-pub struct ArrayObserver<'ob, const N: usize, O, S: ?Sized, D = Zero> {
-    inner: SliceObserver<'ob, [O; N], (), S, D>,
+pub struct ArrayObserver<const N: usize, O, S: ?Sized, D = Zero> {
+    inner: SliceObserver<[O; N], (), S, D>,
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T> ArrayObserver<'ob, N, O, S, D>
+impl<const N: usize, O, S: ?Sized, D, T> ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'ob,
-    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
-    T: 'ob,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: Observer<InnerDepth = Zero, Head = T>,
 {
     /// See [`array::as_slice`].
     #[inline]
@@ -79,8 +78,8 @@ where
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D> Deref for ArrayObserver<'ob, N, O, S, D> {
-    type Target = SliceObserver<'ob, [O; N], (), S, D>;
+impl<const N: usize, O, S: ?Sized, D> Deref for ArrayObserver<N, O, S, D> {
+    type Target = SliceObserver<[O; N], (), S, D>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -88,14 +87,14 @@ impl<'ob, const N: usize, O, S: ?Sized, D> Deref for ArrayObserver<'ob, N, O, S,
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<'ob, N, O, S, D> {
+impl<const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<N, O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D> QuasiObserver for ArrayObserver<'ob, N, O, S, D>
+impl<const N: usize, O, S: ?Sized, D> QuasiObserver for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
     S: crate::helper::AsDeref<D>,
@@ -105,10 +104,10 @@ where
     type InnerDepth = D;
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T> Observer for ArrayObserver<'ob, N, O, S, D>
+impl<const N: usize, O, S: ?Sized, D, T> Observer for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'ob,
+    S: AsDerefMut<D, Target = [T; N]>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
     #[inline]
@@ -131,12 +130,12 @@ where
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T> SerializeObserver for ArrayObserver<'ob, N, O, S, D>
+impl<const N: usize, O, S: ?Sized, D, T> SerializeObserver for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'ob,
-    O: SerializeObserver<InnerDepth = Zero, Head = T> + 'ob,
-    T: Serialize + 'ob,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: SerializeObserver<InnerDepth = Zero, Head = T>,
+    T: Serialize,
 {
     #[inline]
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
@@ -144,7 +143,7 @@ where
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D> Debug for ArrayObserver<'ob, N, O, S, D>
+impl<const N: usize, O, S: ?Sized, D> Debug for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -159,7 +158,7 @@ where
 macro_rules! generic_impl_partial_eq {
     ($(impl $([$($gen:tt)*])? PartialEq<$ty:ty> for [_; N]);* $(;)?) => {
         $(
-            impl<'ob, $($($gen)*,)? const N: usize, O, S: ?Sized, D> PartialEq<$ty> for ArrayObserver<'ob, N, O, S, D>
+            impl<$($($gen)*,)? const N: usize, O, S: ?Sized, D> PartialEq<$ty> for ArrayObserver<N, O, S, D>
             where
                 D: Unsigned,
                 S: AsDerefMut<D>,
@@ -181,8 +180,8 @@ generic_impl_partial_eq! {
     impl ['a, U] PartialEq<&'a mut U> for [_; N];
 }
 
-impl<'ob, const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<ArrayObserver<'ob, N, O2, S2, D2>>
-    for ArrayObserver<'ob, N, O1, S1, D1>
+impl<const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<ArrayObserver<N, O2, S2, D2>>
+    for ArrayObserver<N, O1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
@@ -191,12 +190,12 @@ where
     S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
-    fn eq(&self, other: &ArrayObserver<'ob, N, O2, S2, D2>) -> bool {
+    fn eq(&self, other: &ArrayObserver<N, O2, S2, D2>) -> bool {
         self.as_deref().eq(other.as_deref())
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D> Eq for ArrayObserver<'ob, N, O, S, D>
+impl<const N: usize, O, S: ?Sized, D> Eq for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -204,7 +203,7 @@ where
 {
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, U> PartialOrd<[U; N]> for ArrayObserver<'ob, N, O, S, D>
+impl<const N: usize, O, S: ?Sized, D, U> PartialOrd<[U; N]> for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -216,8 +215,8 @@ where
     }
 }
 
-impl<'ob, const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<ArrayObserver<'ob, N, O2, S2, D2>>
-    for ArrayObserver<'ob, N, O1, S1, D1>
+impl<const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<ArrayObserver<N, O2, S2, D2>>
+    for ArrayObserver<N, O1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
@@ -226,12 +225,12 @@ where
     S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
-    fn partial_cmp(&self, other: &ArrayObserver<'ob, N, O2, S2, D2>) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &ArrayObserver<N, O2, S2, D2>) -> Option<std::cmp::Ordering> {
         self.as_deref().partial_cmp(other.as_deref())
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D> Ord for ArrayObserver<'ob, N, O, S, D>
+impl<const N: usize, O, S: ?Sized, D> Ord for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D>,
@@ -243,12 +242,11 @@ where
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T, I> Index<I> for ArrayObserver<'ob, N, O, S, D>
+impl<const N: usize, O, S: ?Sized, D, T, I> Index<I> for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'ob,
-    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
-    T: 'ob,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
     type Output = I::Output;
@@ -259,12 +257,11 @@ where
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T, I> IndexMut<I> for ArrayObserver<'ob, N, O, S, D>
+impl<const N: usize, O, S: ?Sized, D, T, I> IndexMut<I> for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]> + 'ob,
-    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
-    T: 'ob,
+    S: AsDerefMut<D, Target = [T; N]>,
+    O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
     #[inline]
@@ -275,7 +272,7 @@ where
 
 impl<T: Observe, const N: usize> Observe for [T; N] {
     type Observer<'ob, S, D>
-        = ArrayObserver<'ob, N, T::Observer<'ob, T, Zero>, S, D>
+        = ArrayObserver<N, T::Observer<'ob, T, Zero>, S, D>
     where
         Self: 'ob,
         D: Unsigned,
