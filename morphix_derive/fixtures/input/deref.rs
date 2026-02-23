@@ -47,7 +47,7 @@ impl DerefMut for Bar {
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
-pub struct Qux(#[morphix(deref)] i32);
+pub struct Qux(#[morphix(deref)] pub i32);
 
 impl Deref for Qux {
     type Target = i32;

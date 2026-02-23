@@ -14,7 +14,6 @@ const _: () = {
     pub struct FooObserver<'ob, O> {
         a: O,
         b: ::morphix::observe::DefaultObserver<'ob, i32>,
-        __phantom: ::std::marker::PhantomData<&'ob mut ()>,
     }
     #[automatically_derived]
     impl<'ob, O> ::std::ops::Deref for FooObserver<'ob, O> {
@@ -50,7 +49,6 @@ const _: () = {
             Self {
                 a: ::morphix::observe::Observer::uninit(),
                 b: ::morphix::observe::Observer::uninit(),
-                __phantom: ::std::marker::PhantomData,
             }
         }
         fn observe(value: &O::Head) -> Self {
@@ -59,13 +57,12 @@ const _: () = {
             Self {
                 a: __inner,
                 b: ::morphix::observe::Observer::observe(&__value.b),
-                __phantom: ::std::marker::PhantomData,
             }
         }
         unsafe fn refresh(this: &mut Self, value: &O::Head) {
+            let __value = ::morphix::helper::AsDeref::<N>::as_deref(value);
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.a, value);
-                let __value = ::morphix::helper::AsDeref::<N>::as_deref(value);
                 ::morphix::observe::Observer::refresh(&mut this.b, &__value.b);
             }
         }
@@ -135,11 +132,7 @@ impl<T> DerefMut for Foo<T> {
 pub struct Bar(Qux, i32);
 #[rustfmt::skip]
 const _: () = {
-    pub struct BarObserver<'ob, O>(
-        O,
-        ::morphix::observe::DefaultObserver<'ob, i32>,
-        ::std::marker::PhantomData<&'ob mut ()>,
-    );
+    pub struct BarObserver<'ob, O>(O, ::morphix::observe::DefaultObserver<'ob, i32>);
     #[automatically_derived]
     impl<'ob, O> ::std::ops::Deref for BarObserver<'ob, O> {
         type Target = O;
@@ -173,22 +166,17 @@ const _: () = {
             Self(
                 ::morphix::observe::Observer::uninit(),
                 ::morphix::observe::Observer::uninit(),
-                ::std::marker::PhantomData,
             )
         }
         fn observe(value: &O::Head) -> Self {
             let __inner = ::morphix::observe::Observer::observe(value);
             let __value = ::morphix::helper::AsDeref::<N>::as_deref(value);
-            Self(
-                __inner,
-                ::morphix::observe::Observer::observe(&__value.1),
-                ::std::marker::PhantomData,
-            )
+            Self(__inner, ::morphix::observe::Observer::observe(&__value.1))
         }
         unsafe fn refresh(this: &mut Self, value: &O::Head) {
+            let __value = ::morphix::helper::AsDeref::<N>::as_deref(value);
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.0, value);
-                let __value = ::morphix::helper::AsDeref::<N>::as_deref(value);
                 ::morphix::observe::Observer::refresh(&mut this.1, &__value.1);
             }
         }
@@ -247,32 +235,32 @@ impl DerefMut for Bar {
 }
 #[rustfmt::skip]
 #[derive(Serialize)]
-pub struct Qux(i32);
+pub struct Qux(pub i32);
 #[rustfmt::skip]
 const _: () = {
-    pub struct QuxObserver<'ob, O>(O, ::std::marker::PhantomData<&'ob mut ()>);
+    pub struct QuxObserver<O>(pub O);
     #[automatically_derived]
-    impl<'ob, O> ::std::ops::Deref for QuxObserver<'ob, O> {
+    impl<O> ::std::ops::Deref for QuxObserver<O> {
         type Target = O;
         fn deref(&self) -> &Self::Target {
             &self.0
         }
     }
     #[automatically_derived]
-    impl<'ob, O> ::std::ops::DerefMut for QuxObserver<'ob, O> {
+    impl<O> ::std::ops::DerefMut for QuxObserver<O> {
         fn deref_mut(&mut self) -> &mut Self::Target {
             &mut self.0
         }
     }
     #[automatically_derived]
-    impl<'ob, O> ::morphix::helper::AsNormalized for QuxObserver<'ob, O>
+    impl<O> ::morphix::helper::AsNormalized for QuxObserver<O>
     where
         O: ::morphix::helper::AsNormalized,
     {
         type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
     }
     #[automatically_derived]
-    impl<'ob, O, N> ::morphix::observe::Observer for QuxObserver<'ob, O>
+    impl<O, N> ::morphix::observe::Observer for QuxObserver<O>
     where
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
         O::Head: ::morphix::helper::AsDerefMut<N, Target = Qux>,
@@ -281,11 +269,11 @@ const _: () = {
         type Head = O::Head;
         type InnerDepth = N;
         fn uninit() -> Self {
-            Self(::morphix::observe::Observer::uninit(), ::std::marker::PhantomData)
+            Self(::morphix::observe::Observer::uninit())
         }
         fn observe(value: &O::Head) -> Self {
             let __inner = ::morphix::observe::Observer::observe(value);
-            Self(__inner, ::std::marker::PhantomData)
+            Self(__inner)
         }
         unsafe fn refresh(this: &mut Self, value: &O::Head) {
             unsafe {
@@ -294,7 +282,7 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, O, N> ::morphix::observe::SerializeObserver for QuxObserver<'ob, O>
+    impl<O, N> ::morphix::observe::SerializeObserver for QuxObserver<O>
     where
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
         O::Head: ::morphix::helper::AsDerefMut<N, Target = Qux>,
@@ -318,7 +306,6 @@ const _: () = {
         i32: ::morphix::Observe,
     {
         type Observer<'ob, S, N> = QuxObserver<
-            'ob,
             ::morphix::observe::DefaultObserver<'ob, i32, S, ::morphix::helper::Succ<N>>,
         >
         where

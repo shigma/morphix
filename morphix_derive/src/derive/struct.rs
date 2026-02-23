@@ -350,22 +350,20 @@ pub fn derive_observe_for_struct(
                 syn::GenericParam::Lifetime(param) => generics_visitor.contains_lt(&param.lifetime),
             })
             .collect();
-        ob_generics.params.insert(0, parse_quote! { #ob_lt });
+        if field_count > 1 {
+            ob_generics.params.insert(0, parse_quote! { #ob_lt });
+            ob_observer_generics.params.insert(0, parse_quote! { #ob_lt });
+        }
         ob_generics.params.push(parse_quote! { #inner });
         ob_assignable_predicates = quote! {
             #inner: ::morphix::helper::AsNormalized,
         };
-        ob_observer_generics.params.insert(0, parse_quote! { #ob_lt });
         ob_observer_generics.params.push(parse_quote! { #inner });
         ob_observer_generics.params.push(parse_quote! { #depth });
         ob_observer_predicates = quote! {
             #inner: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<#depth>>,
             #inner::Head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics>,
         };
-
-        ob_fields.extend(quote! {
-            #(#if_named __phantom:)* ::std::marker::PhantomData<&#ob_lt mut ()>,
-        });
 
         deref_ident = syn::Ident::new("Deref", meta_deref_ident.span());
         deref_target = quote! { #inner };
@@ -377,36 +375,16 @@ pub fn derive_observe_for_struct(
         };
 
         let observer_uninit_expr = match is_named {
-            true => quote! {
-                Self {
-                    #uninit_fields
-                    #(#if_named __phantom:)* ::std::marker::PhantomData,
-                }
-            },
-            false => quote! {
-                Self (
-                    #uninit_fields
-                    ::std::marker::PhantomData
-                )
-            },
+            true => quote! { Self { #uninit_fields } },
+            false => quote! { Self (#uninit_fields) },
         };
 
         let observer_observe_expr = match is_named {
-            true => quote! {
-                Self {
-                    #observe_fields
-                    #(#if_named __phantom:)* ::std::marker::PhantomData,
-                }
-            },
-            false => quote! {
-                Self (
-                    #observe_fields
-                    ::std::marker::PhantomData
-                )
-            },
+            true => quote! { Self { #observe_fields } },
+            false => quote! { Self (#observe_fields) },
         };
 
-        let prepare_inner = if field_count > 1 {
+        let prepare_value = if field_count > 1 {
             quote! {
                 let __value = ::morphix::helper::AsDeref::<#depth>::as_deref(value);
             }
@@ -424,14 +402,14 @@ pub fn derive_observe_for_struct(
 
             fn observe(value: &#inner::Head) -> Self {
                 let __inner = ::morphix::observe::Observer::observe(value);
-                #prepare_inner
+                #prepare_value
                 #observer_observe_expr
             }
 
             unsafe fn refresh(this: &mut Self, value: &#inner::Head) {
+                #prepare_value
                 unsafe {
                     ::morphix::observe::Observer::refresh(&mut this.#field_member, value);
-                    #prepare_inner
                     #refresh_stmts
                 }
             }
