@@ -409,13 +409,13 @@ pub fn derive_observe_for_enum(
             #(#input_predicates,)*
             #(#field_tys: ::morphix::Observe),*
         {
-            fn observe(value: &#ob_lt mut #input_ident #input_type_generics) -> Self {
+            fn observe(value: &#input_ident #input_type_generics) -> Self {
                 match value {
                     #variant_observe_arms
                 }
             }
 
-            unsafe fn refresh(&mut self, value: &mut #input_ident #input_type_generics) {
+            unsafe fn refresh(&mut self, value: &#input_ident #input_type_generics) {
                 unsafe {
                     match (self, value) {
                         #variant_refresh_arms
@@ -515,9 +515,9 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            fn observe(value: &#ob_lt mut #head) -> Self {
+            fn observe(value: &#head) -> Self {
                 let __ptr = ::morphix::helper::Pointer::new(value);
-                let __value = value.as_deref_mut();
+                let __value = value.as_deref();
                 Self {
                     __ptr,
                     #(#if_has_variant __mutated: false,)*
@@ -527,10 +527,10 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            unsafe fn refresh(this: &mut Self, value: &mut #head) {
+            unsafe fn refresh(this: &mut Self, value: &#head) {
                 ::morphix::helper::Pointer::set(this, value);
                 #(#if_has_variant
-                    let __value = value.as_deref_mut();
+                    let __value = value.as_deref();
                     unsafe { this.__variant.refresh(__value) }
                 )*
             }

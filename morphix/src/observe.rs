@@ -168,7 +168,7 @@ where
     /// let mut value = 42;
     /// let observer = ShallowObserver::<i32>::observe(&mut value);
     /// ```
-    fn observe(value: &'ob mut Self::Head) -> Self;
+    fn observe(value: &Self::Head) -> Self;
 
     /// Refreshes the observer's internal pointer after the observed value has moved.
     ///
@@ -227,7 +227,7 @@ where
     ///     # type InnerDepth = N;
     ///     # type Head = S;
     ///     #
-    ///     unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
+    ///     unsafe fn refresh(this: &mut Self, value: &Self::Head) {
     ///         // Refresh the outer pointer
     ///         Pointer::set(this, value);
     ///
@@ -240,7 +240,7 @@ where
     ///     }
     ///     #
     ///     # fn uninit() -> Self { todo!() }
-    ///     # fn observe(value: &'ob mut Self::Head) -> Self { todo!() }
+    ///     # fn observe(value: & Self::Head) -> Self { todo!() }
     /// }
     /// ```
     ///
@@ -248,7 +248,7 @@ where
     ///
     /// This method should be called after any operation that may relocate the observed
     /// value in memory while the observer is still in use.
-    unsafe fn refresh(this: &mut Self, value: &mut Self::Head);
+    unsafe fn refresh(this: &mut Self, value: &Self::Head);
 
     /// Forces the observer into a valid state for the given value.
     ///
@@ -275,7 +275,7 @@ where
     /// [`VecObserver`](crate::impls::VecObserver)) where element observers may need to be:
     /// - Lazily initialized on first access, and
     /// - Refreshed after container reallocation moves elements in memory.
-    unsafe fn force(this: &mut Self, value: &'ob mut Self::Head) {
+    unsafe fn force(this: &mut Self, value: &Self::Head) {
         match Pointer::get((*this).as_normalized_ref()) {
             None => *this = Self::observe(value),
             Some(ptr) => {

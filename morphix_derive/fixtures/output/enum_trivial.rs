@@ -63,16 +63,16 @@ const _: () = {
                 __initial: FooObserverInitial::__None,
             }
         }
-        fn observe(value: &'ob mut S) -> Self {
+        fn observe(value: &S) -> Self {
             let __ptr = ::morphix::helper::Pointer::new(value);
-            let __value = value.as_deref_mut();
+            let __value = value.as_deref();
             Self {
                 __ptr,
                 __phantom: ::std::marker::PhantomData,
                 __initial: FooObserverInitial::new(__value),
             }
         }
-        unsafe fn refresh(this: &mut Self, value: &mut S) {
+        unsafe fn refresh(this: &mut Self, value: &S) {
             ::morphix::helper::Pointer::set(this, value);
         }
     }

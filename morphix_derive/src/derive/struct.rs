@@ -47,6 +47,7 @@ pub fn derive_observe_for_struct(
     let mut skipped_tys = vec![];
     let mut ob_field_tys = vec![];
     let mut deref_fields = vec![];
+    let field_count = fields.len();
     for (i, field) in fields.iter().enumerate() {
         let field_meta = ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Struct);
         let field_vis = &field.vis;
@@ -70,13 +71,13 @@ pub fn derive_observe_for_struct(
                 #field_vis #(#if_named #field_ident:)* ::morphix::helper::Pointer<#field_ty>,
             });
             observe_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* ::morphix::helper::Pointer::new(&mut __value.#field_member),
+                #(#if_named #field_ident:)* ::morphix::helper::Pointer::new(&__value.#field_member),
             });
             uninit_fields.extend(quote_spanned! { field_span =>
                 #(#if_named #field_ident:)* ::morphix::helper::Pointer::uninit(),
             });
             refresh_stmts.extend(quote_spanned! { field_span =>
-                ::morphix::helper::Pointer::set(&this.#field_member, &mut __value.#field_member);
+                ::morphix::helper::Pointer::set(&this.#field_member, &__value.#field_member);
             });
             continue;
         }
@@ -115,13 +116,13 @@ pub fn derive_observe_for_struct(
                 ob_field_tys.push(quote! { #ob_field_ty });
             }
             refresh_stmts.extend(quote_spanned! { field_span =>
-                ::morphix::observe::Observer::refresh(&mut this.#field_member, &mut __value.#field_member);
+                ::morphix::observe::Observer::refresh(&mut this.#field_member, &__value.#field_member);
             });
             ob_fields.extend(quote_spanned! { field_span =>
                 #field_vis #(#if_named #field_ident:)* #ob_field_ty,
             });
             observe_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* ::morphix::observe::Observer::observe(&mut __value.#field_member),
+                #(#if_named #field_ident:)* ::morphix::observe::Observer::observe(&__value.#field_member),
             });
         };
         uninit_fields.extend(quote_spanned! { field_span =>
@@ -293,15 +294,15 @@ pub fn derive_observe_for_struct(
                 #observer_uninit_expr
             }
 
-            fn observe(value: &#ob_lt mut #head) -> Self {
+            fn observe(value: &#head) -> Self {
                 let __ptr = ::morphix::helper::Pointer::new(value);
-                let __value = value.as_deref_mut();
+                let __value = value.as_deref();
                 #observer_observe_expr
             }
 
-            unsafe fn refresh(this: &mut Self, value: &mut #head) {
+            unsafe fn refresh(this: &mut Self, value: &#head) {
                 ::morphix::helper::Pointer::set(this, value);
-                let __value = value.as_deref_mut();
+                let __value = value.as_deref();
                 unsafe {
                     #refresh_stmts
                 }
@@ -405,6 +406,14 @@ pub fn derive_observe_for_struct(
             },
         };
 
+        let prepare_inner = if field_count > 1 {
+            quote! {
+                let __value = ::morphix::helper::AsDeref::<#depth>::as_deref(value);
+            }
+        } else {
+            quote! {}
+        };
+
         observer_impl = quote! {
             type Head = #inner::Head;
             type InnerDepth = #depth;
@@ -413,16 +422,16 @@ pub fn derive_observe_for_struct(
                 #observer_uninit_expr
             }
 
-            fn observe(value: &#ob_lt mut #inner::Head) -> Self {
-                let __inner = ::morphix::observe::Observer::observe(unsafe { &mut *(value as *mut #inner::Head) });
-                let __value = ::morphix::helper::AsDerefMut::<#depth>::as_deref_mut(value);
+            fn observe(value: &#inner::Head) -> Self {
+                let __inner = ::morphix::observe::Observer::observe(value);
+                #prepare_inner
                 #observer_observe_expr
             }
 
-            unsafe fn refresh(this: &mut Self, value: &mut #inner::Head) {
+            unsafe fn refresh(this: &mut Self, value: &#inner::Head) {
                 unsafe {
                     ::morphix::observe::Observer::refresh(&mut this.#field_member, value);
-                    let __value = ::morphix::helper::AsDerefMut::<#depth>::as_deref_mut(value);
+                    #prepare_inner
                     #refresh_stmts
                 }
             }

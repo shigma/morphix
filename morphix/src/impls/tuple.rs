@@ -60,11 +60,11 @@ where
     }
 
     #[inline]
-    fn observe(value: &'ob mut Self::Head) -> Self {
+    fn observe(value: &Self::Head) -> Self {
         let ptr = Pointer::new(value);
-        let value = value.as_deref_mut();
+        let value = value.as_deref();
         Self(
-            O::observe(&mut value.0),
+            O::observe(&value.0),
             /* ptr */ ptr,
             /* mutated */ false,
             /* phantom */ PhantomData,
@@ -72,10 +72,10 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
+    unsafe fn refresh(this: &mut Self, value: &Self::Head) {
         Pointer::set(&this.1, value);
-        let value = value.as_deref_mut();
-        unsafe { O::refresh(&mut this.0, &mut value.0) }
+        let value = value.as_deref();
+        unsafe { O::refresh(&mut this.0, &value.0) }
     }
 }
 
@@ -258,11 +258,11 @@ macro_rules! tuple_observer {
             }
 
             #[inline]
-            fn observe(value: &'ob mut Self::Head) -> Self {
+            fn observe(value: &Self::Head) -> Self {
                 let ptr = Pointer::new(value);
-                let value = value.as_deref_mut();
+                let value = value.as_deref();
                 Self(
-                    $($o::observe(&mut value.$n),)*
+                    $($o::observe(&value.$n),)*
                     /* ptr */ ptr,
                     /* mutated */ false,
                     /* phantom */ PhantomData,
@@ -270,11 +270,11 @@ macro_rules! tuple_observer {
             }
 
             #[inline]
-            unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
+            unsafe fn refresh(this: &mut Self, value: &Self::Head) {
                 Pointer::set(&this.$ptr, value);
-                let value = value.as_deref_mut();
+                let value = value.as_deref();
                 unsafe {
-                    $($o::refresh(&mut this.$n, &mut value.$n);)*
+                    $($o::refresh(&mut this.$n, &value.$n);)*
                 }
             }
         }

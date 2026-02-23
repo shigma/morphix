@@ -81,12 +81,12 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
+    unsafe fn refresh(this: &mut Self, value: &Self::Head) {
         Pointer::set(this, value);
     }
 
     #[inline]
-    fn observe(value: &'ob mut Self::Head) -> Self {
+    fn observe(value: &Self::Head) -> Self {
         Self {
             ptr: Pointer::new(value),
             diff: Some(Diff::default()),

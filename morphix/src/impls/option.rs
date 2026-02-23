@@ -67,9 +67,9 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
+    unsafe fn refresh(this: &mut Self, value: &Self::Head) {
         Pointer::set(this, value);
-        match (&mut this.inner, value.as_deref_mut()) {
+        match (&mut this.inner, value.as_deref()) {
             (Some(inner), Some(value)) => unsafe { Observer::refresh(inner, value) },
             (None, _) => {}
             _ => unreachable!("inconsistent option observer state"),
@@ -77,12 +77,12 @@ where
     }
 
     #[inline]
-    fn observe(value: &'ob mut Self::Head) -> Self {
+    fn observe(value: &Self::Head) -> Self {
         Self {
             ptr: Pointer::new(value),
             mutated: false,
             initial: value.as_deref().is_some(),
-            inner: value.as_deref_mut().as_mut().map(O::observe),
+            inner: value.as_deref().as_ref().map(O::observe),
             phantom: PhantomData,
         }
     }
@@ -134,7 +134,7 @@ where
     #[inline]
     pub fn as_mut(&mut self) -> Option<&mut O> {
         if self.inner.is_none() {
-            self.inner = Observer::as_inner(self).as_mut().map(O::observe);
+            self.inner = Observer::as_inner(self).as_ref().map(O::observe);
         }
         self.inner.as_mut()
     }

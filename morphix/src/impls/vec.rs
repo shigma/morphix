@@ -56,14 +56,14 @@ where
     }
 
     #[inline]
-    fn observe(value: &'ob mut Self::Head) -> Self {
+    fn observe(value: &Self::Head) -> Self {
         Self {
             inner: SliceObserver::<UnsafeCell<Vec<O>>, TruncateAppend, S, Succ<D>>::observe(value),
         }
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, value: &mut Self::Head) {
+    unsafe fn refresh(this: &mut Self, value: &Self::Head) {
         unsafe { SliceObserver::refresh(&mut this.inner, value) }
     }
 }

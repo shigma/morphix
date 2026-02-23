@@ -49,8 +49,8 @@ impl<S: ?Sized> Pointer<S> {
     /// The returned pointer will remain valid as long as the original reference remains valid,
     /// which is enforced by the lifetime parameter in observer types.
     #[inline]
-    pub const fn new(value: &mut S) -> Self {
-        Self(Cell::new(Some(NonNull::from_mut(value))))
+    pub const fn new(value: &S) -> Self {
+        Self(Cell::new(Some(NonNull::from_ref(value))))
     }
 
     /// Retrieves the internal raw pointer.
@@ -66,8 +66,8 @@ impl<S: ?Sized> Pointer<S> {
     /// any existing [`Pointer`] instances pointing to those elements become invalid. This method
     /// allows updating those pointers to point to the elements' new locations.
     #[inline]
-    pub fn set(this: &Self, value: &mut S) {
-        this.0.set(Some(NonNull::from_mut(value)));
+    pub fn set(this: &Self, value: &S) {
+        this.0.set(Some(NonNull::from_ref(value)));
     }
 
     /// Checks if this pointer is null.

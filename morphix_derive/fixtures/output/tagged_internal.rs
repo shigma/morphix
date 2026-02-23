@@ -36,7 +36,7 @@ const _: () = {
         __None,
     }
     impl<'ob, const N: usize> FooObserverVariant<'ob, N> {
-        fn observe(value: &'ob mut Foo<N>) -> Self {
+        fn observe(value: &Foo<N>) -> Self {
             match value {
                 Foo::A(v0) => Self::A(::morphix::observe::Observer::observe(v0)),
                 Foo::C { bar, qux } => {
@@ -47,7 +47,7 @@ const _: () = {
                 }
             }
         }
-        unsafe fn refresh(&mut self, value: &mut Foo<N>) {
+        unsafe fn refresh(&mut self, value: &Foo<N>) {
             unsafe {
                 match (self, value) {
                     (Self::A(u0), Foo::A(v0)) => {
@@ -138,9 +138,9 @@ const _: () = {
                 __variant: FooObserverVariant::__None,
             }
         }
-        fn observe(value: &'ob mut S) -> Self {
+        fn observe(value: &S) -> Self {
             let __ptr = ::morphix::helper::Pointer::new(value);
-            let __value = value.as_deref_mut();
+            let __value = value.as_deref();
             Self {
                 __ptr,
                 __mutated: false,
@@ -148,9 +148,9 @@ const _: () = {
                 __variant: FooObserverVariant::observe(__value),
             }
         }
-        unsafe fn refresh(this: &mut Self, value: &mut S) {
+        unsafe fn refresh(this: &mut Self, value: &S) {
             ::morphix::helper::Pointer::set(this, value);
-            let __value = value.as_deref_mut();
+            let __value = value.as_deref();
             unsafe { this.__variant.refresh(__value) }
         }
     }
