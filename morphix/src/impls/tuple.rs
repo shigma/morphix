@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::builtin::{PointerObserver, Snapshot};
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
 
@@ -35,8 +35,13 @@ impl<O, S: ?Sized, D> DerefMut for TupleObserver<O, S, D> {
     }
 }
 
-impl<O, S: ?Sized, D> AsNormalized for TupleObserver<O, S, D> {
+impl<O, S: ?Sized, D> QuasiObserver for TupleObserver<O, S, D>
+where
+    D: Unsigned,
+    S: crate::helper::AsDeref<D>,
+{
     type OuterDepth = Succ<Zero>;
+    type InnerDepth = D;
 }
 
 impl<O, S: ?Sized, D> Observer for TupleObserver<O, S, D>
@@ -46,9 +51,6 @@ where
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    type InnerDepth = D;
-    type Head = S;
-
     #[inline]
     fn uninit() -> Self {
         Self(
@@ -234,8 +236,13 @@ macro_rules! tuple_observer {
             }
         }
 
-        impl<$($o,)* S: ?Sized, D> AsNormalized for $ty<$($o,)* S, D> {
+        impl<$($o,)* S: ?Sized, D> QuasiObserver for $ty<$($o,)* S, D>
+        where
+            D: Unsigned,
+            S: $crate::helper::AsDeref<D>,
+        {
             type OuterDepth = Succ<Zero>;
+            type InnerDepth = D;
         }
 
         impl<$($o,)* S: ?Sized, D> Observer for $ty<$($o,)* S, D>
@@ -244,9 +251,6 @@ macro_rules! tuple_observer {
             S: AsDerefMut<D, Target = ($($o::Head,)*)>,
             $($o: Observer<InnerDepth = Zero, Head: Sized>,)*
         {
-            type InnerDepth = D;
-            type Head = S;
-
             #[inline]
             fn uninit() -> Self {
                 Self(

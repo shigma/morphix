@@ -21,7 +21,7 @@
 //! `Pointer<A>` → `A` → `B`. This allows tracking changes on both `A` and `B`.
 
 pub use crate::builtin::snapshot::SnapshotSpec;
-use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, AsNormalized, Pointer, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Unsigned, Zero};
 use crate::{Adapter, Mutations};
 
 /// A trait for types that can be observed for mutations.
@@ -146,6 +146,53 @@ pub trait ObserveExt: Observe {
 
 impl<T: Observe + ?Sized> ObserveExt for T {}
 
+pub trait ObserverExt: QuasiObserver<Target = Pointer<Self::Head>> {
+    /// The head type of the dereference chain.
+    type Head: AsDeref<Self::InnerDepth, Target = <Self as ObserverExt>::Target> + ?Sized;
+
+    type Target: ?Sized;
+
+    #[inline]
+    fn inner_ref(&self) -> &<Self as ObserverExt>::Target {
+        (**self.as_normalized_ref()).as_deref()
+    }
+
+    #[inline]
+    fn inner_tracked(&mut self) -> &mut <Self as ObserverExt>::Target
+    where
+        Self::Head: AsDerefMut<Self::InnerDepth>,
+    {
+        (**self.as_normalized_mut()).as_deref_mut()
+    }
+
+    #[inline]
+    fn inner_untracked<'ob>(&mut self) -> &'ob mut <Self as ObserverExt>::Target
+    where
+        Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
+    {
+        let head = unsafe { Pointer::as_mut((*self).as_normalized_ref()) };
+        AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
+    }
+
+    #[inline]
+    unsafe fn inner_untracked_from_ref<'ob>(&self) -> &'ob mut <Self as ObserverExt>::Target
+    where
+        Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
+    {
+        let head = unsafe { Pointer::as_mut(self.as_normalized_ref()) };
+        AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
+    }
+}
+
+impl<O, S: ?Sized, T: ?Sized> ObserverExt for O
+where
+    O: QuasiObserver<Target = Pointer<S>>,
+    S: AsDeref<Self::InnerDepth, Target = T>,
+{
+    type Head = S;
+    type Target = T;
+}
+
 /// A trait for observer types that wrap and track mutations to values.
 ///
 /// Observers provide transparent access to the underlying value while recording any mutations that
@@ -160,17 +207,7 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 ///
 /// See the [module documentation](self) for more details about how observers work with dereference
 /// chains.
-pub trait Observer: Sized
-where
-    Self: AsNormalized<Target = Pointer<Self::Head>>,
-    Self: AsDerefMutCoinductive<Self::OuterDepth>,
-{
-    /// Type-level number of dereferences from [`Head`](Observer::Head) to the observed type.
-    type InnerDepth: Unsigned;
-
-    /// The head type of the dereference chain.
-    type Head: AsDeref<Self::InnerDepth> + ?Sized;
-
+pub trait Observer: ObserverExt + Sized {
     /// Creates an uninitialized observer.
     ///
     /// The returned observer is not associated with any value and must be initialized via
@@ -219,7 +256,7 @@ where
     /// Implementing [`Observer`] for [`Option<T>`]:
     ///
     /// ```
-    /// # use morphix::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
+    /// # use morphix::helper::{AsDeref, AsDerefMut, QuasiObserver, Pointer, Succ, Unsigned, Zero};
     /// # use morphix::observe::{Observer};
     /// # use std::marker::PhantomData;
     /// #
@@ -243,8 +280,13 @@ where
     /// #     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.ptr }
     /// # }
     /// #
-    /// # impl<'ob, O, S: ?Sized, N> AsNormalized for OptionObserver<'ob, O, S, N> {
+    /// # impl<'ob, O, S: ?Sized, N> QuasiObserver for OptionObserver<'ob, O, S, N>
+    /// # where
+    /// #     N: Unsigned,
+    /// #     S: AsDeref<N>,
+    /// # {
     /// #     type OuterDepth = Succ<Zero>;
+    /// #     type InnerDepth = N;
     /// # }
     /// #
     /// impl<'ob, O, S: ?Sized, N> Observer for OptionObserver<'ob, O, S, N>
@@ -254,9 +296,6 @@ where
     ///     O: Observer<InnerDepth = Zero>,
     ///     O::Head: Sized,
     /// {
-    ///     # type InnerDepth = N;
-    ///     # type Head = S;
-    ///     #
     ///     unsafe fn refresh(this: &mut Self, value: &Self::Head) {
     ///         // Refresh the outer pointer
     ///         Pointer::set(this, value);

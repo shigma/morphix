@@ -11,7 +11,7 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::default_impl_ref_observe;
-use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
@@ -56,8 +56,13 @@ impl<'ob, K, O, S: ?Sized, D> DerefMut for BTreeMapObserver<'ob, K, O, S, D> {
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> AsNormalized for BTreeMapObserver<'ob, K, O, S, D> {
+impl<'ob, K, O, S: ?Sized, D> QuasiObserver for BTreeMapObserver<'ob, K, O, S, D>
+where
+    D: Unsigned,
+    S: crate::helper::AsDeref<D>,
+{
     type OuterDepth = Succ<Zero>;
+    type InnerDepth = D;
 }
 
 impl<'ob, K, O, S: ?Sized, D> Observer for BTreeMapObserver<'ob, K, O, S, D>
@@ -67,9 +72,6 @@ where
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    type InnerDepth = D;
-    type Head = S;
-
     #[inline]
     fn uninit() -> Self {
         Self {

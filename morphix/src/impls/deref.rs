@@ -2,8 +2,8 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 
 use crate::builtin::Snapshot;
-use crate::helper::{AsDeref, AsDerefMut, AsNormalized, Pointer, Succ, Unsigned};
-use crate::observe::{Observer, RefObserve, SerializeObserver};
+use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned};
+use crate::observe::{Observer, ObserverExt, RefObserve, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
 /// Observer implementation for pointer types such as [`Box<T>`] and `&mut T`.
@@ -30,11 +30,14 @@ impl<O> DerefMut for DerefObserver<O> {
     }
 }
 
-impl<O> AsNormalized for DerefObserver<O>
+impl<O, D> QuasiObserver for DerefObserver<O>
 where
-    O: AsNormalized,
+    D: Unsigned,
+    O: QuasiObserver<InnerDepth = Succ<D>>,
+    O::Target: Deref<Target: AsDeref<D> + AsDeref<Succ<D>>>,
 {
     type OuterDepth = Succ<O::OuterDepth>;
+    type InnerDepth = D;
 }
 
 impl<O, D> Observer for DerefObserver<O>
@@ -43,9 +46,6 @@ where
     O::Head: AsDeref<D>,
     D: Unsigned,
 {
-    type InnerDepth = D;
-    type Head = O::Head;
-
     #[inline]
     fn uninit() -> Self {
         Self { inner: O::uninit() }
@@ -226,25 +226,23 @@ impl_snapshot! {
 macro_rules! generic_impl_cmp {
     ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
         $(
-            impl<$($($gen)*,)? O, T: ?Sized> PartialEq<$ty> for DerefObserver<O>
+            impl<$($($gen)*,)? O> PartialEq<$ty> for DerefObserver<O>
             where
-                O: AsNormalized<Target = Pointer<T>>,
-                T: PartialEq<$ty>,
+                Self: ObserverExt<Target: PartialEq<$ty>>,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    (**self.as_normalized_ref()).eq(other)
+                    self.inner_ref().eq(other)
                 }
             }
 
-            impl<$($($gen)*,)? O, T: ?Sized> PartialOrd<$ty> for DerefObserver<O>
+            impl<$($($gen)*,)? O> PartialOrd<$ty> for DerefObserver<O>
             where
-                O: AsNormalized<Target = Pointer<T>>,
-                T: PartialOrd<$ty>,
+                Self: ObserverExt<Target: PartialOrd<$ty>>,
             {
                 #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
-                    (**self.as_normalized_ref()).partial_cmp(other)
+                    self.inner_ref().partial_cmp(other)
                 }
             }
         )*

@@ -65,13 +65,15 @@
 //!
 //! This creates a form of specialization without requiring the unstable specialization feature.
 
-use crate::helper::{AsDerefCoinductive, AsDerefMutCoinductive, Unsigned, Zero};
+use std::ops::{Deref, DerefMut};
+
+use crate::helper::{AsDeref, AsDerefCoinductive, AsDerefMut, AsDerefMutCoinductive, Pointer, Unsigned, Zero};
 
 /// A trait for specifying normalized dereference access.
 ///
 /// This trait indicates how many times a value should be dereferenced to reach its normalized form.
 /// In the [`observe!`](crate::observe!) macro, values implementing this trait will be automatically
-/// dereferenced [`OuterDepth`](AsNormalized::OuterDepth) times when they appear in the following
+/// dereferenced [`OuterDepth`](QuasiObserver::OuterDepth) times when they appear in the following
 /// positions:
 ///
 /// - Left-hand side of assignment operator (`=`)
@@ -82,39 +84,62 @@ use crate::helper::{AsDerefCoinductive, AsDerefMutCoinductive, Unsigned, Zero};
 /// ## Implementation Notes
 ///
 /// 1. **Every type implementing [`Observer`](crate::observe::Observer) should manually implement
-///    [`AsNormalized`]**. Without this implementation, assignments and comparisons in the
+///    [`QuasiObserver`]**. Without this implementation, assignments and comparisons in the
 ///    [`observe!`](crate::observe!) macro may not work as expected, potentially causing compilation
 ///    errors or incorrect behavior. We cannot provide a blanket implementation `impl<T: Observer>
-///    AsNormalized for T` because it would conflict with the `impl<T> AsNormalized for &T` and
-///    `impl<T> AsNormalized for &mut T` implementations.
+///    QuasiObserver for T` because it would conflict with the `impl<T> QuasiObserver for &T` and
+///    `impl<T> QuasiObserver for &mut T` implementations.
 ///
-/// 2. **Do not implement [`AsNormalized`] for types other than `&T`, `&mut T`, and
-///    [`Observer`](crate::observe::Observer) types**. Implementing [`AsNormalized`] for other
+/// 2. **Do not implement [`QuasiObserver`] for types other than `&T`, `&mut T`, [`Pointer<T>`], and
+///    [`Observer`](crate::observe::Observer) types**. Implementing [`QuasiObserver`] for other
 ///    [`Deref`](std::ops::Deref) types (like [`Box`], [`MutexGuard`](std::sync::MutexGuard), etc.)
 ///    may cause unexpected behavior in the [`observe!`](crate::observe!) macro, as it would
 ///    interfere with the autoref-based specialization mechanism.
-pub trait AsNormalized: AsDerefCoinductive<Self::OuterDepth> {
-    /// The number of outer dereference layers to reach the normalized value.
+pub trait QuasiObserver
+where
+    Self: AsDerefMutCoinductive<Self::OuterDepth>,
+    Self::Target: Deref<Target: AsDeref<Self::InnerDepth>>,
+{
+    /// The number of outer dereference layers to reach the pointer type.
     type OuterDepth: Unsigned;
+    /// The number of inner dereference layers from the anchor type to reach the underlying value.
+    type InnerDepth: Unsigned;
 
     /// Returns a normalized reference to the underlying value.
-    fn as_normalized_ref(&self) -> &Self::Target {
+    fn as_normalized_ref(&self) -> &<Self as AsDerefCoinductive<Self::OuterDepth>>::Target {
         self.as_deref_coinductive()
     }
 
     /// Returns a normalized mutable reference to the underlying value.
-    fn as_normalized_mut(&mut self) -> &mut Self::Target
-    where
-        Self: AsDerefMutCoinductive<Self::OuterDepth>,
-    {
+    fn as_normalized_mut(&mut self) -> &mut <Self as AsDerefCoinductive<Self::OuterDepth>>::Target {
         self.as_deref_mut_coinductive()
+    }
+
+    #[inline]
+    fn observed_ref(&self) -> &<<Self::Target as Deref>::Target as AsDeref<Self::InnerDepth>>::Target {
+        self.as_deref_coinductive().deref().as_deref()
+    }
+
+    #[inline]
+    fn observed_mut(&mut self) -> &mut <<Self::Target as Deref>::Target as AsDeref<Self::InnerDepth>>::Target
+    where
+        Self::Target: DerefMut<Target: AsDerefMut<Self::InnerDepth>>,
+    {
+        self.as_deref_mut_coinductive().deref_mut().as_deref_mut()
     }
 }
 
-impl<T: ?Sized> AsNormalized for &T {
+impl<T: ?Sized> QuasiObserver for &T {
     type OuterDepth = Zero;
+    type InnerDepth = Zero;
 }
 
-impl<T: ?Sized> AsNormalized for &mut T {
+impl<T: ?Sized> QuasiObserver for &mut T {
     type OuterDepth = Zero;
+    type InnerDepth = Zero;
+}
+
+impl<T: ?Sized> QuasiObserver for Pointer<T> {
+    type OuterDepth = Zero;
+    type InnerDepth = Zero;
 }

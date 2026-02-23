@@ -69,12 +69,15 @@ const _: () = {
         const N: usize,
         _S: ?Sized,
         _N,
-    > ::morphix::helper::AsNormalized for FooObserver<'ob, 'a, S, T, U, N, _S, _N>
+    > ::morphix::helper::QuasiObserver for FooObserver<'ob, 'a, S, T, U, N, _S, _N>
     where
+        _S: ::morphix::helper::AsDeref<_N>,
         &'a mut [S; N]: ::morphix::Observe,
         Option<U>: ::morphix::Observe,
+        _N: ::morphix::helper::Unsigned,
     {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+        type InnerDepth = _N;
     }
     #[automatically_derived]
     impl<'ob, 'a, S, T, U, const N: usize, _S: ?Sized, _N> ::morphix::observe::Observer
@@ -86,8 +89,6 @@ const _: () = {
         _S: ::morphix::helper::AsDerefMut<_N, Target = Foo<'a, S, T, U, N>> + 'ob,
         _N: ::morphix::helper::Unsigned,
     {
-        type Head = _S;
-        type InnerDepth = _N;
         fn uninit() -> Self {
             Self {
                 a: ::morphix::observe::Observer::uninit(),

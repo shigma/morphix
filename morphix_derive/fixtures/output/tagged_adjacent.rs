@@ -17,8 +17,8 @@ const _: () = {
     {
         __ptr: ::morphix::helper::Pointer<S>,
         __mutated: bool,
-        __phantom: ::std::marker::PhantomData<&'ob mut N>,
         __variant: FooObserverVariant<'ob, 'i>,
+        __phantom: ::std::marker::PhantomData<&'ob mut N>,
     }
     pub enum FooObserverVariant<'ob, 'i>
     where
@@ -140,12 +140,15 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, 'i, S: ?Sized, N> ::morphix::helper::AsNormalized
+    impl<'ob, 'i, S: ?Sized, N> ::morphix::helper::QuasiObserver
     for FooObserver<'ob, 'i, S, N>
     where
         &'i mut String: ::morphix::Observe,
+        S: ::morphix::helper::AsDeref<N>,
+        N: ::morphix::helper::Unsigned,
     {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+        type InnerDepth = N;
     }
     #[automatically_derived]
     impl<'ob, 'i, S: ?Sized, N> ::morphix::observe::Observer
@@ -155,8 +158,6 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<N, Target = Foo<'i>> + 'ob,
         N: ::morphix::helper::Unsigned,
     {
-        type Head = S;
-        type InnerDepth = N;
         fn uninit() -> Self {
             Self {
                 __ptr: ::morphix::helper::Pointer::uninit(),

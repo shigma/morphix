@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations};
 
@@ -41,8 +41,13 @@ impl<O, S: ?Sized, D> DerefMut for OptionObserver<O, S, D> {
     }
 }
 
-impl<O, S: ?Sized, D> AsNormalized for OptionObserver<O, S, D> {
+impl<O, S: ?Sized, D> QuasiObserver for OptionObserver<O, S, D>
+where
+    D: Unsigned,
+    S: crate::helper::AsDeref<D>,
+{
     type OuterDepth = Succ<Zero>;
+    type InnerDepth = D;
 }
 
 impl<O, S: ?Sized, D> Observer for OptionObserver<O, S, D>
@@ -52,9 +57,6 @@ where
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    type InnerDepth = D;
-    type Head = S;
-
     #[inline]
     fn uninit() -> Self {
         Self {

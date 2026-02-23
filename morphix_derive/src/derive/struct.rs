@@ -194,6 +194,7 @@ pub fn derive_observe_for_struct(
     let (input_impl_generics, input_type_generics, _) = input_generics.split_for_impl();
 
     let mut ob_generics = input_generics.clone();
+    let mut ob_quasi_generics;
     let mut ob_observer_generics = input_generics.clone();
 
     let deref_ident;
@@ -203,7 +204,7 @@ pub fn derive_observe_for_struct(
     let assignable_impl;
     let observer_impl;
     let serialize_observer_impl_prefix;
-    let ob_assignable_predicates;
+    let ob_quasi_predicates;
     let ob_observer_predicates;
     let input_observe_predicates;
     let input_observer_type_generics;
@@ -214,7 +215,10 @@ pub fn derive_observe_for_struct(
         ob_generics
             .params
             .push(parse_quote! { #depth = ::morphix::helper::Zero });
-        ob_assignable_predicates = quote! {};
+        ob_quasi_generics = ob_generics.clone();
+        ob_quasi_predicates = quote! {
+            #head: ::morphix::helper::AsDeref<#depth>,
+        };
         ob_observer_generics.params.insert(0, parse_quote! { #ob_lt });
         ob_observer_generics.params.push(parse_quote! { #head: ?Sized });
         ob_observer_generics
@@ -287,9 +291,6 @@ pub fn derive_observe_for_struct(
         };
 
         observer_impl = quote! {
-            type Head = #head;
-            type InnerDepth = #depth;
-
             fn uninit() -> Self {
                 #observer_uninit_expr
             }
@@ -355,8 +356,11 @@ pub fn derive_observe_for_struct(
             ob_observer_generics.params.insert(0, parse_quote! { #ob_lt });
         }
         ob_generics.params.push(parse_quote! { #inner });
-        ob_assignable_predicates = quote! {
-            #inner: ::morphix::helper::AsNormalized,
+        ob_quasi_generics = ob_generics.clone();
+        ob_quasi_generics.params.push(parse_quote! { #depth });
+        ob_quasi_predicates = quote! {
+            #inner: ::morphix::helper::QuasiObserver<InnerDepth = ::morphix::helper::Succ<#depth>>,
+            #inner::Target: ::std::ops::Deref<Target: ::morphix::helper::AsDeref<#depth> + ::morphix::helper::AsDeref<::morphix::helper::Succ<#depth>>>,
         };
         ob_observer_generics.params.push(parse_quote! { #inner });
         ob_observer_generics.params.push(parse_quote! { #depth });
@@ -393,9 +397,6 @@ pub fn derive_observe_for_struct(
         };
 
         observer_impl = quote! {
-            type Head = #inner::Head;
-            type InnerDepth = #depth;
-
             fn uninit() -> Self {
                 #observer_uninit_expr
             }
@@ -440,6 +441,7 @@ pub fn derive_observe_for_struct(
     };
 
     let (ob_impl_generics, ob_type_generics, _) = ob_generics.split_for_impl();
+    let (ob_quasi_impl_generics, _, _) = ob_quasi_generics.split_for_impl();
     let (ob_observer_impl_generics, _, _) = ob_observer_generics.split_for_impl();
 
     let input_trivial = input.generics.params.is_empty();
@@ -506,14 +508,16 @@ pub fn derive_observe_for_struct(
         }
 
         #[automatically_derived]
-        impl #ob_impl_generics ::morphix::helper::AsNormalized
+        impl #ob_quasi_impl_generics ::morphix::helper::QuasiObserver
         for #ob_ident #ob_type_generics
         where
             #(#input_predicates,)*
-            #ob_assignable_predicates
+            #ob_quasi_predicates
             #(#field_tys: ::morphix::Observe,)*
+            #depth: ::morphix::helper::Unsigned,
         {
             #assignable_impl
+            type InnerDepth = #depth;
         }
 
         #[automatically_derived]
@@ -585,7 +589,7 @@ pub fn derive_observe_for_struct(
                 {
                     #[inline]
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let head = &**::morphix::helper::AsNormalized::as_normalized_ref(self);
+                        let head = &**::morphix::helper::QuasiObserver::as_normalized_ref(self);
                         let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
                         ::std::fmt::Display::fmt(value, f)
                     }

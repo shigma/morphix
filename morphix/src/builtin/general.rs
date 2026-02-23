@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations};
 
@@ -216,8 +216,14 @@ where
     }
 }
 
-impl<'ob, H, S: ?Sized, D> AsNormalized for GeneralObserver<'ob, H, S, D> {
+impl<'ob, H, S: ?Sized, D> QuasiObserver for GeneralObserver<'ob, H, S, D>
+where
+    S: crate::helper::AsDeref<D>,
+    H: GeneralHandler,
+    D: Unsigned,
+{
     type OuterDepth = Succ<Zero>;
+    type InnerDepth = D;
 }
 
 impl<'ob, H, S: ?Sized, D, T: ?Sized> Observer for GeneralObserver<'ob, H, S, D>
@@ -226,9 +232,6 @@ where
     H: GeneralHandler<Target = T>,
     D: Unsigned,
 {
-    type InnerDepth = D;
-    type Head = S;
-
     #[inline]
     fn uninit() -> Self {
         Self {

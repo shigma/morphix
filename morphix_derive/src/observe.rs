@@ -87,7 +87,7 @@ pub fn observe(mut input: ObserveInput) -> TokenStream {
     let body = quote! {
         'ob: {
             #[allow(unused_imports)]
-            use ::morphix::helper::AsNormalized;
+            use ::morphix::helper::QuasiObserver;
             use ::morphix::observe::ObserveExt;
             #(#inits)*
             #[allow(clippy::needless_borrow)]

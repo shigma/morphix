@@ -444,9 +444,9 @@ pub fn derive_observe_for_enum(
         {
             __ptr: ::morphix::helper::Pointer<#head>,
             #(#if_has_variant __mutated: bool,)*
-            __phantom: ::std::marker::PhantomData<&#ob_lt mut #depth>,
             #(#if_has_initial __initial: #ob_initial_ident,)*
             #(#if_has_variant __variant: #ob_variant_ident #ob_variant_type_generics,)*
+            __phantom: ::std::marker::PhantomData<&#ob_lt mut #depth>,
         }
 
         #(#if_has_initial #ob_initial_impl)*
@@ -483,13 +483,16 @@ pub fn derive_observe_for_enum(
         }
 
         #[automatically_derived]
-        impl #ob_impl_generics ::morphix::helper::AsNormalized
+        impl #ob_impl_generics ::morphix::helper::QuasiObserver
         for #ob_ident #ob_type_generics
         where
             #(#input_predicates,)*
             #(#field_tys: ::morphix::Observe,)*
+            #head: ::morphix::helper::AsDeref<#depth>,
+            #depth: ::morphix::helper::Unsigned,
         {
             type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+            type InnerDepth = #depth;
         }
 
         #[automatically_derived]
@@ -502,9 +505,6 @@ pub fn derive_observe_for_enum(
             #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics> + #ob_lt,
             #depth: ::morphix::helper::Unsigned,
         {
-            type Head = #head;
-            type InnerDepth = #depth;
-
             fn uninit() -> Self {
                 Self {
                     __ptr: ::morphix::helper::Pointer::uninit(),

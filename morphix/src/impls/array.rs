@@ -6,12 +6,12 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::spec_impl_ref_observe;
-use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver};
-use crate::observe::{DefaultSpec, Observer, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
-impl<'ob, O, const N: usize> ObserverSlice<'ob> for [O; N]
+impl<O, const N: usize> ObserverSlice for [O; N]
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
@@ -33,7 +33,7 @@ where
     }
 
     #[inline]
-    fn init_range(&self, _start: usize, _end: usize, _values: &'ob mut [<Self::Item as Observer>::Head]) {
+    fn init_range(&self, _start: usize, _end: usize, _values: &[<Self::Item as ObserverExt>::Head]) {
         // No need to re-initialize fixed-size array.
     }
 }
@@ -95,8 +95,14 @@ impl<'ob, const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<'ob, N, O,
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D> AsNormalized for ArrayObserver<'ob, N, O, S, D> {
+impl<'ob, const N: usize, O, S: ?Sized, D> QuasiObserver for ArrayObserver<'ob, N, O, S, D>
+where
+    D: Unsigned,
+    S: crate::helper::AsDeref<D>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+{
     type OuterDepth = Succ<Succ<Zero>>;
+    type InnerDepth = D;
 }
 
 impl<'ob, const N: usize, O, S: ?Sized, D, T> Observer for ArrayObserver<'ob, N, O, S, D>
@@ -105,9 +111,6 @@ where
     S: AsDerefMut<D, Target = [T; N]> + 'ob,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    type InnerDepth = D;
-    type Head = S;
-
     #[inline]
     fn uninit() -> Self {
         Self {

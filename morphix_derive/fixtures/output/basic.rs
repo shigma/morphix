@@ -34,8 +34,13 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S: ?Sized, N> ::morphix::helper::AsNormalized for FooObserver<'ob, S, N> {
+    impl<'ob, S: ?Sized, N> ::morphix::helper::QuasiObserver for FooObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDeref<N>,
+        N: ::morphix::helper::Unsigned,
+    {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+        type InnerDepth = N;
     }
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for FooObserver<'ob, S, N>
@@ -43,8 +48,6 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<N, Target = Foo> + 'ob,
         N: ::morphix::helper::Unsigned,
     {
-        type Head = S;
-        type InnerDepth = N;
         fn uninit() -> Self {
             Self {
                 r#a: ::morphix::observe::Observer::uninit(),
@@ -133,7 +136,7 @@ const _: () = {
     {
         #[inline]
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let head = &**::morphix::helper::AsNormalized::as_normalized_ref(self);
+            let head = &**::morphix::helper::QuasiObserver::as_normalized_ref(self);
             let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
             ::std::fmt::Display::fmt(value, f)
         }
@@ -172,8 +175,13 @@ impl<'ob, S: ?Sized, N> ::std::ops::DerefMut for BarObserver<'ob, S, N> {
 }
 #[rustfmt::skip]
 #[automatically_derived]
-impl<'ob, S: ?Sized, N> ::morphix::helper::AsNormalized for BarObserver<'ob, S, N> {
+impl<'ob, S: ?Sized, N> ::morphix::helper::QuasiObserver for BarObserver<'ob, S, N>
+where
+    S: ::morphix::helper::AsDeref<N>,
+    N: ::morphix::helper::Unsigned,
+{
     type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+    type InnerDepth = N;
 }
 #[rustfmt::skip]
 #[automatically_derived]
@@ -182,8 +190,6 @@ where
     S: ::morphix::helper::AsDerefMut<N, Target = Bar> + 'ob,
     N: ::morphix::helper::Unsigned,
 {
-    type Head = S;
-    type InnerDepth = N;
     fn uninit() -> Self {
         Self(
             ::morphix::observe::Observer::uninit(),
@@ -272,8 +278,13 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S: ?Sized, N> ::morphix::helper::AsNormalized for BazObserver<'ob, S, N> {
+    impl<'ob, S: ?Sized, N> ::morphix::helper::QuasiObserver for BazObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDeref<N>,
+        N: ::morphix::helper::Unsigned,
+    {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+        type InnerDepth = N;
     }
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for BazObserver<'ob, S, N>
@@ -281,8 +292,6 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<N, Target = Baz> + 'ob,
         N: ::morphix::helper::Unsigned,
     {
-        type Head = S;
-        type InnerDepth = N;
         fn uninit() -> Self {
             Self(
                 ::morphix::observe::Observer::uninit(),

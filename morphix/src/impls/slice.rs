@@ -16,15 +16,15 @@ use std::slice::{
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, SerializeObserver};
+use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
 /// Trait for managing a collection of element observers within a slice observer.
 ///
 /// This trait abstracts over the storage and initialization of element observers, allowing
 /// [`SliceObserver`] to lazily create observers for individual elements as they are accessed.
-pub trait ObserverSlice<'ob> {
+pub trait ObserverSlice {
     /// The element observer type.
     type Item: Observer<InnerDepth = Zero, Head: Sized>;
 
@@ -41,10 +41,10 @@ pub trait ObserverSlice<'ob> {
     ///
     /// This method ensures that observers exist and are properly bound for elements in the range
     /// `[start, end)`.
-    fn init_range(&self, start: usize, end: usize, values: &'ob mut [<Self::Item as Observer>::Head]);
+    fn init_range(&self, start: usize, end: usize, values: &[<Self::Item as ObserverExt>::Head]);
 }
 
-impl<'ob, O> ObserverSlice<'ob> for UnsafeCell<Vec<O>>
+impl<O> ObserverSlice for UnsafeCell<Vec<O>>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
@@ -66,13 +66,13 @@ where
     }
 
     #[inline]
-    fn init_range(&self, start: usize, end: usize, values: &'ob mut [<Self::Item as Observer>::Head]) {
+    fn init_range(&self, start: usize, end: usize, values: &[<Self::Item as ObserverExt>::Head]) {
         let inner = unsafe { &mut *self.get() };
         if end > inner.len() {
             inner.resize_with(end, O::uninit);
         }
         let ob_iter = inner[start..end].iter_mut();
-        let value_iter = values[start..end].iter_mut();
+        let value_iter = values[start..end].iter();
         for (ob, value) in ob_iter.zip(value_iter) {
             unsafe { Observer::force(ob, value) }
         }
@@ -191,7 +191,7 @@ impl<'ob, V, M, S: ?Sized, D> Deref for SliceObserver<'ob, V, M, S, D> {
 
 impl<'ob, V, M, S: ?Sized, D> DerefMut for SliceObserver<'ob, V, M, S, D>
 where
-    V: ObserverSlice<'ob>,
+    V: ObserverSlice,
 {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
@@ -201,22 +201,25 @@ where
     }
 }
 
-impl<'ob, V, M, S: ?Sized, D> AsNormalized for SliceObserver<'ob, V, M, S, D> {
+impl<'ob, V, M, S: ?Sized, D> QuasiObserver for SliceObserver<'ob, V, M, S, D>
+where
+    V: ObserverSlice,
+    D: Unsigned,
+    S: crate::helper::AsDeref<D>,
+{
     type OuterDepth = Succ<Zero>;
+    type InnerDepth = D;
 }
 
 impl<'ob, V, M, S: ?Sized, D, O, T> Observer for SliceObserver<'ob, V, M, S, D>
 where
-    V: ObserverSlice<'ob, Item = O>,
+    V: ObserverSlice<Item = O>,
     M: SliceMutation,
     D: Unsigned,
     S: AsDerefMut<D> + 'ob,
     S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    type InnerDepth = D;
-    type Head = S;
-
     #[inline]
     fn uninit() -> Self {
         Self {
@@ -245,7 +248,7 @@ where
 
 impl<'ob, V, M, S: ?Sized, D, O, T> SerializeObserver for SliceObserver<'ob, V, M, S, D>
 where
-    V: ObserverSlice<'ob, Item = O>,
+    V: ObserverSlice<Item = O>,
     M: SliceMutation,
     D: Unsigned,
     S: AsDerefMut<D> + 'ob,
@@ -285,7 +288,7 @@ where
 
 impl<'ob, V, M, S: ?Sized, D, O, T> SliceObserver<'ob, V, M, S, D>
 where
-    V: ObserverSlice<'ob, Item = O>,
+    V: ObserverSlice<Item = O>,
     M: SliceMutation,
     D: Unsigned,
     S: AsDerefMut<D> + 'ob,
@@ -629,7 +632,7 @@ where
 
 impl<'ob, V, M, S: ?Sized, D, O, T, I> Index<I> for SliceObserver<'ob, V, M, S, D>
 where
-    V: ObserverSlice<'ob, Item = O>,
+    V: ObserverSlice<Item = O>,
     M: SliceMutation,
     D: Unsigned,
     S: AsDerefMut<D> + 'ob,
@@ -648,7 +651,7 @@ where
 
 impl<'ob, V, M, S: ?Sized, D, O, T, I> IndexMut<I> for SliceObserver<'ob, V, M, S, D>
 where
-    V: ObserverSlice<'ob, Item = O>,
+    V: ObserverSlice<Item = O>,
     M: SliceMutation,
     D: Unsigned,
     S: AsDerefMut<D> + 'ob,

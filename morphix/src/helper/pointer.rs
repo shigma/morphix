@@ -2,8 +2,6 @@ use std::cell::Cell;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
-use crate::helper::{AsNormalized, Zero};
-
 /// An internal pointer type for observer dereference chains.
 ///
 /// [`Pointer`] is a specialized pointer type used exclusively within observer implementations to
@@ -143,8 +141,4 @@ impl<S: ?Sized> DerefMut for Pointer<S> {
     fn deref_mut(&mut self) -> &mut S {
         unsafe { Self::as_mut(self) }
     }
-}
-
-impl<S: ?Sized> AsNormalized for Pointer<S> {
-    type OuterDepth = Zero;
 }

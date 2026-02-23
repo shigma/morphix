@@ -19,9 +19,9 @@ const _: () = {
     pub struct FooObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
         __ptr: ::morphix::helper::Pointer<S>,
         __mutated: bool,
-        __phantom: ::std::marker::PhantomData<&'ob mut N>,
         __initial: FooObserverInitial,
         __variant: FooObserverVariant<'ob>,
+        __phantom: ::std::marker::PhantomData<&'ob mut N>,
     }
     #[derive(Clone, Copy)]
     pub enum FooObserverInitial {
@@ -143,8 +143,13 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S: ?Sized, N> ::morphix::helper::AsNormalized for FooObserver<'ob, S, N> {
+    impl<'ob, S: ?Sized, N> ::morphix::helper::QuasiObserver for FooObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDeref<N>,
+        N: ::morphix::helper::Unsigned,
+    {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+        type InnerDepth = N;
     }
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for FooObserver<'ob, S, N>
@@ -152,8 +157,6 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<N, Target = Foo> + 'ob,
         N: ::morphix::helper::Unsigned,
     {
-        type Head = S;
-        type InnerDepth = N;
         fn uninit() -> Self {
             Self {
                 __ptr: ::morphix::helper::Pointer::uninit(),

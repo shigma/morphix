@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
-use crate::helper::{AsDerefMut, AsNormalized, Succ, Unsigned, Zero};
+use crate::helper::{AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver, TruncateAppend};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
@@ -35,8 +35,14 @@ impl<'ob, O, S: ?Sized, D> DerefMut for VecObserver<'ob, O, S, D> {
     }
 }
 
-impl<'ob, O, S: ?Sized, D> AsNormalized for VecObserver<'ob, O, S, D> {
+impl<'ob, O, S: ?Sized, D> QuasiObserver for VecObserver<'ob, O, S, D>
+where
+    D: Unsigned,
+    S: crate::helper::AsDeref<D>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+{
     type OuterDepth = Succ<Succ<Zero>>;
+    type InnerDepth = D;
 }
 
 impl<'ob, O, S: ?Sized, D, T> Observer for VecObserver<'ob, O, S, D>
@@ -45,9 +51,6 @@ where
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    type InnerDepth = D;
-    type Head = S;
-
     #[inline]
     fn uninit() -> Self {
         Self {
