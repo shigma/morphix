@@ -26,7 +26,7 @@ macro_rules! spec_impl_observe {
 
         impl<T> $helper<$crate::observe::DefaultSpec> for T
         where
-            T: Observe<Spec = $crate::observe::DefaultSpec>,
+            T: $crate::observe::Observe<Spec = $crate::observe::DefaultSpec>,
         {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
                 = $default<T::Observer<'ob, T, Zero>, S, D>
@@ -38,7 +38,59 @@ macro_rules! spec_impl_observe {
 
         impl<T> $helper<$crate::observe::SnapshotSpec> for T
         where
-            T: $crate::builtin::Snapshot + Observe<Spec = $crate::observe::SnapshotSpec>,
+            T: $crate::builtin::Snapshot + $crate::observe::Observe<Spec = $crate::observe::SnapshotSpec>,
+        {
+            type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
+                = $crate::builtin::SnapshotObserver<'ob, S, D>
+            where
+                Self: 'ob,
+                D: Unsigned,
+                S: AsDerefMut<D, Target = $ty_self> + ?Sized + 'ob;
+        }
+    };
+}
+
+macro_rules! spec_impl_observe_from_ref {
+    ($(#[$($tt:tt)*])* $helper:ident, $ty_self:ty, $ty_t:ty, $default:ident $(, const $arg:ident: $arg_ty:ty)* $(,)?) => {
+        $(#[$($tt)*])*
+        impl<T $(, const $arg: $arg_ty)*> $crate::observe::Observe for $ty_t
+        where
+            T: $crate::observe::RefObserve + $helper<T::Spec>,
+        {
+            type Observer<'ob, S, D>
+                = <T as $helper<T::Spec>>::Observer<'ob, S, D $(, $arg)*>
+            where
+                Self: 'ob,
+                D: Unsigned,
+                S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+            type Spec = T::Spec;
+        }
+
+        pub trait $helper<Spec> {
+            type Observer<'ob, S, D $(, const $arg: $arg_ty)*>:
+                $crate::observe::Observer<'ob, Head = S, InnerDepth = D>
+            where
+                Self: 'ob,
+                D: Unsigned,
+                S: AsDerefMut<D, Target = $ty_self> + ?Sized + 'ob;
+        }
+
+        impl<T> $helper<$crate::observe::DefaultSpec> for T
+        where
+            T: $crate::observe::RefObserve<Spec = $crate::observe::DefaultSpec>,
+        {
+            type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
+                = $default<T::Observer<'ob, T, Zero>, S, D>
+            where
+                Self: 'ob,
+                D: Unsigned,
+                S: AsDerefMut<D, Target = $ty_self> + ?Sized + 'ob;
+        }
+
+        impl<T> $helper<$crate::observe::SnapshotSpec> for T
+        where
+            T: $crate::builtin::Snapshot + $crate::observe::RefObserve<Spec = $crate::observe::SnapshotSpec>,
         {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
                 = $crate::builtin::SnapshotObserver<'ob, S, D>
@@ -134,4 +186,6 @@ macro_rules! untracked_methods {
     };
 }
 
-pub(crate) use {default_impl_ref_observe, spec_impl_observe, spec_impl_ref_observe, untracked_methods};
+pub(crate) use {
+    default_impl_ref_observe, spec_impl_observe, spec_impl_observe_from_ref, spec_impl_ref_observe, untracked_methods,
+};

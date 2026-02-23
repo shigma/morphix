@@ -8,7 +8,7 @@ use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDerefMut, AsNormalized, Pointer, Succ, Unsigned, Zero};
 use crate::observe::{Observer, SerializeObserver};
-use crate::{Adapter, MutationKind, Mutations, Observe};
+use crate::{Adapter, MutationKind, Mutations};
 
 /// Observer implementation for [`Option<T>`].
 ///
@@ -107,7 +107,6 @@ where
             }
         }
         this.mutated = false;
-        this.inner = None;
         if initial || value.is_some() {
             Ok(MutationKind::Replace(A::serialize_value(value)?).into())
         } else {

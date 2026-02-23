@@ -20,6 +20,7 @@ mod string;
 mod tuple;
 mod unsize;
 mod vec;
+mod weak;
 
 pub use array::ArrayObserver;
 pub use btree_map::BTreeMapObserver;
@@ -27,4 +28,9 @@ pub use hash_map::HashMapObserver;
 pub use option::OptionObserver;
 pub use slice::SliceObserver;
 pub use string::StringObserver;
+pub use tuple::{
+    TupleObserver, TupleObserver2, TupleObserver3, TupleObserver4, TupleObserver5, TupleObserver6, TupleObserver7,
+    TupleObserver8, TupleObserver9, TupleObserver10, TupleObserver11, TupleObserver12,
+};
 pub use vec::VecObserver;
+pub use weak::WeakObserver;

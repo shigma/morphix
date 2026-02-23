@@ -232,7 +232,7 @@ where
     ///         Pointer::set(this, value);
     ///
     ///         // Refresh nested observer if present
-    ///         match (&mut this.ob, value.as_deref_mut()) {
+    ///         match (&mut this.ob, value.as_deref()) {
     ///             (Some(inner), Some(value)) => unsafe { Observer::refresh(inner, value) },
     ///             (None, None) => {}
     ///             _ => unreachable!("inconsistent observer state"),
