@@ -60,11 +60,11 @@ impl<'ob, K, O, S: ?Sized, D> AsNormalized for BTreeMapObserver<'ob, K, O, S, D>
     type OuterDepth = Succ<Zero>;
 }
 
-impl<'ob, K, O, S: ?Sized, D> Observer<'ob> for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, O, S: ?Sized, D> Observer for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = BTreeMap<K, O::Head>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero>,
+    O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
     type InnerDepth = D;
@@ -96,11 +96,11 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> SerializeObserver<'ob> for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, O, S: ?Sized, D> SerializeObserver for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = BTreeMap<K, O::Head>> + 'ob,
-    O: SerializeObserver<'ob, InnerDepth = Zero>,
+    O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized,
     K: Serialize + Ord,
     &'ob K: Into<PathSegment>,
@@ -132,7 +132,7 @@ impl<'ob, K, O, S: ?Sized, D> BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = BTreeMap<K, O::Head>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero>,
+    O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
     K: 'ob,
 {
@@ -267,7 +267,7 @@ impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> Index<&'q Q> for BTreeMapObserve
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = BTreeMap<K, V>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = V>,
+    O: Observer<InnerDepth = Zero, Head = V>,
     K: Borrow<Q> + Ord,
     Q: Ord,
 {
@@ -283,7 +283,7 @@ impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> IndexMut<&'q Q> for BTreeMapObse
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = BTreeMap<K, V>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = V>,
+    O: Observer<InnerDepth = Zero, Head = V>,
     K: Borrow<Q> + Ord,
     Q: Ord,
 {

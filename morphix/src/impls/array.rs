@@ -13,7 +13,7 @@ use crate::{Adapter, Mutations, Observe};
 
 impl<'ob, O, const N: usize> ObserverSlice<'ob> for [O; N]
 where
-    O: Observer<'ob, InnerDepth = Zero, Head: Sized>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
 {
     type Item = O;
 
@@ -33,7 +33,7 @@ where
     }
 
     #[inline]
-    fn init_range(&self, _start: usize, _end: usize, _values: &'ob mut [<Self::Item as Observer<'ob>>::Head]) {
+    fn init_range(&self, _start: usize, _end: usize, _values: &'ob mut [<Self::Item as Observer>::Head]) {
         // No need to re-initialize fixed-size array.
     }
 }
@@ -47,7 +47,7 @@ impl<'ob, const N: usize, O, S: ?Sized, D, T> ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
 {
     /// See [`array::as_slice`].
@@ -99,11 +99,11 @@ impl<'ob, const N: usize, O, S: ?Sized, D> AsNormalized for ArrayObserver<'ob, N
     type OuterDepth = Succ<Succ<Zero>>;
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T> Observer<'ob> for ArrayObserver<'ob, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D, T> Observer for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    O: Observer<InnerDepth = Zero, Head = T>,
 {
     type InnerDepth = D;
     type Head = S;
@@ -128,11 +128,11 @@ where
     }
 }
 
-impl<'ob, const N: usize, O, S: ?Sized, D, T> SerializeObserver<'ob> for ArrayObserver<'ob, N, O, S, D>
+impl<'ob, const N: usize, O, S: ?Sized, D, T> SerializeObserver for ArrayObserver<'ob, N, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]> + 'ob,
-    O: SerializeObserver<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: SerializeObserver<InnerDepth = Zero, Head = T> + 'ob,
     T: Serialize + 'ob,
 {
     #[inline]
@@ -244,7 +244,7 @@ impl<'ob, const N: usize, O, S: ?Sized, D, T, I> Index<I> for ArrayObserver<'ob,
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
@@ -260,7 +260,7 @@ impl<'ob, const N: usize, O, S: ?Sized, D, T, I> IndexMut<I> for ArrayObserver<'
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {

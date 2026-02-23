@@ -115,7 +115,7 @@ const _: () = {
             ::morphix::observe::DefaultObserver<
                 'ob,
                 U,
-            >: ::morphix::observe::SerializeObserver<'ob>,
+            >: ::morphix::observe::SerializeObserver,
         {
             match self {
                 Self::A(_) => Ok(::morphix::Mutations::new()),
@@ -182,7 +182,7 @@ const _: () = {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]
-    impl<'ob, S, T, U, _S: ?Sized, N> ::morphix::observe::Observer<'ob>
+    impl<'ob, S, T, U, _S: ?Sized, N> ::morphix::observe::Observer
     for FooObserver<'ob, S, T, U, _S, N>
     where
         T: Clone,
@@ -221,7 +221,7 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, S, T, U, _S: ?Sized, N> ::morphix::observe::SerializeObserver<'ob>
+    impl<'ob, S, T, U, _S: ?Sized, N> ::morphix::observe::SerializeObserver
     for FooObserver<'ob, S, T, U, _S, N>
     where
         Foo<S, T, U>: ::serde::Serialize,
@@ -234,7 +234,7 @@ const _: () = {
         ::morphix::observe::DefaultObserver<
             'ob,
             U,
-        >: ::morphix::observe::SerializeObserver<'ob>,
+        >: ::morphix::observe::SerializeObserver,
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,

@@ -39,11 +39,11 @@ impl<'ob, O, S: ?Sized, D> AsNormalized for VecObserver<'ob, O, S, D> {
     type OuterDepth = Succ<Succ<Zero>>;
 }
 
-impl<'ob, O, S: ?Sized, D, T> Observer<'ob> for VecObserver<'ob, O, S, D>
+impl<'ob, O, S: ?Sized, D, T> Observer for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    O: Observer<InnerDepth = Zero, Head = T>,
 {
     type InnerDepth = D;
     type Head = S;
@@ -68,11 +68,11 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D, T> SerializeObserver<'ob> for VecObserver<'ob, O, S, D>
+impl<'ob, O, S: ?Sized, D, T> SerializeObserver for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: SerializeObserver<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: SerializeObserver<InnerDepth = Zero, Head = T> + 'ob,
     T: Serialize + 'ob,
 {
     #[inline]
@@ -85,7 +85,7 @@ impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
 {
     untracked_methods! { Vec =>
@@ -117,7 +117,7 @@ impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
 {
     #[inline]
@@ -149,7 +149,7 @@ impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
 {
     #[inline]
@@ -358,7 +358,7 @@ impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
     T: Clone + 'ob,
 {
     untracked_methods! { Vec =>
@@ -373,7 +373,7 @@ impl<'ob, O, S: ?Sized, D, T> VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
     T: Clone + 'ob,
 {
     /// See [`Vec::resize`].
@@ -396,7 +396,7 @@ impl<'ob, O, S: ?Sized, D, T, U> Extend<U> for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T>,
+    O: Observer<InnerDepth = Zero, Head = T>,
     T: 'ob,
     Vec<T>: Extend<U>,
 {
@@ -509,7 +509,7 @@ impl<'ob, O, S: ?Sized, D, T, I> Index<I> for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
@@ -525,7 +525,7 @@ impl<'ob, O, S: ?Sized, D, T, I> IndexMut<I> for VecObserver<'ob, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = T> + 'ob,
+    O: Observer<InnerDepth = Zero, Head = T> + 'ob,
     T: 'ob,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {

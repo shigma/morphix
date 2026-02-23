@@ -359,7 +359,7 @@ pub fn derive_observe_for_struct(
         ob_observer_generics.params.push(parse_quote! { #inner });
         ob_observer_generics.params.push(parse_quote! { #depth });
         ob_observer_predicates = quote! {
-            #inner: ::morphix::observe::Observer<#ob_lt, InnerDepth = ::morphix::helper::Succ<#depth>>,
+            #inner: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<#depth>>,
             #inner::Head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics>,
         };
 
@@ -539,7 +539,7 @@ pub fn derive_observe_for_struct(
         }
 
         #[automatically_derived]
-        impl #ob_observer_impl_generics ::morphix::observe::Observer<#ob_lt>
+        impl #ob_observer_impl_generics ::morphix::observe::Observer
         for #ob_ident #ob_type_generics
         where
             #(#input_predicates,)*
@@ -552,7 +552,7 @@ pub fn derive_observe_for_struct(
         }
 
         #[automatically_derived]
-        impl #ob_observer_impl_generics ::morphix::observe::SerializeObserver<#ob_lt>
+        impl #ob_observer_impl_generics ::morphix::observe::SerializeObserver
         for #ob_ident #ob_type_generics
         where
             #input_serialize_predicates
@@ -561,7 +561,7 @@ pub fn derive_observe_for_struct(
             #(#field_tys: ::morphix::Observe,)*
             #ob_observer_predicates
             #depth: ::morphix::helper::Unsigned,
-            #(#ob_field_tys: ::morphix::observe::SerializeObserver<#ob_lt>,)*
+            #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
         {
             unsafe fn flush_unchecked<A: ::morphix::Adapter>(
                 this: &mut Self,

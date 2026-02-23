@@ -17,7 +17,7 @@ macro_rules! spec_impl_observe {
 
         pub trait $helper<Spec> {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>:
-                $crate::observe::Observer<'ob, Head = S, InnerDepth = D>
+                $crate::observe::Observer<Head = S, InnerDepth = D>
             where
                 Self: 'ob,
                 D: Unsigned,
@@ -69,7 +69,7 @@ macro_rules! spec_impl_observe_from_ref {
 
         pub trait $helper<Spec> {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>:
-                $crate::observe::Observer<'ob, Head = S, InnerDepth = D>
+                $crate::observe::Observer<Head = S, InnerDepth = D>
             where
                 Self: 'ob,
                 D: Unsigned,
@@ -121,7 +121,7 @@ macro_rules! spec_impl_ref_observe {
 
         pub trait $helper<Spec> {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>:
-                $crate::observe::Observer<'ob, Head = S, InnerDepth = D>
+                $crate::observe::Observer<Head = S, InnerDepth = D>
             where
                 Self: 'ob,
                 D: Unsigned,

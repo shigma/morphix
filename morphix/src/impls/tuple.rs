@@ -39,11 +39,11 @@ impl<O, S: ?Sized, D> AsNormalized for TupleObserver<O, S, D> {
     type OuterDepth = Succ<Zero>;
 }
 
-impl<'ob, O, S: ?Sized, D> Observer<'ob> for TupleObserver<O, S, D>
+impl<O, S: ?Sized, D> Observer for TupleObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = (O::Head,)> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = (O::Head,)>,
+    O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
     type InnerDepth = D;
@@ -79,11 +79,11 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D> SerializeObserver<'ob> for TupleObserver<O, S, D>
+impl<O, S: ?Sized, D> SerializeObserver for TupleObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = (O::Head,)> + 'ob,
-    O: SerializeObserver<'ob, InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = (O::Head,)>,
+    O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized,
 {
     #[inline]
@@ -238,11 +238,11 @@ macro_rules! tuple_observer {
             type OuterDepth = Succ<Zero>;
         }
 
-        impl<'ob, $($o,)* S: ?Sized, D> Observer<'ob> for $ty<$($o,)* S, D>
+        impl<$($o,)* S: ?Sized, D> Observer for $ty<$($o,)* S, D>
         where
             D: Unsigned,
-            S: AsDerefMut<D, Target = ($($o::Head,)*)> + 'ob,
-            $($o: Observer<'ob, InnerDepth = Zero, Head: Sized>,)*
+            S: AsDerefMut<D, Target = ($($o::Head,)*)>,
+            $($o: Observer<InnerDepth = Zero, Head: Sized>,)*
         {
             type InnerDepth = D;
             type Head = S;
@@ -279,11 +279,11 @@ macro_rules! tuple_observer {
             }
         }
 
-        impl<'ob, $($o,)* S: ?Sized, D> SerializeObserver<'ob> for $ty<$($o,)* S, D>
+        impl<$($o,)* S: ?Sized, D> SerializeObserver for $ty<$($o,)* S, D>
         where
             D: Unsigned,
-            S: AsDerefMut<D, Target = ($($o::Head,)*)> + 'ob,
-            $($o: SerializeObserver<'ob, InnerDepth = Zero, Head: Serialize + Sized>,)*
+            S: AsDerefMut<D, Target = ($($o::Head,)*)>,
+            $($o: SerializeObserver<InnerDepth = Zero, Head: Serialize + Sized>,)*
         {
             #[inline]
             unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {

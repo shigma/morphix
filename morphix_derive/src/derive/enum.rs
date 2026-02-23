@@ -426,7 +426,7 @@ pub fn derive_observe_for_enum(
 
             fn flush<A: ::morphix::Adapter>(&mut self) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error>
             where
-                #(#ob_field_tys: ::morphix::observe::SerializeObserver<#ob_lt>,)*
+                #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
             {
                 match self {
                     #variant_flush_arms
@@ -493,7 +493,7 @@ pub fn derive_observe_for_enum(
         }
 
         #[automatically_derived]
-        impl #ob_impl_generics ::morphix::observe::Observer<#ob_lt>
+        impl #ob_impl_generics ::morphix::observe::Observer
         for #ob_ident #ob_type_generics
         where
             #(#input_predicates,)*
@@ -537,7 +537,7 @@ pub fn derive_observe_for_enum(
         }
 
         #[automatically_derived]
-        impl #ob_impl_generics ::morphix::observe::SerializeObserver<#ob_lt>
+        impl #ob_impl_generics ::morphix::observe::SerializeObserver
         for #ob_ident #ob_type_generics
         where
             #input_serialize_predicates
@@ -546,7 +546,7 @@ pub fn derive_observe_for_enum(
             #(#field_tys: ::morphix::Observe,)*
             #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics> + #ob_lt,
             #depth: ::morphix::helper::Unsigned,
-            #(#ob_field_tys: ::morphix::observe::SerializeObserver<#ob_lt>,)*
+            #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
         {
             unsafe fn flush_unchecked<A: ::morphix::Adapter>(
                 this: &mut Self,

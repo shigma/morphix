@@ -62,7 +62,7 @@ pub trait Observe {
     ///
     /// This associated type specifies the *default* observer implementation for the type, when used
     /// in contexts where an [`Observe`] implementation is required.
-    type Observer<'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
+    type Observer<'ob, S, D>: Observer<Head = S, InnerDepth = D>
     where
         Self: 'ob,
         D: Unsigned,
@@ -87,6 +87,36 @@ pub trait Observe {
     ///
     /// This allows [`Option<T>`] to automatically inherit more accurate or efficient change
     /// detection strategies based on its element type, without requiring manual implementation.
+    type Spec;
+}
+
+/// A trait for types whose references can be observed for mutations.
+///
+/// [`RefObserve`] provides observation capability for reference types. A type `T` implements
+/// [`RefObserve`] if and only if `&T` implements [`Observe`]. This is analogous to the relationship
+/// between [`UnwindSafe`](std::panic::UnwindSafe) and [`RefUnwindSafe`](std::panic::RefUnwindSafe).
+///
+/// A single type `T` may have many possible [`Observer<'ob, Target = &T>`] implementations in
+/// theory, each with different change-tracking strategies. The [`RefObserve`] trait selects one
+/// of these as the default observer to be used by `#[derive(Observe)]` and other generic code
+/// that needs an observer for `&T`.
+///
+/// See also: [`Observe`].
+pub trait RefObserve {
+    /// The observer type for `&'a Self`.
+    ///
+    /// This associated type specifies the *default* observer implementation for the type, when used
+    /// in contexts where an [`Observe`] implementation is required.
+    type Observer<'ob, S, D>: Observer<Head = S, InnerDepth = D>
+    where
+        Self: 'ob,
+        D: Unsigned,
+        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+
+    /// Specification type controlling nested reference observation behavior.
+    ///
+    /// This determines how `&&T`, `&&&T`, etc. are observed. See the [trait
+    /// documentation](RefObserve) for available specs.
     type Spec;
 }
 
@@ -130,7 +160,7 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 ///
 /// See the [module documentation](self) for more details about how observers work with dereference
 /// chains.
-pub trait Observer<'ob>: Sized
+pub trait Observer: Sized
 where
     Self: AsNormalized<Target = Pointer<Self::Head>>,
     Self: AsDerefMutCoinductive<Self::OuterDepth>,
@@ -139,7 +169,7 @@ where
     type InnerDepth: Unsigned;
 
     /// The head type of the dereference chain.
-    type Head: AsDeref<Self::InnerDepth> + ?Sized + 'ob;
+    type Head: AsDeref<Self::InnerDepth> + ?Sized;
 
     /// Creates an uninitialized observer.
     ///
@@ -217,11 +247,11 @@ where
     /// #     type OuterDepth = Succ<Zero>;
     /// # }
     /// #
-    /// impl<'ob, O, S: ?Sized, N> Observer<'ob> for OptionObserver<'ob, O, S, N>
+    /// impl<'ob, O, S: ?Sized, N> Observer for OptionObserver<'ob, O, S, N>
     /// where
     ///     N: Unsigned,
     ///     S: AsDerefMut<N, Target = Option<O::Head>> + 'ob,
-    ///     O: Observer<'ob, InnerDepth = Zero>,
+    ///     O: Observer<InnerDepth = Zero>,
     ///     O::Head: Sized,
     /// {
     ///     # type InnerDepth = N;
@@ -299,10 +329,9 @@ where
     /// This method is primarily used internally by observer implementations when they need
     /// to perform operations on the observed value without recording them as changes.
     #[inline]
-    fn as_inner<'i>(this: &Self) -> &'i mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
+    fn as_inner<'ob>(this: &Self) -> &'ob mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
     where
-        'ob: 'i,
-        Self::Head: AsDerefMut<Self::InnerDepth>,
+        Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
     {
         let head = unsafe { Pointer::as_mut(this.as_normalized_ref()) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
@@ -325,7 +354,7 @@ where
     /// Implementing [`Vec::pop`] for a [`VecObserver`](crate::impls::VecObserver):
     ///
     /// ```ignore
-    /// impl VecObserver<'ob> {
+    /// impl VecObserver {
     ///     pub fn pop(&mut self) -> Option<T> {
     ///         if self.as_deref().len() > self.initial_len() {
     ///             // If the current length exceeds the initial length, the pop operation can be
@@ -339,10 +368,9 @@ where
     /// }
     /// ```
     #[inline]
-    fn track_inner<'i>(this: &mut Self) -> &'i mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
+    fn track_inner<'ob>(this: &mut Self) -> &'ob mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
     where
-        'ob: 'i,
-        Self::Head: AsDerefMut<Self::InnerDepth>,
+        Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
     {
         let head = unsafe { Pointer::as_mut(this.as_deref_mut_coinductive()) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
@@ -353,7 +381,7 @@ where
 ///
 /// This trait extends [`Observer`] with the ability to collect and serialize mutations using a
 /// specific [`Adapter`].
-pub trait SerializeObserver<'ob>: Observer<'ob> {
+pub trait SerializeObserver: Observer {
     /// Flushes and serializes all recorded mutations (unsafe version).
     ///
     /// This method extracts all recorded mutations, serializes them using the specified adapter,
@@ -424,7 +452,7 @@ pub trait SerializeObserver<'ob>: Observer<'ob> {
 ///
 /// This trait is automatically implemented for all types that implement [`SerializeObserver`] and
 /// provides convenient methods that don't require turbofish syntax.
-pub trait SerializeObserverExt<'ob>: SerializeObserver<'ob> {
+pub trait SerializeObserverExt: SerializeObserver {
     /// Collects mutations using the specified adapter.
     ///
     /// This is a convenience method that calls [`SerializeObserver::flush`].
@@ -434,7 +462,7 @@ pub trait SerializeObserverExt<'ob>: SerializeObserver<'ob> {
     }
 }
 
-impl<'ob, T: SerializeObserver<'ob>> SerializeObserverExt<'ob> for T {}
+impl<T: SerializeObserver> SerializeObserverExt for T {}
 
 /// Default observation specification.
 ///
@@ -449,33 +477,3 @@ pub struct DefaultSpec;
 
 #[doc(hidden)]
 pub type DefaultObserver<'ob, T, S = T, D = Zero> = <T as Observe>::Observer<'ob, S, D>;
-
-/// A trait for types whose references can be observed for mutations.
-///
-/// [`RefObserve`] provides observation capability for reference types. A type `T` implements
-/// [`RefObserve`] if and only if `&T` implements [`Observe`]. This is analogous to the relationship
-/// between [`UnwindSafe`](std::panic::UnwindSafe) and [`RefUnwindSafe`](std::panic::RefUnwindSafe).
-///
-/// A single type `T` may have many possible [`Observer<'ob, Target = &T>`] implementations in
-/// theory, each with different change-tracking strategies. The [`RefObserve`] trait selects one
-/// of these as the default observer to be used by `#[derive(Observe)]` and other generic code
-/// that needs an observer for `&T`.
-///
-/// See also: [`Observe`].
-pub trait RefObserve {
-    /// The observer type for `&'a Self`.
-    ///
-    /// This associated type specifies the *default* observer implementation for the type, when used
-    /// in contexts where an [`Observe`] implementation is required.
-    type Observer<'ob, S, D>: Observer<'ob, Head = S, InnerDepth = D>
-    where
-        Self: 'ob,
-        D: Unsigned,
-        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
-
-    /// Specification type controlling nested reference observation behavior.
-    ///
-    /// This determines how `&&T`, `&&&T`, etc. are observed. See the [trait
-    /// documentation](RefObserve) for available specs.
-    type Spec;
-}

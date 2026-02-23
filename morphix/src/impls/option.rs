@@ -45,11 +45,11 @@ impl<O, S: ?Sized, D> AsNormalized for OptionObserver<O, S, D> {
     type OuterDepth = Succ<Zero>;
 }
 
-impl<'ob, O, S: ?Sized, D> Observer<'ob> for OptionObserver<O, S, D>
+impl<O, S: ?Sized, D> Observer for OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Option<O::Head>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = Option<O::Head>>,
+    O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
     type InnerDepth = D;
@@ -88,11 +88,11 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D> SerializeObserver<'ob> for OptionObserver<O, S, D>
+impl<O, S: ?Sized, D> SerializeObserver for OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Option<O::Head>> + 'ob,
-    O: SerializeObserver<'ob, InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = Option<O::Head>>,
+    O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
@@ -115,11 +115,11 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D> OptionObserver<O, S, D>
+impl<O, S: ?Sized, D> OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Option<O::Head>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = Option<O::Head>>,
+    O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
     #[inline]

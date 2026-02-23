@@ -61,11 +61,11 @@ impl<'ob, K, O, S: ?Sized, D> AsNormalized for HashMapObserver<'ob, K, O, S, D> 
     type OuterDepth = Succ<Zero>;
 }
 
-impl<'ob, K, O, S: ?Sized, D> Observer<'ob> for HashMapObserver<'ob, K, O, S, D>
+impl<'ob, K, O, S: ?Sized, D> Observer for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, O::Head>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero>,
+    O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
     type InnerDepth = D;
@@ -97,11 +97,11 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> SerializeObserver<'ob> for HashMapObserver<'ob, K, O, S, D>
+impl<'ob, K, O, S: ?Sized, D> SerializeObserver for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, O::Head>> + 'ob,
-    O: SerializeObserver<'ob, InnerDepth = Zero>,
+    O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized,
     K: Serialize + Eq + Hash,
     &'ob K: Into<PathSegment>,
@@ -133,7 +133,7 @@ impl<'ob, K, O, S: ?Sized, D, V> HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, V>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = V> + 'ob,
+    O: Observer<InnerDepth = Zero, Head = V> + 'ob,
     K: Eq + Hash,
     V: 'ob,
 {
@@ -149,7 +149,7 @@ impl<'ob, K, O, S: ?Sized, D> HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, O::Head>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero>,
+    O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
     K: 'ob,
 {
@@ -245,7 +245,7 @@ impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> Index<&'q Q> for HashMapObserver
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, V>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = V>,
+    O: Observer<InnerDepth = Zero, Head = V>,
     K: Borrow<Q> + Eq + Hash,
     Q: Eq + Hash,
 {
@@ -261,7 +261,7 @@ impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> IndexMut<&'q Q> for HashMapObser
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, V>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero, Head = V>,
+    O: Observer<InnerDepth = Zero, Head = V>,
     K: Borrow<Q> + Eq + Hash,
     Q: Eq + Hash,
 {

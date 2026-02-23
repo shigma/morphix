@@ -37,10 +37,10 @@ const _: () = {
         type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
     }
     #[automatically_derived]
-    impl<'ob, T, O, N> ::morphix::observe::Observer<'ob> for FooObserver<'ob, O>
+    impl<'ob, T, O, N> ::morphix::observe::Observer for FooObserver<'ob, O>
     where
         Vec<T>: 'ob,
-        O: ::morphix::observe::Observer<'ob, InnerDepth = ::morphix::helper::Succ<N>>,
+        O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
         O::Head: ::morphix::helper::AsDerefMut<N, Target = Foo<T>>,
         N: ::morphix::helper::Unsigned,
     {
@@ -71,14 +71,14 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, T, O, N> ::morphix::observe::SerializeObserver<'ob> for FooObserver<'ob, O>
+    impl<'ob, T, O, N> ::morphix::observe::SerializeObserver for FooObserver<'ob, O>
     where
         Foo<T>: ::serde::Serialize,
         Vec<T>: 'ob,
-        O: ::morphix::observe::Observer<'ob, InnerDepth = ::morphix::helper::Succ<N>>,
+        O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
         O::Head: ::morphix::helper::AsDerefMut<N, Target = Foo<T>>,
         N: ::morphix::helper::Unsigned,
-        O: ::morphix::observe::SerializeObserver<'ob>,
+        O: ::morphix::observe::SerializeObserver,
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
@@ -161,9 +161,9 @@ const _: () = {
         type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
     }
     #[automatically_derived]
-    impl<'ob, O, N> ::morphix::observe::Observer<'ob> for BarObserver<'ob, O>
+    impl<'ob, O, N> ::morphix::observe::Observer for BarObserver<'ob, O>
     where
-        O: ::morphix::observe::Observer<'ob, InnerDepth = ::morphix::helper::Succ<N>>,
+        O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
         O::Head: ::morphix::helper::AsDerefMut<N, Target = Bar>,
         N: ::morphix::helper::Unsigned,
     {
@@ -194,12 +194,12 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, O, N> ::morphix::observe::SerializeObserver<'ob> for BarObserver<'ob, O>
+    impl<'ob, O, N> ::morphix::observe::SerializeObserver for BarObserver<'ob, O>
     where
-        O: ::morphix::observe::Observer<'ob, InnerDepth = ::morphix::helper::Succ<N>>,
+        O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
         O::Head: ::morphix::helper::AsDerefMut<N, Target = Bar>,
         N: ::morphix::helper::Unsigned,
-        O: ::morphix::observe::SerializeObserver<'ob>,
+        O: ::morphix::observe::SerializeObserver,
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,
@@ -272,9 +272,9 @@ const _: () = {
         type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
     }
     #[automatically_derived]
-    impl<'ob, O, N> ::morphix::observe::Observer<'ob> for QuxObserver<'ob, O>
+    impl<'ob, O, N> ::morphix::observe::Observer for QuxObserver<'ob, O>
     where
-        O: ::morphix::observe::Observer<'ob, InnerDepth = ::morphix::helper::Succ<N>>,
+        O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
         O::Head: ::morphix::helper::AsDerefMut<N, Target = Qux>,
         N: ::morphix::helper::Unsigned,
     {
@@ -294,12 +294,12 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, O, N> ::morphix::observe::SerializeObserver<'ob> for QuxObserver<'ob, O>
+    impl<'ob, O, N> ::morphix::observe::SerializeObserver for QuxObserver<'ob, O>
     where
-        O: ::morphix::observe::Observer<'ob, InnerDepth = ::morphix::helper::Succ<N>>,
+        O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
         O::Head: ::morphix::helper::AsDerefMut<N, Target = Qux>,
         N: ::morphix::helper::Unsigned,
-        O: ::morphix::observe::SerializeObserver<'ob>,
+        O: ::morphix::observe::SerializeObserver,
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,

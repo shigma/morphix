@@ -65,11 +65,11 @@ impl<O, S: ?Sized, D> AsNormalized for WeakObserver<O, S, D> {
     type OuterDepth = Succ<Zero>;
 }
 
-impl<'ob, O, S: ?Sized, D> Observer<'ob> for WeakObserver<O, S, D>
+impl<O, S: ?Sized, D> Observer for WeakObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target: Weak<O::Head>> + 'ob,
-    O: Observer<'ob, InnerDepth = Zero>,
+    S: AsDeref<D, Target: Weak<O::Head>>,
+    O: Observer<InnerDepth = Zero>,
 {
     type InnerDepth = D;
     type Head = S;
@@ -108,11 +108,11 @@ where
     }
 }
 
-impl<'ob, O, S: ?Sized, D> SerializeObserver<'ob> for WeakObserver<O, S, D>
+impl<O, S: ?Sized, D> SerializeObserver for WeakObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target: Weak<O::Head>> + 'ob,
-    O: SerializeObserver<'ob, InnerDepth = Zero>,
+    S: AsDeref<D, Target: Weak<O::Head>>,
+    O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize,
 {
     #[inline]

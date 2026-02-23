@@ -77,16 +77,8 @@ const _: () = {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]
-    impl<
-        'ob,
-        'a,
-        S,
-        T,
-        U,
-        const N: usize,
-        _S: ?Sized,
-        _N,
-    > ::morphix::observe::Observer<'ob> for FooObserver<'ob, 'a, S, T, U, N, _S, _N>
+    impl<'ob, 'a, S, T, U, const N: usize, _S: ?Sized, _N> ::morphix::observe::Observer
+    for FooObserver<'ob, 'a, S, T, U, N, _S, _N>
     where
         Option<T>: 'ob,
         &'a mut [S; N]: ::morphix::Observe,
@@ -138,8 +130,7 @@ const _: () = {
         const N: usize,
         _S: ?Sized,
         _N,
-    > ::morphix::observe::SerializeObserver<'ob>
-    for FooObserver<'ob, 'a, S, T, U, N, _S, _N>
+    > ::morphix::observe::SerializeObserver for FooObserver<'ob, 'a, S, T, U, N, _S, _N>
     where
         Foo<'a, S, T, U, N>: ::serde::Serialize,
         Option<T>: 'ob,
@@ -150,11 +141,11 @@ const _: () = {
         ::morphix::observe::DefaultObserver<
             'ob,
             &'a mut [S; N],
-        >: ::morphix::observe::SerializeObserver<'ob>,
+        >: ::morphix::observe::SerializeObserver,
         ::morphix::observe::DefaultObserver<
             'ob,
             Option<U>,
-        >: ::morphix::observe::SerializeObserver<'ob>,
+        >: ::morphix::observe::SerializeObserver,
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
             this: &mut Self,

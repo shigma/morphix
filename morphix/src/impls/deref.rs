@@ -37,9 +37,9 @@ where
     type OuterDepth = Succ<O::OuterDepth>;
 }
 
-impl<'ob, O, D> Observer<'ob> for DerefObserver<O>
+impl<O, D> Observer for DerefObserver<O>
 where
-    O: Observer<'ob, InnerDepth = Succ<D>>,
+    O: Observer<InnerDepth = Succ<D>>,
     O::Head: AsDeref<D>,
     D: Unsigned,
 {
@@ -64,9 +64,9 @@ where
     }
 }
 
-impl<'ob, O, D> SerializeObserver<'ob> for DerefObserver<O>
+impl<O, D> SerializeObserver for DerefObserver<O>
 where
-    O: SerializeObserver<'ob, InnerDepth = Succ<D>>,
+    O: SerializeObserver<InnerDepth = Succ<D>>,
     O::Head: AsDeref<D>,
     D: Unsigned,
 {

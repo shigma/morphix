@@ -122,7 +122,7 @@ const _: () = {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     }
     #[automatically_derived]
-    impl<'ob, const N: usize, S: ?Sized, _N> ::morphix::observe::Observer<'ob>
+    impl<'ob, const N: usize, S: ?Sized, _N> ::morphix::observe::Observer
     for FooObserver<'ob, N, S, _N>
     where
         S: ::morphix::helper::AsDerefMut<_N, Target = Foo<N>> + 'ob,
@@ -155,7 +155,7 @@ const _: () = {
         }
     }
     #[automatically_derived]
-    impl<'ob, const N: usize, S: ?Sized, _N> ::morphix::observe::SerializeObserver<'ob>
+    impl<'ob, const N: usize, S: ?Sized, _N> ::morphix::observe::SerializeObserver
     for FooObserver<'ob, N, S, _N>
     where
         Foo<N>: ::serde::Serialize,

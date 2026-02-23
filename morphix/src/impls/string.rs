@@ -50,7 +50,7 @@ impl<'ob, S: ?Sized, D> AsNormalized for StringObserver<'ob, S, D> {
     type OuterDepth = Succ<Zero>;
 }
 
-impl<'ob, S: ?Sized, D> Observer<'ob> for StringObserver<'ob, S, D>
+impl<'ob, S: ?Sized, D> Observer for StringObserver<'ob, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = String> + 'ob,
@@ -85,7 +85,7 @@ where
     }
 }
 
-impl<'ob, S: ?Sized, D> SerializeObserver<'ob> for StringObserver<'ob, S, D>
+impl<'ob, S: ?Sized, D> SerializeObserver for StringObserver<'ob, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = String> + 'ob,

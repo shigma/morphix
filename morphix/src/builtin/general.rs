@@ -220,7 +220,7 @@ impl<'ob, H, S: ?Sized, D> AsNormalized for GeneralObserver<'ob, H, S, D> {
     type OuterDepth = Succ<Zero>;
 }
 
-impl<'ob, H, S: ?Sized, D, T: ?Sized> Observer<'ob> for GeneralObserver<'ob, H, S, D>
+impl<'ob, H, S: ?Sized, D, T: ?Sized> Observer for GeneralObserver<'ob, H, S, D>
 where
     S: crate::helper::AsDeref<D, Target = T> + 'ob,
     H: GeneralHandler<Target = T>,
@@ -253,7 +253,7 @@ where
     }
 }
 
-impl<'ob, H, S: ?Sized, D, T: ?Sized> SerializeObserver<'ob> for GeneralObserver<'ob, H, S, D>
+impl<'ob, H, S: ?Sized, D, T: ?Sized> SerializeObserver for GeneralObserver<'ob, H, S, D>
 where
     S: crate::helper::AsDeref<D, Target = T> + 'ob,
     H: SerializeHandler<Target = T>,
