@@ -81,7 +81,9 @@ const _: () = {
                         A,
                     >(bar)?;
                     if !mutations_bar.is_empty()
-                        && String::is_empty(::morphix::observe::Observer::as_inner(bar))
+                        && String::is_empty(
+                            ::morphix::helper::QuasiObserver::observed_ref(bar),
+                        )
                     {
                         mutations_bar = ::morphix::MutationKind::Delete.into();
                     }

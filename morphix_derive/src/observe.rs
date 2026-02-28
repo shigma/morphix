@@ -110,7 +110,7 @@ impl VisitMut for TransformAsNormalized {
         let left = &expr_assign.left;
         let span = left.span();
         expr_assign.left = parse_quote_spanned! { span =>
-            **(&mut #left).as_normalized_mut()
+            *(&mut #left).observed_mut()
         };
     }
 
@@ -126,12 +126,12 @@ impl VisitMut for TransformAsNormalized {
                 let left = &expr_binary.left;
                 let span = left.span();
                 expr_binary.left = parse_quote_spanned! { span =>
-                    **(&#left).as_normalized_ref()
+                    *(&#left).observed_ref()
                 };
                 let right = &expr_binary.right;
                 let span = right.span();
                 expr_binary.right = parse_quote_spanned! { span =>
-                    **(&#right).as_normalized_ref()
+                    *(&#right).observed_ref()
                 };
             }
             _ => {}

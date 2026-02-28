@@ -232,7 +232,7 @@ macro_rules! generic_impl_cmp {
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    self.inner_ref().eq(other)
+                    self.observed_ref().eq(other)
                 }
             }
 
@@ -242,7 +242,7 @@ macro_rules! generic_impl_cmp {
             {
                 #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
-                    self.inner_ref().partial_cmp(other)
+                    self.observed_ref().partial_cmp(other)
                 }
             }
         )*

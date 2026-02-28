@@ -191,7 +191,7 @@ pub fn derive_observe_for_struct(
 
     if has_skip_serializing_if {
         flush_stmts_2 = quote! {
-            let __inner = ::morphix::observe::ObserverExt::inner_ref(&*this);
+            let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
             #flush_stmts_2
         };
     }
@@ -323,7 +323,7 @@ pub fn derive_observe_for_struct(
         serialize_observer_impl_prefix = quote! {
             if this.#mutated_field {
                 this.#mutated_field = false;
-                let __inner = ::morphix::observe::ObserverExt::inner_ref(&*this);
+                let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
                 return Ok(::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into());
             };
         };
@@ -601,9 +601,8 @@ pub fn derive_observe_for_struct(
                 {
                     #[inline]
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let head = &**::morphix::helper::QuasiObserver::as_normalized_ref(self);
-                        let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
-                        ::std::fmt::Display::fmt(value, f)
+                        let inner = ::morphix::helper::QuasiObserver::observed_ref(self);
+                        ::std::fmt::Display::fmt(inner, f)
                     }
                 }
             });

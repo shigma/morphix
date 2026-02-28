@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{Observer, ObserverExt, SerializeObserver};
+use crate::observe::{Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
@@ -279,7 +279,7 @@ macro_rules! impl_fmt {
             {
                 #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    std::fmt::$trait::fmt(self.inner_ref(), f)
+                    std::fmt::$trait::fmt(self.observed_ref(), f)
                 }
             }
         )*
@@ -306,7 +306,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple(H::NAME).field(&self.inner_ref()).finish()
+        f.debug_tuple(H::NAME).field(&self.observed_ref()).finish()
     }
 }
 
@@ -321,7 +321,7 @@ where
 
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
-        self.inner_ref().index(index)
+        self.observed_ref().index(index)
     }
 }
 
@@ -334,7 +334,7 @@ where
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        self.inner_tracked().index_mut(index)
+        self.observed_mut().index_mut(index)
     }
 }
 
@@ -351,7 +351,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> bool {
-        self.inner_ref().eq(other.inner_ref())
+        self.observed_ref().eq(other.observed_ref())
     }
 }
 
@@ -377,7 +377,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.inner_ref().partial_cmp(other.inner_ref())
+        self.observed_ref().partial_cmp(other.observed_ref())
     }
 }
 
@@ -390,7 +390,7 @@ where
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.inner_ref().cmp(other.inner_ref())
+        self.observed_ref().cmp(other.observed_ref())
     }
 }
 
@@ -406,7 +406,7 @@ macro_rules! impl_assign_ops {
             {
                 #[inline]
                 fn $method(&mut self, rhs: U) {
-                    self.inner_tracked().$method(rhs);
+                    self.observed_mut().$method(rhs);
                 }
             }
         )*
@@ -440,7 +440,7 @@ macro_rules! impl_ops_copy {
 
                 #[inline]
                 fn $method(self, rhs: U) -> Self::Output {
-                    self.inner_ref().$method(rhs)
+                    self.observed_ref().$method(rhs)
                 }
             }
         )*
@@ -471,7 +471,7 @@ where
 
     #[inline]
     fn neg(self) -> Self::Output {
-        (*self.inner_ref()).neg()
+        (*self.observed_ref()).neg()
     }
 }
 
@@ -486,7 +486,7 @@ where
 
     #[inline]
     fn not(self) -> Self::Output {
-        (*self.inner_ref()).not()
+        (*self.observed_ref()).not()
     }
 }
 

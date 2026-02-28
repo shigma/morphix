@@ -127,7 +127,7 @@ where
     #[inline]
     fn __insert(&mut self, value: O::Head) {
         self.mutated = true;
-        let inserted = self.inner_untracked().insert(value);
+        let inserted = self.untracked_mut().insert(value);
         self.inner = Some(O::observe(inserted));
     }
 
@@ -135,7 +135,7 @@ where
     #[inline]
     pub fn as_mut(&mut self) -> Option<&mut O> {
         if self.inner.is_none() {
-            self.inner = self.inner_untracked().as_ref().map(O::observe);
+            self.inner = self.untracked_mut().as_ref().map(O::observe);
         }
         self.inner.as_mut()
     }

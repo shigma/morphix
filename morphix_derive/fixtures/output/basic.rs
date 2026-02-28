@@ -89,7 +89,7 @@ const _: () = {
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             if this.__mutated {
                 this.__mutated = false;
-                let __inner = ::morphix::observe::ObserverExt::inner_ref(&*this);
+                let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
                 return Ok(
                     ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
                 );
@@ -134,9 +134,8 @@ const _: () = {
     {
         #[inline]
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let head = &**::morphix::helper::QuasiObserver::as_normalized_ref(self);
-            let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
-            ::std::fmt::Display::fmt(value, f)
+            let inner = ::morphix::helper::QuasiObserver::observed_ref(self);
+            ::std::fmt::Display::fmt(inner, f)
         }
     }
 };
@@ -226,7 +225,7 @@ where
     ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
         if this.2 {
             this.2 = false;
-            let __inner = ::morphix::observe::ObserverExt::inner_ref(&*this);
+            let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
             return Ok(
                 ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
             );
@@ -331,7 +330,7 @@ const _: () = {
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             if this.3 {
                 this.3 = false;
-                let __inner = ::morphix::observe::ObserverExt::inner_ref(&*this);
+                let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
                 return Ok(
                     ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
                 );

@@ -40,7 +40,7 @@
 //! value = 42;
 //!
 //! // Macro transforms to:
-//! **(&mut value).as_normalized_mut() = 42;
+//! *(&mut value).observed_mut() = 42;
 //! ```
 //!
 //! - For normal values: `&mut T` returns `&mut &mut T`, becoming `**(&mut &mut value) = 42`
@@ -56,7 +56,7 @@
 //! lhs == rhs;
 //!
 //! // Macro transforms to:
-//! **(&lhs).as_normalized_ref() == **(&rhs).as_normalized_ref();
+//! *(&lhs).observed_ref() == *(&rhs).observed_ref();
 //! ```
 //!
 //! - For normal values: `&T` returns `&&T`, becoming `**(&&lhs) == **(&&rhs)`
@@ -67,19 +67,39 @@
 
 use std::ops::{Deref, DerefMut};
 
-use crate::helper::{AsDeref, AsDerefCoinductive, AsDerefMut, AsDerefMutCoinductive, Pointer, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, Unsigned, Zero};
 
-/// A trait for specifying normalized dereference access.
+/// A trait that unifies observers and plain references for the [`observe!`](crate::observe!) macro.
 ///
-/// This trait indicates how many times a value should be dereferenced to reach its normalized form.
-/// In the [`observe!`](crate::observe!) macro, values implementing this trait will be automatically
-/// dereferenced [`OuterDepth`](QuasiObserver::OuterDepth) times when they appear in the following
-/// positions:
+/// Both real observers and ordinary references (`&T`, `&mut T`) need to participate in the
+/// assignment and comparison transformations performed by the [`observe!`](crate::observe!) macro
+/// (see the [module documentation](self) for details). This trait provides a common interface for
+/// both: the macro calls [`observed_ref`](QuasiObserver::observed_ref) and
+/// [`observed_mut`](QuasiObserver::observed_mut) on all values uniformly, and autoref-based method
+/// resolution selects the correct implementation.
 ///
-/// - Left-hand side of assignment operator (`=`)
-/// - Both sides of comparison operators (`==`, `!=`, `<`, `<=`, `>`, `>=`)
+/// The name "quasi-observer" reflects that plain references are not real observers, but they behave
+/// like ones for the purpose of the macro's transformations.
 ///
-/// See the [module documentation](self) for background on why this is necessary.
+/// ## Dereference Chain
+///
+/// A `QuasiObserver` defines a two-segment dereference chain:
+///
+/// ```text
+/// Self --[OuterDepth]-> Pointer<Head> --> Head --[InnerDepth]-> Target
+///        (coinductive)                           (inductive)
+/// ```
+///
+/// - [`OuterDepth`](QuasiObserver::OuterDepth): The number of coinductive dereferences from `Self`
+///   to its internal [`Pointer`]. For a simple observer this is `Succ<Zero>` (one). For a composite
+///   observer like [`VecObserver`](crate::impls::VecObserver) which wraps
+///   [`SliceObserver`](crate::impls::SliceObserver), it is `Succ<Succ<Zero>>` (two). For `&T`,
+///   `&mut T`, and [`Pointer<T>`] it is `Zero`.
+///
+/// - [`InnerDepth`](QuasiObserver::InnerDepth): The number of inductive dereferences from the
+///   `Head` type (stored inside the [`Pointer`]) to the final observed type. For example, when
+///   observing a [`Vec<T>`], the `Head` is [`Vec<T>`] and the observed type is `[T]`, so
+///   `InnerDepth = Succ<Zero>`.
 ///
 /// ## Implementation Notes
 ///
@@ -100,26 +120,38 @@ where
     Self: AsDerefMutCoinductive<Self::OuterDepth>,
     Self::Target: Deref<Target: AsDeref<Self::InnerDepth>>,
 {
-    /// The number of outer dereference layers to reach the pointer type.
+    /// The number of coinductive dereferences from `Self` to its internal [`Pointer`].
+    ///
+    /// For plain references (`&T`, `&mut T`) and [`Pointer<T>`] this is [`Zero`]. For most
+    /// observers this is [`Succ<Zero>`](crate::helper::Succ). Composite observers that wrap
+    /// another observer (e.g., [`VecObserver`](crate::impls::VecObserver) wrapping
+    /// [`SliceObserver`](crate::impls::SliceObserver)) have a higher depth.
     type OuterDepth: Unsigned;
-    /// The number of inner dereference layers from the anchor type to reach the underlying value.
+
+    /// The number of inductive dereferences from the head type (stored inside the [`Pointer`]) to
+    /// the final observed type.
+    ///
+    /// For plain references (`&T`, `&mut T`) and [`Pointer<T>`] this is [`Zero`]. For observers,
+    /// this is typically the generic depth parameter `D`, which accounts for any
+    /// [`Deref`](std::ops::Deref) chain on the head type (e.g., `Vec<T>` → `[T]`).
     type InnerDepth: Unsigned;
 
-    /// Returns a normalized reference to the underlying value.
-    fn as_normalized_ref(&self) -> &<Self as AsDerefCoinductive<Self::OuterDepth>>::Target {
-        self.as_deref_coinductive()
-    }
-
-    /// Returns a normalized mutable reference to the underlying value.
-    fn as_normalized_mut(&mut self) -> &mut <Self as AsDerefCoinductive<Self::OuterDepth>>::Target {
-        self.as_deref_mut_coinductive()
-    }
-
+    /// Returns an immutable reference to the observed value by traversing the full dereference
+    /// chain.
+    ///
+    /// The [`observe!`](crate::observe!) macro calls this method on both sides of comparison
+    /// operators. For plain references this is a no-op identity; for observers it dereferences
+    /// through the observer chain to reach the underlying value.
     #[inline]
     fn observed_ref(&self) -> &<<Self::Target as Deref>::Target as AsDeref<Self::InnerDepth>>::Target {
         self.as_deref_coinductive().deref().as_deref()
     }
 
+    /// Returns a mutable reference to the observed value by traversing the full dereference chain.
+    ///
+    /// The [`observe!`](crate::observe!) macro calls this method on the left-hand side of
+    /// assignment operators. For plain references this is a no-op identity; for observers it
+    /// dereferences through the observer chain, triggering [`DerefMut`] hooks along the way.
     #[inline]
     fn observed_mut(&mut self) -> &mut <<Self::Target as Deref>::Target as AsDeref<Self::InnerDepth>>::Target
     where

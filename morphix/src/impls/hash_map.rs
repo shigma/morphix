@@ -161,7 +161,7 @@ where
         K: Borrow<Q> + Eq + Hash,
         Q: Eq + Hash + ?Sized,
     {
-        let inner = self.inner_ref();
+        let inner = self.observed_ref();
         let key_ptr = NonNull::from_ref(inner.get_key_value(key)?.0);
         let value = inner.get(key)?;
         // SAFETY: key_ptr is valid as it comes from inner.get_key_value

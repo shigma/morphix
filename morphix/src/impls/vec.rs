@@ -138,9 +138,9 @@ where
     #[inline]
     pub fn insert(&mut self, index: usize, element: T) {
         if index >= self.__append_index() {
-            self.inner_untracked().insert(index, element)
+            self.untracked_mut().insert(index, element)
         } else {
-            self.inner_tracked().insert(index, element)
+            self.observed_mut().insert(index, element)
         }
     }
 }
@@ -163,15 +163,15 @@ where
     #[inline]
     pub fn clear(&mut self) {
         if self.__append_index() == 0 {
-            self.inner_untracked().clear()
+            self.untracked_mut().clear()
         } else {
-            self.inner_tracked().clear()
+            self.observed_mut().clear()
         }
     }
 
     /// See [`Vec::remove`].
     pub fn remove(&mut self, index: usize) -> T {
-        let value = self.inner_untracked().remove(index);
+        let value = self.untracked_mut().remove(index);
         let append_index = self.__append_index();
         if index >= append_index {
             // no-op
@@ -185,7 +185,7 @@ where
 
     /// See [`Vec::swap_remove`].
     pub fn swap_remove(&mut self, index: usize) -> T {
-        let value = self.inner_untracked().remove(index);
+        let value = self.untracked_mut().remove(index);
         let append_index = self.__append_index();
         if index >= append_index {
             // no-op
@@ -199,7 +199,7 @@ where
 
     /// See [`Vec::pop`].
     pub fn pop(&mut self) -> Option<T> {
-        let value = self.inner_untracked().pop()?;
+        let value = self.untracked_mut().pop()?;
         let append_index = self.__append_index();
         let len = self.as_deref().len();
         if len >= append_index {
@@ -221,7 +221,7 @@ where
 
     /// See [`Vec::truncate`].
     pub fn truncate(&mut self, len: usize) {
-        self.inner_untracked().truncate(len);
+        self.untracked_mut().truncate(len);
         let append_index = self.__append_index();
         if len >= append_index {
             // no-op
@@ -234,7 +234,7 @@ where
 
     /// See [`Vec::split_off`].
     pub fn split_off(&mut self, at: usize) -> Vec<T> {
-        let vec = self.inner_untracked().split_off(at);
+        let vec = self.untracked_mut().split_off(at);
         let append_index = self.__append_index();
         if at >= append_index {
             // no-op
@@ -252,7 +252,7 @@ where
     where
         F: FnMut() -> T,
     {
-        self.inner_untracked().resize_with(new_len, f);
+        self.untracked_mut().resize_with(new_len, f);
         let append_index = self.__append_index();
         if new_len >= append_index {
             // no-op
@@ -275,10 +275,10 @@ where
             Bound::Unbounded => 0,
         };
         if start_index >= append_index {
-            return self.inner_untracked().drain(range);
+            return self.untracked_mut().drain(range);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.inner_tracked().drain(range);
+            return self.observed_mut().drain(range);
         }
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
@@ -286,10 +286,10 @@ where
             Bound::Unbounded => self.as_deref().len(),
         };
         if end_index < append_index {
-            return self.inner_tracked().drain(range);
+            return self.observed_mut().drain(range);
         }
         self.__mark_truncate(start_index);
-        self.inner_tracked().drain(range)
+        self.observed_mut().drain(range)
     }
 
     /// See [`Vec::splice`].
@@ -305,10 +305,10 @@ where
             Bound::Unbounded => 0,
         };
         if start_index >= append_index {
-            return self.inner_untracked().splice(range, replace_with);
+            return self.untracked_mut().splice(range, replace_with);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.inner_tracked().splice(range, replace_with);
+            return self.observed_mut().splice(range, replace_with);
         }
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
@@ -316,10 +316,10 @@ where
             Bound::Unbounded => self.as_deref().len(),
         };
         if end_index < append_index {
-            return self.inner_tracked().splice(range, replace_with);
+            return self.observed_mut().splice(range, replace_with);
         }
         self.__mark_truncate(start_index);
-        self.inner_untracked().splice(range, replace_with)
+        self.untracked_mut().splice(range, replace_with)
     }
 
     /// See [`Vec::extract_if`].
@@ -335,10 +335,10 @@ where
             Bound::Unbounded => 0,
         };
         if start_index >= append_index {
-            return self.inner_untracked().extract_if(range, filter);
+            return self.untracked_mut().extract_if(range, filter);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.inner_tracked().extract_if(range, filter);
+            return self.observed_mut().extract_if(range, filter);
         }
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
@@ -346,10 +346,10 @@ where
             Bound::Unbounded => self.as_deref().len(),
         };
         if end_index < append_index {
-            return self.inner_tracked().extract_if(range, filter);
+            return self.observed_mut().extract_if(range, filter);
         }
         self.__mark_truncate(start_index);
-        self.inner_untracked().extract_if(range, filter)
+        self.untracked_mut().extract_if(range, filter)
     }
 }
 
@@ -379,7 +379,7 @@ where
     /// See [`Vec::resize`].
     #[inline]
     pub fn resize(&mut self, new_len: usize, value: T) {
-        self.inner_untracked().resize(new_len, value);
+        self.untracked_mut().resize(new_len, value);
         let append_index = self.__append_index();
         if new_len >= append_index {
             // no-op
@@ -401,7 +401,7 @@ where
 {
     #[inline]
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
-        self.inner_untracked().extend(other);
+        self.untracked_mut().extend(other);
     }
 }
 

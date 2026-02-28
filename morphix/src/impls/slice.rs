@@ -306,7 +306,7 @@ where
         if end > len {
             return None;
         }
-        let inner = self.inner_ref().as_ref();
+        let inner = self.observed_ref().as_ref();
         self.obs.init_range(start, end, inner);
         Some(())
     }
@@ -331,7 +331,7 @@ where
 
     #[inline]
     pub(crate) fn __force(&self) {
-        let inner = self.inner_ref().as_ref();
+        let inner = self.observed_ref().as_ref();
         self.obs.init_range(0, inner.len(), inner);
     }
 
@@ -404,9 +404,9 @@ where
     /// See [`slice::swap`].
     #[inline]
     pub fn swap(&mut self, a: usize, b: usize) {
-        self[a].inner_tracked();
-        self[b].inner_tracked();
-        self.inner_untracked().as_mut().swap(a, b);
+        self[a].observed_mut();
+        self[b].observed_mut();
+        self.untracked_mut().as_mut().swap(a, b);
     }
 
     /// See [`slice::iter_mut`].

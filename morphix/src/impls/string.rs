@@ -159,9 +159,9 @@ where
     #[inline]
     pub fn insert(&mut self, idx: usize, ch: char) {
         if idx >= self.__append_index() {
-            self.inner_untracked().insert(idx, ch)
+            self.untracked_mut().insert(idx, ch)
         } else {
-            self.inner_tracked().insert(idx, ch)
+            self.observed_mut().insert(idx, ch)
         }
     }
 
@@ -169,9 +169,9 @@ where
     #[inline]
     pub fn insert_str(&mut self, idx: usize, string: &str) {
         if idx >= self.__append_index() {
-            self.inner_untracked().insert_str(idx, string)
+            self.untracked_mut().insert_str(idx, string)
         } else {
-            self.inner_tracked().insert_str(idx, string)
+            self.observed_mut().insert_str(idx, string)
         }
     }
 }
@@ -194,15 +194,15 @@ where
     #[inline]
     pub fn clear(&mut self) {
         if self.__append_index() == 0 {
-            self.inner_untracked().clear()
+            self.untracked_mut().clear()
         } else {
-            self.inner_tracked().clear()
+            self.observed_mut().clear()
         }
     }
 
     /// See [`String::remove`].
     pub fn remove(&mut self, idx: usize) -> char {
-        let char = self.inner_untracked().remove(idx);
+        let char = self.untracked_mut().remove(idx);
         let append_index = self.__append_index();
         if idx >= append_index {
             // no-op
@@ -218,7 +218,7 @@ where
 
     /// See [`String::pop`].
     pub fn pop(&mut self) -> Option<char> {
-        let char = self.inner_untracked().pop()?;
+        let char = self.untracked_mut().pop()?;
         let append_index = self.__append_index();
         let len = self.as_deref().len();
         if len >= append_index {
@@ -237,26 +237,26 @@ where
     pub fn truncate(&mut self, len: usize) {
         let append_index = self.__append_index();
         if len >= append_index {
-            return self.inner_untracked().truncate(len);
+            return self.untracked_mut().truncate(len);
         }
         if cfg!(not(feature = "truncate")) || len == 0 {
-            return self.inner_tracked().truncate(len);
+            return self.observed_mut().truncate(len);
         }
         self.__mark_truncate(len..append_index);
-        self.inner_untracked().truncate(len)
+        self.untracked_mut().truncate(len)
     }
 
     /// See [`String::split_off`].
     pub fn split_off(&mut self, at: usize) -> String {
         let append_index = self.__append_index();
         if at >= append_index {
-            return self.inner_untracked().split_off(at);
+            return self.untracked_mut().split_off(at);
         }
         if cfg!(not(feature = "truncate")) || at == 0 {
-            return self.inner_tracked().split_off(at);
+            return self.observed_mut().split_off(at);
         }
         self.__mark_truncate(at..append_index);
-        self.inner_untracked().split_off(at)
+        self.untracked_mut().split_off(at)
     }
 
     /// See [`String::drain`].
@@ -271,10 +271,10 @@ where
             Bound::Unbounded => 0,
         };
         if start_index >= append_index {
-            return self.inner_untracked().drain(range);
+            return self.untracked_mut().drain(range);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.inner_tracked().drain(range);
+            return self.observed_mut().drain(range);
         }
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
@@ -282,10 +282,10 @@ where
             Bound::Unbounded => self.as_deref().len(),
         };
         if end_index < append_index {
-            return self.inner_tracked().drain(range);
+            return self.observed_mut().drain(range);
         }
         self.__mark_truncate(start_index..append_index);
-        self.inner_tracked().drain(range)
+        self.observed_mut().drain(range)
     }
 
     /// See [`String::replace_range`].
@@ -300,10 +300,10 @@ where
             Bound::Unbounded => 0,
         };
         if start_index >= append_index {
-            return self.inner_untracked().replace_range(range, replace_with);
+            return self.untracked_mut().replace_range(range, replace_with);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.inner_tracked().replace_range(range, replace_with);
+            return self.observed_mut().replace_range(range, replace_with);
         }
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
@@ -311,10 +311,10 @@ where
             Bound::Unbounded => self.as_deref().len(),
         };
         if end_index < append_index {
-            return self.inner_tracked().replace_range(range, replace_with);
+            return self.observed_mut().replace_range(range, replace_with);
         }
         self.__mark_truncate(start_index..append_index);
-        self.inner_untracked().replace_range(range, replace_with);
+        self.untracked_mut().replace_range(range, replace_with);
     }
 }
 
@@ -328,7 +328,7 @@ where
         #[cfg(feature = "append")]
         self.push_str(rhs);
         #[cfg(not(feature = "append"))]
-        self.inner_tracked().add_assign(rhs);
+        self.observed_mut().add_assign(rhs);
     }
 }
 
@@ -341,7 +341,7 @@ where
 {
     #[inline]
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
-        self.inner_untracked().extend(other);
+        self.untracked_mut().extend(other);
     }
 }
 
