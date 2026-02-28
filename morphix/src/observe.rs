@@ -226,13 +226,6 @@ where
 /// Observers provide transparent access to the underlying value while recording any mutations that
 /// occur. They form a dereference chain that allows multiple levels of observation.
 ///
-/// ## Type Parameters
-///
-/// - [`Head`](Observer::Head): The type stored in the internal [`Pointer`], representing the head
-///   of the dereference chain
-/// - [`InnerDepth`](Observer::InnerDepth): Type-level number indicating how many times
-///   [`Head`](Observer::Head) must be dereferenced to reach the observed type
-///
 /// See the [module documentation](self) for more details about how observers work with dereference
 /// chains.
 pub trait Observer: ObserverExt + Sized {

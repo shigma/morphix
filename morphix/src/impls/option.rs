@@ -11,10 +11,6 @@ use crate::observe::{Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations};
 
 /// Observer implementation for [`Option<T>`].
-///
-/// This observer tracks changes to optional values, including transitions between [`Some`] and
-/// [`None`] states. It provides specialized methods for working with options while maintaining
-/// change tracking.
 pub struct OptionObserver<O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
     mutated: bool,

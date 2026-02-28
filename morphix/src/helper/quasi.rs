@@ -8,8 +8,8 @@
 //! ### Assignment Problem
 //!
 //! When you write `observer.field = value`, you want to assign to the observed field, not replace
-//! the observer itself. While [`DerefMut`](std::ops::DerefMut) handles most operations, it doesn't
-//! work for direct assignment due to Rust's assignment semantics.
+//! the observer itself. While [`DerefMut`] handles most operations, it doesn't work for direct
+//! assignment due to Rust's assignment semantics.
 //!
 //! ### Comparison Problem
 //!
@@ -112,9 +112,9 @@ use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, Unsigne
 ///
 /// 2. **Do not implement [`QuasiObserver`] for types other than `&T`, `&mut T`, [`Pointer<T>`], and
 ///    [`Observer`](crate::observe::Observer) types**. Implementing [`QuasiObserver`] for other
-///    [`Deref`](std::ops::Deref) types (like [`Box`], [`MutexGuard`](std::sync::MutexGuard), etc.)
-///    may cause unexpected behavior in the [`observe!`](crate::observe!) macro, as it would
-///    interfere with the autoref-based specialization mechanism.
+///    [`Deref`] types (like [`Box`], [`MutexGuard`](std::sync::MutexGuard), etc.) may cause
+///    unexpected behavior in the [`observe!`](crate::observe!) macro, as it would interfere with
+///    the autoref-based specialization mechanism.
 pub trait QuasiObserver
 where
     Self: AsDerefMutCoinductive<Self::OuterDepth>,
@@ -133,7 +133,7 @@ where
     ///
     /// For plain references (`&T`, `&mut T`) and [`Pointer<T>`] this is [`Zero`]. For observers,
     /// this is typically the generic depth parameter `D`, which accounts for any
-    /// [`Deref`](std::ops::Deref) chain on the head type (e.g., `Vec<T>` → `[T]`).
+    /// [`Deref`] chain on the head type (e.g., `Vec<T>` → `[T]`).
     type InnerDepth: Unsigned;
 
     /// Returns an immutable reference to the observed value by traversing the full dereference
