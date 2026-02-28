@@ -64,7 +64,7 @@ impl<O, S: ?Sized, D> DerefMut for WeakObserver<O, S, D> {
 impl<O, S: ?Sized, D> QuasiObserver for WeakObserver<O, S, D>
 where
     D: Unsigned,
-    S: crate::helper::AsDeref<D>,
+    S: AsDeref<D>,
 {
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
@@ -141,14 +141,12 @@ where
 impl<O, S: ?Sized, D> Debug for WeakObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("WeakObserver")
-            .field(&AsDeref::<D>::as_deref(&*self.ptr))
-            .finish()
+        f.debug_tuple("WeakObserver").field(&self.observed_ref()).finish()
     }
 }
 

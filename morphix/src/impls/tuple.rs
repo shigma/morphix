@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::builtin::{PointerObserver, Snapshot};
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
 
@@ -38,7 +38,7 @@ impl<O, S: ?Sized, D> DerefMut for TupleObserver<O, S, D> {
 impl<O, S: ?Sized, D> QuasiObserver for TupleObserver<O, S, D>
 where
     D: Unsigned,
-    S: crate::helper::AsDeref<D>,
+    S: AsDeref<D>,
 {
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
@@ -91,7 +91,7 @@ where
     #[inline]
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         if this.2 {
-            return Ok(MutationKind::Replace(A::serialize_value(this.as_deref())?).into());
+            return Ok(MutationKind::Replace(A::serialize_value((*this.1).as_deref())?).into());
         }
         SerializeObserver::flush::<A>(&mut this.0)
     }
@@ -100,24 +100,24 @@ where
 impl<O, S: ?Sized, D> Debug for TupleObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("TupleObserver").field(&self.as_deref()).finish()
+        f.debug_tuple("TupleObserver").field(&self.observed_ref()).finish()
     }
 }
 
 impl<O, S: ?Sized, D, U> PartialEq<(U,)> for TupleObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: PartialEq<(U,)>,
 {
     #[inline]
     fn eq(&self, other: &(U,)) -> bool {
-        self.as_deref().eq(other)
+        self.observed_ref().eq(other)
     }
 }
 
@@ -125,20 +125,20 @@ impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<TupleObserver<O2, S2, D2>
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &TupleObserver<O2, S2, D2>) -> bool {
-        self.as_deref().eq(other.as_deref())
+        self.observed_ref().eq(other.observed_ref())
     }
 }
 
 impl<O, S: ?Sized, D> Eq for TupleObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Eq,
 {
 }
@@ -146,12 +146,12 @@ where
 impl<O, S: ?Sized, D, U> PartialOrd<(U,)> for TupleObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: PartialOrd<(U,)>,
 {
     #[inline]
     fn partial_cmp(&self, other: &(U,)) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other)
+        self.observed_ref().partial_cmp(other)
     }
 }
 
@@ -159,25 +159,25 @@ impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<TupleObserver<O2, S2, D2
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &TupleObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other.as_deref())
+        self.observed_ref().partial_cmp(other.observed_ref())
     }
 }
 
 impl<O, S: ?Sized, D> Ord for TupleObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Ord,
 {
     #[inline]
     fn cmp(&self, other: &TupleObserver<O, S, D>) -> std::cmp::Ordering {
-        self.as_deref().cmp(other.as_deref())
+        self.observed_ref().cmp(other.observed_ref())
     }
 }
 
@@ -239,7 +239,7 @@ macro_rules! tuple_observer {
         impl<$($o,)* S: ?Sized, D> QuasiObserver for $ty<$($o,)* S, D>
         where
             D: Unsigned,
-            S: $crate::helper::AsDeref<D>,
+            S: AsDeref<D>,
         {
             type OuterDepth = Succ<Zero>;
             type InnerDepth = D;
@@ -292,7 +292,7 @@ macro_rules! tuple_observer {
             #[inline]
             unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
                 if this.$mutated {
-                    return Ok(MutationKind::Replace(A::serialize_value(this.as_deref())?).into());
+                    return Ok(MutationKind::Replace(A::serialize_value((*this.$ptr).as_deref())?).into());
                 }
                 let mutations_tuple = ($(SerializeObserver::flush::<A>(&mut this.$n)?,)*);
                 let mut mutations = Mutations::with_capacity(
@@ -308,24 +308,24 @@ macro_rules! tuple_observer {
         impl<$($o,)* S: ?Sized, D> Debug for $ty<$($o,)* S, D>
         where
             D: Unsigned,
-            S: AsDerefMut<D>,
+            S: AsDeref<D>,
             S::Target: Debug,
         {
             #[inline]
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_tuple(stringify!($ty)).field(&self.as_deref()).finish()
+                f.debug_tuple(stringify!($ty)).field(&self.observed_ref()).finish()
             }
         }
 
         impl<$($o,)* S: ?Sized, D, U> PartialEq<(U,)> for $ty<$($o,)* S, D>
         where
             D: Unsigned,
-            S: AsDerefMut<D>,
+            S: AsDeref<D>,
             S::Target: PartialEq<(U,)>,
         {
             #[inline]
             fn eq(&self, other: &(U,)) -> bool {
-                self.as_deref().eq(other)
+                self.observed_ref().eq(other)
             }
         }
 
@@ -334,20 +334,20 @@ macro_rules! tuple_observer {
         where
             D1: Unsigned,
             D2: Unsigned,
-            S1: AsDerefMut<D1>,
-            S2: AsDerefMut<D2>,
+            S1: AsDeref<D1>,
+            S2: AsDeref<D2>,
             S1::Target: PartialEq<S2::Target>,
         {
             #[inline]
             fn eq(&self, other: &$ty<$($p,)* S2, D2>) -> bool {
-                self.as_deref().eq(other.as_deref())
+                self.observed_ref().eq(other.observed_ref())
             }
         }
 
         impl<$($o,)* S: ?Sized, D> Eq for $ty<$($o,)* S, D>
         where
             D: Unsigned,
-            S: AsDerefMut<D>,
+            S: AsDeref<D>,
             S::Target: Eq,
         {
         }
@@ -355,12 +355,12 @@ macro_rules! tuple_observer {
         impl<$($o,)* S: ?Sized, D, U> PartialOrd<(U,)> for $ty<$($o,)* S, D>
         where
             D: Unsigned,
-            S: AsDerefMut<D>,
+            S: AsDeref<D>,
             S::Target: PartialOrd<(U,)>,
         {
             #[inline]
             fn partial_cmp(&self, other: &(U,)) -> Option<std::cmp::Ordering> {
-                self.as_deref().partial_cmp(other)
+                self.observed_ref().partial_cmp(other)
             }
         }
 
@@ -369,25 +369,25 @@ macro_rules! tuple_observer {
         where
             D1: Unsigned,
             D2: Unsigned,
-            S1: AsDerefMut<D1>,
-            S2: AsDerefMut<D2>,
+            S1: AsDeref<D1>,
+            S2: AsDeref<D2>,
             S1::Target: PartialOrd<S2::Target>,
         {
             #[inline]
             fn partial_cmp(&self, other: &$ty<$($p,)* S2, D2>) -> Option<std::cmp::Ordering> {
-                self.as_deref().partial_cmp(other.as_deref())
+                self.observed_ref().partial_cmp(other.observed_ref())
             }
         }
 
         impl<$($o,)* S: ?Sized, D> Ord for $ty<$($o,)* S, D>
         where
             D: Unsigned,
-            S: AsDerefMut<D>,
+            S: AsDeref<D>,
             S::Target: Ord,
         {
             #[inline]
             fn cmp(&self, other: &$ty<$($o,)* S, D>) -> std::cmp::Ordering {
-                self.as_deref().cmp(other.as_deref())
+                self.observed_ref().cmp(other.observed_ref())
             }
         }
 
@@ -416,7 +416,7 @@ macro_rules! tuple_observer {
             where
                 Self: 'ob,
                 D: Unsigned,
-                S: $crate::helper::AsDeref<D, Target = Self> + ?Sized + 'ob;
+                S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
             type Spec = DefaultSpec;
         }

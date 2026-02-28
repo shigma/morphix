@@ -11,7 +11,7 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::default_impl_ref_observe;
-use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
@@ -59,7 +59,7 @@ impl<'ob, K, O, S: ?Sized, D> DerefMut for BTreeMapObserver<'ob, K, O, S, D> {
 impl<'ob, K, O, S: ?Sized, D> QuasiObserver for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: crate::helper::AsDeref<D>,
+    S: AsDeref<D>,
 {
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
@@ -109,7 +109,7 @@ where
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let Some(diff) = this.diff.take() else {
-            return Ok(MutationKind::Replace(A::serialize_value(this.as_deref())?).into());
+            return Ok(MutationKind::Replace(A::serialize_value((*this).observed_ref())?).into());
         };
         let mut mutations = Mutations::new();
         for key in diff.deleted {
@@ -183,24 +183,24 @@ where
 impl<'ob, K, O, S: ?Sized, D> Debug for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("BTreeMapObserver").field(&self.as_deref()).finish()
+        f.debug_tuple("BTreeMapObserver").field(&self.observed_ref()).finish()
     }
 }
 
 impl<'ob, K, O, S: ?Sized, D, V> PartialEq<BTreeMap<K, V>> for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: PartialEq<BTreeMap<K, V>>,
 {
     #[inline]
     fn eq(&self, other: &BTreeMap<K, V>) -> bool {
-        self.as_deref().eq(other)
+        self.observed_ref().eq(other)
     }
 }
 
@@ -209,20 +209,20 @@ impl<'ob, K1, K2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<BTreeMapObse
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &BTreeMapObserver<'ob, K2, O2, S2, D2>) -> bool {
-        self.as_deref().eq(other.as_deref())
+        self.observed_ref().eq(other.observed_ref())
     }
 }
 
 impl<'ob, K, O, S: ?Sized, D> Eq for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Eq,
 {
 }
@@ -230,12 +230,12 @@ where
 impl<'ob, K, O, S: ?Sized, D, V> PartialOrd<BTreeMap<K, V>> for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: PartialOrd<BTreeMap<K, V>>,
 {
     #[inline]
     fn partial_cmp(&self, other: &BTreeMap<K, V>) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other)
+        self.observed_ref().partial_cmp(other)
     }
 }
 
@@ -244,25 +244,25 @@ impl<'ob, K1, K2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<BTreeMapObs
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &BTreeMapObserver<'ob, K2, O2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other.as_deref())
+        self.observed_ref().partial_cmp(other.observed_ref())
     }
 }
 
 impl<'ob, K, O, S: ?Sized, D> Ord for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Ord,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.as_deref().cmp(other.as_deref())
+        self.observed_ref().cmp(other.observed_ref())
     }
 }
 

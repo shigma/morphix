@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations};
 
@@ -40,7 +40,7 @@ impl<O, S: ?Sized, D> DerefMut for OptionObserver<O, S, D> {
 impl<O, S: ?Sized, D> QuasiObserver for OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: crate::helper::AsDeref<D>,
+    S: AsDeref<D>,
 {
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
@@ -94,7 +94,7 @@ where
     O::Head: Serialize + Sized,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        let value = this.ptr.as_deref();
+        let value = (*this.ptr).as_deref();
         let initial = this.initial;
         this.initial = value.is_some();
         if !this.mutated {
@@ -165,7 +165,7 @@ where
     where
         F: FnOnce() -> O::Head,
     {
-        if self.as_deref().is_none() {
+        if (*self).observed_ref().is_none() {
             self.__insert(f());
         }
         // SAFETY: We just ensured that value is `Some`.
@@ -176,24 +176,24 @@ where
 impl<O, S: ?Sized, D> Debug for OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("OptionObserver").field(&self.as_deref()).finish()
+        f.debug_tuple("OptionObserver").field(&self.observed_ref()).finish()
     }
 }
 
 impl<O, S: ?Sized, D, U> PartialEq<Option<U>> for OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: PartialEq<Option<U>>,
 {
     #[inline]
     fn eq(&self, other: &Option<U>) -> bool {
-        self.as_deref().eq(other)
+        self.observed_ref().eq(other)
     }
 }
 
@@ -201,20 +201,20 @@ impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<OptionObserver<O2, S2, D2
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &OptionObserver<O2, S2, D2>) -> bool {
-        self.as_deref().eq(other.as_deref())
+        self.observed_ref().eq(other.observed_ref())
     }
 }
 
 impl<O, S: ?Sized, D> Eq for OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Eq,
 {
 }
@@ -222,12 +222,12 @@ where
 impl<O, S: ?Sized, D, U> PartialOrd<Option<U>> for OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: PartialOrd<Option<U>>,
 {
     #[inline]
     fn partial_cmp(&self, other: &Option<U>) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other)
+        self.observed_ref().partial_cmp(other)
     }
 }
 
@@ -235,25 +235,25 @@ impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<OptionObserver<O2, S2, D
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &OptionObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other.as_deref())
+        self.observed_ref().partial_cmp(other.observed_ref())
     }
 }
 
 impl<O, S: ?Sized, D> Ord for OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Ord,
 {
     #[inline]
     fn cmp(&self, other: &OptionObserver<O, S, D>) -> std::cmp::Ordering {
-        self.as_deref().cmp(other.as_deref())
+        self.observed_ref().cmp(other.observed_ref())
     }
 }
 

@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::spec_impl_ref_observe;
-use crate::helper::{AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
@@ -97,7 +97,7 @@ impl<const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<N, O, S, D> {
 impl<const N: usize, O, S: ?Sized, D> QuasiObserver for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: crate::helper::AsDeref<D>,
+    S: AsDeref<D>,
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
     type OuterDepth = Succ<Succ<Zero>>;
@@ -146,12 +146,12 @@ where
 impl<const N: usize, O, S: ?Sized, D> Debug for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("ArrayObserver").field(&self.as_deref()).finish()
+        f.debug_tuple("ArrayObserver").field(&self.observed_ref()).finish()
     }
 }
 
@@ -161,12 +161,13 @@ macro_rules! generic_impl_partial_eq {
             impl<$($($gen)*,)? const N: usize, O, S: ?Sized, D> PartialEq<$ty> for ArrayObserver<N, O, S, D>
             where
                 D: Unsigned,
-                S: AsDerefMut<D>,
+                S: AsDeref<D>,
                 S::Target: PartialEq<$ty>,
+                O: Observer<InnerDepth = Zero, Head: Sized>,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    self.as_deref().eq(other)
+                    self.observed_ref().eq(other)
                 }
             }
         )*
@@ -185,33 +186,37 @@ impl<const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<ArrayObse
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
+    O1: Observer<InnerDepth = Zero, Head: Sized>,
+    O2: Observer<InnerDepth = Zero, Head: Sized>,
     S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &ArrayObserver<N, O2, S2, D2>) -> bool {
-        self.as_deref().eq(other.as_deref())
+        self.observed_ref().eq(other.observed_ref())
     }
 }
 
 impl<const N: usize, O, S: ?Sized, D> Eq for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Eq,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
 {
 }
 
 impl<const N: usize, O, S: ?Sized, D, U> PartialOrd<[U; N]> for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: PartialOrd<[U; N]>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
     fn partial_cmp(&self, other: &[U; N]) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other)
+        self.observed_ref().partial_cmp(other)
     }
 }
 
@@ -220,25 +225,28 @@ impl<const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<ArrayObs
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
+    O1: Observer<InnerDepth = Zero, Head: Sized>,
+    O2: Observer<InnerDepth = Zero, Head: Sized>,
     S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &ArrayObserver<N, O2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other.as_deref())
+        self.observed_ref().partial_cmp(other.observed_ref())
     }
 }
 
 impl<const N: usize, O, S: ?Sized, D> Ord for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Ord,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.as_deref().cmp(other.as_deref())
+        self.observed_ref().cmp(other.observed_ref())
     }
 }
 

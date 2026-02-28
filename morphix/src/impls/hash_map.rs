@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
-use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
@@ -60,7 +60,7 @@ impl<'ob, K, O, S: ?Sized, D> DerefMut for HashMapObserver<'ob, K, O, S, D> {
 impl<'ob, K, O, S: ?Sized, D> QuasiObserver for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: crate::helper::AsDeref<D>,
+    S: AsDeref<D>,
 {
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
@@ -110,7 +110,7 @@ where
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let Some(diff) = this.diff.take() else {
-            return Ok(MutationKind::Replace(A::serialize_value(this.as_deref())?).into());
+            return Ok(MutationKind::Replace(A::serialize_value((*this).observed_ref())?).into());
         };
         let mut mutations = Mutations::new();
         for key in diff.deleted {
@@ -200,24 +200,24 @@ where
 impl<'ob, K, O, S: ?Sized, D> Debug for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("HashMapObserver").field(&self.as_deref()).finish()
+        f.debug_tuple("HashMapObserver").field(&self.observed_ref()).finish()
     }
 }
 
 impl<'ob, K, O, S: ?Sized, D, V> PartialEq<HashMap<K, V>> for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: PartialEq<HashMap<K, V>>,
 {
     #[inline]
     fn eq(&self, other: &HashMap<K, V>) -> bool {
-        self.as_deref().eq(other)
+        self.observed_ref().eq(other)
     }
 }
 
@@ -226,20 +226,20 @@ impl<'ob, K1, K2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<HashMapObser
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &HashMapObserver<'ob, K2, O2, S2, D2>) -> bool {
-        self.as_deref().eq(other.as_deref())
+        self.observed_ref().eq(other.observed_ref())
     }
 }
 
 impl<'ob, K, O, S: ?Sized, D> Eq for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Eq,
 {
 }

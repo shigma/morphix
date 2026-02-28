@@ -9,7 +9,7 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
-use crate::helper::{AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver, TruncateAppend};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
@@ -38,7 +38,7 @@ impl<O, S: ?Sized, D> DerefMut for VecObserver<O, S, D> {
 impl<O, S: ?Sized, D> QuasiObserver for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: crate::helper::AsDeref<D>,
+    S: AsDeref<D>,
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
     type OuterDepth = Succ<Succ<Zero>>;
@@ -201,7 +201,7 @@ where
     pub fn pop(&mut self) -> Option<T> {
         let value = self.untracked_mut().pop()?;
         let append_index = self.__append_index();
-        let len = self.as_deref().len();
+        let len = (*self).observed_ref().len();
         if len >= append_index {
             // no-op
         } else if cfg!(feature = "truncate") && len + 1 == append_index {
@@ -283,7 +283,7 @@ where
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
             Bound::Excluded(&n) => n,
-            Bound::Unbounded => self.as_deref().len(),
+            Bound::Unbounded => (*self).observed_ref().len(),
         };
         if end_index < append_index {
             return self.observed_mut().drain(range);
@@ -313,7 +313,7 @@ where
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
             Bound::Excluded(&n) => n,
-            Bound::Unbounded => self.as_deref().len(),
+            Bound::Unbounded => (*self).observed_ref().len(),
         };
         if end_index < append_index {
             return self.observed_mut().splice(range, replace_with);
@@ -343,7 +343,7 @@ where
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
             Bound::Excluded(&n) => n,
-            Bound::Unbounded => self.as_deref().len(),
+            Bound::Unbounded => (*self).observed_ref().len(),
         };
         if end_index < append_index {
             return self.observed_mut().extract_if(range, filter);
@@ -408,12 +408,12 @@ where
 impl<O, S: ?Sized, D> Debug for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("VecObserver").field(&self.as_deref()).finish()
+        f.debug_tuple("VecObserver").field(&self.observed_ref()).finish()
     }
 }
 
@@ -423,12 +423,13 @@ macro_rules! generic_impl_partial_eq {
             impl<$($($gen)*,)? O, S: ?Sized, D> PartialEq<$ty> for VecObserver<O, S, D>
             where
                 D: Unsigned,
-                S: AsDerefMut<D>,
+                S: AsDeref<D>,
                 S::Target: PartialEq<$ty>,
+                O: Observer<InnerDepth = Zero, Head: Sized>,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    self.as_deref().eq(other)
+                    self.observed_ref().eq(other)
                 }
             }
         )*
@@ -446,33 +447,37 @@ impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<VecObserver<O2, S2, D2>> 
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialEq<S2::Target>,
+    O1: Observer<InnerDepth = Zero, Head: Sized>,
+    O2: Observer<InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
     fn eq(&self, other: &VecObserver<O2, S2, D2>) -> bool {
-        self.as_deref().eq(other.as_deref())
+        self.observed_ref().eq(other.observed_ref())
     }
 }
 
 impl<O, S: ?Sized, D> Eq for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Eq,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
 {
 }
 
 impl<O, S: ?Sized, D, U> PartialOrd<Vec<U>> for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: PartialOrd<Vec<U>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
     fn partial_cmp(&self, other: &Vec<U>) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other)
+        self.observed_ref().partial_cmp(other)
     }
 }
 
@@ -480,25 +485,28 @@ impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<VecObserver<O2, S2, D2>>
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialOrd<S2::Target>,
+    O1: Observer<InnerDepth = Zero, Head: Sized>,
+    O2: Observer<InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
     fn partial_cmp(&self, other: &VecObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other.as_deref())
+        self.observed_ref().partial_cmp(other.observed_ref())
     }
 }
 
 impl<O, S: ?Sized, D> Ord for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Ord,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
     fn cmp(&self, other: &VecObserver<O, S, D>) -> std::cmp::Ordering {
-        self.as_deref().cmp(other.as_deref())
+        self.observed_ref().cmp(other.observed_ref())
     }
 }
 

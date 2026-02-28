@@ -6,7 +6,7 @@ use std::ops::{AddAssign, Bound, Deref, DerefMut, Range, RangeBounds};
 use std::string::Drain;
 
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
-use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
 
@@ -49,7 +49,7 @@ impl<'ob, S: ?Sized, D> DerefMut for StringObserver<'ob, S, D> {
 impl<'ob, S: ?Sized, D> QuasiObserver for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: crate::helper::AsDeref<D>,
+    S: AsDeref<D>,
 {
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
@@ -93,12 +93,12 @@ where
     S: AsDerefMut<D, Target = String> + 'ob,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        let len = this.as_deref().len();
+        let len = (*this.ptr).as_deref().len();
         let Some(truncate_append) = this.mutation.replace(TruncateAppend {
             append_index: len,
             truncate_len: 0,
         }) else {
-            return Ok(MutationKind::Replace(A::serialize_value(this.as_deref())?).into());
+            return Ok(MutationKind::Replace(A::serialize_value((*this.ptr).as_deref())?).into());
         };
         let TruncateAppend {
             append_index,
@@ -112,7 +112,7 @@ where
         #[cfg(feature = "append")]
         if len > append_index {
             mutations.extend(MutationKind::Append(A::serialize_value(
-                &this.as_deref()[append_index..],
+                &(*this.ptr).as_deref()[append_index..],
             )?));
         }
         Ok(mutations)
@@ -184,7 +184,7 @@ where
 {
     #[inline]
     fn __mark_truncate(&mut self, range: Range<usize>) {
-        let count = self.as_deref()[range.clone()].chars().count();
+        let count = (*self).observed_ref()[range.clone()].chars().count();
         let mutation = self.mutation.as_mut().unwrap();
         mutation.truncate_len += count;
         mutation.append_index = range.start;
@@ -220,7 +220,7 @@ where
     pub fn pop(&mut self) -> Option<char> {
         let char = self.untracked_mut().pop()?;
         let append_index = self.__append_index();
-        let len = self.as_deref().len();
+        let len = (*self).observed_ref().len();
         if len >= append_index {
             // no-op
         } else if cfg!(feature = "truncate") && len + char.len_utf8() == append_index {
@@ -279,7 +279,7 @@ where
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
             Bound::Excluded(&n) => n,
-            Bound::Unbounded => self.as_deref().len(),
+            Bound::Unbounded => (*self).observed_ref().len(),
         };
         if end_index < append_index {
             return self.observed_mut().drain(range);
@@ -308,7 +308,7 @@ where
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
             Bound::Excluded(&n) => n,
-            Bound::Unbounded => self.as_deref().len(),
+            Bound::Unbounded => (*self).observed_ref().len(),
         };
         if end_index < append_index {
             return self.observed_mut().replace_range(range, replace_with);
@@ -348,24 +348,24 @@ where
 impl<'ob, S: ?Sized, D> Debug for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("StringObserver").field(&self.as_deref()).finish()
+        f.debug_tuple("StringObserver").field(&self.observed_ref()).finish()
     }
 }
 
 impl<'ob, S: ?Sized, D> Display for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Display,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self.as_deref(), f)
+        Display::fmt(self.observed_ref(), f)
     }
 }
 
@@ -375,12 +375,12 @@ macro_rules! generic_impl_partial_eq {
             impl<'ob, $($($gen)*,)? S, D> PartialEq<$ty> for StringObserver<'ob, S, D>
             where
                 D: Unsigned,
-                S: AsDerefMut<D>,
+                S: AsDeref<D>,
                 S::Target: PartialEq<$ty>,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    self.as_deref().eq(other)
+                    self.observed_ref().eq(other)
                 }
             }
         )*
@@ -399,20 +399,20 @@ impl<'ob, S1, S2, D1, D2> PartialEq<StringObserver<'ob, S2, D2>> for StringObser
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &StringObserver<'ob, S2, D2>) -> bool {
-        self.as_deref().eq(other.as_deref())
+        self.observed_ref().eq(other.observed_ref())
     }
 }
 
 impl<'ob, S, D> Eq for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Eq,
 {
 }
@@ -420,12 +420,12 @@ where
 impl<'ob, S, D> PartialOrd<String> for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: PartialOrd<String>,
 {
     #[inline]
     fn partial_cmp(&self, other: &String) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other)
+        self.observed_ref().partial_cmp(other)
     }
 }
 
@@ -433,25 +433,25 @@ impl<'ob, S1, S2, D1, D2> PartialOrd<StringObserver<'ob, S2, D2>> for StringObse
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &StringObserver<'ob, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other.as_deref())
+        self.observed_ref().partial_cmp(other.observed_ref())
     }
 }
 
 impl<'ob, S, D> Ord for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Ord,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.as_deref().cmp(other.as_deref())
+        self.observed_ref().cmp(other.observed_ref())
     }
 }
 

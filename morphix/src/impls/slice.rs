@@ -16,7 +16,7 @@ use std::slice::{
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
@@ -205,7 +205,7 @@ impl<V, M, S: ?Sized, D> QuasiObserver for SliceObserver<V, M, S, D>
 where
     V: ObserverSlice,
     D: Unsigned,
-    S: crate::helper::AsDeref<D>,
+    S: AsDeref<D>,
 {
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
@@ -257,9 +257,9 @@ where
     T: Serialize,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        let len = this.as_deref().as_ref().len();
+        let len = (*this.ptr).as_deref().as_ref().len();
         let Some(truncate_append) = this.mutation.replace(M::observe(len)) else {
-            return Ok(MutationKind::Replace(A::serialize_value(this.as_deref().as_ref())?).into());
+            return Ok(MutationKind::Replace(A::serialize_value((*this.ptr).as_deref().as_ref())?).into());
         };
         let mut mutations = Mutations::new();
         let TruncateAppend {
@@ -273,7 +273,7 @@ where
         #[cfg(feature = "append")]
         if len > append_index {
             mutations.extend(MutationKind::Append(A::serialize_value(
-                &this.as_deref().as_ref()[append_index..],
+                &(*this.ptr).as_deref().as_ref()[append_index..],
             )?));
         }
         for (index, observer) in this[..append_index].iter_mut().enumerate() {
@@ -300,7 +300,7 @@ where
     where
         I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
     {
-        let len = self.as_deref().as_ref().len();
+        let len = self.observed_ref().as_ref().len();
         let start = index.start_inclusive();
         let end = index.end_exclusive(len);
         if end > len {
@@ -364,7 +364,7 @@ where
     /// See [`slice::first_chunk_mut`].
     #[inline]
     pub fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [V::Item; N]> {
-        let len = self.as_deref().as_ref().len();
+        let len = (*self).observed_ref().as_ref().len();
         if len < N {
             return None;
         }
@@ -388,7 +388,7 @@ where
     /// See [`slice::last_chunk_mut`].
     #[inline]
     pub fn last_chunk_mut<const N: usize>(&mut self) -> Option<&mut [V::Item; N]> {
-        let len = self.as_deref().as_ref().len();
+        let len = (*self).observed_ref().as_ref().len();
         if len < N {
             return None;
         }
@@ -536,12 +536,12 @@ where
 impl<V, M, S: ?Sized, D> Debug for SliceObserver<V, M, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("SliceObserver").field(&self.as_deref()).finish()
+        f.debug_tuple("SliceObserver").field(&self.observed_ref()).finish()
     }
 }
 
@@ -551,12 +551,13 @@ macro_rules! generic_impl_partial_eq {
             impl<$($($gen)*,)? V, M, S: ?Sized, D> PartialEq<$ty> for SliceObserver<V, M, S, D>
             where
                 D: Unsigned,
-                S: AsDerefMut<D>,
+                S: AsDeref<D>,
                 S::Target: PartialEq<$ty>,
+                V: ObserverSlice,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    self.as_deref().eq(other)
+                    self.observed_ref().eq(other)
                 }
             }
         )*
@@ -574,33 +575,37 @@ impl<V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<SliceObserver<V2,
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialEq<S2::Target>,
+    V1: ObserverSlice,
+    V2: ObserverSlice,
 {
     #[inline]
     fn eq(&self, other: &SliceObserver<V2, M2, S2, D2>) -> bool {
-        self.as_deref().eq(other.as_deref())
+        self.observed_ref().eq(other.observed_ref())
     }
 }
 
 impl<V, M, S: ?Sized, D> Eq for SliceObserver<V, M, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Eq,
+    V: ObserverSlice,
 {
 }
 
 impl<V, M, S: ?Sized, D, U> PartialOrd<[U]> for SliceObserver<V, M, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: PartialOrd<[U]>,
+    V: ObserverSlice,
 {
     #[inline]
     fn partial_cmp(&self, other: &[U]) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other)
+        self.observed_ref().partial_cmp(other)
     }
 }
 
@@ -609,25 +614,28 @@ impl<V1, V2, M1, M2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<SliceObserver<V2
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDerefMut<D1>,
-    S2: AsDerefMut<D2>,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     S1::Target: PartialOrd<S2::Target>,
+    V1: ObserverSlice,
+    V2: ObserverSlice,
 {
     #[inline]
     fn partial_cmp(&self, other: &SliceObserver<V2, M2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other.as_deref())
+        self.observed_ref().partial_cmp(other.observed_ref())
     }
 }
 
 impl<V, M, S: ?Sized, D> Ord for SliceObserver<V, M, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: Ord,
+    V: ObserverSlice,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.as_deref().cmp(other.as_deref())
+        self.observed_ref().cmp(other.observed_ref())
     }
 }
 
