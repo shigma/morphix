@@ -306,8 +306,8 @@ where
         if end > len {
             return None;
         }
-        let inner = unsafe { self.inner_untracked_from_ref() };
-        self.obs.init_range(start, end, inner.as_mut());
+        let inner = self.inner_ref().as_ref();
+        self.obs.init_range(start, end, inner);
         Some(())
     }
 
@@ -331,9 +331,8 @@ where
 
     #[inline]
     pub(crate) fn __force(&self) {
-        let len = self.as_deref().as_ref().len();
-        let inner = unsafe { self.inner_untracked_from_ref() };
-        self.obs.init_range(0, len, inner.as_mut());
+        let inner = self.inner_ref().as_ref();
+        self.obs.init_range(0, inner.len(), inner);
     }
 
     /// See [`slice::first_mut`].

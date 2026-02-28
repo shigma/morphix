@@ -146,32 +146,80 @@ pub trait ObserveExt: Observe {
 
 impl<T: Observe + ?Sized> ObserveExt for T {}
 
+/// Extension trait providing access to the inner observed value through a dereference chain.
+///
+/// This trait is automatically implemented for all types that implement [`QuasiObserver`] with a
+/// [`Pointer`]-based target. It provides three levels of inner value access with different tracking
+/// and mutability semantics:
+///
+/// | Method                                            | Receiver    | Triggers tracking |
+/// | ------------------------------------------------- | ----------- | ----------------- |
+/// | [`inner_ref`](ObserverExt::inner_ref)             | `&self`     | No                |
+/// | [`inner_tracked`](ObserverExt::inner_tracked)     | `&mut self` | Yes               |
+/// | [`inner_untracked`](ObserverExt::inner_untracked) | `&mut self` | No                |
+///
+/// ## Dereference Chain
+///
+/// An observer stores a [`Pointer<Head>`] internally. The [`Head`](ObserverExt::Head) type may
+/// itself implement [`Deref`](std::ops::Deref), forming a chain that is traversed
+/// [`InnerDepth`](QuasiObserver::InnerDepth) times to reach the final
+/// [`Target`](ObserverExt::Target). For example, a [`VecObserver`](crate::impls::VecObserver)
+/// has `Head = Vec<T>` and `Target = [T]`, with `InnerDepth = Succ<Zero>` (one dereference).
+///
+/// ## Tracked vs. Untracked Access
+///
+/// - **Tracked** ([`inner_tracked`](ObserverExt::inner_tracked)): Traverses the chain via
+///   [`DerefMut`](std::ops::DerefMut), triggering mutation hooks on all observers in the chain. Use
+///   this when the mutation cannot be expressed as a more specific kind (e.g., append or truncate)
+///   and must be recorded as a [`Replace`](crate::MutationKind::Replace).
+///
+/// - **Untracked** ([`inner_untracked`](ObserverExt::inner_untracked)): Bypasses
+///   [`DerefMut`](std::ops::DerefMut) hooks, so no mutation is recorded. Use this when the observer
+///   can express the change with a more specific [`MutationKind`](crate::MutationKind) (e.g.,
+///   append, truncate), or when the operation is known to be a no-op.
 pub trait ObserverExt: QuasiObserver<Target = Pointer<Self::Head>> {
-    /// The head type of the dereference chain.
+    /// The type stored inside the observer's [`Pointer`]. It can be dereferenced
+    /// [`InnerDepth`](QuasiObserver::InnerDepth) times to reach [`Target`](ObserverExt::Target).
     type Head: AsDeref<Self::InnerDepth, Target = <Self as ObserverExt>::Target> + ?Sized;
 
+    /// The observed type after fully dereferencing [`Head`](ObserverExt::Head).
     type Target: ?Sized;
 
+    /// Returns an immutable reference to the inner observed value.
+    ///
+    /// This does not trigger any mutation tracking. Use this for read-only access such as length
+    /// checks or comparisons.
     #[inline]
-    fn inner_ref<'ob>(&self) -> &'ob <Self as ObserverExt>::Target
-    where
-        Self::Head: 'ob,
-    {
-        let head = unsafe { Pointer::as_ref((*self).as_deref_coinductive()) };
+    fn inner_ref(&self) -> &<Self as ObserverExt>::Target {
+        let head: &<Self as ObserverExt>::Head = unsafe { Pointer::as_ref((*self).as_deref_coinductive()) };
         AsDeref::<Self::InnerDepth>::as_deref(head)
     }
 
-    /// Gets a mutable reference to the inner observed value while triggering observation.
+    /// Returns a mutable reference to the inner observed value while triggering observation.
     ///
-    /// This method traverses the entire dereference chain, triggering
-    /// [`DerefMut`](std::ops::DerefMut) hooks on all observers in the chain. This ensures that
-    /// any mutations through the returned reference are properly tracked by all relevant
-    /// observers.
+    /// This method traverses the entire dereference chain via
+    /// [`DerefMut`](std::ops::DerefMut), triggering mutation hooks on all observers in the chain.
+    /// This ensures that any mutations through the returned reference are properly tracked by all
+    /// relevant observers.
     ///
-    /// ## Usage
+    /// Use this method when the mutation cannot be expressed as a more specific
+    /// [`MutationKind`](crate::MutationKind) and should be recorded as a
+    /// [`Replace`](crate::MutationKind::Replace).
+    #[inline]
+    fn inner_tracked(&mut self) -> &mut <Self as ObserverExt>::Target
+    where
+        Self::Head: AsDerefMut<Self::InnerDepth>,
+    {
+        let head = unsafe { Pointer::as_mut((*self).as_deref_mut_coinductive()) };
+        AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
+    }
+
+    /// Returns a mutable reference to the inner observed value **without** triggering observation.
     ///
-    /// Use this method when you need to access the inner value in a way that should be recorded as
-    /// a potential mutation, such as when implementing specialized methods on observers.
+    /// Unlike [`inner_tracked`](ObserverExt::inner_tracked), this method bypasses the
+    /// [`DerefMut`](std::ops::DerefMut) chain, so no mutation is recorded. Use this when the
+    /// observer will emit a more specific [`MutationKind`](crate::MutationKind) (e.g., append or
+    /// truncate) for the operation.
     ///
     /// ## Example
     ///
@@ -192,26 +240,9 @@ pub trait ObserverExt: QuasiObserver<Target = Pointer<Self::Head>> {
     /// }
     /// ```
     #[inline]
-    fn inner_tracked<'ob>(&mut self) -> &'ob mut <Self as ObserverExt>::Target
+    fn inner_untracked(&mut self) -> &mut <Self as ObserverExt>::Target
     where
-        Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
-    {
-        let head = unsafe { Pointer::as_mut((*self).as_deref_mut_coinductive()) };
-        AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
-    }
-
-    #[inline]
-    fn inner_untracked<'ob>(&mut self) -> &'ob mut <Self as ObserverExt>::Target
-    where
-        Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
-    {
-        unsafe { self.inner_untracked_from_ref() }
-    }
-
-    #[inline]
-    unsafe fn inner_untracked_from_ref<'ob>(&self) -> &'ob mut <Self as ObserverExt>::Target
-    where
-        Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
+        Self::Head: AsDerefMut<Self::InnerDepth>,
     {
         let head = unsafe { Pointer::as_mut((*self).as_deref_coinductive()) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)

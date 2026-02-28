@@ -161,9 +161,9 @@ where
         K: Borrow<Q> + Eq + Hash,
         Q: Eq + Hash + ?Sized,
     {
-        let inner = unsafe { self.inner_untracked_from_ref() };
+        let inner = self.inner_ref();
         let key_ptr = NonNull::from_ref(inner.get_key_value(key)?.0);
-        let value = inner.get_mut(key)?;
+        let value = inner.get(key)?;
         // SAFETY: key_ptr is valid as it comes from inner.get_key_value
         match unsafe { (*self.inner.get()).entry(key_ptr.as_ref()) } {
             Entry::Occupied(occupied) => {
@@ -181,7 +181,8 @@ where
         K: Borrow<Q> + Eq + Hash,
         Q: Eq + Hash + ?Sized,
     {
-        let inner = self.inner_untracked();
+        let head = unsafe { Pointer::as_mut(&self.ptr) };
+        let inner = AsDerefMut::<D>::as_deref_mut(head);
         let key_ptr = NonNull::from_ref(inner.get_key_value(key)?.0);
         let value = inner.get_mut(key)?;
         // SAFETY: key_ptr is valid as it comes from inner.get_key_value
