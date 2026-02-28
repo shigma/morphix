@@ -13,7 +13,7 @@ use serde::Serialize;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
 use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
 struct Diff<K> {
@@ -161,7 +161,7 @@ where
         K: Borrow<Q> + Eq + Hash,
         Q: Eq + Hash + ?Sized,
     {
-        let inner = Observer::as_inner(self);
+        let inner = unsafe { self.inner_untracked_from_ref() };
         let key_ptr = NonNull::from_ref(inner.get_key_value(key)?.0);
         let value = inner.get_mut(key)?;
         // SAFETY: key_ptr is valid as it comes from inner.get_key_value
@@ -181,7 +181,7 @@ where
         K: Borrow<Q> + Eq + Hash,
         Q: Eq + Hash + ?Sized,
     {
-        let inner = Observer::as_inner(self);
+        let inner = self.inner_untracked();
         let key_ptr = NonNull::from_ref(inner.get_key_value(key)?.0);
         let value = inner.get_mut(key)?;
         // SAFETY: key_ptr is valid as it comes from inner.get_key_value

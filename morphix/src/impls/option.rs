@@ -7,7 +7,7 @@ use serde::Serialize;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{Observer, SerializeObserver};
+use crate::observe::{Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations};
 
 /// Observer implementation for [`Option<T>`].
@@ -127,7 +127,7 @@ where
     #[inline]
     fn __insert(&mut self, value: O::Head) {
         self.mutated = true;
-        let inserted = Observer::as_inner(self).insert(value);
+        let inserted = self.inner_untracked().insert(value);
         self.inner = Some(O::observe(inserted));
     }
 
@@ -135,7 +135,7 @@ where
     #[inline]
     pub fn as_mut(&mut self) -> Option<&mut O> {
         if self.inner.is_none() {
-            self.inner = Observer::as_inner(self).as_ref().map(O::observe);
+            self.inner = self.inner_untracked().as_ref().map(O::observe);
         }
         self.inner.as_mut()
     }

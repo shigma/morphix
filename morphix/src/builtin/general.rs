@@ -4,8 +4,8 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{Observer, SerializeObserver};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::observe::{Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
@@ -218,7 +218,7 @@ where
 
 impl<'ob, H, S: ?Sized, D> QuasiObserver for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D>,
+    S: AsDeref<D>,
     H: GeneralHandler,
     D: Unsigned,
 {
@@ -228,7 +228,7 @@ where
 
 impl<'ob, H, S: ?Sized, D, T: ?Sized> Observer for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D, Target = T> + 'ob,
+    S: AsDeref<D, Target = T> + 'ob,
     H: GeneralHandler<Target = T>,
     D: Unsigned,
 {
@@ -258,12 +258,12 @@ where
 
 impl<'ob, H, S: ?Sized, D, T: ?Sized> SerializeObserver for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D, Target = T> + 'ob,
+    S: AsDeref<D, Target = T> + 'ob,
     H: SerializeHandler<Target = T>,
     D: Unsigned,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        unsafe { this.handler.flush::<A>(this.ptr.as_deref()) }
+        unsafe { this.handler.flush::<A>(this.inner_ref()) }
     }
 }
 
@@ -272,13 +272,14 @@ macro_rules! impl_fmt {
         $(
             impl<'ob, H, S: ?Sized, D> std::fmt::$trait for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<D>,
+                H: GeneralHandler,
+                S: AsDeref<D>,
                 D: Unsigned,
                 S::Target: std::fmt::$trait,
             {
                 #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    std::fmt::$trait::fmt(self.as_deref(), f)
+                    std::fmt::$trait::fmt(self.inner_ref(), f)
                 }
             }
         )*
@@ -298,20 +299,21 @@ impl_fmt! {
 
 impl<'ob, H, S: ?Sized, D, T: ?Sized> Debug for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D, Target = T>,
+    S: AsDeref<D, Target = T>,
     H: DebugHandler<Target = T>,
     D: Unsigned,
     T: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple(H::NAME).field(&self.as_deref()).finish()
+        f.debug_tuple(H::NAME).field(&self.inner_ref()).finish()
     }
 }
 
 impl<'ob, H, S: ?Sized, D, I> std::ops::Index<I> for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D>,
+    H: GeneralHandler,
+    S: AsDeref<D>,
     D: Unsigned,
     S::Target: std::ops::Index<I>,
 {
@@ -319,7 +321,7 @@ where
 
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
-        self.as_deref().index(index)
+        self.inner_ref().index(index)
     }
 }
 
@@ -332,28 +334,31 @@ where
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        Observer::as_inner(self).index_mut(index)
+        self.inner_tracked().index_mut(index)
     }
 }
 
 impl<'ob, H1, H2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<GeneralObserver<'ob, H2, S2, D2>>
     for GeneralObserver<'ob, H1, S1, D1>
 where
-    S1: crate::helper::AsDeref<D1>,
-    S2: crate::helper::AsDeref<D2>,
+    H1: GeneralHandler,
+    H2: GeneralHandler,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     D1: Unsigned,
     D2: Unsigned,
     S1::Target: PartialEq<S2::Target>,
 {
     #[inline]
     fn eq(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> bool {
-        self.as_deref().eq(other.as_deref())
+        self.inner_ref().eq(other.inner_ref())
     }
 }
 
 impl<'ob, H, S: ?Sized, D> Eq for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D>,
+    H: GeneralHandler,
+    S: AsDeref<D>,
     D: Unsigned,
     S::Target: Eq,
 {
@@ -362,27 +367,30 @@ where
 impl<'ob, H1, H2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<GeneralObserver<'ob, H2, S2, D2>>
     for GeneralObserver<'ob, H1, S1, D1>
 where
-    S1: crate::helper::AsDeref<D1>,
-    S2: crate::helper::AsDeref<D2>,
+    H1: GeneralHandler,
+    H2: GeneralHandler,
+    S1: AsDeref<D1>,
+    S2: AsDeref<D2>,
     D1: Unsigned,
     D2: Unsigned,
     S1::Target: PartialOrd<S2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.as_deref().partial_cmp(other.as_deref())
+        self.inner_ref().partial_cmp(other.inner_ref())
     }
 }
 
 impl<'ob, H, S: ?Sized, D> Ord for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D>,
+    H: GeneralHandler,
+    S: AsDeref<D>,
     D: Unsigned,
     S::Target: Ord,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.as_deref().cmp(other.as_deref())
+        self.inner_ref().cmp(other.inner_ref())
     }
 }
 
@@ -398,7 +406,7 @@ macro_rules! impl_assign_ops {
             {
                 #[inline]
                 fn $method(&mut self, rhs: U) {
-                    Observer::as_inner(self).$method(rhs);
+                    self.inner_tracked().$method(rhs);
                 }
             }
         )*
@@ -423,7 +431,8 @@ macro_rules! impl_ops_copy {
         $(
             impl<'ob, H, S: ?Sized, D, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<D>,
+                H: GeneralHandler,
+                S: AsDeref<D>,
                 D: Unsigned,
                 S::Target: std::ops::$trait<U> + Copy,
             {
@@ -431,7 +440,7 @@ macro_rules! impl_ops_copy {
 
                 #[inline]
                 fn $method(self, rhs: U) -> Self::Output {
-                    self.as_deref().$method(rhs)
+                    self.inner_ref().$method(rhs)
                 }
             }
         )*
@@ -453,7 +462,8 @@ impl_ops_copy! {
 
 impl<'ob, H, S: ?Sized, D> std::ops::Neg for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D>,
+    H: GeneralHandler,
+    S: AsDeref<D>,
     D: Unsigned,
     S::Target: std::ops::Neg + Copy,
 {
@@ -461,13 +471,14 @@ where
 
     #[inline]
     fn neg(self) -> Self::Output {
-        (*self.as_deref()).neg()
+        (*self.inner_ref()).neg()
     }
 }
 
 impl<'ob, H, S: ?Sized, D> std::ops::Not for GeneralObserver<'ob, H, S, D>
 where
-    S: crate::helper::AsDeref<D>,
+    H: GeneralHandler,
+    S: AsDeref<D>,
     D: Unsigned,
     S::Target: std::ops::Not + Copy,
 {
@@ -475,7 +486,7 @@ where
 
     #[inline]
     fn not(self) -> Self::Output {
-        (*self.as_deref()).not()
+        (*self.inner_ref()).not()
     }
 }
 
@@ -484,7 +495,7 @@ macro_rules! impl_partial_eq {
         $(
             impl<'ob, H, S: ?Sized, D> PartialEq<$ty> for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<D, Target = $ty>,
+                S: AsDeref<D, Target = $ty>,
                 D: Unsigned,
             {
                 #[inline]
@@ -520,7 +531,7 @@ macro_rules! impl_partial_ord {
         $(
             impl<'ob, H, S: ?Sized, D> PartialOrd<$ty> for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<D, Target = $ty>,
+                S: AsDeref<D, Target = $ty>,
                 D: Unsigned,
             {
                 #[inline]
@@ -556,7 +567,7 @@ macro_rules! generic_impl_cmp {
         $(
             impl<'ob, $($($gen)*,)? H, S: ?Sized, D> PartialEq<$ty> for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<D>,
+                S: AsDeref<D>,
                 D: Unsigned,
                 S::Target: PartialEq<$ty>,
             {
@@ -568,7 +579,7 @@ macro_rules! generic_impl_cmp {
 
             impl<'ob, $($($gen)*,)? H, S: ?Sized, D> PartialOrd<$ty> for GeneralObserver<'ob, H, S, D>
             where
-                S: crate::helper::AsDeref<D>,
+                S: AsDeref<D>,
                 D: Unsigned,
                 S::Target: PartialOrd<$ty>,
             {

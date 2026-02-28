@@ -89,11 +89,9 @@ const _: () = {
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             if this.__mutated {
                 this.__mutated = false;
+                let __inner = ::morphix::observe::ObserverExt::inner_ref(&*this);
                 return Ok(
-                    ::morphix::MutationKind::Replace(
-                            A::serialize_value(this.as_deref())?,
-                        )
-                        .into(),
+                    ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
                 );
             }
             let mutations_a = ::morphix::observe::SerializeObserver::flush::<
@@ -228,9 +226,9 @@ where
     ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
         if this.2 {
             this.2 = false;
+            let __inner = ::morphix::observe::ObserverExt::inner_ref(&*this);
             return Ok(
-                ::morphix::MutationKind::Replace(A::serialize_value(this.as_deref())?)
-                    .into(),
+                ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
             );
         }
         let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
@@ -333,11 +331,9 @@ const _: () = {
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             if this.3 {
                 this.3 = false;
+                let __inner = ::morphix::observe::ObserverExt::inner_ref(&*this);
                 return Ok(
-                    ::morphix::MutationKind::Replace(
-                            A::serialize_value(this.as_deref())?,
-                        )
-                        .into(),
+                    ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
                 );
             }
             let mutations_0 = ::morphix::observe::SerializeObserver::flush::<

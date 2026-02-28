@@ -180,7 +180,7 @@ macro_rules! untracked_methods {
             #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`].")]
             #[inline]
             pub fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $(-> $ret)? $(where $($where)+)? {
-                Observer::as_inner(self).$name($($arg),*)
+                self.inner_untracked().$name($($arg),*)
             }
         )*
     };

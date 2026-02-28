@@ -165,7 +165,7 @@ pub fn derive_observe_for_enum(
                 ::morphix::observe::Observer::refresh(#ob_ident, #value_ident);
             });
 
-            let mutable_ident = if let Some(field_ident) = &field_ident {
+            let mutation_ident = if let Some(field_ident) = &field_ident {
                 let mut field_name = field_ident.to_string();
                 if field_name.starts_with("r#") {
                     field_name = field_name[2..].to_string();
@@ -179,19 +179,19 @@ pub fn derive_observe_for_enum(
                     && let Some(path) = field_meta.serde.skip_serializing_if
                 {
                     quote_spanned! { field_span =>
-                        let mut #mutable_ident = ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)?;
-                        if !#mutable_ident.is_empty() && #path(::morphix::observe::Observer::as_inner(#flush_ident)) {
-                            #mutable_ident = ::morphix::MutationKind::Delete.into();
+                        let mut #mutation_ident = ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)?;
+                        if !#mutation_ident.is_empty() && #path(::morphix::observe::Observer::as_inner(#flush_ident)) {
+                            #mutation_ident = ::morphix::MutationKind::Delete.into();
                         }
                     }
                 } else {
                     quote_spanned! { field_span =>
-                        let #mutable_ident = ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)?;
+                        let #mutation_ident = ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)?;
                     }
                 },
             );
             flush_capacity.push(quote_spanned! { field_span =>
-                #mutable_ident.len()
+                #mutation_ident.len()
             });
 
             let field_segment = if let Some(field_ident) = field_ident {
@@ -216,9 +216,9 @@ pub fn derive_observe_for_enum(
             let segment_count = field_segment.iter().len() + tag_segment.iter().len();
             let segments = tag_segment.iter().chain(&field_segment);
             post_flush_stmts.extend(match segment_count {
-                0 => quote! { mutations.extend(#mutable_ident); },
-                1 => quote! { mutations.insert(#(#segments),*, #mutable_ident); },
-                2 => quote! { mutations.insert2(#(#segments),*, #mutable_ident); },
+                0 => quote! { mutations.extend(#mutation_ident); },
+                1 => quote! { mutations.insert(#(#segments),*, #mutation_ident); },
+                2 => quote! { mutations.insert2(#(#segments),*, #mutation_ident); },
                 _ => unreachable!(),
             });
         }

@@ -7,7 +7,7 @@ use std::string::Drain;
 
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
 use crate::helper::{AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
 
 /// Observer implementation for [`String`].
@@ -159,9 +159,9 @@ where
     #[inline]
     pub fn insert(&mut self, idx: usize, ch: char) {
         if idx >= self.__append_index() {
-            Observer::as_inner(self).insert(idx, ch)
+            self.inner_untracked().insert(idx, ch)
         } else {
-            Observer::track_inner(self).insert(idx, ch)
+            self.inner_tracked().insert(idx, ch)
         }
     }
 
@@ -169,9 +169,9 @@ where
     #[inline]
     pub fn insert_str(&mut self, idx: usize, string: &str) {
         if idx >= self.__append_index() {
-            Observer::as_inner(self).insert_str(idx, string)
+            self.inner_untracked().insert_str(idx, string)
         } else {
-            Observer::track_inner(self).insert_str(idx, string)
+            self.inner_tracked().insert_str(idx, string)
         }
     }
 }
@@ -194,15 +194,15 @@ where
     #[inline]
     pub fn clear(&mut self) {
         if self.__append_index() == 0 {
-            Observer::as_inner(self).clear()
+            self.inner_untracked().clear()
         } else {
-            Observer::track_inner(self).clear()
+            self.inner_tracked().clear()
         }
     }
 
     /// See [`String::remove`].
     pub fn remove(&mut self, idx: usize) -> char {
-        let char = Observer::as_inner(self).remove(idx);
+        let char = self.inner_untracked().remove(idx);
         let append_index = self.__append_index();
         if idx >= append_index {
             // no-op
@@ -218,7 +218,7 @@ where
 
     /// See [`String::pop`].
     pub fn pop(&mut self) -> Option<char> {
-        let char = Observer::as_inner(self).pop()?;
+        let char = self.inner_untracked().pop()?;
         let append_index = self.__append_index();
         let len = self.as_deref().len();
         if len >= append_index {
@@ -237,26 +237,26 @@ where
     pub fn truncate(&mut self, len: usize) {
         let append_index = self.__append_index();
         if len >= append_index {
-            return Observer::as_inner(self).truncate(len);
+            return self.inner_untracked().truncate(len);
         }
         if cfg!(not(feature = "truncate")) || len == 0 {
-            return Observer::track_inner(self).truncate(len);
+            return self.inner_tracked().truncate(len);
         }
         self.__mark_truncate(len..append_index);
-        Observer::as_inner(self).truncate(len)
+        self.inner_untracked().truncate(len)
     }
 
     /// See [`String::split_off`].
     pub fn split_off(&mut self, at: usize) -> String {
         let append_index = self.__append_index();
         if at >= append_index {
-            return Observer::as_inner(self).split_off(at);
+            return self.inner_untracked().split_off(at);
         }
         if cfg!(not(feature = "truncate")) || at == 0 {
-            return Observer::track_inner(self).split_off(at);
+            return self.inner_tracked().split_off(at);
         }
         self.__mark_truncate(at..append_index);
-        Observer::as_inner(self).split_off(at)
+        self.inner_untracked().split_off(at)
     }
 
     /// See [`String::drain`].
@@ -271,10 +271,10 @@ where
             Bound::Unbounded => 0,
         };
         if start_index >= append_index {
-            return Observer::as_inner(self).drain(range);
+            return self.inner_untracked().drain(range);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return Observer::track_inner(self).drain(range);
+            return self.inner_tracked().drain(range);
         }
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
@@ -282,10 +282,10 @@ where
             Bound::Unbounded => self.as_deref().len(),
         };
         if end_index < append_index {
-            return Observer::track_inner(self).drain(range);
+            return self.inner_tracked().drain(range);
         }
         self.__mark_truncate(start_index..append_index);
-        Observer::track_inner(self).drain(range)
+        self.inner_tracked().drain(range)
     }
 
     /// See [`String::replace_range`].
@@ -300,10 +300,10 @@ where
             Bound::Unbounded => 0,
         };
         if start_index >= append_index {
-            return Observer::as_inner(self).replace_range(range, replace_with);
+            return self.inner_untracked().replace_range(range, replace_with);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return Observer::track_inner(self).replace_range(range, replace_with);
+            return self.inner_tracked().replace_range(range, replace_with);
         }
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
@@ -311,10 +311,10 @@ where
             Bound::Unbounded => self.as_deref().len(),
         };
         if end_index < append_index {
-            return Observer::track_inner(self).replace_range(range, replace_with);
+            return self.inner_tracked().replace_range(range, replace_with);
         }
         self.__mark_truncate(start_index..append_index);
-        Observer::as_inner(self).replace_range(range, replace_with);
+        self.inner_untracked().replace_range(range, replace_with);
     }
 }
 
@@ -328,7 +328,7 @@ where
         #[cfg(feature = "append")]
         self.push_str(rhs);
         #[cfg(not(feature = "append"))]
-        Observer::track_inner(self).add_assign(rhs);
+        self.inner_tracked().add_assign(rhs);
     }
 }
 
@@ -341,7 +341,7 @@ where
 {
     #[inline]
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
-        Observer::as_inner(self).extend(other);
+        self.inner_untracked().extend(other);
     }
 }
 

@@ -306,7 +306,8 @@ where
         if end > len {
             return None;
         }
-        self.obs.init_range(start, end, Self::as_inner(self).as_mut());
+        let inner = unsafe { self.inner_untracked_from_ref() };
+        self.obs.init_range(start, end, inner.as_mut());
         Some(())
     }
 
@@ -331,7 +332,8 @@ where
     #[inline]
     pub(crate) fn __force(&self) {
         let len = self.as_deref().as_ref().len();
-        self.obs.init_range(0, len, Self::as_inner(self).as_mut());
+        let inner = unsafe { self.inner_untracked_from_ref() };
+        self.obs.init_range(0, len, inner.as_mut());
     }
 
     /// See [`slice::first_mut`].
@@ -405,7 +407,7 @@ where
     pub fn swap(&mut self, a: usize, b: usize) {
         self[a].inner_tracked();
         self[b].inner_tracked();
-        Self::as_inner(self).as_mut().swap(a, b);
+        self.inner_untracked().as_mut().swap(a, b);
     }
 
     /// See [`slice::iter_mut`].

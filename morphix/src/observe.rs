@@ -153,16 +153,51 @@ pub trait ObserverExt: QuasiObserver<Target = Pointer<Self::Head>> {
     type Target: ?Sized;
 
     #[inline]
-    fn inner_ref(&self) -> &<Self as ObserverExt>::Target {
-        (**self.as_normalized_ref()).as_deref()
+    fn inner_ref<'ob>(&self) -> &'ob <Self as ObserverExt>::Target
+    where
+        Self::Head: 'ob,
+    {
+        let head = unsafe { Pointer::as_ref((*self).as_deref_coinductive()) };
+        AsDeref::<Self::InnerDepth>::as_deref(head)
     }
 
+    /// Gets a mutable reference to the inner observed value while triggering observation.
+    ///
+    /// This method traverses the entire dereference chain, triggering
+    /// [`DerefMut`](std::ops::DerefMut) hooks on all observers in the chain. This ensures that
+    /// any mutations through the returned reference are properly tracked by all relevant
+    /// observers.
+    ///
+    /// ## Usage
+    ///
+    /// Use this method when you need to access the inner value in a way that should be recorded as
+    /// a potential mutation, such as when implementing specialized methods on observers.
+    ///
+    /// ## Example
+    ///
+    /// Implementing [`Vec::pop`] for a [`VecObserver`](crate::impls::VecObserver):
+    ///
+    /// ```ignore
+    /// impl VecObserver {
+    ///     pub fn pop(&mut self) -> Option<T> {
+    ///         if self.as_deref().len() > self.initial_len() {
+    ///             // If the current length exceeds the initial length, the pop operation can be
+    ///             // expressed by `MutationKind::Append`, so we do not trigger full mutation.
+    ///             Observer::inner_untracked(self).pop()
+    ///         } else {
+    ///             // Otherwise, we need to treat the pop operation as `MutationKind::Replace`.
+    ///             Observer::inner_tracked(self).pop()
+    ///         }
+    ///     }
+    /// }
+    /// ```
     #[inline]
-    fn inner_tracked(&mut self) -> &mut <Self as ObserverExt>::Target
+    fn inner_tracked<'ob>(&mut self) -> &'ob mut <Self as ObserverExt>::Target
     where
-        Self::Head: AsDerefMut<Self::InnerDepth>,
+        Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
     {
-        (**self.as_normalized_mut()).as_deref_mut()
+        let head = unsafe { Pointer::as_mut((*self).as_deref_mut_coinductive()) };
+        AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
     }
 
     #[inline]
@@ -170,8 +205,7 @@ pub trait ObserverExt: QuasiObserver<Target = Pointer<Self::Head>> {
     where
         Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
     {
-        let head = unsafe { Pointer::as_mut((*self).as_normalized_ref()) };
-        AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
+        unsafe { self.inner_untracked_from_ref() }
     }
 
     #[inline]
@@ -179,7 +213,7 @@ pub trait ObserverExt: QuasiObserver<Target = Pointer<Self::Head>> {
     where
         Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
     {
-        let head = unsafe { Pointer::as_mut(self.as_normalized_ref()) };
+        let head = unsafe { Pointer::as_mut((*self).as_deref_coinductive()) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
     }
 }
@@ -373,45 +407,6 @@ pub trait Observer: ObserverExt + Sized {
         Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
     {
         let head = unsafe { Pointer::as_mut(this.as_normalized_ref()) };
-        AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
-    }
-
-    /// Gets a mutable reference to the inner observed value while triggering observation.
-    ///
-    /// This method traverses the entire dereference chain, triggering
-    /// [`DerefMut`](std::ops::DerefMut) hooks on all observers in the chain. This ensures that
-    /// any mutations through the returned reference are properly tracked by all relevant
-    /// observers.
-    ///
-    /// ## Usage
-    ///
-    /// Use this method when you need to access the inner value in a way that should be recorded as
-    /// a potential mutation, such as when implementing specialized methods on observers.
-    ///
-    /// ## Example
-    ///
-    /// Implementing [`Vec::pop`] for a [`VecObserver`](crate::impls::VecObserver):
-    ///
-    /// ```ignore
-    /// impl VecObserver {
-    ///     pub fn pop(&mut self) -> Option<T> {
-    ///         if self.as_deref().len() > self.initial_len() {
-    ///             // If the current length exceeds the initial length, the pop operation can be
-    ///             // expressed by `MutationKind::Append`, so we do not trigger full mutation.
-    ///             Observer::as_inner(self).pop()
-    ///         } else {
-    ///             // Otherwise, we need to treat the pop operation as `MutationKind::Replace`.
-    ///             Observer::track_inner(self).pop()
-    ///         }
-    ///     }
-    /// }
-    /// ```
-    #[inline]
-    fn track_inner<'ob>(this: &mut Self) -> &'ob mut <Self::Head as AsDeref<Self::InnerDepth>>::Target
-    where
-        Self::Head: AsDerefMut<Self::InnerDepth> + 'ob,
-    {
-        let head = unsafe { Pointer::as_mut(this.as_deref_mut_coinductive()) };
         AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
     }
 }
