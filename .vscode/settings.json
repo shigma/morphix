@@ -43,5 +43,11 @@
         "unparse",
         "unsize",
         "walkdir"
+    ],
+    "cSpell.ignorePaths": [
+        "/.git",
+        "/.vscode",
+        "/target",
+        "/CLAUDE.md",
     ]
 }

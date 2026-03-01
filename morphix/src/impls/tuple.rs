@@ -8,15 +8,10 @@ use crate::builtin::{PointerObserver, Snapshot};
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
-use crate::{Adapter, MutationKind, Mutations, Observe};
+use crate::{Adapter, Mutations, Observe};
 
 /// Observer implementation for tuple `(T,)`.
-pub struct TupleObserver<O, S: ?Sized, D = Zero>(
-    pub O,
-    /* pointer */ Pointer<S>,
-    /* mutated */ bool,
-    /* phantom */ PhantomData<D>,
-);
+pub struct TupleObserver<O, S: ?Sized, D = Zero>(pub O, Pointer<S>, PhantomData<D>);
 
 impl<O, S: ?Sized, D> Deref for TupleObserver<O, S, D> {
     type Target = Pointer<S>;
@@ -27,16 +22,20 @@ impl<O, S: ?Sized, D> Deref for TupleObserver<O, S, D> {
     }
 }
 
-impl<O, S: ?Sized, D> DerefMut for TupleObserver<O, S, D> {
+impl<O, S: ?Sized, D> DerefMut for TupleObserver<O, S, D>
+where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+{
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.2 = true;
+        self.0.as_deref_mut_coinductive();
         &mut self.1
     }
 }
 
 impl<O, S: ?Sized, D> QuasiObserver for TupleObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
 {
@@ -53,24 +52,14 @@ where
 {
     #[inline]
     fn uninit() -> Self {
-        Self(
-            O::uninit(),
-            /* ptr */ Pointer::uninit(),
-            /* mutated */ false,
-            /* phantom */ PhantomData,
-        )
+        Self(O::uninit(), Pointer::uninit(), PhantomData)
     }
 
     #[inline]
     fn observe(value: &Self::Head) -> Self {
         let ptr = Pointer::new(value);
         let value = value.as_deref();
-        Self(
-            O::observe(&value.0),
-            /* ptr */ ptr,
-            /* mutated */ false,
-            /* phantom */ PhantomData,
-        )
+        Self(O::observe(&value.0), ptr, PhantomData)
     }
 
     #[inline]
@@ -90,10 +79,10 @@ where
 {
     #[inline]
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        if this.2 {
-            return Ok(MutationKind::Replace(A::serialize_value((*this.1).as_deref())?).into());
-        }
-        SerializeObserver::flush::<A>(&mut this.0)
+        let mutations_0 = SerializeObserver::flush::<A>(&mut this.0)?;
+        let mut mutations = Mutations::new();
+        mutations.insert(0, mutations_0);
+        Ok(mutations)
     }
 }
 
@@ -111,6 +100,7 @@ where
 
 impl<O, S: ?Sized, D, U> PartialEq<(U,)> for TupleObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: PartialEq<(U,)>,
@@ -123,6 +113,8 @@ where
 
 impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<TupleObserver<O2, S2, D2>> for TupleObserver<O1, S1, D1>
 where
+    O1: QuasiObserver<Target: Deref<Target: AsDeref<O1::InnerDepth>>>,
+    O2: QuasiObserver<Target: Deref<Target: AsDeref<O2::InnerDepth>>>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDeref<D1>,
@@ -137,6 +129,7 @@ where
 
 impl<O, S: ?Sized, D> Eq for TupleObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: Eq,
@@ -145,6 +138,7 @@ where
 
 impl<O, S: ?Sized, D, U> PartialOrd<(U,)> for TupleObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: PartialOrd<(U,)>,
@@ -157,6 +151,8 @@ where
 
 impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<TupleObserver<O2, S2, D2>> for TupleObserver<O1, S1, D1>
 where
+    O1: QuasiObserver<Target: Deref<Target: AsDeref<O1::InnerDepth>>>,
+    O2: QuasiObserver<Target: Deref<Target: AsDeref<O2::InnerDepth>>>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDeref<D1>,
@@ -171,6 +167,7 @@ where
 
 impl<O, S: ?Sized, D> Ord for TupleObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: Ord,
@@ -210,12 +207,11 @@ impl<T: Snapshot> Snapshot for (T,) {
 }
 
 macro_rules! tuple_observer {
-    ($ty:ident; $ptr:tt; $mutated:tt; $($o:ident, $p:ident, $t:ident, $u:ident, $n:tt);*) => {
+    ($ty:ident; $ptr:tt; $($o:ident, $p:ident, $t:ident, $u:ident, $n:tt);*) => {
         #[doc = concat!("Observer implementation for tuple `(", $(stringify!($t), ", ",)* ")`.")]
         pub struct $ty<$($o,)* S: ?Sized, D = Zero>(
             $(pub $o,)*
             /* ptr */ Pointer<S>,
-            /* mutated */ bool,
             /* phantom */ PhantomData<D>,
         );
 
@@ -228,16 +224,20 @@ macro_rules! tuple_observer {
             }
         }
 
-        impl<$($o,)* S: ?Sized, D> DerefMut for $ty<$($o,)* S, D> {
+        impl<$($o,)* S: ?Sized, D> DerefMut for $ty<$($o,)* S, D>
+        where
+            $($o: QuasiObserver<Target: Deref<Target: AsDeref<$o::InnerDepth>>>,)*
+        {
             #[inline]
             fn deref_mut(&mut self) -> &mut Self::Target {
-                self.$mutated = true;
+                $(self.$n.as_deref_mut_coinductive();)*
                 &mut self.$ptr
             }
         }
 
         impl<$($o,)* S: ?Sized, D> QuasiObserver for $ty<$($o,)* S, D>
         where
+            $($o: QuasiObserver<Target: Deref<Target: AsDeref<$o::InnerDepth>>>,)*
             D: Unsigned,
             S: AsDeref<D>,
         {
@@ -256,7 +256,6 @@ macro_rules! tuple_observer {
                 Self(
                     $($o::uninit(),)*
                     /* ptr */ Pointer::uninit(),
-                    /* mutated */ false,
                     /* phantom */ PhantomData,
                 )
             }
@@ -268,7 +267,6 @@ macro_rules! tuple_observer {
                 Self(
                     $($o::observe(&value.$n),)*
                     /* ptr */ ptr,
-                    /* mutated */ false,
                     /* phantom */ PhantomData,
                 )
             }
@@ -291,9 +289,6 @@ macro_rules! tuple_observer {
         {
             #[inline]
             unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-                if this.$mutated {
-                    return Ok(MutationKind::Replace(A::serialize_value((*this.$ptr).as_deref())?).into());
-                }
                 let mutations_tuple = ($(SerializeObserver::flush::<A>(&mut this.$n)?,)*);
                 let mut mutations = Mutations::with_capacity(
                     0 $(+ mutations_tuple.$n.len())*
@@ -319,6 +314,7 @@ macro_rules! tuple_observer {
 
         impl<$($o,)* S: ?Sized, D, U> PartialEq<(U,)> for $ty<$($o,)* S, D>
         where
+            $($o: QuasiObserver<Target: Deref<Target: AsDeref<$o::InnerDepth>>>,)*
             D: Unsigned,
             S: AsDeref<D>,
             S::Target: PartialEq<(U,)>,
@@ -332,6 +328,8 @@ macro_rules! tuple_observer {
         impl<$($o,)* $($p,)* S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<$ty<$($p,)* S2, D2>>
             for $ty<$($o,)* S1, D1>
         where
+            $($o: QuasiObserver<Target: Deref<Target: AsDeref<$o::InnerDepth>>>,)*
+            $($p: QuasiObserver<Target: Deref<Target: AsDeref<$p::InnerDepth>>>,)*
             D1: Unsigned,
             D2: Unsigned,
             S1: AsDeref<D1>,
@@ -346,6 +344,7 @@ macro_rules! tuple_observer {
 
         impl<$($o,)* S: ?Sized, D> Eq for $ty<$($o,)* S, D>
         where
+            $($o: QuasiObserver<Target: Deref<Target: AsDeref<$o::InnerDepth>>>,)*
             D: Unsigned,
             S: AsDeref<D>,
             S::Target: Eq,
@@ -354,6 +353,7 @@ macro_rules! tuple_observer {
 
         impl<$($o,)* S: ?Sized, D, U> PartialOrd<(U,)> for $ty<$($o,)* S, D>
         where
+            $($o: QuasiObserver<Target: Deref<Target: AsDeref<$o::InnerDepth>>>,)*
             D: Unsigned,
             S: AsDeref<D>,
             S::Target: PartialOrd<(U,)>,
@@ -367,6 +367,8 @@ macro_rules! tuple_observer {
         impl<$($o,)* $($p,)* S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<$ty<$($p,)* S2, D2>>
             for $ty<$($o,)* S1, D1>
         where
+            $($o: QuasiObserver<Target: Deref<Target: AsDeref<$o::InnerDepth>>>,)*
+            $($p: QuasiObserver<Target: Deref<Target: AsDeref<$p::InnerDepth>>>,)*
             D1: Unsigned,
             D2: Unsigned,
             S1: AsDeref<D1>,
@@ -381,6 +383,7 @@ macro_rules! tuple_observer {
 
         impl<$($o,)* S: ?Sized, D> Ord for $ty<$($o,)* S, D>
         where
+            $($o: QuasiObserver<Target: Deref<Target: AsDeref<$o::InnerDepth>>>,)*
             D: Unsigned,
             S: AsDeref<D>,
             S::Target: Ord,
@@ -423,14 +426,62 @@ macro_rules! tuple_observer {
     };
 }
 
-tuple_observer!(TupleObserver2; 2; 3; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1);
-tuple_observer!(TupleObserver3; 3; 4; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2);
-tuple_observer!(TupleObserver4; 4; 5; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3);
-tuple_observer!(TupleObserver5; 5; 6; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4);
-tuple_observer!(TupleObserver6; 6; 7; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5);
-tuple_observer!(TupleObserver7; 7; 8; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6);
-tuple_observer!(TupleObserver8; 8; 9; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6; O8, P8, T8, U8, 7);
-tuple_observer!(TupleObserver9; 9; 10; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6; O8, P8, T8, U8, 7; O9, P9, T9, U9, 8);
-tuple_observer!(TupleObserver10; 10; 11; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6; O8, P8, T8, U8, 7; O9, P9, T9, U9, 8; O10, P10, T10, U10, 9);
-tuple_observer!(TupleObserver11; 11; 12; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6; O8, P8, T8, U8, 7; O9, P9, T9, U9, 8; O10, P10, T10, U10, 9; O11, P11, T11, U11, 10);
-tuple_observer!(TupleObserver12; 12; 13; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6; O8, P8, T8, U8, 7; O9, P9, T9, U9, 8; O10, P10, T10, U10, 9; O11, P11, T11, U11, 10; O12, P12, T12, U12, 11);
+tuple_observer!(TupleObserver2; 2; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1);
+tuple_observer!(TupleObserver3; 3; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2);
+tuple_observer!(TupleObserver4; 4; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3);
+tuple_observer!(TupleObserver5; 5; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4);
+tuple_observer!(TupleObserver6; 6; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5);
+tuple_observer!(TupleObserver7; 7; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6);
+tuple_observer!(TupleObserver8; 8; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6; O8, P8, T8, U8, 7);
+tuple_observer!(TupleObserver9; 9; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6; O8, P8, T8, U8, 7; O9, P9, T9, U9, 8);
+tuple_observer!(TupleObserver10; 10; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6; O8, P8, T8, U8, 7; O9, P9, T9, U9, 8; O10, P10, T10, U10, 9);
+tuple_observer!(TupleObserver11; 11; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6; O8, P8, T8, U8, 7; O9, P9, T9, U9, 8; O10, P10, T10, U10, 9; O11, P11, T11, U11, 10);
+tuple_observer!(TupleObserver12; 12; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P3, T3, U3, 2; O4, P4, T4, U4, 3; O5, P5, T5, U5, 4; O6, P6, T6, U6, 5; O7, P7, T7, U7, 6; O8, P8, T8, U8, 7; O9, P9, T9, U9, 8; O10, P10, T10, U10, 9; O11, P11, T11, U11, 10; O12, P12, T12, U12, 11);
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use crate::adapter::Json;
+    use crate::observe::{ObserveExt, SerializeObserverExt};
+    use crate::{Mutation, MutationKind};
+
+    #[test]
+    fn no_change_returns_none() {
+        let mut tuple = (String::from("hello"),);
+        let mut ob = tuple.__observe();
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn deref_triggers_replace() {
+        // Same-length replacement: inner StringObserver cannot detect this
+        // because it only tracks length-based changes (append/truncate).
+        let mut tuple = (String::from("hello"),);
+        let mut ob = tuple.__observe();
+        **ob = (String::from("world"),);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation.unwrap(),
+            Mutation {
+                path: vec![0.into()].into(),
+                kind: MutationKind::Replace(json!("world")),
+            }
+        );
+
+        // Longer replacement: without `as_deref_mut_coinductive`, inner
+        // StringObserver would incorrectly produce Append(" world").
+        let mut tuple = (String::from("hello"),);
+        let mut ob = tuple.__observe();
+        **ob = (String::from("hello world"),);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation.unwrap(),
+            Mutation {
+                path: vec![0.into()].into(),
+                kind: MutationKind::Replace(json!("hello world")),
+            }
+        );
+    }
+}
