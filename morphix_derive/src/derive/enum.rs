@@ -502,7 +502,7 @@ pub fn derive_observe_for_enum(
             #(#input_predicates,)*
             #(#skipped_tys: #ob_lt,)*
             #(#field_tys: ::morphix::Observe,)*
-            #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics> + #ob_lt,
+            #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
             #depth: ::morphix::helper::Unsigned,
         {
             fn uninit() -> Self {
@@ -544,7 +544,7 @@ pub fn derive_observe_for_enum(
             #(#input_predicates,)*
             #(#skipped_tys: #ob_lt,)*
             #(#field_tys: ::morphix::Observe,)*
-            #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics> + #ob_lt,
+            #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
             #depth: ::morphix::helper::Unsigned,
             #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
         {
@@ -576,8 +576,7 @@ pub fn derive_observe_for_enum(
                 Self: #ob_lt,
                 #(#field_tys: #ob_lt,)*
                 #depth: ::morphix::helper::Unsigned,
-                #head: ::morphix::helper::AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt,
-            ;
+                #head: ::morphix::helper::AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt;
             type Spec = ::morphix::observe::DefaultSpec;
         }
     };
@@ -592,7 +591,7 @@ pub fn derive_observe_for_enum(
                 where
                     #(#input_predicates,)*
                     #(#field_tys: ::morphix::Observe,)*
-                    #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics> + #ob_lt,
+                    #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
                     #depth: ::morphix::helper::Unsigned,
                 {
                     #[inline]

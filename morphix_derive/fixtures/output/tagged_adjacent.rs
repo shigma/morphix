@@ -155,7 +155,7 @@ const _: () = {
     for FooObserver<'ob, 'i, S, N>
     where
         &'i mut String: ::morphix::Observe,
-        S: ::morphix::helper::AsDerefMut<N, Target = Foo<'i>> + 'ob,
+        S: ::morphix::helper::AsDeref<N, Target = Foo<'i>>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -188,7 +188,7 @@ const _: () = {
     where
         Foo<'i>: ::serde::Serialize,
         &'i mut String: ::morphix::Observe,
-        S: ::morphix::helper::AsDerefMut<N, Target = Foo<'i>> + 'ob,
+        S: ::morphix::helper::AsDeref<N, Target = Foo<'i>>,
         N: ::morphix::helper::Unsigned,
         ::morphix::observe::DefaultObserver<
             'ob,

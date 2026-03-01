@@ -58,7 +58,7 @@ where
 impl<'ob, S: ?Sized, D> Observer for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = String> + 'ob,
+    S: AsDeref<D, Target = String>,
 {
     #[inline]
     fn uninit() -> Self {
@@ -90,7 +90,7 @@ where
 impl<'ob, S: ?Sized, D> SerializeObserver for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = String> + 'ob,
+    S: AsDeref<D, Target = String>,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let len = (*this.ptr).as_deref().len();
@@ -138,7 +138,7 @@ where
 impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = String> + 'ob,
+    S: AsDerefMut<D, Target = String>,
 {
     #[inline]
     fn __append_index(&mut self) -> usize {
@@ -180,7 +180,7 @@ where
 impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = String> + 'ob,
+    S: AsDerefMut<D, Target = String>,
 {
     #[inline]
     fn __mark_truncate(&mut self, range: Range<usize>) {
@@ -321,7 +321,7 @@ where
 impl<'ob, S: ?Sized, D> AddAssign<&str> for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = String> + 'ob,
+    S: AsDerefMut<D, Target = String>,
 {
     #[inline]
     fn add_assign(&mut self, rhs: &str) {

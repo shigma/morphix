@@ -86,7 +86,7 @@ const _: () = {
         Option<T>: 'ob,
         &'a mut [S; N]: ::morphix::Observe,
         Option<U>: ::morphix::Observe,
-        _S: ::morphix::helper::AsDerefMut<_N, Target = Foo<'a, S, T, U, N>> + 'ob,
+        _S: ::morphix::helper::AsDeref<_N, Target = Foo<'a, S, T, U, N>>,
         _N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -137,7 +137,7 @@ const _: () = {
         Option<T>: 'ob,
         &'a mut [S; N]: ::morphix::Observe,
         Option<U>: ::morphix::Observe,
-        _S: ::morphix::helper::AsDerefMut<_N, Target = Foo<'a, S, T, U, N>> + 'ob,
+        _S: ::morphix::helper::AsDeref<_N, Target = Foo<'a, S, T, U, N>>,
         _N: ::morphix::helper::Unsigned,
         ::morphix::observe::DefaultObserver<
             'ob,

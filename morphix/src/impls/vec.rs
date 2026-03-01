@@ -48,7 +48,7 @@ where
 impl<O, S: ?Sized, D, T> Observer for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
+    S: AsDeref<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
     #[inline]
@@ -511,7 +511,7 @@ where
 impl<O, S: ?Sized, D, T, I> Index<I> for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
+    S: AsDeref<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {

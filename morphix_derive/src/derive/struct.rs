@@ -235,7 +235,7 @@ pub fn derive_observe_for_struct(
             .params
             .push(parse_quote! { #depth = ::morphix::helper::Zero });
         ob_observer_predicates = quote! {
-            #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics> + #ob_lt,
+            #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
         };
 
         ob_fields.extend(quote! {
@@ -377,7 +377,7 @@ pub fn derive_observe_for_struct(
         ob_observer_generics.params.push(parse_quote! { #depth });
         ob_observer_predicates = quote! {
             #inner: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<#depth>>,
-            #inner::Head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics>,
+            #inner::Head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
         };
 
         deref_ident = syn::Ident::new("Deref", meta_deref_ident.span());
@@ -579,8 +579,7 @@ pub fn derive_observe_for_struct(
                 Self: #ob_lt,
                 #(#field_tys: #ob_lt,)*
                 #depth: ::morphix::helper::Unsigned,
-                #head: ::morphix::helper::AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt,
-            ;
+                #head: ::morphix::helper::AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt;
             type Spec = ::morphix::observe::DefaultSpec;
         }
     };

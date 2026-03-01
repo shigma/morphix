@@ -53,7 +53,7 @@ where
 impl<O, S: ?Sized, D> Observer for OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Option<O::Head>>,
+    S: AsDeref<D, Target = Option<O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
@@ -91,7 +91,7 @@ where
 impl<O, S: ?Sized, D> SerializeObserver for OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Option<O::Head>>,
+    S: AsDeref<D, Target = Option<O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized,
 {

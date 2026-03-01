@@ -228,7 +228,7 @@ where
 
 impl<'ob, H, S: ?Sized, D, T: ?Sized> Observer for GeneralObserver<'ob, H, S, D>
 where
-    S: AsDeref<D, Target = T> + 'ob,
+    S: AsDeref<D, Target = T>,
     H: GeneralHandler<Target = T>,
     D: Unsigned,
 {
@@ -258,7 +258,7 @@ where
 
 impl<'ob, H, S: ?Sized, D, T: ?Sized> SerializeObserver for GeneralObserver<'ob, H, S, D>
 where
-    S: AsDeref<D, Target = T> + 'ob,
+    S: AsDeref<D, Target = T>,
     H: SerializeHandler<Target = T>,
     D: Unsigned,
 {
@@ -325,12 +325,12 @@ where
     }
 }
 
-impl<'ob, H, S: ?Sized, D, T: ?Sized, I> std::ops::IndexMut<I> for GeneralObserver<'ob, H, S, D>
+impl<'ob, H, S: ?Sized, D, I> std::ops::IndexMut<I> for GeneralObserver<'ob, H, S, D>
 where
-    S: AsDerefMut<D, Target = T>,
-    H: GeneralHandler<Target = T>,
+    S: AsDerefMut<D>,
+    H: GeneralHandler<Target = S::Target>,
     D: Unsigned,
-    T: std::ops::IndexMut<I> + 'ob,
+    S::Target: std::ops::IndexMut<I>,
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {

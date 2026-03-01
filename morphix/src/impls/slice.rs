@@ -16,7 +16,7 @@ use std::slice::{
 
 use serde::Serialize;
 
-use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
@@ -44,6 +44,13 @@ pub trait ObserverSlice {
     fn init_range(&self, start: usize, end: usize, values: &[<Self::Item as ObserverExt>::Head]);
 }
 
+// SAFETY: Unlike map observers which use `Box<O>` for pointer stability across rehashing /
+// node-splits, we store observers inline in a `Vec<O>`. This is sound because `init_range` always
+// resizes to `values.len()` (the full observed slice length), not just `end`. Since `values.len()`
+// can only change through `&mut self` operations (push, pop, etc.), it stays constant for the
+// entire duration of any `&self` borrow. Therefore, the first `init_range` call sizes the Vec to
+// its final length, and subsequent calls within the same `&self` borrow lifetime never trigger
+// reallocation, keeping all previously returned references valid.
 impl<O> ObserverSlice for UnsafeCell<Vec<O>>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
@@ -68,8 +75,8 @@ where
     #[inline]
     fn init_range(&self, start: usize, end: usize, values: &[<Self::Item as ObserverExt>::Head]) {
         let inner = unsafe { &mut *self.get() };
-        if end > inner.len() {
-            inner.resize_with(end, O::uninit);
+        if values.len() > inner.len() {
+            inner.resize_with(values.len(), O::uninit);
         }
         let ob_iter = inner[start..end].iter_mut();
         let value_iter = values[start..end].iter();
@@ -216,7 +223,7 @@ where
     V: ObserverSlice<Item = O>,
     M: SliceMutation,
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
@@ -286,14 +293,13 @@ where
     }
 }
 
-#[allow(clippy::type_complexity)]
 impl<V, M, S: ?Sized, D, T> SliceObserver<V, M, S, D>
 where
     V: ObserverSlice,
     V::Item: Observer<InnerDepth = Zero, Head = T>,
     M: SliceMutation,
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
 {
     fn __init_index<I>(&self, index: &I) -> Option<()>
@@ -342,7 +348,18 @@ where
         self.obs.init_range(0, inner.len(), inner);
         self.obs.as_mut_slice()
     }
+}
 
+#[allow(clippy::type_complexity)]
+impl<V, M, S: ?Sized, D, T> SliceObserver<V, M, S, D>
+where
+    V: ObserverSlice,
+    V::Item: Observer<InnerDepth = Zero, Head = T>,
+    M: SliceMutation,
+    D: Unsigned,
+    S: AsDerefMut<D>,
+    S::Target: AsRef<[T]> + AsMut<[T]>,
+{
     /// See [`slice::first_mut`].
     #[inline]
     pub fn first_mut(&mut self) -> Option<&mut V::Item> {
@@ -408,8 +425,8 @@ where
     /// See [`slice::swap`].
     #[inline]
     pub fn swap(&mut self, a: usize, b: usize) {
-        self[a].observed_mut();
-        self[b].observed_mut();
+        self[a].as_deref_mut_coinductive();
+        self[b].as_deref_mut_coinductive();
         self.untracked_mut().as_mut().swap(a, b);
     }
 
@@ -633,7 +650,7 @@ where
     V: ObserverSlice<Item = O>,
     M: SliceMutation,
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
     O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,

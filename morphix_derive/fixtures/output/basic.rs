@@ -45,7 +45,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for FooObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDerefMut<N, Target = Foo> + 'ob,
+        S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -81,7 +81,7 @@ const _: () = {
     impl<'ob, S: ?Sized, N> ::morphix::observe::SerializeObserver
     for FooObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDerefMut<N, Target = Foo> + 'ob,
+        S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(
@@ -129,7 +129,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::fmt::Display for FooObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDerefMut<N, Target = Foo> + 'ob,
+        S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
         #[inline]
@@ -184,7 +184,7 @@ where
 #[automatically_derived]
 impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for BarObserver<'ob, S, N>
 where
-    S: ::morphix::helper::AsDerefMut<N, Target = Bar> + 'ob,
+    S: ::morphix::helper::AsDeref<N, Target = Bar>,
     N: ::morphix::helper::Unsigned,
 {
     fn uninit() -> Self {
@@ -217,7 +217,7 @@ where
 #[automatically_derived]
 impl<'ob, S: ?Sized, N> ::morphix::observe::SerializeObserver for BarObserver<'ob, S, N>
 where
-    S: ::morphix::helper::AsDerefMut<N, Target = Bar> + 'ob,
+    S: ::morphix::helper::AsDeref<N, Target = Bar>,
     N: ::morphix::helper::Unsigned,
 {
     unsafe fn flush_unchecked<A: ::morphix::Adapter>(
@@ -286,7 +286,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for BazObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDerefMut<N, Target = Baz> + 'ob,
+        S: ::morphix::helper::AsDeref<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -322,7 +322,7 @@ const _: () = {
     impl<'ob, S: ?Sized, N> ::morphix::observe::SerializeObserver
     for BazObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDerefMut<N, Target = Baz> + 'ob,
+        S: ::morphix::helper::AsDeref<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(

@@ -105,7 +105,7 @@ where
 impl<const N: usize, O, S: ?Sized, D, T> Observer for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
+    S: AsDeref<D, Target = [T; N]>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
     #[inline]
@@ -251,7 +251,7 @@ where
 impl<const N: usize, O, S: ?Sized, D, T, I> Index<I> for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
+    S: AsDeref<D, Target = [T; N]>,
     O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {

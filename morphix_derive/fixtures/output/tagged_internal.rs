@@ -132,7 +132,7 @@ const _: () = {
     impl<'ob, const N: usize, S: ?Sized, _N> ::morphix::observe::Observer
     for FooObserver<'ob, N, S, _N>
     where
-        S: ::morphix::helper::AsDerefMut<_N, Target = Foo<N>> + 'ob,
+        S: ::morphix::helper::AsDeref<_N, Target = Foo<N>>,
         _N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -164,7 +164,7 @@ const _: () = {
     for FooObserver<'ob, N, S, _N>
     where
         Foo<N>: ::serde::Serialize,
-        S: ::morphix::helper::AsDerefMut<_N, Target = Foo<N>> + 'ob,
+        S: ::morphix::helper::AsDeref<_N, Target = Foo<N>>,
         _N: ::morphix::helper::Unsigned,
     {
         unsafe fn flush_unchecked<A: ::morphix::Adapter>(

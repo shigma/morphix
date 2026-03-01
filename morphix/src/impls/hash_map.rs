@@ -143,7 +143,7 @@ where
 impl<'ob, K, O, S: ?Sized, D> Observer for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = HashMap<K, O::Head>> + 'ob,
+    S: AsDeref<D, Target = HashMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
@@ -176,7 +176,7 @@ where
 impl<'ob, K, O, S: ?Sized, D> SerializeObserver for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = HashMap<K, O::Head>> + 'ob,
+    S: AsDeref<D, Target = HashMap<K, O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized,
     K: Serialize + Eq + Hash + Into<PathSegment>,
@@ -219,8 +219,8 @@ where
 impl<'ob, K, O, S: ?Sized, D, V> HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = HashMap<K, V>> + 'ob,
-    O: Observer<InnerDepth = Zero, Head = V> + 'ob,
+    S: AsDerefMut<D, Target = HashMap<K, V>>,
+    O: Observer<InnerDepth = Zero, Head = V>,
     K: Eq + Hash,
     V: 'ob,
 {
@@ -235,7 +235,34 @@ where
 impl<'ob, K, O, S: ?Sized, D> HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = HashMap<K, O::Head>> + 'ob,
+    S: AsDeref<D, Target = HashMap<K, O::Head>>,
+    O: Observer<InnerDepth = Zero>,
+    O::Head: Sized,
+    K: Clone,
+{
+    /// See [`HashMap::get`].
+    pub fn get<Q>(&self, key: &Q) -> Option<&O>
+    where
+        K: Borrow<Q> + Eq + Hash,
+        Q: Eq + Hash + ?Sized,
+    {
+        let (key, value) = self.observed_ref().get_key_value(key)?;
+        let key_cloned = key.clone();
+        match unsafe { (*self.inner.get()).entry(key_cloned) } {
+            Entry::Occupied(occupied) => {
+                let observer = occupied.into_mut().as_mut();
+                unsafe { O::refresh(observer, value) }
+                Some(observer)
+            }
+            Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
+        }
+    }
+}
+
+impl<'ob, K, O, S: ?Sized, D> HashMapObserver<'ob, K, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = HashMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
     K: Clone,
@@ -258,6 +285,24 @@ where
             }
         }
         inner
+    }
+
+    /// See [`HashMap::get_mut`].
+    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut O>
+    where
+        K: Borrow<Q> + Eq + Hash,
+        Q: Eq + Hash + ?Sized,
+    {
+        let (key, value) = (*self.ptr).as_deref().get_key_value(key)?;
+        let key_cloned = key.clone();
+        match self.inner.get_mut().entry(key_cloned) {
+            Entry::Occupied(occupied) => {
+                let observer = occupied.into_mut().as_mut();
+                unsafe { O::refresh(observer, value) }
+                Some(observer)
+            }
+            Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
+        }
     }
 
     /// See [`HashMap::clear`].
@@ -352,42 +397,6 @@ where
         ExtractIf { inner, diff }
     }
 
-    /// See [`HashMap::get`].
-    pub fn get<Q>(&self, key: &Q) -> Option<&O>
-    where
-        K: Borrow<Q> + Eq + Hash,
-        Q: Eq + Hash + ?Sized,
-    {
-        let (key, value) = self.observed_ref().get_key_value(key)?;
-        let key_cloned = key.clone();
-        match unsafe { (*self.inner.get()).entry(key_cloned) } {
-            Entry::Occupied(occupied) => {
-                let observer = occupied.into_mut().as_mut();
-                unsafe { O::refresh(observer, value) }
-                Some(observer)
-            }
-            Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
-        }
-    }
-
-    /// See [`HashMap::get_mut`].
-    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut O>
-    where
-        K: Borrow<Q> + Eq + Hash,
-        Q: Eq + Hash + ?Sized,
-    {
-        let (key, value) = (*self.ptr).as_deref().get_key_value(key)?;
-        let key_cloned = key.clone();
-        match self.inner.get_mut().entry(key_cloned) {
-            Entry::Occupied(occupied) => {
-                let observer = occupied.into_mut().as_mut();
-                unsafe { O::refresh(observer, value) }
-                Some(observer)
-            }
-            Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
-        }
-    }
-
     /// See [`HashMap::iter_mut`].
     #[inline]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut O)> + '_
@@ -457,7 +466,7 @@ where
 impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> Index<&'q Q> for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = HashMap<K, V>> + 'ob,
+    S: AsDeref<D, Target = HashMap<K, V>>,
     O: Observer<InnerDepth = Zero, Head = V>,
     K: Borrow<Q> + Clone + Eq + Hash,
     Q: Eq + Hash,
@@ -473,7 +482,7 @@ where
 impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> IndexMut<&'q Q> for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = HashMap<K, V>> + 'ob,
+    S: AsDerefMut<D, Target = HashMap<K, V>>,
     O: Observer<InnerDepth = Zero, Head = V>,
     K: Borrow<Q> + Clone + Eq + Hash,
     Q: Eq + Hash,
@@ -489,7 +498,7 @@ where
 impl<'ob, K, O, S: ?Sized, D> Extend<(K, O::Head)> for HashMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = HashMap<K, O::Head>> + 'ob,
+    S: AsDerefMut<D, Target = HashMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
     K: Clone + Eq + Hash,

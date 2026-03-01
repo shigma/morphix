@@ -313,7 +313,7 @@ pub trait Observer: ObserverExt + Sized {
     /// impl<'ob, O, S: ?Sized, N> Observer for OptionObserver<'ob, O, S, N>
     /// where
     ///     N: Unsigned,
-    ///     S: AsDerefMut<N, Target = Option<O::Head>> + 'ob,
+    ///     S: AsDerefMut<N, Target = Option<O::Head>>,
     ///     O: Observer<InnerDepth = Zero>,
     ///     O::Head: Sized,
     /// {

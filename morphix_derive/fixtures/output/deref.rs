@@ -46,7 +46,7 @@ const _: () = {
     where
         Vec<T>: 'ob,
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDerefMut<N, Target = Foo<T>>,
+        O::Head: ::morphix::helper::AsDeref<N, Target = Foo<T>>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -77,7 +77,7 @@ const _: () = {
         Foo<T>: ::serde::Serialize,
         Vec<T>: 'ob,
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDerefMut<N, Target = Foo<T>>,
+        O::Head: ::morphix::helper::AsDeref<N, Target = Foo<T>>,
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {
@@ -167,7 +167,7 @@ const _: () = {
     impl<'ob, O, N> ::morphix::observe::Observer for BarObserver<'ob, O>
     where
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDerefMut<N, Target = Bar>,
+        O::Head: ::morphix::helper::AsDeref<N, Target = Bar>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -193,7 +193,7 @@ const _: () = {
     impl<'ob, O, N> ::morphix::observe::SerializeObserver for BarObserver<'ob, O>
     where
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDerefMut<N, Target = Bar>,
+        O::Head: ::morphix::helper::AsDeref<N, Target = Bar>,
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {
@@ -277,7 +277,7 @@ const _: () = {
     impl<O, N> ::morphix::observe::Observer for QuxObserver<O>
     where
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDerefMut<N, Target = Qux>,
+        O::Head: ::morphix::helper::AsDeref<N, Target = Qux>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -297,7 +297,7 @@ const _: () = {
     impl<O, N> ::morphix::observe::SerializeObserver for QuxObserver<O>
     where
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDerefMut<N, Target = Qux>,
+        O::Head: ::morphix::helper::AsDeref<N, Target = Qux>,
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {

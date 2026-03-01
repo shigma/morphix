@@ -149,7 +149,7 @@ where
 impl<'ob, K, O, S: ?Sized, D> Observer for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeMap<K, O::Head>> + 'ob,
+    S: AsDeref<D, Target = BTreeMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
@@ -182,7 +182,7 @@ where
 impl<'ob, K, O, S: ?Sized, D> SerializeObserver for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeMap<K, O::Head>> + 'ob,
+    S: AsDeref<D, Target = BTreeMap<K, O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized,
     K: Serialize + Ord + Into<PathSegment>,
@@ -225,7 +225,34 @@ where
 impl<'ob, K, O, S: ?Sized, D> BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeMap<K, O::Head>> + 'ob,
+    S: AsDeref<D, Target = BTreeMap<K, O::Head>>,
+    O: Observer<InnerDepth = Zero>,
+    O::Head: Sized,
+    K: Clone,
+{
+    /// See [`BTreeMap::get`].
+    pub fn get<Q>(&self, key: &Q) -> Option<&O>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord + ?Sized,
+    {
+        let (key, value) = self.observed_ref().get_key_value(key)?;
+        let key_cloned = key.clone();
+        match unsafe { (*self.inner.get()).entry(key_cloned) } {
+            Entry::Occupied(occupied) => {
+                let observer = occupied.into_mut().as_mut();
+                unsafe { O::refresh(observer, value) }
+                Some(observer)
+            }
+            Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
+        }
+    }
+}
+
+impl<'ob, K, O, S: ?Sized, D> BTreeMapObserver<'ob, K, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = BTreeMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
     K: Clone,
@@ -248,6 +275,24 @@ where
             }
         }
         inner
+    }
+
+    /// See [`BTreeMap::get_mut`].
+    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut O>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord + ?Sized,
+    {
+        let (key, value) = (*self.ptr).as_deref().get_key_value(key)?;
+        let key_cloned = key.clone();
+        match self.inner.get_mut().entry(key_cloned) {
+            Entry::Occupied(occupied) => {
+                let observer = occupied.into_mut().as_mut();
+                unsafe { O::refresh(observer, value) }
+                Some(observer)
+            }
+            Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
+        }
     }
 
     /// See [`BTreeMap::clear`].
@@ -418,42 +463,6 @@ where
     {
         self.__force_all().values_mut().map(|v| v.as_mut())
     }
-
-    /// See [`BTreeMap::get`].
-    pub fn get<Q>(&self, key: &Q) -> Option<&O>
-    where
-        K: Borrow<Q> + Ord,
-        Q: Ord + ?Sized,
-    {
-        let (key, value) = self.observed_ref().get_key_value(key)?;
-        let key_cloned = key.clone();
-        match unsafe { (*self.inner.get()).entry(key_cloned) } {
-            Entry::Occupied(occupied) => {
-                let observer = occupied.into_mut().as_mut();
-                unsafe { O::refresh(observer, value) }
-                Some(observer)
-            }
-            Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
-        }
-    }
-
-    /// See [`BTreeMap::get_mut`].
-    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut O>
-    where
-        K: Borrow<Q> + Ord,
-        Q: Ord + ?Sized,
-    {
-        let (key, value) = (*self.ptr).as_deref().get_key_value(key)?;
-        let key_cloned = key.clone();
-        match self.inner.get_mut().entry(key_cloned) {
-            Entry::Occupied(occupied) => {
-                let observer = occupied.into_mut().as_mut();
-                unsafe { O::refresh(observer, value) }
-                Some(observer)
-            }
-            Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
-        }
-    }
 }
 
 impl<'ob, K, O, S: ?Sized, D> Debug for BTreeMapObserver<'ob, K, O, S, D>
@@ -545,7 +554,7 @@ where
 impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> Index<&'q Q> for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeMap<K, V>> + 'ob,
+    S: AsDeref<D, Target = BTreeMap<K, V>>,
     O: Observer<InnerDepth = Zero, Head = V>,
     K: Borrow<Q> + Clone + Ord,
     Q: Ord,
@@ -561,7 +570,7 @@ where
 impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> IndexMut<&'q Q> for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeMap<K, V>> + 'ob,
+    S: AsDerefMut<D, Target = BTreeMap<K, V>>,
     O: Observer<InnerDepth = Zero, Head = V>,
     K: Borrow<Q> + Clone + Ord,
     Q: Ord,
@@ -577,7 +586,7 @@ where
 impl<'ob, K, O, S: ?Sized, D> Extend<(K, O::Head)> for BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeMap<K, O::Head>> + 'ob,
+    S: AsDerefMut<D, Target = BTreeMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
     K: Clone + Ord,
