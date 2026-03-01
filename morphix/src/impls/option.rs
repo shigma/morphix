@@ -13,7 +13,6 @@ use crate::{Adapter, MutationKind, Mutations};
 /// Observer implementation for [`Option<T>`].
 pub struct OptionObserver<O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
-    mutated: bool,
     initial: bool,
     inner: Option<O>,
     phantom: PhantomData<D>,
@@ -28,17 +27,22 @@ impl<O, S: ?Sized, D> Deref for OptionObserver<O, S, D> {
     }
 }
 
-impl<O, S: ?Sized, D> DerefMut for OptionObserver<O, S, D> {
+impl<O, S: ?Sized, D> DerefMut for OptionObserver<O, S, D>
+where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+{
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.mutated = true;
-        self.inner = None;
+        if let Some(inner) = &mut self.inner {
+            inner.as_deref_mut_coinductive();
+        }
         &mut self.ptr
     }
 }
 
 impl<O, S: ?Sized, D> QuasiObserver for OptionObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
 {
@@ -57,7 +61,6 @@ where
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
-            mutated: false,
             initial: false,
             inner: None,
             phantom: PhantomData,
@@ -69,8 +72,8 @@ where
         Pointer::set(this, value);
         match (&mut this.inner, value.as_deref()) {
             (Some(inner), Some(value)) => unsafe { Observer::refresh(inner, value) },
+            (Some(_), None) => this.inner = None,
             (None, _) => {}
-            _ => unreachable!("inconsistent option observer state"),
         }
     }
 
@@ -78,7 +81,6 @@ where
     fn observe(value: &Self::Head) -> Self {
         Self {
             ptr: Pointer::new(value),
-            mutated: false,
             initial: value.as_deref().is_some(),
             inner: value.as_deref().as_ref().map(O::observe),
             phantom: PhantomData,
@@ -97,14 +99,12 @@ where
         let value = (*this.ptr).as_deref();
         let initial = this.initial;
         this.initial = value.is_some();
-        if !this.mutated {
-            if let Some(ob) = &mut this.inner {
-                return SerializeObserver::flush::<A>(ob);
-            } else {
-                return Ok(Mutations::new());
-            }
+        if let Some(mut ob) = this.inner.take()
+            && initial
+            && value.is_some()
+        {
+            return SerializeObserver::flush::<A>(&mut ob);
         }
-        this.mutated = false;
         if initial || value.is_some() {
             Ok(MutationKind::Replace(A::serialize_value(value)?).into())
         } else {
@@ -122,7 +122,6 @@ where
 {
     #[inline]
     fn __insert(&mut self, value: O::Head) {
-        self.mutated = true;
         let inserted = self.untracked_mut().insert(value);
         self.inner = Some(O::observe(inserted));
     }
@@ -131,7 +130,7 @@ where
     #[inline]
     pub fn as_mut(&mut self) -> Option<&mut O> {
         if self.inner.is_none() {
-            self.inner = self.untracked_mut().as_ref().map(O::observe);
+            self.inner = (*self).observed_ref().as_ref().map(O::observe);
         }
         self.inner.as_mut()
     }
@@ -175,6 +174,7 @@ where
 
 impl<O, S: ?Sized, D> Debug for OptionObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: Debug,
@@ -187,6 +187,7 @@ where
 
 impl<O, S: ?Sized, D, U> PartialEq<Option<U>> for OptionObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: PartialEq<Option<U>>,
@@ -199,6 +200,8 @@ where
 
 impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<OptionObserver<O2, S2, D2>> for OptionObserver<O1, S1, D1>
 where
+    O1: QuasiObserver<Target: Deref<Target: AsDeref<O1::InnerDepth>>>,
+    O2: QuasiObserver<Target: Deref<Target: AsDeref<O2::InnerDepth>>>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDeref<D1>,
@@ -213,6 +216,7 @@ where
 
 impl<O, S: ?Sized, D> Eq for OptionObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: Eq,
@@ -221,6 +225,7 @@ where
 
 impl<O, S: ?Sized, D, U> PartialOrd<Option<U>> for OptionObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: PartialOrd<Option<U>>,
@@ -233,6 +238,8 @@ where
 
 impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<OptionObserver<O2, S2, D2>> for OptionObserver<O1, S1, D1>
 where
+    O1: QuasiObserver<Target: Deref<Target: AsDeref<O1::InnerDepth>>>,
+    O2: QuasiObserver<Target: Deref<Target: AsDeref<O2::InnerDepth>>>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDeref<D1>,
@@ -247,6 +254,7 @@ where
 
 impl<O, S: ?Sized, D> Ord for OptionObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: Ord,
@@ -326,7 +334,9 @@ mod tests {
         **ob = None;
         **ob = Some("42");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("42")));
+        // PointerObserver detects change by pointer comparison.
+        // Round-trip to the same string literal has the same pointer, so no mutation.
+        assert!(mutation.is_none());
     }
 
     #[test]

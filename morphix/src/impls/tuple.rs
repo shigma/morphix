@@ -88,6 +88,7 @@ where
 
 impl<O, S: ?Sized, D> Debug for TupleObserver<O, S, D>
 where
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: Debug,
@@ -302,6 +303,7 @@ macro_rules! tuple_observer {
 
         impl<$($o,)* S: ?Sized, D> Debug for $ty<$($o,)* S, D>
         where
+            $($o: QuasiObserver<Target: Deref<Target: AsDeref<$o::InnerDepth>>>,)*
             D: Unsigned,
             S: AsDeref<D>,
             S::Target: Debug,
