@@ -154,6 +154,25 @@ where
     O::Head: Sized,
     K: Clone,
 {
+    fn mark_deleted(diff: &mut BTreeMap<K, ValueState>, inner: &mut BTreeMap<K, Box<O>>, key: K)
+    where
+        K: Ord,
+    {
+        inner.remove(&key);
+        match diff.entry(key) {
+            Entry::Occupied(mut e) => {
+                if matches!(e.get(), ValueState::Inserted) {
+                    e.remove();
+                } else {
+                    e.insert(ValueState::Deleted);
+                }
+            }
+            Entry::Vacant(e) => {
+                e.insert(ValueState::Deleted);
+            }
+        }
+    }
+
     /// See [`BTreeMap::clear`].
     #[inline]
     pub fn clear(&mut self) {
@@ -199,24 +218,104 @@ where
         K: Borrow<Q> + Ord,
         Q: Ord + ?Sized,
     {
-        let Some(diff) = self.diff.as_mut() else {
+        let Some(diff) = &mut self.diff else {
             return self.observed_mut().remove(key);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        self.inner.get_mut().remove::<K>(&key);
-        match diff.entry(key) {
-            Entry::Occupied(mut e) => {
-                if matches!(e.get(), ValueState::Inserted) {
-                    e.remove();
-                } else {
-                    e.insert(ValueState::Deleted);
-                }
-            }
-            Entry::Vacant(e) => {
-                e.insert(ValueState::Deleted);
-            }
-        }
+        Self::mark_deleted(diff, self.inner.get_mut(), key);
         Some(old_value)
+    }
+
+    /// See [`BTreeMap::remove_entry`].
+    pub fn remove_entry<Q>(&mut self, key: &Q) -> Option<(K, O::Head)>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord + ?Sized,
+    {
+        let Some(diff) = &mut self.diff else {
+            return self.observed_mut().remove_entry(key);
+        };
+        let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
+        Self::mark_deleted(diff, self.inner.get_mut(), key.clone());
+        Some((key, old_value))
+    }
+
+    /// See [`BTreeMap::pop_first`].
+    pub fn pop_first(&mut self) -> Option<(K, O::Head)>
+    where
+        K: Ord,
+    {
+        let Some(diff) = &mut self.diff else {
+            return self.observed_mut().pop_first();
+        };
+        let (key, old_value) = (*self.ptr).as_deref_mut().pop_first()?;
+        Self::mark_deleted(diff, self.inner.get_mut(), key.clone());
+        Some((key, old_value))
+    }
+
+    /// See [`BTreeMap::pop_last`].
+    pub fn pop_last(&mut self) -> Option<(K, O::Head)>
+    where
+        K: Ord,
+    {
+        let Some(diff) = &mut self.diff else {
+            return self.observed_mut().pop_last();
+        };
+        let (key, old_value) = (*self.ptr).as_deref_mut().pop_last()?;
+        Self::mark_deleted(diff, self.inner.get_mut(), key.clone());
+        Some((key, old_value))
+    }
+
+    /// See [`BTreeMap::retain`].
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        K: Ord,
+        F: FnMut(&K, &mut O::Head) -> bool,
+    {
+        let Some(diff) = &mut self.diff else {
+            return self.observed_mut().retain(f);
+        };
+        let inner = self.inner.get_mut();
+        (*self.ptr).as_deref_mut().retain(|key, value| {
+            if f(key, value) {
+                true
+            } else {
+                Self::mark_deleted(diff, inner, key.clone());
+                false
+            }
+        });
+    }
+
+    /// See [`BTreeMap::append`].
+    // TODO: this drains `other` into individual inserts, which is much slower than
+    // `BTreeMap::append`. Consider a bulk-insert approach that updates `diff` in one pass.
+    pub fn append(&mut self, other: &mut BTreeMap<K, O::Head>)
+    where
+        K: Ord,
+    {
+        if self.diff.is_none() {
+            return self.observed_mut().append(other);
+        }
+        for (key, value) in std::mem::take(other) {
+            self.insert(key, value);
+        }
+    }
+
+    /// See [`BTreeMap::split_off`].
+    pub fn split_off<Q>(&mut self, key: &Q) -> BTreeMap<K, O::Head>
+    where
+        K: Borrow<Q> + Ord,
+        Q: Ord + ?Sized,
+    {
+        let Some(diff) = &mut self.diff else {
+            return self.observed_mut().split_off(key);
+        };
+        let split = (*self.ptr).as_deref_mut().split_off(key);
+        let inner = self.inner.get_mut();
+        for key in split.keys().cloned() {
+            Self::mark_deleted(diff, inner, key);
+        }
+        split
     }
 
     /// See [`BTreeMap::get`].
@@ -369,6 +468,23 @@ where
     #[inline]
     fn index_mut(&mut self, index: &'q Q) -> &mut Self::Output {
         self.get_mut(index).expect("no entry found for key")
+    }
+}
+
+// TODO: this inserts elements one by one, which is much slower than `BTreeMap::extend`.
+// Consider a bulk-insert approach that updates `diff` in one pass.
+impl<'ob, K, O, S: ?Sized, D> Extend<(K, O::Head)> for BTreeMapObserver<'ob, K, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = BTreeMap<K, O::Head>> + 'ob,
+    O: Observer<InnerDepth = Zero>,
+    O::Head: Sized,
+    K: Clone + Ord,
+{
+    fn extend<I: IntoIterator<Item = (K, O::Head)>>(&mut self, iter: I) {
+        for (key, value) in iter {
+            self.insert(key, value);
+        }
     }
 }
 
@@ -536,6 +652,108 @@ mod tests {
             Some(Mutation {
                 path: vec!["a".into()].into(),
                 kind: MutationKind::Replace(json!("bye")),
+            })
+        );
+    }
+
+    #[test]
+    fn remove_entry() {
+        let mut map = BTreeMap::from([("a", "x".to_string()), ("b", "y".to_string())]);
+        let mut ob = map.__observe();
+        assert_eq!(ob.remove_entry("a"), Some(("a", "x".to_string())));
+        assert_eq!(ob.observed_ref().len(), 1);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Delete,
+            })
+        );
+    }
+
+    #[test]
+    fn pop_first_and_last() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2), ("c", 3)]);
+        let mut ob = map.__observe();
+        assert_eq!(ob.pop_first(), Some(("a", 1)));
+        assert_eq!(ob.pop_last(), Some(("c", 3)));
+        assert_eq!(ob.observed_ref(), &BTreeMap::from([("b", 2)]));
+        let Json(mutation) = ob.flush().unwrap();
+        // Two deletions: "a" and "c"
+        assert!(mutation.is_some());
+        let mutation = mutation.unwrap();
+        assert!(matches!(mutation.kind, MutationKind::Batch(_)));
+    }
+
+    #[test]
+    fn retain() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2), ("c", 3)]);
+        let mut ob = map.__observe();
+        ob.retain(|_, v| *v % 2 != 0);
+        assert_eq!(ob.observed_ref(), &BTreeMap::from([("a", 1), ("c", 3)]));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Delete,
+            })
+        );
+    }
+
+    #[test]
+    fn append_from_other() {
+        let mut map = BTreeMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        let mut other = BTreeMap::from([("b", "y".to_string()), ("c", "z".to_string())]);
+        ob.append(&mut other);
+        assert!(other.is_empty());
+        assert_eq!(ob.observed_ref().len(), 3);
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some());
+        let mutation = mutation.unwrap();
+        assert!(matches!(mutation.kind, MutationKind::Batch(_)));
+    }
+
+    #[test]
+    fn split_off() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2), ("c", 3)]);
+        let mut ob = map.__observe();
+        let split = ob.split_off("b");
+        assert_eq!(split, BTreeMap::from([("b", 2), ("c", 3)]));
+        assert_eq!(ob.observed_ref(), &BTreeMap::from([("a", 1)]));
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some());
+        let mutation = mutation.unwrap();
+        assert!(matches!(mutation.kind, MutationKind::Batch(_)));
+    }
+
+    #[test]
+    fn extend() {
+        let mut map = BTreeMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        ob.extend([("b", "y".to_string()), ("c", "z".to_string())]);
+        assert_eq!(ob.observed_ref().len(), 3);
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some());
+    }
+
+    #[test]
+    fn insert_then_pop() {
+        let mut map: BTreeMap<&str, i32> = BTreeMap::new();
+        let mut ob = map.__observe();
+        ob.insert("a", 1);
+        ob.insert("b", 2);
+        assert_eq!(ob.pop_first(), Some(("a", 1)));
+        // "a" was inserted then popped: net no-op
+        // "b" was inserted: Inserted
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Replace(json!(2)),
             })
         );
     }
