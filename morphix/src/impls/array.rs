@@ -52,28 +52,26 @@ where
     /// See [`array::as_slice`].
     #[inline]
     pub fn as_slice(&self) -> &[O] {
-        self.inner.__force();
-        self.inner.obs.as_slice()
+        self.inner.__force_ref()
     }
 
     /// See [`array::as_mut_slice`].
     #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [O] {
-        self.inner.__force();
-        self.inner.obs.as_mut_slice()
+        self.inner.__force_mut()
     }
 
     /// See [`array::each_ref`].
     #[inline]
     pub fn each_ref(&self) -> [&O; N] {
-        self.inner.__force();
+        self.inner.__force_ref();
         self.inner.obs.each_ref()
     }
 
     /// See [`array::each_mut`].
     #[inline]
     pub fn each_mut(&mut self) -> [&mut O; N] {
-        self.inner.__force();
+        self.inner.__force_mut();
         self.inner.obs.each_mut()
     }
 }

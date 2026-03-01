@@ -46,7 +46,7 @@ where
 impl<O, S: ?Sized, D> Observer for TupleObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = (O::Head,)>,
+    S: AsDeref<D, Target = (O::Head,)>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
@@ -73,7 +73,7 @@ where
 impl<O, S: ?Sized, D> SerializeObserver for TupleObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = (O::Head,)>,
+    S: AsDeref<D, Target = (O::Head,)>,
     O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized,
 {
@@ -249,7 +249,7 @@ macro_rules! tuple_observer {
         impl<$($o,)* S: ?Sized, D> Observer for $ty<$($o,)* S, D>
         where
             D: Unsigned,
-            S: AsDerefMut<D, Target = ($($o::Head,)*)>,
+            S: AsDeref<D, Target = ($($o::Head,)*)>,
             $($o: Observer<InnerDepth = Zero, Head: Sized>,)*
         {
             #[inline]
@@ -285,7 +285,7 @@ macro_rules! tuple_observer {
         impl<$($o,)* S: ?Sized, D> SerializeObserver for $ty<$($o,)* S, D>
         where
             D: Unsigned,
-            S: AsDerefMut<D, Target = ($($o::Head,)*)>,
+            S: AsDeref<D, Target = ($($o::Head,)*)>,
             $($o: SerializeObserver<InnerDepth = Zero, Head: Serialize + Sized>,)*
         {
             #[inline]

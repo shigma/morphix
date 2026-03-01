@@ -10,7 +10,7 @@ use serde::Serialize;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
-use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver, TruncateAppend};
+use crate::impls::slice::{SliceIndexImpl, SliceObserver, TruncateAppend};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
@@ -102,15 +102,13 @@ where
     /// See [`Vec::as_slice`].
     #[inline]
     pub fn as_slice(&self) -> &[O] {
-        self.__force();
-        self.inner.obs.as_slice()
+        self.__force_ref()
     }
 
     /// See [`Vec::as_mut_slice`].
     #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [O] {
-        self.__force();
-        self.inner.obs.as_mut_slice()
+        self.__force_mut()
     }
 }
 

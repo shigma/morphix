@@ -330,9 +330,17 @@ where
     }
 
     #[inline]
-    pub(crate) fn __force(&self) {
+    pub(crate) fn __force_ref(&self) -> &[V::Item] {
         let inner = self.observed_ref().as_ref();
         self.obs.init_range(0, inner.len(), inner);
+        self.obs.as_slice()
+    }
+
+    #[inline]
+    pub(crate) fn __force_mut(&mut self) -> &mut [V::Item] {
+        let inner = (*self).observed_ref().as_ref();
+        self.obs.init_range(0, inner.len(), inner);
+        self.obs.as_mut_slice()
     }
 
     /// See [`slice::first_mut`].
@@ -344,15 +352,13 @@ where
     /// See [`slice::split_first_mut`].
     #[inline]
     pub fn split_first_mut(&mut self) -> Option<(&mut V::Item, &mut [V::Item])> {
-        self.__force();
-        self.obs.as_mut_slice().split_first_mut()
+        self.__force_mut().split_first_mut()
     }
 
     /// See [`slice::split_last_mut`].
     #[inline]
     pub fn split_last_mut(&mut self) -> Option<(&mut V::Item, &mut [V::Item])> {
-        self.__force();
-        self.obs.as_mut_slice().split_last_mut()
+        self.__force_mut().split_last_mut()
     }
 
     /// See [`slice::last_mut`].
@@ -374,15 +380,13 @@ where
     /// See [`slice::split_first_chunk_mut`].
     #[inline]
     pub fn split_first_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [V::Item; N], &mut [V::Item])> {
-        self.__force();
-        self.obs.as_mut_slice().split_first_chunk_mut()
+        self.__force_mut().split_first_chunk_mut()
     }
 
     /// See [`slice::split_last_chunk_mut`].
     #[inline]
     pub fn split_last_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [V::Item], &mut [V::Item; N])> {
-        self.__force();
-        self.obs.as_mut_slice().split_last_chunk_mut()
+        self.__force_mut().split_last_chunk_mut()
     }
 
     /// See [`slice::last_chunk_mut`].
@@ -412,50 +416,43 @@ where
     /// See [`slice::iter_mut`].
     #[inline]
     pub fn iter_mut(&mut self) -> IterMut<'_, V::Item> {
-        self.__force();
-        self.obs.as_mut_slice().iter_mut()
+        self.__force_mut().iter_mut()
     }
 
     /// See [`slice::chunks_mut`].
     #[inline]
     pub fn chunks_mut(&mut self, chunk_size: usize) -> ChunksMut<'_, V::Item> {
-        self.__force();
-        self.obs.as_mut_slice().chunks_mut(chunk_size)
+        self.__force_mut().chunks_mut(chunk_size)
     }
 
     /// See [`slice::chunks_exact_mut`].
     #[inline]
     pub fn chunks_exact_mut(&mut self, chunk_size: usize) -> ChunksExactMut<'_, V::Item> {
-        self.__force();
-        self.obs.as_mut_slice().chunks_exact_mut(chunk_size)
+        self.__force_mut().chunks_exact_mut(chunk_size)
     }
 
     /// See [`slice::as_chunks_mut`].
     #[inline]
     pub fn as_chunks_mut<const N: usize>(&mut self) -> (&mut [[V::Item; N]], &mut [V::Item]) {
-        self.__force();
-        self.obs.as_mut_slice().as_chunks_mut()
+        self.__force_mut().as_chunks_mut()
     }
 
     /// See [`slice::as_rchunks_mut`].
     #[inline]
     pub fn as_rchunks_mut<const N: usize>(&mut self) -> (&mut [V::Item], &mut [[V::Item; N]]) {
-        self.__force();
-        self.obs.as_mut_slice().as_rchunks_mut()
+        self.__force_mut().as_rchunks_mut()
     }
 
     /// See [`slice::rchunks_mut`].
     #[inline]
     pub fn rchunks_mut(&mut self, chunk_size: usize) -> RChunksMut<'_, V::Item> {
-        self.__force();
-        self.obs.as_mut_slice().rchunks_mut(chunk_size)
+        self.__force_mut().rchunks_mut(chunk_size)
     }
 
     /// See [`slice::rchunks_exact_mut`].
     #[inline]
     pub fn rchunks_exact_mut(&mut self, chunk_size: usize) -> RChunksExactMut<'_, V::Item> {
-        self.__force();
-        self.obs.as_mut_slice().rchunks_exact_mut(chunk_size)
+        self.__force_mut().rchunks_exact_mut(chunk_size)
     }
 
     /// See [`slice::chunk_by_mut`].
@@ -464,22 +461,19 @@ where
     where
         F: FnMut(&V::Item, &V::Item) -> bool,
     {
-        self.__force();
-        self.obs.as_mut_slice().chunk_by_mut(pred)
+        self.__force_mut().chunk_by_mut(pred)
     }
 
     /// See [`slice::split_at_mut`].
     #[inline]
     pub fn split_at_mut(&mut self, mid: usize) -> (&mut [V::Item], &mut [V::Item]) {
-        self.__force();
-        self.obs.as_mut_slice().split_at_mut(mid)
+        self.__force_mut().split_at_mut(mid)
     }
 
     /// See [`slice::split_at_mut_checked`].
     #[inline]
     pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut [V::Item], &mut [V::Item])> {
-        self.__force();
-        self.obs.as_mut_slice().split_at_mut_checked(mid)
+        self.__force_mut().split_at_mut_checked(mid)
     }
 
     /// See [`slice::split_mut`].
@@ -488,8 +482,7 @@ where
     where
         F: FnMut(&V::Item) -> bool,
     {
-        self.__force();
-        self.obs.as_mut_slice().split_mut(pred)
+        self.__force_mut().split_mut(pred)
     }
 
     /// See [`slice::split_inclusive_mut`].
@@ -498,8 +491,7 @@ where
     where
         F: FnMut(&V::Item) -> bool,
     {
-        self.__force();
-        self.obs.as_mut_slice().split_inclusive_mut(pred)
+        self.__force_mut().split_inclusive_mut(pred)
     }
 
     /// See [`slice::rsplit_mut`].
@@ -508,8 +500,7 @@ where
     where
         F: FnMut(&V::Item) -> bool,
     {
-        self.__force();
-        self.obs.as_mut_slice().rsplit_mut(pred)
+        self.__force_mut().rsplit_mut(pred)
     }
 
     /// See [`slice::splitn_mut`].
@@ -518,8 +509,7 @@ where
     where
         F: FnMut(&V::Item) -> bool,
     {
-        self.__force();
-        self.obs.as_mut_slice().splitn_mut(n, pred)
+        self.__force_mut().splitn_mut(n, pred)
     }
 
     /// See [`slice::rsplitn_mut`].
@@ -528,8 +518,7 @@ where
     where
         F: FnMut(&V::Item) -> bool,
     {
-        self.__force();
-        self.obs.as_mut_slice().rsplitn_mut(n, pred)
+        self.__force_mut().rsplitn_mut(n, pred)
     }
 }
 
