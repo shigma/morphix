@@ -124,10 +124,17 @@ Multiple mutations combined into a single operation.
 
 ## Features
 
-- `derive` (default): Enables the Observe derive macro
-- Mutation kinds:
+- `derive` (default): Enables the `derive(Observe)` and `observe!` macros
+
+- Mutation Kinds:
   - `append` (default): Enables `Append` mutation kind
+  - `delete` (default): Enables `Delete` mutation kind
   - `truncate` (default): Enables `Truncate` mutation kind
+
 - Adapters:
   - `json`: Includes JSON serialization support via `serde_json`
   - `yaml`: Includes YAML serialization support via `serde_yaml_ng`
+
+- Third party integrations:
+  - `chrono`
+  - `uuid`

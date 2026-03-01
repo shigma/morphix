@@ -263,7 +263,7 @@ where
     D: Unsigned,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        unsafe { this.handler.flush::<A>(AsDeref::<D>::as_deref(&*this.ptr)) }
+        unsafe { this.handler.flush::<A>((*this.ptr).as_deref()) }
     }
 }
 

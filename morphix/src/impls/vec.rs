@@ -1,3 +1,5 @@
+//! Observer implementation for [`Vec<T>`].
+
 use std::cell::UnsafeCell;
 use std::collections::TryReserveError;
 use std::fmt::Debug;

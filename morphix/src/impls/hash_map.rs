@@ -1,3 +1,5 @@
+//! Observer implementation for [`HashMap<K, V>`].
+
 use std::borrow::Borrow;
 use std::cell::UnsafeCell;
 use std::collections::hash_map::Entry;

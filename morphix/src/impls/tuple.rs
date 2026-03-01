@@ -209,7 +209,7 @@ impl<T: Snapshot> Snapshot for (T,) {
 
 macro_rules! tuple_observer {
     ($ty:ident; $ptr:tt; $($o:ident, $p:ident, $t:ident, $u:ident, $n:tt);*) => {
-        #[doc = concat!("Observer implementation for tuple `(", $(stringify!($t), ", ",)* ")`.")]
+        #[doc = concat!("Observer implementation for tuple `", stringify!(($($t),*)), "`.")]
         pub struct $ty<$($o,)* S: ?Sized, D = Zero>(
             $(pub $o,)*
             /* ptr */ Pointer<S>,
