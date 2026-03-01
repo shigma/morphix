@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::cell::UnsafeCell;
 use std::collections::hash_map::Entry;
-use std::collections::{HashMap, HashSet, TryReserveError};
+use std::collections::{HashMap, TryReserveError};
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -15,19 +15,14 @@ use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned,
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
-struct Diff<K> {
-    replaced: HashSet<K>,
-    deleted: HashSet<K>,
-}
-
-impl<K> Default for Diff<K> {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            replaced: HashSet::new(),
-            deleted: HashSet::new(),
-        }
-    }
+enum ValueState {
+    /// Key existed in the original map and was overwritten via [`insert`](HashMapObserver::insert).
+    Replaced,
+    /// Key is new (did not exist in the original map), added via
+    /// [`insert`](HashMapObserver::insert).
+    Inserted,
+    /// Key existed in the original map and was removed.
+    Deleted,
 }
 
 /// Observer implementation for [`HashMap<K, V>`].
@@ -40,7 +35,7 @@ impl<K> Default for Diff<K> {
 /// internal storage.
 pub struct HashMapObserver<'ob, K, O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
-    diff: Option<Diff<K>>,
+    diff: Option<HashMap<K, ValueState>>,
     /// Boxed to ensure pointer stability: [`HashMap`] rehashing moves all entries to a new
     /// allocation, which would invalidate references to inline values. [`Box`] adds a layer
     /// of indirection so that only the pointer is moved, not the observer itself.
@@ -101,7 +96,7 @@ where
     fn observe(value: &Self::Head) -> Self {
         Self {
             ptr: Pointer::new(value),
-            diff: Some(Diff::default()),
+            diff: Some(Default::default()),
             inner: Default::default(),
             phantom: PhantomData,
         }
@@ -121,20 +116,31 @@ where
             return Ok(MutationKind::Replace(A::serialize_value((*this).observed_ref())?).into());
         };
         let mut mutations = Mutations::new();
-        for key in diff.deleted {
-            #[cfg(feature = "delete")]
-            mutations.insert(key, MutationKind::Delete);
-            #[cfg(not(feature = "delete"))]
-            unreachable!("delete feature is not enabled");
+        for (key, state) in diff {
+            match state {
+                ValueState::Deleted => {
+                    #[cfg(feature = "delete")]
+                    mutations.insert(key, MutationKind::Delete);
+                    #[cfg(not(feature = "delete"))]
+                    unreachable!("delete feature is not enabled");
+                }
+                ValueState::Replaced | ValueState::Inserted => {
+                    this.inner.get_mut().remove(&key);
+                    let value = (*this.ptr)
+                        .as_deref()
+                        .get(&key)
+                        .expect("replaced key not found in observed map");
+                    mutations.insert(key, MutationKind::Replace(A::serialize_value(value)?));
+                }
+            }
         }
-        for key in diff.replaced {
-            let observer = this
-                .inner
-                .get_mut()
-                .get_mut(&key)
-                .expect("replaced key not found in inner observers")
-                .as_mut();
-            mutations.insert(key, unsafe { O::flush_unchecked::<A>(observer)? });
+        for (key, mut observer) in std::mem::take(this.inner.get_mut()) {
+            let value = (*this.ptr)
+                .as_deref()
+                .get(&key)
+                .expect("observer key not found in observed map");
+            unsafe { O::refresh(&mut observer, value) }
+            mutations.insert(key, unsafe { O::flush_unchecked::<A>(&mut observer)? });
         }
         Ok(mutations)
     }
@@ -167,6 +173,7 @@ where
     /// See [`HashMap::clear`].
     #[inline]
     pub fn clear(&mut self) {
+        self.inner.get_mut().clear();
         if (*self).observed_ref().is_empty() {
             self.untracked_mut().clear()
         } else {
@@ -184,8 +191,21 @@ where
         };
         let key_cloned = key.clone();
         let old_value = (*self.ptr).as_deref_mut().insert(key_cloned, value);
-        diff.deleted.remove(&key);
-        diff.replaced.insert(key);
+        self.inner.get_mut().remove(&key);
+        match diff.entry(key) {
+            Entry::Occupied(mut e) => {
+                if matches!(e.get(), ValueState::Deleted) {
+                    e.insert(ValueState::Replaced);
+                }
+            }
+            Entry::Vacant(e) => {
+                if old_value.is_some() {
+                    e.insert(ValueState::Replaced);
+                } else {
+                    e.insert(ValueState::Inserted);
+                }
+            }
+        }
         old_value
     }
 
@@ -199,8 +219,19 @@ where
             return self.observed_mut().remove(key);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        diff.replaced.remove::<K>(&key);
-        diff.deleted.insert(key);
+        self.inner.get_mut().remove::<K>(&key);
+        match diff.entry(key) {
+            Entry::Occupied(mut e) => {
+                if matches!(e.get(), ValueState::Inserted) {
+                    e.remove();
+                } else {
+                    e.insert(ValueState::Deleted);
+                }
+            }
+            Entry::Vacant(e) => {
+                e.insert(ValueState::Deleted);
+            }
+        }
         Some(old_value)
     }
 

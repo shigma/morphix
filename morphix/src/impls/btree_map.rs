@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::cell::UnsafeCell;
+use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
-use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
@@ -14,19 +14,15 @@ use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned,
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 
-struct Diff<K> {
-    replaced: BTreeSet<K>,
-    deleted: BTreeSet<K>,
-}
-
-impl<K> Default for Diff<K> {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            replaced: BTreeSet::new(),
-            deleted: BTreeSet::new(),
-        }
-    }
+enum ValueState {
+    /// Key existed in the original map and was overwritten via
+    /// [`insert`](BTreeMapObserver::insert).
+    Replaced,
+    /// Key is new (did not exist in the original map), added via
+    /// [`insert`](BTreeMapObserver::insert).
+    Inserted,
+    /// Key existed in the original map and was removed.
+    Deleted,
 }
 
 /// Observer implementation for [`BTreeMap<K, V>`].
@@ -39,7 +35,7 @@ impl<K> Default for Diff<K> {
 /// internal storage.
 pub struct BTreeMapObserver<'ob, K, O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
-    diff: Option<Diff<K>>,
+    diff: Option<BTreeMap<K, ValueState>>,
     /// Boxed to ensure pointer stability: [`BTreeMap`] node splits move entries between nodes
     /// via `memcpy`, which would invalidate references to inline values. [`Box`] adds a layer
     /// of indirection so that only the pointer is moved, not the observer itself.
@@ -100,7 +96,7 @@ where
     fn observe(value: &Self::Head) -> Self {
         Self {
             ptr: Pointer::new(value),
-            diff: Some(Diff::default()),
+            diff: Some(Default::default()),
             inner: Default::default(),
             phantom: PhantomData,
         }
@@ -120,20 +116,31 @@ where
             return Ok(MutationKind::Replace(A::serialize_value((*this).observed_ref())?).into());
         };
         let mut mutations = Mutations::new();
-        for key in diff.deleted {
-            #[cfg(feature = "delete")]
-            mutations.insert(key, MutationKind::Delete);
-            #[cfg(not(feature = "delete"))]
-            unreachable!("delete feature is not enabled");
+        for (key, state) in diff {
+            match state {
+                ValueState::Deleted => {
+                    #[cfg(feature = "delete")]
+                    mutations.insert(key, MutationKind::Delete);
+                    #[cfg(not(feature = "delete"))]
+                    unreachable!("delete feature is not enabled");
+                }
+                ValueState::Replaced | ValueState::Inserted => {
+                    this.inner.get_mut().remove(&key);
+                    let value = (*this.ptr)
+                        .as_deref()
+                        .get(&key)
+                        .expect("replaced key not found in observed map");
+                    mutations.insert(key, MutationKind::Replace(A::serialize_value(value)?));
+                }
+            }
         }
-        for key in diff.replaced {
-            let observer = this
-                .inner
-                .get_mut()
-                .get_mut(&key)
-                .expect("replaced key not found in inner observers")
-                .as_mut();
-            mutations.insert(key, unsafe { O::flush_unchecked::<A>(observer)? });
+        for (key, mut observer) in std::mem::take(this.inner.get_mut()) {
+            let value = (*this.ptr)
+                .as_deref()
+                .get(&key)
+                .expect("observer key not found in observed map");
+            unsafe { O::refresh(&mut observer, value) }
+            mutations.insert(key, unsafe { O::flush_unchecked::<A>(&mut observer)? });
         }
         Ok(mutations)
     }
@@ -150,6 +157,7 @@ where
     /// See [`BTreeMap::clear`].
     #[inline]
     pub fn clear(&mut self) {
+        self.inner.get_mut().clear();
         if (*self).observed_ref().is_empty() {
             self.untracked_mut().clear()
         } else {
@@ -167,8 +175,21 @@ where
         };
         let key_cloned = key.clone();
         let old_value = (*self.ptr).as_deref_mut().insert(key_cloned, value);
-        diff.deleted.remove(&key);
-        diff.replaced.insert(key);
+        self.inner.get_mut().remove(&key);
+        match diff.entry(key) {
+            Entry::Occupied(mut e) => {
+                if matches!(e.get(), ValueState::Deleted) {
+                    e.insert(ValueState::Replaced);
+                }
+            }
+            Entry::Vacant(e) => {
+                if old_value.is_some() {
+                    e.insert(ValueState::Replaced);
+                } else {
+                    e.insert(ValueState::Inserted);
+                }
+            }
+        }
         old_value
     }
 
@@ -182,8 +203,19 @@ where
             return self.observed_mut().remove(key);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        diff.replaced.remove::<K>(&key);
-        diff.deleted.insert(key);
+        self.inner.get_mut().remove::<K>(&key);
+        match diff.entry(key) {
+            Entry::Occupied(mut e) => {
+                if matches!(e.get(), ValueState::Inserted) {
+                    e.remove();
+                } else {
+                    e.insert(ValueState::Deleted);
+                }
+            }
+            Entry::Vacant(e) => {
+                e.insert(ValueState::Deleted);
+            }
+        }
         Some(old_value)
     }
 
@@ -377,5 +409,134 @@ where
                 .iter()
                 .zip(snapshot.iter())
                 .all(|((key_a, value_a), (key_b, value_b))| key_a.eq_snapshot(key_b) && value_a.eq_snapshot(value_b))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeMap;
+
+    use serde_json::json;
+
+    use super::*;
+    use crate::adapter::Json;
+    use crate::observe::{ObserveExt, SerializeObserverExt};
+    use crate::{Mutation, MutationKind};
+
+    #[test]
+    fn pointer_stability_across_inner_splits() {
+        let mut map = BTreeMap::new();
+        for i in 0..100 {
+            map.insert(i, format!("value {i}"));
+        }
+        let ob = map.__observe();
+        // Create observer for key 0 in the inner BTreeMap
+        assert_eq!(ob.get(&0).unwrap().observed_ref(), "value 0");
+        // Create many more observers, triggering node splits in the inner BTreeMap.
+        // Box<O> ensures previously created observers remain valid.
+        for i in 1..100 {
+            assert_eq!(ob.get(&i).unwrap().observed_ref(), &format!("value {i}"));
+        }
+        // Key 0's observer is still valid thanks to Box pointer stability
+        assert_eq!(ob.get(&0).unwrap().observed_ref(), "value 0");
+    }
+
+    #[test]
+    fn remove_nonexistent_key() {
+        let mut map = BTreeMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        assert_eq!(ob.remove("nonexistent"), None);
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn insert_then_remove() {
+        let mut map = BTreeMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        assert_eq!(ob.insert("b", "y".to_string()), None);
+        assert_eq!(ob.remove("b"), Some("y".to_string()));
+        assert_eq!(ob.observed_ref().len(), 1);
+        assert_eq!(ob.observed_ref().get("a"), Some(&"x".to_string()));
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn remove_then_insert() {
+        let mut map = BTreeMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        assert_eq!(ob.remove("a"), Some("x".to_string()));
+        assert_eq!(ob.insert("a", "y".to_string()), None);
+        assert_eq!(ob.observed_ref().get("a"), Some(&"y".to_string()));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!("y")),
+            })
+        );
+    }
+
+    #[test]
+    fn get_mut_refresh_across_splits() {
+        let mut map = BTreeMap::new();
+        map.insert("0", "hello".to_string());
+        let mut ob = map.__observe();
+        // First get_mut: modify the value through the inner observer
+        ob.get_mut("0").unwrap().push_str(" world");
+        assert_eq!(ob.observed_ref().get("0").unwrap(), "hello world");
+        // Insert many keys via untracked_mut to trigger node splits in the
+        // observed BTreeMap without adding to diff.replaced
+        for i in 1..100 {
+            ob.untracked_mut()
+                .insert(Box::leak(i.to_string().into_boxed_str()), format!("value {i}"));
+        }
+        // Second get_mut: refresh updates the inner observer's stale pointer
+        ob.get_mut("0").unwrap().push_str("!");
+        assert_eq!(ob.observed_ref().get("0").unwrap(), "hello world!");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["0".into()].into(),
+                kind: MutationKind::Append(json!(" world!")),
+            })
+        );
+    }
+
+    #[test]
+    fn insert_then_get_mut() {
+        let mut map = BTreeMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        ob.insert("b", "hello".to_string());
+        ob.get_mut("b").unwrap().push_str(" world");
+        assert_eq!(ob.observed_ref().get("b"), Some(&"hello world".to_string()));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Replace(json!("hello world")),
+            })
+        );
+    }
+
+    #[test]
+    fn get_mut_then_insert() {
+        let mut map = BTreeMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        ob.get_mut("a").unwrap().push_str(" world");
+        ob.insert("a", "bye".to_string());
+        assert_eq!(ob.observed_ref().get("a"), Some(&"bye".to_string()));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!("bye")),
+            })
+        );
     }
 }
