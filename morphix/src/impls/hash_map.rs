@@ -4,6 +4,7 @@ use std::collections::hash_map::Entry;
 use std::collections::{HashMap, TryReserveError};
 use std::fmt::Debug;
 use std::hash::Hash;
+use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
@@ -23,6 +24,75 @@ enum ValueState {
     Inserted,
     /// Key existed in the original map and was removed.
     Deleted,
+}
+
+fn mark_deleted<K, O>(diff: &mut HashMap<K, ValueState>, inner: &mut HashMap<K, Box<O>>, key: K)
+where
+    K: Eq + Hash,
+{
+    inner.remove(&key);
+    match diff.entry(key) {
+        Entry::Occupied(mut e) => {
+            if matches!(e.get(), ValueState::Inserted) {
+                e.remove();
+            } else {
+                e.insert(ValueState::Deleted);
+            }
+        }
+        Entry::Vacant(e) => {
+            e.insert(ValueState::Deleted);
+        }
+    }
+}
+
+/// Iterator produced by [`HashMapObserver::extract_if`].
+#[allow(clippy::type_complexity)]
+pub struct ExtractIf<'a, K, V, O, F>
+where
+    F: FnMut(&K, &mut V) -> bool,
+{
+    inner: std::collections::hash_map::ExtractIf<'a, K, V, F>,
+    diff: Option<(&'a mut HashMap<K, ValueState>, &'a mut HashMap<K, Box<O>>)>,
+}
+
+impl<K, V, O, F> Iterator for ExtractIf<'_, K, V, O, F>
+where
+    K: Clone + Eq + Hash,
+    F: FnMut(&K, &mut V) -> bool,
+{
+    type Item = (K, V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (key, value) = self.inner.next()?;
+        if let Some((diff, inner)) = &mut self.diff {
+            mark_deleted(diff, inner, key.clone());
+        }
+        Some((key, value))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<K, V, O, F> FusedIterator for ExtractIf<'_, K, V, O, F>
+where
+    K: Clone + Eq + Hash,
+    F: FnMut(&K, &mut V) -> bool,
+{
+}
+
+impl<K, V, O, F> Debug for ExtractIf<'_, K, V, O, F>
+where
+    K: Debug,
+    V: Debug,
+    F: FnMut(&K, &mut V) -> bool,
+{
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.inner.fmt(f)
+    }
 }
 
 /// Observer implementation for [`HashMap<K, V>`].
@@ -170,6 +240,26 @@ where
     O::Head: Sized,
     K: Clone,
 {
+    fn __force_all(&mut self) -> &mut HashMap<K, Box<O>>
+    where
+        K: Eq + Hash,
+    {
+        let map = (*self.ptr).as_deref();
+        let inner = self.inner.get_mut();
+        for (key, value) in map.iter() {
+            match inner.entry(key.clone()) {
+                Entry::Occupied(occupied) => {
+                    let observer = occupied.into_mut().as_mut();
+                    unsafe { O::refresh(observer, value) }
+                }
+                Entry::Vacant(vacant) => {
+                    vacant.insert(Box::new(O::observe(value)));
+                }
+            }
+        }
+        inner
+    }
+
     /// See [`HashMap::clear`].
     #[inline]
     pub fn clear(&mut self) {
@@ -219,20 +309,47 @@ where
             return self.observed_mut().remove(key);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        self.inner.get_mut().remove::<K>(&key);
-        match diff.entry(key) {
-            Entry::Occupied(mut e) => {
-                if matches!(e.get(), ValueState::Inserted) {
-                    e.remove();
-                } else {
-                    e.insert(ValueState::Deleted);
-                }
-            }
-            Entry::Vacant(e) => {
-                e.insert(ValueState::Deleted);
-            }
-        }
+        mark_deleted(diff, self.inner.get_mut(), key);
         Some(old_value)
+    }
+
+    /// See [`HashMap::remove_entry`].
+    pub fn remove_entry<Q>(&mut self, key: &Q) -> Option<(K, O::Head)>
+    where
+        K: Borrow<Q> + Eq + Hash,
+        Q: Eq + Hash + ?Sized,
+    {
+        let Some(diff) = &mut self.diff else {
+            return self.observed_mut().remove_entry(key);
+        };
+        let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
+        Some((key, old_value))
+    }
+
+    /// See [`HashMap::retain`].
+    #[inline]
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        K: Eq + Hash,
+        F: FnMut(&K, &mut O::Head) -> bool,
+    {
+        self.extract_if(|k, v| !f(k, v)).for_each(drop);
+    }
+
+    /// See [`HashMap::extract_if`].
+    pub fn extract_if<F>(&mut self, pred: F) -> ExtractIf<'_, K, O::Head, O, F>
+    where
+        K: Eq + Hash,
+        F: FnMut(&K, &mut O::Head) -> bool,
+    {
+        let inner = (*self.ptr).as_deref_mut().extract_if(pred);
+        let diff = if let Some(diff) = &mut self.diff {
+            Some((diff, self.inner.get_mut()))
+        } else {
+            None
+        };
+        ExtractIf { inner, diff }
     }
 
     /// See [`HashMap::get`].
@@ -269,6 +386,24 @@ where
             }
             Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
         }
+    }
+
+    /// See [`HashMap::iter_mut`].
+    #[inline]
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut O)> + '_
+    where
+        K: Eq + Hash,
+    {
+        self.__force_all().iter_mut().map(|(k, v)| (k, v.as_mut()))
+    }
+
+    /// See [`HashMap::values_mut`].
+    #[inline]
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut O> + '_
+    where
+        K: Eq + Hash,
+    {
+        self.__force_all().values_mut().map(|v| v.as_mut())
     }
 }
 
@@ -349,6 +484,23 @@ where
     }
 }
 
+// TODO: this inserts elements one by one, which is much slower than `HashMap::extend`.
+// Consider a bulk-insert approach that updates `diff` in one pass.
+impl<'ob, K, O, S: ?Sized, D> Extend<(K, O::Head)> for HashMapObserver<'ob, K, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = HashMap<K, O::Head>> + 'ob,
+    O: Observer<InnerDepth = Zero>,
+    O::Head: Sized,
+    K: Clone + Eq + Hash,
+{
+    fn extend<I: IntoIterator<Item = (K, O::Head)>>(&mut self, iter: I) {
+        for (key, value) in iter {
+            self.insert(key, value);
+        }
+    }
+}
+
 impl<K, V: Observe> Observe for HashMap<K, V> {
     type Observer<'ob, S, D>
         = HashMapObserver<'ob, K, V::Observer<'ob, V, Zero>, S, D>
@@ -386,5 +538,196 @@ where
                 .iter()
                 .zip(snapshot.iter())
                 .all(|((key_a, value_a), (key_b, value_b))| key_a.eq_snapshot(key_b) && value_a.eq_snapshot(value_b))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use serde_json::json;
+
+    use super::*;
+    use crate::adapter::Json;
+    use crate::observe::{ObserveExt, SerializeObserverExt};
+    use crate::{Mutation, MutationKind};
+
+    #[test]
+    fn remove_nonexistent_key() {
+        let mut map = HashMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        assert_eq!(ob.remove("nonexistent"), None);
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn insert_then_remove() {
+        let mut map = HashMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        assert_eq!(ob.insert("b", "y".to_string()), None);
+        assert_eq!(ob.remove("b"), Some("y".to_string()));
+        assert_eq!(ob.observed_ref().len(), 1);
+        assert_eq!(ob.observed_ref().get("a"), Some(&"x".to_string()));
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn remove_then_insert() {
+        let mut map = HashMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        assert_eq!(ob.remove("a"), Some("x".to_string()));
+        assert_eq!(ob.insert("a", "y".to_string()), None);
+        assert_eq!(ob.observed_ref().get("a"), Some(&"y".to_string()));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!("y")),
+            })
+        );
+    }
+
+    #[test]
+    fn remove_entry() {
+        let mut map = HashMap::from([("a", "x".to_string()), ("b", "y".to_string())]);
+        let mut ob = map.__observe();
+        assert_eq!(ob.remove_entry("a"), Some(("a", "x".to_string())));
+        assert_eq!(ob.observed_ref().len(), 1);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Delete,
+            })
+        );
+    }
+
+    #[test]
+    fn retain() {
+        let mut map = HashMap::from([("a", 1i32), ("b", 2), ("c", 3)]);
+        let mut ob = map.__observe();
+        ob.retain(|_, v| *v % 2 != 0);
+        assert_eq!(ob.observed_ref(), &HashMap::from([("a", 1), ("c", 3)]));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Delete,
+            })
+        );
+    }
+
+    #[test]
+    fn extend() {
+        let mut map = HashMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        ob.extend([("b", "y".to_string()), ("c", "z".to_string())]);
+        assert_eq!(ob.observed_ref().len(), 3);
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some());
+    }
+
+    #[test]
+    fn extract_if() {
+        let mut map = HashMap::from([("a", 1i32), ("b", 2), ("c", 3), ("d", 4)]);
+        let mut ob = map.__observe();
+        let extracted: HashMap<_, _> = ob.extract_if(|_, v| *v % 2 == 0).collect();
+        assert_eq!(extracted, HashMap::from([("b", 2), ("d", 4)]));
+        assert_eq!(ob.observed_ref(), &HashMap::from([("a", 1), ("c", 3)]));
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some());
+        let mutation = mutation.unwrap();
+        assert!(matches!(mutation.kind, MutationKind::Batch(_)));
+    }
+
+    #[test]
+    fn extract_if_insert_then_extract() {
+        let mut map = HashMap::from([("a", 1i32)]);
+        let mut ob = map.__observe();
+        ob.insert("b", 2);
+        // extract "b" which was just inserted: net no-op
+        let extracted: HashMap<_, _> = ob.extract_if(|k, _| *k == "b").collect();
+        assert_eq!(extracted, HashMap::from([("b", 2)]));
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn get_mut_then_insert() {
+        let mut map = HashMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        ob.get_mut("a").unwrap().push_str(" world");
+        ob.insert("a", "bye".to_string());
+        assert_eq!(ob.observed_ref().get("a"), Some(&"bye".to_string()));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!("bye")),
+            })
+        );
+    }
+
+    #[test]
+    fn insert_then_get_mut() {
+        let mut map = HashMap::from([("a", "x".to_string())]);
+        let mut ob = map.__observe();
+        ob.insert("b", "hello".to_string());
+        ob.get_mut("b").unwrap().push_str(" world");
+        assert_eq!(ob.observed_ref().get("b"), Some(&"hello world".to_string()));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Replace(json!("hello world")),
+            })
+        );
+    }
+
+    #[test]
+    fn iter_mut() {
+        let mut map = HashMap::from([("a", "x".to_string()), ("b", "y".to_string())]);
+        let mut ob = map.__observe();
+        for (_, v) in ob.iter_mut() {
+            v.push_str("!");
+        }
+        assert_eq!(ob.observed_ref().get("a"), Some(&"x!".to_string()));
+        assert_eq!(ob.observed_ref().get("b"), Some(&"y!".to_string()));
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some());
+        let mutation = mutation.unwrap();
+        assert!(matches!(mutation.kind, MutationKind::Batch(_)));
+        if let MutationKind::Batch(batch) = mutation.kind {
+            assert_eq!(batch.len(), 2);
+            for m in &batch {
+                assert_eq!(m.kind, MutationKind::Append(json!("!")));
+            }
+        }
+    }
+
+    #[test]
+    fn values_mut() {
+        let mut map = HashMap::from([("a", "hello".to_string()), ("b", "world".to_string())]);
+        let mut ob = map.__observe();
+        for v in ob.values_mut() {
+            v.push('~');
+        }
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some());
+        let mutation = mutation.unwrap();
+        assert!(matches!(mutation.kind, MutationKind::Batch(_)));
+        if let MutationKind::Batch(batch) = mutation.kind {
+            assert_eq!(batch.len(), 2);
+            for m in &batch {
+                assert_eq!(m.kind, MutationKind::Append(json!("~")));
+            }
+        }
     }
 }

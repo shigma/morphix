@@ -344,23 +344,13 @@ where
     }
 
     /// See [`BTreeMap::retain`].
+    #[inline]
     pub fn retain<F>(&mut self, mut f: F)
     where
         K: Ord,
         F: FnMut(&K, &mut O::Head) -> bool,
     {
-        let Some(diff) = &mut self.diff else {
-            return self.observed_mut().retain(f);
-        };
-        let inner = self.inner.get_mut();
-        (*self.ptr).as_deref_mut().retain(|key, value| {
-            if f(key, value) {
-                true
-            } else {
-                mark_deleted(diff, inner, key.clone());
-                false
-            }
-        });
+        self.extract_if(.., |k, v| !f(k, v)).for_each(drop);
     }
 
     /// See [`BTreeMap::append`].
