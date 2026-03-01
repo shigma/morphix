@@ -11,7 +11,7 @@
 
 mod array;
 mod atomic;
-mod btree_map;
+pub mod btree_map;
 mod deref;
 mod hash_map;
 mod option;

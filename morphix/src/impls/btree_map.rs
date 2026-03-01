@@ -1,8 +1,11 @@
+//! Observer implementation for [`BTreeMap<K, V>`].
+
 use std::borrow::Borrow;
 use std::cell::UnsafeCell;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry;
 use std::fmt::Debug;
+use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
 
@@ -23,6 +26,79 @@ enum ValueState {
     Inserted,
     /// Key existed in the original map and was removed.
     Deleted,
+}
+
+fn mark_deleted<K, O>(diff: &mut BTreeMap<K, ValueState>, inner: &mut BTreeMap<K, Box<O>>, key: K)
+where
+    K: Ord,
+{
+    inner.remove(&key);
+    match diff.entry(key) {
+        Entry::Occupied(mut e) => {
+            if matches!(e.get(), ValueState::Inserted) {
+                e.remove();
+            } else {
+                e.insert(ValueState::Deleted);
+            }
+        }
+        Entry::Vacant(e) => {
+            e.insert(ValueState::Deleted);
+        }
+    }
+}
+
+/// Iterator produced by [`BTreeMapObserver::extract_if`].
+#[allow(clippy::type_complexity)]
+pub struct ExtractIf<'a, K, V, O, R, F>
+where
+    R: RangeBounds<K>,
+    F: FnMut(&K, &mut V) -> bool,
+{
+    inner: std::collections::btree_map::ExtractIf<'a, K, V, R, F>,
+    diff: Option<(&'a mut BTreeMap<K, ValueState>, &'a mut BTreeMap<K, Box<O>>)>,
+}
+
+impl<K, V, O, R, F> Iterator for ExtractIf<'_, K, V, O, R, F>
+where
+    K: Clone + Ord,
+    R: RangeBounds<K>,
+    F: FnMut(&K, &mut V) -> bool,
+{
+    type Item = (K, V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let (key, value) = self.inner.next()?;
+        if let Some((diff, inner)) = &mut self.diff {
+            mark_deleted(diff, inner, key.clone());
+        }
+        Some((key, value))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<K, V, O, R, F> FusedIterator for ExtractIf<'_, K, V, O, R, F>
+where
+    K: Clone + Ord,
+    R: RangeBounds<K>,
+    F: FnMut(&K, &mut V) -> bool,
+{
+}
+
+impl<K, V, O, R, F> Debug for ExtractIf<'_, K, V, O, R, F>
+where
+    K: Debug,
+    V: Debug,
+    R: RangeBounds<K>,
+    F: FnMut(&K, &mut V) -> bool,
+{
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.inner.fmt(f)
+    }
 }
 
 /// Observer implementation for [`BTreeMap<K, V>`].
@@ -154,23 +230,24 @@ where
     O::Head: Sized,
     K: Clone,
 {
-    fn mark_deleted(diff: &mut BTreeMap<K, ValueState>, inner: &mut BTreeMap<K, Box<O>>, key: K)
+    fn __force_all(&mut self) -> &mut BTreeMap<K, Box<O>>
     where
         K: Ord,
     {
-        inner.remove(&key);
-        match diff.entry(key) {
-            Entry::Occupied(mut e) => {
-                if matches!(e.get(), ValueState::Inserted) {
-                    e.remove();
-                } else {
-                    e.insert(ValueState::Deleted);
+        let map = (*self.ptr).as_deref();
+        let inner = self.inner.get_mut();
+        for (key, value) in map.iter() {
+            match inner.entry(key.clone()) {
+                Entry::Occupied(occupied) => {
+                    let observer = occupied.into_mut().as_mut();
+                    unsafe { O::refresh(observer, value) }
+                }
+                Entry::Vacant(vacant) => {
+                    vacant.insert(Box::new(O::observe(value)));
                 }
             }
-            Entry::Vacant(e) => {
-                e.insert(ValueState::Deleted);
-            }
         }
+        inner
     }
 
     /// See [`BTreeMap::clear`].
@@ -222,7 +299,7 @@ where
             return self.observed_mut().remove(key);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        Self::mark_deleted(diff, self.inner.get_mut(), key);
+        mark_deleted(diff, self.inner.get_mut(), key);
         Some(old_value)
     }
 
@@ -236,7 +313,7 @@ where
             return self.observed_mut().remove_entry(key);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        Self::mark_deleted(diff, self.inner.get_mut(), key.clone());
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
@@ -249,7 +326,7 @@ where
             return self.observed_mut().pop_first();
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().pop_first()?;
-        Self::mark_deleted(diff, self.inner.get_mut(), key.clone());
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
@@ -262,7 +339,7 @@ where
             return self.observed_mut().pop_last();
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().pop_last()?;
-        Self::mark_deleted(diff, self.inner.get_mut(), key.clone());
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
@@ -280,7 +357,7 @@ where
             if f(key, value) {
                 true
             } else {
-                Self::mark_deleted(diff, inner, key.clone());
+                mark_deleted(diff, inner, key.clone());
                 false
             }
         });
@@ -313,9 +390,43 @@ where
         let split = (*self.ptr).as_deref_mut().split_off(key);
         let inner = self.inner.get_mut();
         for key in split.keys().cloned() {
-            Self::mark_deleted(diff, inner, key);
+            mark_deleted(diff, inner, key);
         }
         split
+    }
+
+    /// See [`BTreeMap::extract_if`].
+    pub fn extract_if<F, R>(&mut self, range: R, pred: F) -> ExtractIf<'_, K, O::Head, O, R, F>
+    where
+        K: Ord,
+        R: RangeBounds<K>,
+        F: FnMut(&K, &mut O::Head) -> bool,
+    {
+        let inner = (*self.ptr).as_deref_mut().extract_if(range, pred);
+        let diff = if let Some(diff) = &mut self.diff {
+            Some((diff, self.inner.get_mut()))
+        } else {
+            None
+        };
+        ExtractIf { inner, diff }
+    }
+
+    /// See [`BTreeMap::iter_mut`].
+    #[inline]
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut O)> + '_
+    where
+        K: Ord,
+    {
+        self.__force_all().iter_mut().map(|(k, v)| (k, v.as_mut()))
+    }
+
+    /// See [`BTreeMap::values_mut`].
+    #[inline]
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut O> + '_
+    where
+        K: Ord,
+    {
+        self.__force_all().values_mut().map(|v| v.as_mut())
     }
 
     /// See [`BTreeMap::get`].
@@ -737,6 +848,88 @@ mod tests {
         assert_eq!(ob.observed_ref().len(), 3);
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
+    }
+
+    #[test]
+    fn extract_if() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2), ("c", 3), ("d", 4)]);
+        let mut ob = map.__observe();
+        let extracted: BTreeMap<_, _> = ob.extract_if(.., |_, v| *v % 2 == 0).collect();
+        assert_eq!(extracted, BTreeMap::from([("b", 2), ("d", 4)]));
+        assert_eq!(ob.observed_ref(), &BTreeMap::from([("a", 1), ("c", 3)]));
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some());
+        let mutation = mutation.unwrap();
+        assert!(matches!(mutation.kind, MutationKind::Batch(_)));
+    }
+
+    #[test]
+    fn extract_if_partial_drain() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2), ("c", 3), ("d", 4)]);
+        let mut ob = map.__observe();
+        // Only take the first matching element, then drop the iterator.
+        let first = ob.extract_if(.., |_, v| *v % 2 == 0).next();
+        assert_eq!(first, Some(("b", 2)));
+        // "d" matched the predicate but was never yielded, so it must be retained.
+        assert_eq!(ob.observed_ref(), &BTreeMap::from([("a", 1), ("c", 3), ("d", 4)]));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Delete,
+            })
+        );
+    }
+
+    #[test]
+    fn extract_if_insert_then_extract() {
+        let mut map = BTreeMap::from([("a", 1i32)]);
+        let mut ob = map.__observe();
+        ob.insert("b", 2);
+        // extract "b" which was just inserted: net no-op
+        let extracted: BTreeMap<_, _> = ob.extract_if(.., |k, _| *k == "b").collect();
+        assert_eq!(extracted, BTreeMap::from([("b", 2)]));
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn iter_mut() {
+        let mut map = BTreeMap::from([("a", "x".to_string()), ("b", "y".to_string())]);
+        let mut ob = map.__observe();
+        for (_, v) in ob.iter_mut() {
+            v.push_str("!");
+        }
+        assert_eq!(ob.observed_ref().get("a"), Some(&"x!".to_string()));
+        assert_eq!(ob.observed_ref().get("b"), Some(&"y!".to_string()));
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some());
+        let mutation = mutation.unwrap();
+        assert!(matches!(mutation.kind, MutationKind::Batch(_)));
+        if let MutationKind::Batch(batch) = mutation.kind {
+            assert_eq!(batch.len(), 2);
+            assert_eq!(batch[0].kind, MutationKind::Append(json!("!")));
+            assert_eq!(batch[1].kind, MutationKind::Append(json!("!")));
+        }
+    }
+
+    #[test]
+    fn values_mut() {
+        let mut map = BTreeMap::from([("a", "hello".to_string()), ("b", "world".to_string())]);
+        let mut ob = map.__observe();
+        for v in ob.values_mut() {
+            v.push('~');
+        }
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some());
+        let mutation = mutation.unwrap();
+        assert!(matches!(mutation.kind, MutationKind::Batch(_)));
+        if let MutationKind::Batch(batch) = mutation.kind {
+            assert_eq!(batch.len(), 2);
+            assert_eq!(batch[0].kind, MutationKind::Append(json!("~")));
+            assert_eq!(batch[1].kind, MutationKind::Append(json!("~")));
+        }
     }
 
     #[test]
