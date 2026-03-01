@@ -166,7 +166,7 @@ impl SliceObserverDiff for TruncateAppend {
 
 /// Observer implementation for slices `[T]`.
 pub struct SliceObserver<V, M, S: ?Sized, D = Zero> {
-    ptr: Pointer<S>,
+    pub(super) ptr: Pointer<S>,
     pub(super) children: V,
     pub(super) diff: Option<M>,
     phantom: PhantomData<D>,

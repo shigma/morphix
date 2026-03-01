@@ -1,9 +1,10 @@
 use std::cell::UnsafeCell;
 use std::collections::TryReserveError;
 use std::fmt::Debug;
+use std::iter::FusedIterator;
 use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 use std::slice::SliceIndex;
-use std::vec::{Drain, ExtractIf, Splice};
+use std::vec::{Drain, Splice};
 
 use serde::Serialize;
 
@@ -320,6 +321,15 @@ where
         self.untracked_mut().splice(range, replace_with)
     }
 
+    /// See [`Vec::retain`].
+    #[inline]
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&T) -> bool,
+    {
+        self.extract_if(.., |v| !f(v)).for_each(drop);
+    }
+
     /// See [`Vec::extract_if`].
     pub fn extract_if<F, R>(&mut self, range: R, filter: F) -> ExtractIf<'_, T, F>
     where
@@ -332,22 +342,67 @@ where
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= append_index {
-            return self.untracked_mut().extract_if(range, filter);
-        }
-        if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.observed_mut().extract_if(range, filter);
-        }
-        let end_index = match range.end_bound() {
-            Bound::Included(&n) => n + 1,
-            Bound::Excluded(&n) => n,
-            Bound::Unbounded => (*self).observed_ref().len(),
+        let vec = (*self.inner.ptr).as_deref_mut();
+        let inner = vec.extract_if(range, filter);
+        let diff = if start_index < append_index {
+            Some((&mut self.inner.diff, start_index))
+        } else {
+            None
         };
-        if end_index < append_index {
-            return self.observed_mut().extract_if(range, filter);
+        ExtractIf { inner, diff }
+    }
+}
+
+/// Iterator produced by [`VecObserver::extract_if`].
+#[cfg(any(feature = "append", feature = "truncate"))]
+pub struct ExtractIf<'a, T, F>
+where
+    F: FnMut(&mut T) -> bool,
+{
+    inner: std::vec::ExtractIf<'a, T, F>,
+    diff: Option<(&'a mut Option<TruncateAppend>, usize)>,
+}
+
+#[cfg(any(feature = "append", feature = "truncate"))]
+impl<T, F> Iterator for ExtractIf<'_, T, F>
+where
+    F: FnMut(&mut T) -> bool,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let value = self.inner.next()?;
+        // Update diff on first extraction. We use `start_index` (range start) instead of
+        // the actual index of the extracted element because `std::vec::ExtractIf` only
+        // yields `T` values without index information.
+        if let Some((diff, start_index)) = self.diff.take() {
+            if cfg!(not(feature = "truncate")) || start_index == 0 {
+                *diff = None;
+            } else if let Some(ta) = diff.as_mut() {
+                ta.truncate_len += ta.append_index - start_index;
+                ta.append_index = start_index;
+            }
         }
-        self.__mark_truncate(start_index);
-        self.untracked_mut().extract_if(range, filter)
+        Some(value)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+#[cfg(any(feature = "append", feature = "truncate"))]
+impl<T, F> FusedIterator for ExtractIf<'_, T, F> where F: FnMut(&mut T) -> bool {}
+
+#[cfg(any(feature = "append", feature = "truncate"))]
+impl<T: Debug, F> Debug for ExtractIf<'_, T, F>
+where
+    F: FnMut(&mut T) -> bool,
+{
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.inner.fmt(f)
     }
 }
 
@@ -728,5 +783,70 @@ mod tests {
         assert_eq!(ob[2], "cd");
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn extract_if_no_match() {
+        let mut vec = vec![1, 2, 3];
+        let mut ob = vec.__observe();
+        let extracted: Vec<_> = ob.extract_if(.., |x| *x > 10).collect();
+        assert!(extracted.is_empty());
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn extract_if_after_append_index() {
+        let mut vec = vec![1, 2];
+        let mut ob = vec.__observe();
+        ob.push(3);
+        ob.push(4);
+        // Range starts at append_index, so extraction is fully untracked.
+        let extracted: Vec<_> = ob.extract_if(2.., |x| *x > 2).collect();
+        assert_eq!(extracted, vec![3, 4]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn extract_if_before_append_index() {
+        let mut vec = vec![1, 2, 3, 4];
+        let mut ob = vec.__observe();
+        // start_index == 0 triggers Replace on first extraction.
+        let extracted: Vec<_> = ob.extract_if(.., |x| *x % 2 == 0).collect();
+        assert_eq!(extracted, vec![2, 4]);
+        assert_eq!(ob, vec![1, 3]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!([1, 3])));
+    }
+
+    #[test]
+    fn extract_if_straddles_append_index() {
+        let mut vec = vec![1, 2, 3];
+        let mut ob = vec.__observe();
+        ob.push(4);
+        ob.push(5);
+        // Range 1.. straddles: start_index=1 < append_index=3.
+        // First extraction triggers mark_truncate(1).
+        let extracted: Vec<_> = ob.extract_if(1.., |x| *x % 2 == 0).collect();
+        assert_eq!(extracted, vec![2, 4]);
+        assert_eq!(ob, vec![1, 3, 5]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Batch(vec![
+                    Mutation {
+                        path: vec![].into(),
+                        kind: MutationKind::Truncate(2),
+                    },
+                    Mutation {
+                        path: vec![].into(),
+                        kind: MutationKind::Append(json!([3, 5])),
+                    },
+                ]),
+            })
+        );
     }
 }
