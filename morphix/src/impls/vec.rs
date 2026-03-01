@@ -74,7 +74,7 @@ where
 impl<O, S: ?Sized, D, T> SerializeObserver for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
+    S: AsDeref<D, Target = Vec<T>>,
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
@@ -121,7 +121,7 @@ where
 {
     #[inline]
     pub(super) fn __append_index(&mut self) -> usize {
-        match &self.inner.mutation {
+        match &self.inner.diff {
             Some(m) => m.append_index,
             None => 0,
         }
@@ -152,7 +152,7 @@ where
 {
     #[inline]
     fn __mark_truncate(&mut self, append_index: usize) {
-        let mutation = self.mutation.as_mut().unwrap();
+        let mutation = self.diff.as_mut().unwrap();
         mutation.truncate_len += mutation.append_index - append_index;
         mutation.append_index = append_index;
     }
@@ -708,5 +708,25 @@ mod tests {
                 ]),
             })
         )
+    }
+
+    #[test]
+    fn pop_push_clears_stale_state() {
+        let mut vec = vec!["a".to_string(), "b".to_string(), "ab".to_string()];
+        let mut ob = vec.__observe();
+
+        // Modify element 2, then pop and push back in the SAME cycle.
+        // The inner observer Vec never sees a shorter length, so resize_with
+        // alone cannot clear the stale state — flush must reset it.
+        ob[2].truncate(1);
+        ob.pop();
+        ob.push("cd".to_string());
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some()); // Truncate(1) + Append(["cd"])
+
+        // Next cycle: element 2 should have a fresh observer.
+        assert_eq!(ob[2], "cd");
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
     }
 }

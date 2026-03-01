@@ -26,11 +26,11 @@ enum ValueState {
     Deleted,
 }
 
-fn mark_deleted<K, O>(diff: &mut HashMap<K, ValueState>, inner: &mut HashMap<K, Box<O>>, key: K)
+fn mark_deleted<K, O>(diff: &mut HashMap<K, ValueState>, children: &mut HashMap<K, Box<O>>, key: K)
 where
     K: Eq + Hash,
 {
-    inner.remove(&key);
+    children.remove(&key);
     match diff.entry(key) {
         Entry::Occupied(mut e) => {
             if matches!(e.get(), ValueState::Inserted) {
@@ -52,7 +52,7 @@ where
     F: FnMut(&K, &mut V) -> bool,
 {
     inner: std::collections::hash_map::ExtractIf<'a, K, V, F>,
-    diff: Option<(&'a mut HashMap<K, ValueState>, &'a mut HashMap<K, Box<O>>)>,
+    diff_children: Option<(&'a mut HashMap<K, ValueState>, &'a mut HashMap<K, Box<O>>)>,
 }
 
 impl<K, V, O, F> Iterator for ExtractIf<'_, K, V, O, F>
@@ -64,8 +64,8 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let (key, value) = self.inner.next()?;
-        if let Some((diff, inner)) = &mut self.diff {
-            mark_deleted(diff, inner, key.clone());
+        if let Some((diff, children)) = &mut self.diff_children {
+            mark_deleted(diff, children, key.clone());
         }
         Some((key, value))
     }
@@ -109,7 +109,7 @@ pub struct HashMapObserver<'ob, K, O, S: ?Sized, D = Zero> {
     /// Boxed to ensure pointer stability: [`HashMap`] rehashing moves all entries to a new
     /// allocation, which would invalidate references to inline values. [`Box`] adds a layer
     /// of indirection so that only the pointer is moved, not the observer itself.
-    inner: UnsafeCell<HashMap<K, Box<O>>>,
+    children: UnsafeCell<HashMap<K, Box<O>>>,
     phantom: PhantomData<&'ob mut D>,
 }
 
@@ -126,7 +126,7 @@ impl<'ob, K, O, S: ?Sized, D> DerefMut for HashMapObserver<'ob, K, O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.diff = None;
-        self.inner.get_mut().clear();
+        self.children.get_mut().clear();
         &mut self.ptr
     }
 }
@@ -152,7 +152,7 @@ where
         Self {
             ptr: Pointer::uninit(),
             diff: None,
-            inner: Default::default(),
+            children: Default::default(),
             phantom: PhantomData,
         }
     }
@@ -167,7 +167,7 @@ where
         Self {
             ptr: Pointer::new(value),
             diff: Some(Default::default()),
-            inner: Default::default(),
+            children: Default::default(),
             phantom: PhantomData,
         }
     }
@@ -195,7 +195,7 @@ where
                     unreachable!("delete feature is not enabled");
                 }
                 ValueState::Replaced | ValueState::Inserted => {
-                    this.inner.get_mut().remove(&key);
+                    this.children.get_mut().remove(&key);
                     let value = (*this.ptr)
                         .as_deref()
                         .get(&key)
@@ -204,7 +204,7 @@ where
                 }
             }
         }
-        for (key, mut observer) in std::mem::take(this.inner.get_mut()) {
+        for (key, mut observer) in std::mem::take(this.children.get_mut()) {
             let value = (*this.ptr)
                 .as_deref()
                 .get(&key)
@@ -248,7 +248,7 @@ where
     {
         let (key, value) = self.observed_ref().get_key_value(key)?;
         let key_cloned = key.clone();
-        match unsafe { (*self.inner.get()).entry(key_cloned) } {
+        match unsafe { (*self.children.get()).entry(key_cloned) } {
             Entry::Occupied(occupied) => {
                 let observer = occupied.into_mut().as_mut();
                 unsafe { O::refresh(observer, value) }
@@ -272,9 +272,9 @@ where
         K: Eq + Hash,
     {
         let map = (*self.ptr).as_deref();
-        let inner = self.inner.get_mut();
+        let children = self.children.get_mut();
         for (key, value) in map.iter() {
-            match inner.entry(key.clone()) {
+            match children.entry(key.clone()) {
                 Entry::Occupied(occupied) => {
                     let observer = occupied.into_mut().as_mut();
                     unsafe { O::refresh(observer, value) }
@@ -284,7 +284,7 @@ where
                 }
             }
         }
-        inner
+        children
     }
 
     /// See [`HashMap::get_mut`].
@@ -295,7 +295,7 @@ where
     {
         let (key, value) = (*self.ptr).as_deref().get_key_value(key)?;
         let key_cloned = key.clone();
-        match self.inner.get_mut().entry(key_cloned) {
+        match self.children.get_mut().entry(key_cloned) {
             Entry::Occupied(occupied) => {
                 let observer = occupied.into_mut().as_mut();
                 unsafe { O::refresh(observer, value) }
@@ -308,7 +308,7 @@ where
     /// See [`HashMap::clear`].
     #[inline]
     pub fn clear(&mut self) {
-        self.inner.get_mut().clear();
+        self.children.get_mut().clear();
         if (*self).observed_ref().is_empty() {
             self.untracked_mut().clear()
         } else {
@@ -326,7 +326,7 @@ where
         };
         let key_cloned = key.clone();
         let old_value = (*self.ptr).as_deref_mut().insert(key_cloned, value);
-        self.inner.get_mut().remove(&key);
+        self.children.get_mut().remove(&key);
         match diff.entry(key) {
             Entry::Occupied(mut e) => {
                 if matches!(e.get(), ValueState::Deleted) {
@@ -354,7 +354,7 @@ where
             return self.observed_mut().remove(key);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        mark_deleted(diff, self.inner.get_mut(), key);
+        mark_deleted(diff, self.children.get_mut(), key);
         Some(old_value)
     }
 
@@ -368,7 +368,7 @@ where
             return self.observed_mut().remove_entry(key);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        mark_deleted(diff, self.inner.get_mut(), key.clone());
+        mark_deleted(diff, self.children.get_mut(), key.clone());
         Some((key, old_value))
     }
 
@@ -389,12 +389,11 @@ where
         F: FnMut(&K, &mut O::Head) -> bool,
     {
         let inner = (*self.ptr).as_deref_mut().extract_if(pred);
-        let diff = if let Some(diff) = &mut self.diff {
-            Some((diff, self.inner.get_mut()))
-        } else {
-            None
+        let diff_children = match &mut self.diff {
+            Some(diff) => Some((diff, self.children.get_mut())),
+            None => None,
         };
-        ExtractIf { inner, diff }
+        ExtractIf { inner, diff_children }
     }
 
     /// See [`HashMap::iter_mut`].

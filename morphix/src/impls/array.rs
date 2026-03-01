@@ -7,11 +7,11 @@ use serde::Serialize;
 use crate::builtin::Snapshot;
 use crate::helper::macros::spec_impl_ref_observe;
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
-use crate::impls::slice::{ObserverSlice, SliceIndexImpl, SliceObserver};
+use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverChildren};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
-impl<O, const N: usize> ObserverSlice for [O; N]
+impl<O, const N: usize> SliceObserverChildren for [O; N]
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
@@ -65,14 +65,14 @@ where
     #[inline]
     pub fn each_ref(&self) -> [&O; N] {
         self.inner.__force_ref();
-        self.inner.obs.each_ref()
+        self.inner.children.each_ref()
     }
 
     /// See [`array::each_mut`].
     #[inline]
     pub fn each_mut(&mut self) -> [&mut O; N] {
         self.inner.__force_mut();
-        self.inner.obs.each_mut()
+        self.inner.children.each_mut()
     }
 }
 
@@ -131,7 +131,7 @@ where
 impl<const N: usize, O, S: ?Sized, D, T> SerializeObserver for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = [T; N]>,
+    S: AsDeref<D, Target = [T; N]>,
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
     T: Serialize,
 {

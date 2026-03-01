@@ -1,9 +1,4 @@
-//! Observer implementation for slices.
-//!
-//! This module provides [`SliceObserver`] for tracking element-level mutations on slices. It serves
-//! as the foundation for both [`VecObserver`](super::VecObserver) and
-//! [`ArrayObserver`](super::ArrayObserver), enabling them to track mutations to individual elements
-//! through indexing operations.
+//! Observer implementation for slices `[T]`.
 
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
@@ -24,7 +19,7 @@ use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 ///
 /// This trait abstracts over the storage and initialization of element observers, allowing
 /// [`SliceObserver`] to lazily create observers for individual elements as they are accessed.
-pub trait ObserverSlice {
+pub trait SliceObserverChildren {
     /// The element observer type.
     type Item: Observer<InnerDepth = Zero, Head: Sized>;
 
@@ -51,7 +46,7 @@ pub trait ObserverSlice {
 // entire duration of any `&self` borrow. Therefore, the first `init_range` call sizes the Vec to
 // its final length, and subsequent calls within the same `&self` borrow lifetime never trigger
 // reallocation, keeping all previously returned references valid.
-impl<O> ObserverSlice for UnsafeCell<Vec<O>>
+impl<O> SliceObserverChildren for UnsafeCell<Vec<O>>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
@@ -72,12 +67,9 @@ where
         Default::default()
     }
 
-    #[inline]
     fn init_range(&self, start: usize, end: usize, values: &[<Self::Item as ObserverExt>::Head]) {
         let inner = unsafe { &mut *self.get() };
-        if values.len() > inner.len() {
-            inner.resize_with(values.len(), O::uninit);
-        }
+        inner.resize_with(values.len(), O::uninit);
         let ob_iter = inner[start..end].iter_mut();
         let value_iter = values[start..end].iter();
         for (ob, value) in ob_iter.zip(value_iter) {
@@ -136,7 +128,7 @@ pub struct TruncateAppend {
 /// This trait abstracts over the mutation state management, allowing different strategies for
 /// tracking length changes. The unit type `()` implements this trait for observers that don't track
 /// append / truncate operations.
-pub trait SliceMutation {
+pub trait SliceObserverDiff {
     /// Creates the initial mutation state for a slice of the given length.
     fn observe(len: usize) -> Self;
 
@@ -144,7 +136,7 @@ pub trait SliceMutation {
     fn collect(self, len: usize) -> TruncateAppend;
 }
 
-impl SliceMutation for () {
+impl SliceObserverDiff for () {
     #[inline]
     fn observe(_len: usize) -> Self {}
 
@@ -157,7 +149,7 @@ impl SliceMutation for () {
     }
 }
 
-impl SliceMutation for TruncateAppend {
+impl SliceObserverDiff for TruncateAppend {
     #[inline]
     fn observe(len: usize) -> Self {
         TruncateAppend {
@@ -175,15 +167,15 @@ impl SliceMutation for TruncateAppend {
 /// Observer implementation for slices `[T]`.
 pub struct SliceObserver<V, M, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
-    pub(super) obs: V,
-    pub(super) mutation: Option<M>,
+    pub(super) children: V,
+    pub(super) diff: Option<M>,
     phantom: PhantomData<D>,
 }
 
 impl<V, M, S: ?Sized, D> SliceObserver<V, M, S, D> {
     #[inline]
     pub(super) fn __mark_replace(&mut self) {
-        self.mutation = None;
+        self.diff = None;
     }
 }
 
@@ -198,19 +190,19 @@ impl<V, M, S: ?Sized, D> Deref for SliceObserver<V, M, S, D> {
 
 impl<V, M, S: ?Sized, D> DerefMut for SliceObserver<V, M, S, D>
 where
-    V: ObserverSlice,
+    V: SliceObserverChildren,
 {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.__mark_replace();
-        self.obs = V::uninit();
+        self.children = V::uninit();
         &mut self.ptr
     }
 }
 
 impl<V, M, S: ?Sized, D> QuasiObserver for SliceObserver<V, M, S, D>
 where
-    V: ObserverSlice,
+    V: SliceObserverChildren,
     D: Unsigned,
     S: AsDeref<D>,
 {
@@ -220,8 +212,8 @@ where
 
 impl<V, M, S: ?Sized, D, O, T> Observer for SliceObserver<V, M, S, D>
 where
-    V: ObserverSlice<Item = O>,
-    M: SliceMutation,
+    V: SliceObserverChildren<Item = O>,
+    M: SliceObserverDiff,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
@@ -231,8 +223,8 @@ where
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
-            obs: V::uninit(),
-            mutation: None,
+            children: V::uninit(),
+            diff: None,
             phantom: PhantomData,
         }
     }
@@ -241,8 +233,8 @@ where
     fn observe(value: &Self::Head) -> Self {
         Self {
             ptr: Pointer::new(value),
-            obs: V::uninit(),
-            mutation: Some(M::observe(value.as_deref().as_ref().len())),
+            children: V::uninit(),
+            diff: Some(M::observe(value.as_deref().as_ref().len())),
             phantom: PhantomData,
         }
     }
@@ -255,17 +247,17 @@ where
 
 impl<V, M, S: ?Sized, D, O, T> SerializeObserver for SliceObserver<V, M, S, D>
 where
-    V: ObserverSlice<Item = O>,
-    M: SliceMutation,
+    V: SliceObserverChildren<Item = O>,
+    M: SliceObserverDiff,
     D: Unsigned,
-    S: AsDerefMut<D>,
+    S: AsDeref<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let len = (*this.ptr).as_deref().as_ref().len();
-        let Some(truncate_append) = this.mutation.replace(M::observe(len)) else {
+        let Some(truncate_append) = this.diff.replace(M::observe(len)) else {
             return Ok(MutationKind::Replace(A::serialize_value((*this.ptr).as_deref().as_ref())?).into());
         };
         let mut mutations = Mutations::new();
@@ -283,11 +275,20 @@ where
                 &(*this.ptr).as_deref().as_ref()[append_index..],
             )?));
         }
-        for (index, observer) in this[..append_index].iter_mut().enumerate() {
+        this.__init_index(&..append_index);
+        let (children, rest) = this.children.as_mut_slice().split_at_mut(append_index);
+        for (index, observer) in children.iter_mut().enumerate() {
             mutations.insert(
                 PathSegment::Negative(len - index),
                 SerializeObserver::flush::<A>(observer)?,
             );
+        }
+        // Reset observers beyond append_index to prevent stale mutation state from
+        // surviving into future flush cycles. Without this, an observer that accumulated
+        // state (e.g., from a modified element that was later popped) would retain that
+        // state across cycles, producing incorrect mutations if the index is reused.
+        for observer in rest {
+            *observer = O::uninit();
         }
         Ok(mutations)
     }
@@ -295,9 +296,9 @@ where
 
 impl<V, M, S: ?Sized, D, T> SliceObserver<V, M, S, D>
 where
-    V: ObserverSlice,
+    V: SliceObserverChildren,
     V::Item: Observer<InnerDepth = Zero, Head = T>,
-    M: SliceMutation,
+    M: SliceObserverDiff,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
@@ -313,7 +314,7 @@ where
             return None;
         }
         let inner = self.observed_ref().as_ref();
-        self.obs.init_range(start, end, inner);
+        self.children.init_range(start, end, inner);
         Some(())
     }
 
@@ -323,7 +324,7 @@ where
         I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
     {
         self.__init_index(&index)?;
-        Some(self.obs.as_slice().index(index))
+        Some(self.children.as_slice().index(index))
     }
 
     #[inline]
@@ -332,30 +333,30 @@ where
         I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
     {
         self.__init_index(&index)?;
-        Some(self.obs.as_mut_slice().index_mut(index))
+        Some(self.children.as_mut_slice().index_mut(index))
     }
 
     #[inline]
     pub(crate) fn __force_ref(&self) -> &[V::Item] {
         let inner = self.observed_ref().as_ref();
-        self.obs.init_range(0, inner.len(), inner);
-        self.obs.as_slice()
+        self.children.init_range(0, inner.len(), inner);
+        self.children.as_slice()
     }
 
     #[inline]
     pub(crate) fn __force_mut(&mut self) -> &mut [V::Item] {
         let inner = (*self).observed_ref().as_ref();
-        self.obs.init_range(0, inner.len(), inner);
-        self.obs.as_mut_slice()
+        self.children.init_range(0, inner.len(), inner);
+        self.children.as_mut_slice()
     }
 }
 
 #[allow(clippy::type_complexity)]
 impl<V, M, S: ?Sized, D, T> SliceObserver<V, M, S, D>
 where
-    V: ObserverSlice,
+    V: SliceObserverChildren,
     V::Item: Observer<InnerDepth = Zero, Head = T>,
-    M: SliceMutation,
+    M: SliceObserverDiff,
     D: Unsigned,
     S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
@@ -559,7 +560,7 @@ macro_rules! generic_impl_partial_eq {
                 D: Unsigned,
                 S: AsDeref<D>,
                 S::Target: PartialEq<$ty>,
-                V: ObserverSlice,
+                V: SliceObserverChildren,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
@@ -584,8 +585,8 @@ where
     S1: AsDeref<D1>,
     S2: AsDeref<D2>,
     S1::Target: PartialEq<S2::Target>,
-    V1: ObserverSlice,
-    V2: ObserverSlice,
+    V1: SliceObserverChildren,
+    V2: SliceObserverChildren,
 {
     #[inline]
     fn eq(&self, other: &SliceObserver<V2, M2, S2, D2>) -> bool {
@@ -598,7 +599,7 @@ where
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: Eq,
-    V: ObserverSlice,
+    V: SliceObserverChildren,
 {
 }
 
@@ -607,7 +608,7 @@ where
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: PartialOrd<[U]>,
-    V: ObserverSlice,
+    V: SliceObserverChildren,
 {
     #[inline]
     fn partial_cmp(&self, other: &[U]) -> Option<std::cmp::Ordering> {
@@ -623,8 +624,8 @@ where
     S1: AsDeref<D1>,
     S2: AsDeref<D2>,
     S1::Target: PartialOrd<S2::Target>,
-    V1: ObserverSlice,
-    V2: ObserverSlice,
+    V1: SliceObserverChildren,
+    V2: SliceObserverChildren,
 {
     #[inline]
     fn partial_cmp(&self, other: &SliceObserver<V2, M2, S2, D2>) -> Option<std::cmp::Ordering> {
@@ -637,7 +638,7 @@ where
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: Ord,
-    V: ObserverSlice,
+    V: SliceObserverChildren,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -647,8 +648,8 @@ where
 
 impl<V, M, S: ?Sized, D, O, T, I> Index<I> for SliceObserver<V, M, S, D>
 where
-    V: ObserverSlice<Item = O>,
-    M: SliceMutation,
+    V: SliceObserverChildren<Item = O>,
+    M: SliceObserverDiff,
     D: Unsigned,
     S: AsDeref<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
@@ -665,8 +666,8 @@ where
 
 impl<V, M, S: ?Sized, D, O, T, I> IndexMut<I> for SliceObserver<V, M, S, D>
 where
-    V: ObserverSlice<Item = O>,
-    M: SliceMutation,
+    V: SliceObserverChildren<Item = O>,
+    M: SliceObserverDiff,
     D: Unsigned,
     S: AsDerefMut<D>,
     S::Target: AsRef<[T]> + AsMut<[T]>,
