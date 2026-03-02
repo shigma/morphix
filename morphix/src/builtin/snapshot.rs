@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 use std::mem::MaybeUninit;
+use std::num::NonZero;
 
 use crate::Observe;
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
@@ -174,6 +175,8 @@ macro_rules! impl_snapshot_observe {
 
 impl_snapshot_observe! {
     (), usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
+    NonZero<usize>, NonZero<u8>, NonZero<u16>, NonZero<u32>, NonZero<u64>, NonZero<u128>,
+    NonZero<isize>, NonZero<i8>, NonZero<i16>, NonZero<i32>, NonZero<i64>, NonZero<i128>,
     core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
     core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
     core::time::Duration, std::time::SystemTime,

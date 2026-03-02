@@ -100,7 +100,7 @@ where
 ///
 /// ## Limitations
 ///
-/// Most methods (e.g. [`insert`](Self::insert), [`remove`](Self::remove),
+/// Most methods (e.g. [`insert`](Self::insert), [`swap_remove`](Self::swap_remove),
 /// [`get_mut`](Self::get_mut)) require `K: Clone` because the observer maintains its own
 /// [`IndexMap`] of cloned keys to track per-key observers independently of the observed map's
 /// internal storage.

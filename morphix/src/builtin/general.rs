@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::num::NonZero;
 use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
@@ -509,6 +510,8 @@ macro_rules! impl_partial_eq {
 
 impl_partial_eq! {
     (), usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
+    NonZero<usize>, NonZero<u8>, NonZero<u16>, NonZero<u32>, NonZero<u64>, NonZero<u128>,
+    NonZero<isize>, NonZero<i8>, NonZero<i16>, NonZero<i32>, NonZero<i64>, NonZero<i128>,
     core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
     core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
     core::time::Duration, std::time::SystemTime,
@@ -545,6 +548,8 @@ macro_rules! impl_partial_ord {
 
 impl_partial_ord! {
     (), usize, u8, u16, u32, u64, u128, isize, i8, i16, i32, i64, i128, f32, f64, bool, char,
+    NonZero<usize>, NonZero<u8>, NonZero<u16>, NonZero<u32>, NonZero<u64>, NonZero<u128>,
+    NonZero<isize>, NonZero<i8>, NonZero<i16>, NonZero<i32>, NonZero<i64>, NonZero<i128>,
     core::net::IpAddr, core::net::Ipv4Addr, core::net::Ipv6Addr,
     core::net::SocketAddr, core::net::SocketAddrV4, core::net::SocketAddrV6,
     core::time::Duration, std::time::SystemTime,
@@ -559,7 +564,7 @@ impl_partial_ord! {
 
 #[cfg(feature = "uuid")]
 impl_partial_ord! {
-    uuid::Uuid, uuid::NonNilUuid,
+    uuid::Uuid,
 }
 
 macro_rules! generic_impl_cmp {
