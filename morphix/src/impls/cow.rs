@@ -1,17 +1,18 @@
 use std::borrow::Cow;
 use std::fmt::Debug;
-use std::ops::{Deref, DerefMut};
+use std::ops::{AddAssign, Deref, DerefMut};
 
 use crate::builtin::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::impls::DerefObserver;
+use crate::impls::{DerefObserver, StringObserver};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, RefObserve, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
 /// Observer implementation for [`Cow<'a, T>`].
 pub struct CowObserver<B, O> {
-    borrowed: B,
+    inner: B,
     owned: Option<O>,
+    mutated: bool,
 }
 
 impl<B, O> Deref for CowObserver<B, O> {
@@ -19,7 +20,7 @@ impl<B, O> Deref for CowObserver<B, O> {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.borrowed
+        &self.inner
     }
 }
 
@@ -27,7 +28,8 @@ impl<B, O> DerefMut for CowObserver<B, O> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.owned = None;
-        &mut self.borrowed
+        self.mutated = true;
+        &mut self.inner
     }
 }
 
@@ -52,24 +54,29 @@ where
     #[inline]
     fn uninit() -> Self {
         Self {
-            borrowed: B::uninit(),
+            inner: B::uninit(),
             owned: None,
+            mutated: false,
         }
     }
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
-        let borrowed = B::observe(head);
+        let inner = B::observe(head);
         let owned = match AsDeref::<D>::as_deref(head) {
             Cow::Borrowed(_) => None,
             Cow::Owned(value) => Some(O::observe(value)),
         };
-        Self { borrowed, owned }
+        Self {
+            inner,
+            owned,
+            mutated: false,
+        }
     }
 
     #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
-        unsafe { B::refresh(&mut this.borrowed, head) }
+        unsafe { B::refresh(&mut this.inner, head) }
         let value = AsDeref::<D>::as_deref(head);
         if let Some(owned) = &mut this.owned {
             match value {
@@ -89,12 +96,15 @@ where
     T: ToOwned + ?Sized + 'a,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        if let Some(mut owned) = this.owned.take() {
-            let head = &**this.borrowed.as_deref_coinductive();
-            this.borrowed = B::observe(head);
+        if let Some(mut owned) = this.owned.take()
+            && !this.mutated
+        {
+            let head = &**this.inner.as_deref_coinductive();
+            this.inner = B::observe(head);
             unsafe { O::flush_unchecked::<A>(&mut owned) }
         } else {
-            unsafe { B::flush_unchecked::<A>(&mut this.borrowed) }
+            this.owned = None;
+            unsafe { B::flush_unchecked::<A>(&mut this.inner) }
         }
     }
 }
@@ -110,14 +120,10 @@ where
     /// See [`Cow::to_mut`].
     #[inline]
     pub fn to_mut(&mut self) -> &mut O {
-        let head = unsafe { Pointer::as_mut(self.borrowed.as_deref_coinductive()) };
-        let cow: &mut Cow<'a, T> = AsDerefMut::<D>::as_deref_mut(head);
-        let owned: &T::Owned = cow.to_mut();
-        match &mut self.owned {
-            Some(ob) => unsafe { Observer::force(ob, owned) },
-            None => self.owned = Some(O::observe(owned)),
-        }
-        self.owned.as_mut().unwrap()
+        let head = unsafe { Pointer::as_mut(self.inner.as_deref_coinductive()) };
+        let value = AsDerefMut::<D>::as_deref_mut(head);
+        let owned = value.to_mut();
+        self.owned.get_or_insert_with(|| O::observe(owned))
     }
 }
 
@@ -127,7 +133,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("CowObserver").field(&self.borrowed).finish()
+        f.debug_tuple("CowObserver").field(&self.inner).finish()
     }
 }
 
@@ -137,7 +143,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &CowObserver<B2, O2>) -> bool {
-        self.borrowed.eq(&other.borrowed)
+        self.inner.eq(&other.inner)
     }
 }
 
@@ -149,7 +155,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &CowObserver<B2, O2>) -> Option<std::cmp::Ordering> {
-        self.borrowed.partial_cmp(&other.borrowed)
+        self.inner.partial_cmp(&other.inner)
     }
 }
 
@@ -159,7 +165,33 @@ where
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.borrowed.cmp(&other.borrowed)
+        self.inner.cmp(&other.inner)
+    }
+}
+
+impl<'ob, 'a, B, D, R> AddAssign<R> for CowObserver<B, StringObserver<'ob, String, Zero>>
+where
+    D: Unsigned,
+    B: Observer<InnerDepth = Succ<D>>,
+    B::Head: AsDerefMut<D, Target = Cow<'a, str>>,
+    Cow<'a, str>: AddAssign<R>,
+    R: Deref<Target = str> + Into<Cow<'a, str>>,
+{
+    #[inline]
+    fn add_assign(&mut self, rhs: R) {
+        let head = unsafe { Pointer::as_mut(self.inner.as_deref_coinductive()) };
+        let value = AsDerefMut::<D>::as_deref_mut(head);
+        if value.is_empty() {
+            self.mutated = true;
+            *value = rhs.into();
+        } else if !rhs.is_empty() {
+            if let Cow::Borrowed(lhs) = value {
+                let mut s = String::with_capacity(lhs.len() + rhs.len());
+                s.push_str(lhs);
+                *value = Cow::Owned(s);
+            }
+            self.to_mut().push_str(&rhs);
+        }
     }
 }
 
@@ -190,6 +222,17 @@ macro_rules! generic_impl_cmp {
 }
 
 generic_impl_cmp! {
+    impl _ for str;
+    impl _ for String;
+    impl _ for std::ffi::CStr;
+    impl _ for std::ffi::CString;
+    impl _ for std::ffi::OsStr;
+    impl _ for std::ffi::OsString;
+    impl _ for std::path::Path;
+    impl _ for std::path::PathBuf;
+    impl [U] _ for Vec<U>;
+    impl ['b, U: ?Sized] _ for &'b U;
+    impl ['b, U: ?Sized] _ for &'b mut U;
     impl ['b, U: ToOwned + ?Sized] _ for Cow<'b, U>;
 }
 
@@ -286,25 +329,16 @@ mod tests {
     }
 
     #[test]
-    fn to_mut_granular_tracking() {
+    fn to_mut_no_change() {
         let mut cow = Cow::Borrowed("hello");
         let mut ob = cow.__observe();
-        ob.to_mut().push_str(" world");
-        let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!(" world")));
-    }
-
-    #[test]
-    fn to_mut_no_change() {
-        let mut cow: Cow<'_, str> = Cow::Owned(String::from("hello"));
-        let mut ob = cow.__observe();
-        let _ = ob.to_mut(); // access but don't modify
+        ob.to_mut();
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
     }
 
     #[test]
-    fn to_mut_then_flush_then_no_change() {
+    fn to_mut_granular_tracking() {
         let mut cow = Cow::Borrowed("hello");
         let mut ob = cow.__observe();
         ob.to_mut().push_str(" world");
@@ -322,6 +356,16 @@ mod tests {
         ***ob = Cow::Borrowed("replaced");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("replaced")));
+    }
+
+    #[test]
+    fn to_mut_after_replace() {
+        let mut cow = Cow::Borrowed("hello");
+        let mut ob = cow.__observe();
+        ***ob = Cow::Borrowed("replaced");
+        ob.to_mut().push_str(" world");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("replaced world")));
     }
 
     #[test]
@@ -345,7 +389,7 @@ mod tests {
     fn comparison_with_cow() {
         let mut cow = Cow::Borrowed("hello");
         let ob = cow.__observe();
-        assert_eq!(ob, Cow::<str>::Borrowed("hello"));
+        assert_eq!(ob, Cow::Borrowed("hello"));
         assert_eq!(ob, Cow::<str>::Owned(String::from("hello")));
     }
 
@@ -370,5 +414,51 @@ mod tests {
                 },
             ])
         );
+    }
+
+    #[test]
+    fn add_assign_borrowed() {
+        let mut cow = Cow::Borrowed("hello");
+        let mut ob = cow.__observe();
+        ob += " world";
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!(" world")));
+    }
+
+    #[test]
+    fn add_assign_empty_lhs() {
+        let mut cow = Cow::Borrowed("");
+        let mut ob = cow.__observe();
+        ob += "hello";
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("hello")));
+    }
+
+    #[test]
+    fn add_assign_empty_rhs() {
+        let mut cow = Cow::Borrowed("hello");
+        let mut ob = cow.__observe();
+        ob += "";
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn add_assign_owned() {
+        let mut cow: Cow<'_, str> = Cow::Owned(String::from("hello"));
+        let mut ob = cow.__observe();
+        ob += " world";
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!(" world")));
+    }
+
+    #[test]
+    fn add_assign_multiple() {
+        let mut cow = Cow::Borrowed("a");
+        let mut ob = cow.__observe();
+        ob += "b";
+        ob += "c";
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!("bc")));
     }
 }
