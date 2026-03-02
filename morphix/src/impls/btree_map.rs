@@ -48,13 +48,13 @@ where
 }
 
 /// Iterator produced by [`BTreeMapObserver::extract_if`].
-#[allow(clippy::type_complexity)]
 pub struct ExtractIf<'a, K, V, O, R, F>
 where
     R: RangeBounds<K>,
     F: FnMut(&K, &mut V) -> bool,
 {
     inner: std::collections::btree_map::ExtractIf<'a, K, V, R, F>,
+    #[expect(clippy::type_complexity)]
     diff_inner: Option<(&'a mut BTreeMap<K, ValueState>, &'a mut BTreeMap<K, Box<O>>)>,
 }
 
@@ -210,13 +210,13 @@ where
                 }
             }
         }
-        for (key, mut observer) in std::mem::take(this.inner.get_mut()) {
+        for (key, mut ob) in std::mem::take(this.inner.get_mut()) {
             let value = (*this.ptr)
                 .as_deref()
                 .get(&key)
                 .expect("observer key not found in observed map");
-            unsafe { O::refresh(&mut observer, value) }
-            mutations.insert(key, unsafe { O::flush_unchecked::<A>(&mut observer)? });
+            unsafe { O::refresh(&mut ob, value) }
+            mutations.insert(key, unsafe { O::flush_unchecked::<A>(&mut ob)? });
         }
         Ok(mutations)
     }
@@ -240,9 +240,9 @@ where
         let key_cloned = key.clone();
         match unsafe { (*self.inner.get()).entry(key_cloned) } {
             Entry::Occupied(occupied) => {
-                let observer = occupied.into_mut().as_mut();
-                unsafe { O::refresh(observer, value) }
-                Some(observer)
+                let ob = occupied.into_mut().as_mut();
+                unsafe { O::refresh(ob, value) }
+                Some(ob)
             }
             Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
         }
@@ -287,9 +287,9 @@ where
         let key_cloned = key.clone();
         match self.inner.get_mut().entry(key_cloned) {
             Entry::Occupied(occupied) => {
-                let observer = occupied.into_mut().as_mut();
-                unsafe { O::refresh(observer, value) }
-                Some(observer)
+                let ob = occupied.into_mut().as_mut();
+                unsafe { O::refresh(ob, value) }
+                Some(ob)
             }
             Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
         }
