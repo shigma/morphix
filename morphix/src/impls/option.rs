@@ -266,7 +266,7 @@ where
 }
 
 spec_impl_observe!(OptionObserveImpl, Option<Self>, Option<T>, OptionObserver);
-spec_impl_ref_observe!(OptionRefObserveImpl, Option<Self>, Option<T>);
+spec_impl_ref_observe!(OptionRefObserveImpl, Option<Self>, Option<T>, OptionObserver);
 
 impl<T: Snapshot> Snapshot for Option<T> {
     type Snapshot = Option<T::Snapshot>;
@@ -402,7 +402,7 @@ mod tests {
 
         let mut opt = &Some("");
         let ob = opt.__observe();
-        assert_eq!(format!("{ob:?}"), r#"DerefObserver(PointerObserver(Some("")))"#);
+        assert_eq!(format!("{ob:?}"), r#"DerefObserver(OptionObserver(Some("")))"#);
     }
 
     #[test]

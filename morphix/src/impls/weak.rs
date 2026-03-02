@@ -151,7 +151,7 @@ where
 }
 
 spec_impl_observe_from_ref!(WeakObserveImpl, std::rc::Weak<Self>, std::rc::Weak<T>, WeakObserver);
-spec_impl_ref_observe!(WeakRefObserveImpl, std::rc::Weak<Self>, std::rc::Weak<T>);
+spec_impl_ref_observe!(WeakRefObserveImpl, std::rc::Weak<Self>, std::rc::Weak<T>, WeakObserver);
 
 impl<T: Snapshot + ?Sized> Snapshot for std::rc::Weak<T> {
     type Snapshot = Option<T::Snapshot>;

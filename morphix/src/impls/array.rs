@@ -5,10 +5,9 @@ use std::slice::SliceIndex;
 use serde::Serialize;
 
 use crate::builtin::Snapshot;
-use crate::helper::macros::spec_impl_ref_observe;
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverInner};
-use crate::observe::{DefaultSpec, Observer, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
 impl<O, const N: usize> SliceObserverInner for [O; N]
@@ -300,11 +299,15 @@ impl<T: Observe, const N: usize> Observe for [T; N] {
     type Spec = DefaultSpec;
 }
 
-spec_impl_ref_observe! {
-    ArrayRefObserveImpl,
-    [Self; N],
-    [T; N],
-    const N: usize,
+impl<T: Observe, const N: usize> RefObserve for [T; N] {
+    type Observer<'ob, S, D>
+        = ArrayObserver<N, T::Observer<'ob, T, Zero>, S, D>
+    where
+        Self: 'ob,
+        D: Unsigned,
+        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+
+    type Spec = DefaultSpec;
 }
 
 impl<T: Snapshot, const N: usize> Snapshot for [T; N] {

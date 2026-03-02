@@ -103,7 +103,7 @@ macro_rules! spec_impl_observe_from_ref {
 }
 
 macro_rules! spec_impl_ref_observe {
-    ($(#[$($tt:tt)*])* $helper:ident, $ty_self:ty, $ty_t:ty $(, const $arg:ident: $arg_ty:ty)* $(,)?) => {
+    ($(#[$($tt:tt)*])* $helper:ident, $ty_self:ty, $ty_t:ty, $default:ident $(, const $arg:ident: $arg_ty:ty)* $(,)?) => {
         $(#[$($tt)*])*
         impl<T $(, const $arg: $arg_ty)*> $crate::observe::RefObserve for $ty_t
         where
@@ -133,7 +133,7 @@ macro_rules! spec_impl_ref_observe {
             T: $crate::observe::RefObserve<Spec = $crate::observe::DefaultSpec>,
         {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
-                = $crate::builtin::PointerObserver<'ob, S, D>
+                = $default<$($arg,)* T::Observer<'ob, T, Zero>, S, D>
             where
                 Self: 'ob,
                 D: Unsigned,

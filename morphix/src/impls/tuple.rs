@@ -188,7 +188,7 @@ spec_impl_observe! {
 spec_impl_ref_observe! {
     #[cfg_attr(docsrs, doc(fake_variadic))]
     #[cfg_attr(docsrs, doc = "This trait is implemented for tuples up to 12 items long.")]
-    TupleRefObserveImpl, (Self,), (T,)
+    TupleRefObserveImpl, (Self,), (T,), TupleObserver
 }
 
 #[cfg_attr(docsrs, doc(fake_variadic))]
