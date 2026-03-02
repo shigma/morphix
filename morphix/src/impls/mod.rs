@@ -14,6 +14,8 @@ mod atomic;
 pub mod btree_map;
 mod deref;
 pub mod hash_map;
+#[cfg(feature = "indexmap")]
+pub mod index_map;
 mod option;
 pub mod slice;
 mod string;
@@ -26,6 +28,8 @@ pub use array::ArrayObserver;
 pub use btree_map::BTreeMapObserver;
 pub use deref::DerefObserver;
 pub use hash_map::HashMapObserver;
+#[cfg(feature = "indexmap")]
+pub use index_map::IndexMapObserver;
 pub use option::OptionObserver;
 pub use slice::SliceObserver;
 pub use string::StringObserver;

@@ -13,7 +13,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 use serde::Serialize;
 
 use crate::builtin::Snapshot;
-use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
+use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
@@ -224,9 +224,8 @@ where
     S: AsDerefMut<D, Target = HashMap<K, V>>,
     O: Observer<InnerDepth = Zero, Head = V>,
     K: Eq + Hash,
-    V: 'ob,
 {
-    untracked_methods! { HashMap =>
+    delegate_methods! { untracked_mut as HashMap =>
         pub fn reserve(&mut self, additional: usize);
         pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
         pub fn shrink_to_fit(&mut self);
