@@ -68,9 +68,9 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, value: &Self::Head) {
-        Pointer::set(this, value);
-        match (&mut this.inner, value.as_deref()) {
+    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+        Pointer::set(this, head);
+        match (&mut this.inner, head.as_deref()) {
             (Some(inner), Some(value)) => unsafe { Observer::refresh(inner, value) },
             (Some(_), None) => this.inner = None,
             (None, _) => {}
@@ -78,11 +78,11 @@ where
     }
 
     #[inline]
-    fn observe(value: &Self::Head) -> Self {
+    fn observe(head: &Self::Head) -> Self {
         Self {
-            ptr: Pointer::new(value),
-            initial: value.as_deref().is_some(),
-            inner: value.as_deref().as_ref().map(O::observe),
+            ptr: Pointer::new(head),
+            initial: head.as_deref().is_some(),
+            inner: head.as_deref().as_ref().map(O::observe),
             phantom: PhantomData,
         }
     }
@@ -96,17 +96,17 @@ where
     O::Head: Serialize + Sized,
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        let value = (*this.ptr).as_deref();
+        let option = (*this.ptr).as_deref();
         let initial = this.initial;
-        this.initial = value.is_some();
+        this.initial = option.is_some();
         if let Some(mut ob) = this.inner.take()
             && initial
-            && value.is_some()
+            && option.is_some()
         {
             return SerializeObserver::flush::<A>(&mut ob);
         }
-        if initial || value.is_some() {
-            Ok(MutationKind::Replace(A::serialize_value(value)?).into())
+        if initial || option.is_some() {
+            Ok(MutationKind::Replace(A::serialize_value(option)?).into())
         } else {
             Ok(Mutations::new())
         }

@@ -29,11 +29,11 @@ enum ValueState {
     Deleted,
 }
 
-fn mark_deleted<K, O>(diff: &mut IndexMap<K, ValueState>, children: &mut IndexMap<K, Box<O>>, key: K)
+fn mark_deleted<K, O>(diff: &mut IndexMap<K, ValueState>, inner: &mut IndexMap<K, Box<O>>, key: K)
 where
     K: Eq + Hash,
 {
-    children.swap_remove(&key);
+    inner.swap_remove(&key);
     match diff.entry(key) {
         Entry::Occupied(mut e) => {
             if matches!(e.get(), ValueState::Inserted) {
@@ -55,7 +55,7 @@ where
     F: FnMut(&K, &mut V) -> bool,
 {
     inner: indexmap::map::ExtractIf<'a, K, V, F>,
-    diff_children: Option<(&'a mut IndexMap<K, ValueState>, &'a mut IndexMap<K, Box<O>>)>,
+    diff_inner: Option<(&'a mut IndexMap<K, ValueState>, &'a mut IndexMap<K, Box<O>>)>,
 }
 
 impl<K, V, O, F> Iterator for ExtractIf<'_, K, V, O, F>
@@ -67,8 +67,8 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let (key, value) = self.inner.next()?;
-        if let Some((diff, children)) = &mut self.diff_children {
-            mark_deleted(diff, children, key.clone());
+        if let Some((diff, inner)) = &mut self.diff_inner {
+            mark_deleted(diff, inner, key.clone());
         }
         Some((key, value))
     }
@@ -110,7 +110,7 @@ pub struct IndexMapObserver<'ob, K, O, S: ?Sized, D = Zero> {
     /// Boxed to ensure pointer stability: [`IndexMap`] rehashing moves all entries to a new
     /// allocation, which would invalidate references to inline values. [`Box`] adds a layer
     /// of indirection so that only the pointer is moved, not the observer itself.
-    children: UnsafeCell<IndexMap<K, Box<O>>>,
+    inner: UnsafeCell<IndexMap<K, Box<O>>>,
     phantom: PhantomData<&'ob mut D>,
 }
 
@@ -127,7 +127,7 @@ impl<'ob, K, O, S: ?Sized, D> DerefMut for IndexMapObserver<'ob, K, O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.diff = None;
-        self.children.get_mut().clear();
+        self.inner.get_mut().clear();
         &mut self.ptr
     }
 }
@@ -153,22 +153,22 @@ where
         Self {
             ptr: Pointer::uninit(),
             diff: None,
-            children: Default::default(),
+            inner: Default::default(),
             phantom: PhantomData,
         }
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, value: &Self::Head) {
-        Pointer::set(this, value);
+    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+        Pointer::set(this, head);
     }
 
     #[inline]
-    fn observe(value: &Self::Head) -> Self {
+    fn observe(head: &Self::Head) -> Self {
         Self {
-            ptr: Pointer::new(value),
+            ptr: Pointer::new(head),
             diff: Some(Default::default()),
-            children: Default::default(),
+            inner: Default::default(),
             phantom: PhantomData,
         }
     }
@@ -196,7 +196,7 @@ where
                     unreachable!("delete feature is not enabled");
                 }
                 ValueState::Replaced | ValueState::Inserted => {
-                    this.children.get_mut().swap_remove(&key);
+                    this.inner.get_mut().swap_remove(&key);
                     let value = (*this.ptr)
                         .as_deref()
                         .get(&key)
@@ -205,7 +205,7 @@ where
                 }
             }
         }
-        for (key, mut observer) in std::mem::take(this.children.get_mut()) {
+        for (key, mut observer) in std::mem::take(this.inner.get_mut()) {
             let value = (*this.ptr)
                 .as_deref()
                 .get(&key)
@@ -281,7 +281,7 @@ where
     {
         let (key, value) = self.observed_ref().get_key_value(key)?;
         let key_cloned = key.clone();
-        match unsafe { (*self.children.get()).entry(key_cloned) } {
+        match unsafe { (*self.inner.get()).entry(key_cloned) } {
             Entry::Occupied(occupied) => {
                 let observer = occupied.into_mut().as_mut();
                 unsafe { O::refresh(observer, value) }
@@ -295,7 +295,7 @@ where
     pub fn get_index(&self, index: usize) -> Option<(&K, &O)> {
         let (key, value) = self.observed_ref().get_index(index)?;
         let key_cloned = key.clone();
-        match unsafe { (*self.children.get()).entry(key_cloned) } {
+        match unsafe { (*self.inner.get()).entry(key_cloned) } {
             Entry::Occupied(occupied) => {
                 let observer = occupied.into_mut().as_mut();
                 unsafe { O::refresh(observer, value) }
@@ -315,7 +315,7 @@ where
     K: Clone,
 {
     fn replacing_mut(&mut self) -> &mut IndexMap<K, O::Head> {
-        self.children.get_mut().clear();
+        self.inner.get_mut().clear();
         if (*self).observed_ref().is_empty() {
             self.untracked_mut()
         } else {
@@ -338,9 +338,9 @@ where
 {
     fn __force_all(&mut self) -> &mut IndexMap<K, Box<O>> {
         let map = (*self.ptr).as_deref();
-        let children = self.children.get_mut();
+        let inner = self.inner.get_mut();
         for (key, value) in map.iter() {
-            match children.entry(key.clone()) {
+            match inner.entry(key.clone()) {
                 Entry::Occupied(occupied) => {
                     let observer = occupied.into_mut().as_mut();
                     unsafe { O::refresh(observer, value) }
@@ -350,7 +350,7 @@ where
                 }
             }
         }
-        children
+        inner
     }
 
     /// See [`IndexMap::iter_mut`].
@@ -371,12 +371,12 @@ where
             (*self.ptr).as_deref_mut().truncate(len);
             return;
         };
-        let children = self.children.get_mut();
-        let inner = (*self.ptr).as_deref_mut();
-        for key in inner.keys().skip(len).cloned() {
-            mark_deleted(diff, children, key);
+        let inner = self.inner.get_mut();
+        let map = (*self.ptr).as_deref_mut();
+        for key in map.keys().skip(len).cloned() {
+            mark_deleted(diff, inner, key);
         }
-        inner.truncate(len);
+        map.truncate(len);
     }
 
     // TODO
@@ -389,7 +389,7 @@ where
         let Some(diff) = &mut self.diff else {
             return (*self.ptr).as_deref_mut().drain(range);
         };
-        let children = self.children.get_mut();
+        let inner = self.inner.get_mut();
         let map = (*self.ptr).as_deref_mut();
         let start = match range.start_bound() {
             Bound::Included(&n) => n,
@@ -409,7 +409,7 @@ where
             .collect();
         let drain = map.drain(range);
         for key in keys {
-            mark_deleted(diff, children, key);
+            mark_deleted(diff, inner, key);
         }
         drain
     }
@@ -421,11 +421,11 @@ where
         F: FnMut(&K, &mut O::Head) -> bool,
     {
         let inner = (*self.ptr).as_deref_mut().extract_if(range, pred);
-        let diff_children = match &mut self.diff {
-            Some(diff) => Some((diff, self.children.get_mut())),
+        let diff_inner = match &mut self.diff {
+            Some(diff) => Some((diff, self.inner.get_mut())),
             None => None,
         };
-        ExtractIf { inner, diff_children }
+        ExtractIf { inner, diff_inner }
     }
 
     /// See [`IndexMap::split_off`].
@@ -434,9 +434,9 @@ where
             return self.observed_mut().split_off(at);
         };
         let split = (*self.ptr).as_deref_mut().split_off(at);
-        let children = self.children.get_mut();
+        let inner = self.inner.get_mut();
         for key in split.keys().cloned() {
-            mark_deleted(diff, children, key);
+            mark_deleted(diff, inner, key);
         }
         split
     }
@@ -454,7 +454,7 @@ where
         };
         let key_cloned = key.clone();
         let (index, old_value) = (*self.ptr).as_deref_mut().insert_full(key_cloned, value);
-        self.children.get_mut().swap_remove(&key);
+        self.inner.get_mut().swap_remove(&key);
         match diff.entry(key) {
             Entry::Occupied(mut e) => {
                 if matches!(e.get(), ValueState::Deleted) {
@@ -487,7 +487,7 @@ where
                 .collect::<Vec<_>>()
                 .into_iter();
         };
-        let children = self.children.get_mut();
+        let inner = self.inner.get_mut();
         let map = (*self.ptr).as_deref_mut();
         let replace_with: Vec<_> = replace_with.into_iter().collect();
         let new_keys: Vec<K> = replace_with.iter().map(|(k, _)| k.clone()).collect();
@@ -499,13 +499,13 @@ where
         // Mark removed keys that are no longer in the map
         for (key, _) in &removed {
             if !map.contains_key(key) {
-                mark_deleted(diff, children, key.clone());
+                mark_deleted(diff, inner, key.clone());
             }
         }
 
         // Mark replacement keys as inserted or replaced
         for key in new_keys {
-            children.swap_remove(&key);
+            inner.swap_remove(&key);
             match diff.entry(key) {
                 Entry::Occupied(mut e) => {
                     if matches!(e.get(), ValueState::Deleted) {
@@ -555,7 +555,7 @@ where
     {
         let (index, key, value) = (*self.ptr).as_deref().get_full(key)?;
         let key_cloned = key.clone();
-        match self.children.get_mut().entry(key_cloned) {
+        match self.inner.get_mut().entry(key_cloned) {
             Entry::Occupied(occupied) => {
                 let observer = occupied.into_mut().as_mut();
                 unsafe { O::refresh(observer, value) }
@@ -594,7 +594,7 @@ where
             return self.observed_mut().swap_remove_full(key);
         };
         let (index, key, old_value) = (*self.ptr).as_deref_mut().swap_remove_full(key)?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
         Some((index, key, old_value))
     }
 
@@ -625,7 +625,7 @@ where
             return self.observed_mut().shift_remove_full(key);
         };
         let (index, key, old_value) = (*self.ptr).as_deref_mut().shift_remove_full(key)?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
         Some((index, key, old_value))
     }
 
@@ -635,7 +635,7 @@ where
             return self.observed_mut().pop();
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().pop()?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
@@ -654,7 +654,7 @@ where
     pub fn get_index_mut(&mut self, index: usize) -> Option<(&K, &mut O)> {
         let (key, value) = (*self.ptr).as_deref().get_index(index)?;
         let key_cloned = key.clone();
-        match self.children.get_mut().entry(key_cloned) {
+        match self.inner.get_mut().entry(key_cloned) {
             Entry::Occupied(occupied) => {
                 let observer = occupied.into_mut().as_mut();
                 unsafe { O::refresh(observer, value) }
@@ -691,7 +691,7 @@ where
             return self.observed_mut().swap_remove_index(index);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().swap_remove_index(index)?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
@@ -701,7 +701,7 @@ where
             return self.observed_mut().shift_remove_index(index);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().shift_remove_index(index)?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 }

@@ -7,11 +7,11 @@ use serde::Serialize;
 use crate::builtin::Snapshot;
 use crate::helper::macros::spec_impl_ref_observe;
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
-use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverChildren};
+use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverInner};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
-impl<O, const N: usize> SliceObserverChildren for [O; N]
+impl<O, const N: usize> SliceObserverInner for [O; N]
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
@@ -33,7 +33,7 @@ where
     }
 
     #[inline]
-    fn init_range(&self, _start: usize, _end: usize, _values: &[<Self::Item as ObserverExt>::Head]) {
+    fn init_range(&self, _start: usize, _end: usize, _slice: &[<Self::Item as ObserverExt>::Head]) {
         // No need to re-initialize fixed-size array.
     }
 }
@@ -65,14 +65,14 @@ where
     #[inline]
     pub fn each_ref(&self) -> [&O; N] {
         self.inner.__force_ref();
-        self.inner.children.each_ref()
+        self.inner.inner.each_ref()
     }
 
     /// See [`array::each_mut`].
     #[inline]
     pub fn each_mut(&mut self) -> [&mut O; N] {
         self.inner.__force_mut();
-        self.inner.children.each_mut()
+        self.inner.inner.each_mut()
     }
 }
 
@@ -116,15 +116,15 @@ where
     }
 
     #[inline]
-    fn observe(value: &Self::Head) -> Self {
+    fn observe(head: &Self::Head) -> Self {
         Self {
-            inner: SliceObserver::<[O; N], (), S, D>::observe(value),
+            inner: SliceObserver::<[O; N], (), S, D>::observe(head),
         }
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, value: &Self::Head) {
-        unsafe { SliceObserver::refresh(&mut this.inner, value) }
+    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+        unsafe { SliceObserver::refresh(&mut this.inner, head) }
     }
 }
 

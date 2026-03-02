@@ -52,15 +52,15 @@ where
     }
 
     #[inline]
-    fn observe(value: &Self::Head) -> Self {
+    fn observe(head: &Self::Head) -> Self {
         Self {
-            inner: O::observe(value),
+            inner: O::observe(head),
         }
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, value: &Self::Head) {
-        unsafe { O::refresh(&mut this.inner, value) }
+    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+        unsafe { O::refresh(&mut this.inner, head) }
     }
 }
 

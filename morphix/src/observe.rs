@@ -256,7 +256,7 @@ pub trait Observer: ObserverExt + Sized {
     /// let mut value = 42;
     /// let observer = ShallowObserver::<i32>::observe(&mut value);
     /// ```
-    fn observe(value: &Self::Head) -> Self;
+    fn observe(head: &Self::Head) -> Self;
 
     /// Refreshes the observer's internal pointer after the observed value has moved.
     ///
@@ -269,7 +269,7 @@ pub trait Observer: ObserverExt + Sized {
     /// The caller must ensure that:
     /// 1. `this` was properly initialized via [`observe`](Observer::observe) or
     ///    [`force`](Observer::force)
-    /// 2. `value` refers to the same logical value with which the observer was initialized, just
+    /// 2. `head` refers to the same logical value with which the observer was initialized, just
     ///    potentially at a new memory location
     ///
     /// ## Example
@@ -316,20 +316,20 @@ pub trait Observer: ObserverExt + Sized {
     ///     O: Observer<InnerDepth = Zero>,
     ///     O::Head: Sized,
     /// {
-    ///     unsafe fn refresh(this: &mut Self, value: &Self::Head) {
+    ///     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
     ///         // Refresh the outer pointer
-    ///         Pointer::set(this, value);
+    ///         Pointer::set(this, head);
     ///
     ///         // Refresh nested observer if present
-    ///         match (&mut this.inner, value.as_deref()) {
-    ///             (Some(inner), Some(value)) => unsafe { Observer::refresh(inner, value) },
+    ///         match (&mut this.inner, head.as_deref()) {
+    ///             (Some(inner), Some(head)) => unsafe { Observer::refresh(inner, head) },
     ///             (None, None) => {}
     ///             _ => unreachable!("inconsistent observer state"),
     ///         }
     ///     }
     ///     #
     ///     # fn uninit() -> Self { todo!() }
-    ///     # fn observe(value: & Self::Head) -> Self { todo!() }
+    ///     # fn observe(head: &Self::Head) -> Self { todo!() }
     /// }
     /// ```
     ///
@@ -337,7 +337,7 @@ pub trait Observer: ObserverExt + Sized {
     ///
     /// This method should be called after any operation that may relocate the observed
     /// value in memory while the observer is still in use.
-    unsafe fn refresh(this: &mut Self, value: &Self::Head);
+    unsafe fn refresh(this: &mut Self, head: &Self::Head);
 
     /// Forces the observer into a valid state for the given value.
     ///
@@ -351,7 +351,7 @@ pub trait Observer: ObserverExt + Sized {
     ///
     /// ## Safety
     ///
-    /// The caller must ensure that, if the observer is already initialized, `value` must refer to
+    /// The caller must ensure that, if the observer is already initialized, `head` must refer to
     /// the same logical value that was passed to [`observe`](Observer::observe) when the observer
     /// was created, just potentially at a new memory location.
     ///
@@ -364,14 +364,14 @@ pub trait Observer: ObserverExt + Sized {
     /// [`VecObserver`](crate::impls::VecObserver)) where element observers may need to be:
     /// - Lazily initialized on first access, and
     /// - Refreshed after container reallocation moves elements in memory.
-    unsafe fn force(this: &mut Self, value: &Self::Head) {
+    unsafe fn force(this: &mut Self, head: &Self::Head) {
         match Pointer::get((*this).as_deref_coinductive()) {
-            None => *this = Self::observe(value),
+            None => *this = Self::observe(head),
             Some(ptr) => {
-                if !std::ptr::addr_eq(ptr.as_ptr(), value) {
+                if !std::ptr::addr_eq(ptr.as_ptr(), head) {
                     // SAFETY: The observer was previously initialized via `observe`, and the caller
-                    // guarantees that `value` refers to the same logical value.
-                    unsafe { Self::refresh(this, value) }
+                    // guarantees that `head` refers to the same logical value.
+                    unsafe { Self::refresh(this, head) }
                 }
             }
         }

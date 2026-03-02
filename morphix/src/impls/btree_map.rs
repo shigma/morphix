@@ -28,11 +28,11 @@ enum ValueState {
     Deleted,
 }
 
-fn mark_deleted<K, O>(diff: &mut BTreeMap<K, ValueState>, children: &mut BTreeMap<K, Box<O>>, key: K)
+fn mark_deleted<K, O>(diff: &mut BTreeMap<K, ValueState>, inner: &mut BTreeMap<K, Box<O>>, key: K)
 where
     K: Ord,
 {
-    children.remove(&key);
+    inner.remove(&key);
     match diff.entry(key) {
         Entry::Occupied(mut e) => {
             if matches!(e.get(), ValueState::Inserted) {
@@ -55,7 +55,7 @@ where
     F: FnMut(&K, &mut V) -> bool,
 {
     inner: std::collections::btree_map::ExtractIf<'a, K, V, R, F>,
-    diff_children: Option<(&'a mut BTreeMap<K, ValueState>, &'a mut BTreeMap<K, Box<O>>)>,
+    diff_inner: Option<(&'a mut BTreeMap<K, ValueState>, &'a mut BTreeMap<K, Box<O>>)>,
 }
 
 impl<K, V, O, R, F> Iterator for ExtractIf<'_, K, V, O, R, F>
@@ -68,8 +68,8 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let (key, value) = self.inner.next()?;
-        if let Some((diff, children)) = &mut self.diff_children {
-            mark_deleted(diff, children, key.clone());
+        if let Some((diff, inner)) = &mut self.diff_inner {
+            mark_deleted(diff, inner, key.clone());
         }
         Some((key, value))
     }
@@ -115,7 +115,7 @@ pub struct BTreeMapObserver<'ob, K, O, S: ?Sized, D = Zero> {
     /// Boxed to ensure pointer stability: [`BTreeMap`] node splits move entries between nodes
     /// via `memcpy`, which would invalidate references to inline values. [`Box`] adds a layer
     /// of indirection so that only the pointer is moved, not the observer itself.
-    children: UnsafeCell<BTreeMap<K, Box<O>>>,
+    inner: UnsafeCell<BTreeMap<K, Box<O>>>,
     phantom: PhantomData<&'ob mut D>,
 }
 
@@ -132,7 +132,7 @@ impl<'ob, K, O, S: ?Sized, D> DerefMut for BTreeMapObserver<'ob, K, O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.diff = None;
-        self.children.get_mut().clear();
+        self.inner.get_mut().clear();
         &mut self.ptr
     }
 }
@@ -158,22 +158,22 @@ where
         Self {
             ptr: Pointer::uninit(),
             diff: None,
-            children: Default::default(),
+            inner: Default::default(),
             phantom: PhantomData,
         }
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, value: &Self::Head) {
-        Pointer::set(this, value);
+    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+        Pointer::set(this, head);
     }
 
     #[inline]
-    fn observe(value: &Self::Head) -> Self {
+    fn observe(head: &Self::Head) -> Self {
         Self {
-            ptr: Pointer::new(value),
+            ptr: Pointer::new(head),
             diff: Some(Default::default()),
-            children: Default::default(),
+            inner: Default::default(),
             phantom: PhantomData,
         }
     }
@@ -201,7 +201,7 @@ where
                     unreachable!("delete feature is not enabled");
                 }
                 ValueState::Replaced | ValueState::Inserted => {
-                    this.children.get_mut().remove(&key);
+                    this.inner.get_mut().remove(&key);
                     let value = (*this.ptr)
                         .as_deref()
                         .get(&key)
@@ -210,7 +210,7 @@ where
                 }
             }
         }
-        for (key, mut observer) in std::mem::take(this.children.get_mut()) {
+        for (key, mut observer) in std::mem::take(this.inner.get_mut()) {
             let value = (*this.ptr)
                 .as_deref()
                 .get(&key)
@@ -238,7 +238,7 @@ where
     {
         let (key, value) = self.observed_ref().get_key_value(key)?;
         let key_cloned = key.clone();
-        match unsafe { (*self.children.get()).entry(key_cloned) } {
+        match unsafe { (*self.inner.get()).entry(key_cloned) } {
             Entry::Occupied(occupied) => {
                 let observer = occupied.into_mut().as_mut();
                 unsafe { O::refresh(observer, value) }
@@ -262,9 +262,9 @@ where
         K: Ord,
     {
         let map = (*self.ptr).as_deref();
-        let children = self.children.get_mut();
+        let inner = self.inner.get_mut();
         for (key, value) in map.iter() {
-            match children.entry(key.clone()) {
+            match inner.entry(key.clone()) {
                 Entry::Occupied(occupied) => {
                     let observer = occupied.into_mut().as_mut();
                     unsafe { O::refresh(observer, value) }
@@ -274,7 +274,7 @@ where
                 }
             }
         }
-        children
+        inner
     }
 
     /// See [`BTreeMap::get_mut`].
@@ -285,7 +285,7 @@ where
     {
         let (key, value) = (*self.ptr).as_deref().get_key_value(key)?;
         let key_cloned = key.clone();
-        match self.children.get_mut().entry(key_cloned) {
+        match self.inner.get_mut().entry(key_cloned) {
             Entry::Occupied(occupied) => {
                 let observer = occupied.into_mut().as_mut();
                 unsafe { O::refresh(observer, value) }
@@ -298,7 +298,7 @@ where
     /// See [`BTreeMap::clear`].
     #[inline]
     pub fn clear(&mut self) {
-        self.children.get_mut().clear();
+        self.inner.get_mut().clear();
         if (*self).observed_ref().is_empty() {
             self.untracked_mut().clear()
         } else {
@@ -316,7 +316,7 @@ where
         };
         let key_cloned = key.clone();
         let old_value = (*self.ptr).as_deref_mut().insert(key_cloned, value);
-        self.children.get_mut().remove(&key);
+        self.inner.get_mut().remove(&key);
         match diff.entry(key) {
             Entry::Occupied(mut e) => {
                 if matches!(e.get(), ValueState::Deleted) {
@@ -344,7 +344,7 @@ where
             return self.observed_mut().remove(key);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        mark_deleted(diff, self.children.get_mut(), key);
+        mark_deleted(diff, self.inner.get_mut(), key);
         Some(old_value)
     }
 
@@ -358,7 +358,7 @@ where
             return self.observed_mut().remove_entry(key);
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
@@ -371,7 +371,7 @@ where
             return self.observed_mut().pop_first();
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().pop_first()?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
@@ -384,7 +384,7 @@ where
             return self.observed_mut().pop_last();
         };
         let (key, old_value) = (*self.ptr).as_deref_mut().pop_last()?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
+        mark_deleted(diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
@@ -423,9 +423,9 @@ where
             return self.observed_mut().split_off(key);
         };
         let split = (*self.ptr).as_deref_mut().split_off(key);
-        let children = self.children.get_mut();
+        let inner = self.inner.get_mut();
         for key in split.keys().cloned() {
-            mark_deleted(diff, children, key);
+            mark_deleted(diff, inner, key);
         }
         split
     }
@@ -438,11 +438,11 @@ where
         F: FnMut(&K, &mut O::Head) -> bool,
     {
         let inner = (*self.ptr).as_deref_mut().extract_if(range, pred);
-        let diff_children = match &mut self.diff {
-            Some(diff) => Some((diff, self.children.get_mut())),
+        let diff_inner = match &mut self.diff {
+            Some(diff) => Some((diff, self.inner.get_mut())),
             None => None,
         };
-        ExtractIf { inner, diff_children }
+        ExtractIf { inner, diff_inner }
     }
 
     /// See [`BTreeMap::iter_mut`].

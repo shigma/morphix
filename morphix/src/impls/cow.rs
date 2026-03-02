@@ -77,9 +77,8 @@ where
     #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         unsafe { B::refresh(&mut this.inner, head) }
-        let value = AsDeref::<D>::as_deref(head);
         if let Some(owned) = &mut this.owned {
-            match value {
+            match AsDeref::<D>::as_deref(head) {
                 Cow::Borrowed(_) => panic!("inconsistent state for CowObserver"),
                 Cow::Owned(value) => unsafe { O::refresh(owned, value) },
             }
@@ -121,8 +120,8 @@ where
     #[inline]
     pub fn to_mut(&mut self) -> &mut O {
         let head = unsafe { Pointer::as_mut(self.inner.as_deref_coinductive()) };
-        let value = AsDerefMut::<D>::as_deref_mut(head);
-        let owned = value.to_mut();
+        let cow = AsDerefMut::<D>::as_deref_mut(head);
+        let owned = cow.to_mut();
         self.owned.get_or_insert_with(|| O::observe(owned))
     }
 }
@@ -180,15 +179,15 @@ where
     #[inline]
     fn add_assign(&mut self, rhs: R) {
         let head = unsafe { Pointer::as_mut(self.inner.as_deref_coinductive()) };
-        let value = AsDerefMut::<D>::as_deref_mut(head);
-        if value.is_empty() {
+        let cow = AsDerefMut::<D>::as_deref_mut(head);
+        if cow.is_empty() {
             self.mutated = true;
-            *value = rhs.into();
+            *cow = rhs.into();
         } else if !rhs.is_empty() {
-            if let Cow::Borrowed(lhs) = value {
+            if let Cow::Borrowed(lhs) = cow {
                 let mut s = String::with_capacity(lhs.len() + rhs.len());
                 s.push_str(lhs);
-                *value = Cow::Owned(s);
+                *cow = Cow::Owned(s);
             }
             self.to_mut().push_str(&rhs);
         }

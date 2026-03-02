@@ -70,11 +70,11 @@ where
     }
 
     #[inline]
-    fn observe(value: &Self::Head) -> Self {
+    fn observe(head: &Self::Head) -> Self {
         Self {
-            ptr: Pointer::new(value),
+            ptr: Pointer::new(head),
             mutation: Some(TruncateAppend {
-                append_index: value.as_deref().len(),
+                append_index: head.as_deref().len(),
                 truncate_len: 0,
             }),
             phantom: PhantomData,
@@ -82,8 +82,8 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, value: &Self::Head) {
-        Pointer::set(this, value);
+    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+        Pointer::set(this, head);
     }
 }
 
