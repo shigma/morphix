@@ -12,6 +12,7 @@
 mod array;
 mod atomic;
 pub mod btree_map;
+mod cow;
 mod deref;
 pub mod hash_map;
 #[cfg(feature = "indexmap")]
@@ -26,6 +27,7 @@ mod weak;
 
 pub use array::ArrayObserver;
 pub use btree_map::BTreeMapObserver;
+pub use cow::CowObserver;
 pub use deref::DerefObserver;
 pub use hash_map::HashMapObserver;
 #[cfg(feature = "indexmap")]

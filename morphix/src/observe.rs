@@ -283,8 +283,7 @@ pub trait Observer: ObserverExt + Sized {
     /// #
     /// pub struct OptionObserver<'ob, O, S: ?Sized, N = Zero> {
     ///     ptr: Pointer<S>,
-    ///     mutated: bool,
-    ///     ob: Option<O>,
+    ///     inner: Option<O>,
     ///     phantom: PhantomData<&'ob mut N>,
     /// }
     ///
@@ -322,7 +321,7 @@ pub trait Observer: ObserverExt + Sized {
     ///         Pointer::set(this, value);
     ///
     ///         // Refresh nested observer if present
-    ///         match (&mut this.ob, value.as_deref()) {
+    ///         match (&mut this.inner, value.as_deref()) {
     ///             (Some(inner), Some(value)) => unsafe { Observer::refresh(inner, value) },
     ///             (None, None) => {}
     ///             _ => unreachable!("inconsistent observer state"),
