@@ -102,7 +102,6 @@ where
             this.inner = B::observe(head);
             unsafe { O::flush_unchecked::<A>(&mut owned) }
         } else {
-            this.owned = None;
             unsafe { B::flush_unchecked::<A>(&mut this.inner) }
         }
     }
