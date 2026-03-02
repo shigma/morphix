@@ -158,10 +158,9 @@ where
     /// See [`Vec::remove`].
     pub fn remove(&mut self, index: usize) -> T {
         let value = self.untracked_mut().remove(index);
-        let append_index = self.inner.diff.append_index;
-        if index >= append_index {
+        if index >= self.inner.diff.append_index {
             // no-op
-        } else if cfg!(feature = "truncate") && index + 1 == append_index {
+        } else if cfg!(feature = "truncate") && index + 1 == self.inner.diff.append_index {
             self.diff.mark_truncate(index);
         } else {
             self.diff.mark_replace();
@@ -172,10 +171,9 @@ where
     /// See [`Vec::swap_remove`].
     pub fn swap_remove(&mut self, index: usize) -> T {
         let value = self.untracked_mut().remove(index);
-        let append_index = self.inner.diff.append_index;
-        if index >= append_index {
+        if index >= self.inner.diff.append_index {
             // no-op
-        } else if cfg!(feature = "truncate") && index + 1 == append_index {
+        } else if cfg!(feature = "truncate") && index + 1 == self.inner.diff.append_index {
             self.diff.mark_truncate(index);
         } else {
             self.diff.mark_replace();
@@ -186,11 +184,10 @@ where
     /// See [`Vec::pop`].
     pub fn pop(&mut self) -> Option<T> {
         let value = self.untracked_mut().pop()?;
-        let append_index = self.inner.diff.append_index;
         let len = (*self).observed_ref().len();
-        if len >= append_index {
+        if len >= self.inner.diff.append_index {
             // no-op
-        } else if cfg!(feature = "truncate") && len + 1 == append_index {
+        } else if cfg!(feature = "truncate") && len + 1 == self.inner.diff.append_index {
             self.diff.mark_truncate(len);
         } else {
             self.diff.mark_replace();
@@ -208,8 +205,7 @@ where
     /// See [`Vec::truncate`].
     pub fn truncate(&mut self, len: usize) {
         self.untracked_mut().truncate(len);
-        let append_index = self.inner.diff.append_index;
-        if len >= append_index {
+        if len >= self.inner.diff.append_index {
             // no-op
         } else if cfg!(feature = "truncate") && len > 0 {
             self.diff.mark_truncate(len);
@@ -221,8 +217,7 @@ where
     /// See [`Vec::split_off`].
     pub fn split_off(&mut self, at: usize) -> Vec<T> {
         let vec = self.untracked_mut().split_off(at);
-        let append_index = self.inner.diff.append_index;
-        if at >= append_index {
+        if at >= self.inner.diff.append_index {
             // no-op
         } else if cfg!(feature = "truncate") && at > 0 {
             self.diff.mark_truncate(at);
@@ -239,8 +234,7 @@ where
         F: FnMut() -> T,
     {
         self.untracked_mut().resize_with(new_len, f);
-        let append_index = self.inner.diff.append_index;
-        if new_len >= append_index {
+        if new_len >= self.inner.diff.append_index {
             // no-op
         } else if cfg!(feature = "truncate") && new_len > 0 {
             self.diff.mark_truncate(new_len);
@@ -254,13 +248,12 @@ where
     where
         R: RangeBounds<usize>,
     {
-        let append_index = self.inner.diff.append_index;
         let start_index = match range.start_bound() {
             Bound::Included(&n) => n,
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= append_index {
+        if start_index >= self.inner.diff.append_index {
             return self.untracked_mut().drain(range);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
@@ -271,7 +264,7 @@ where
             Bound::Excluded(&n) => n,
             Bound::Unbounded => (*self).observed_ref().len(),
         };
-        if end_index < append_index {
+        if end_index < self.inner.diff.append_index {
             return self.observed_mut().drain(range);
         }
         self.diff.mark_truncate(start_index);
@@ -284,13 +277,12 @@ where
         R: RangeBounds<usize>,
         I: IntoIterator<Item = T>,
     {
-        let append_index = self.inner.diff.append_index;
         let start_index = match range.start_bound() {
             Bound::Included(&n) => n,
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= append_index {
+        if start_index >= self.inner.diff.append_index {
             return self.untracked_mut().splice(range, replace_with);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
@@ -301,7 +293,7 @@ where
             Bound::Excluded(&n) => n,
             Bound::Unbounded => (*self).observed_ref().len(),
         };
-        if end_index < append_index {
+        if end_index < self.inner.diff.append_index {
             return self.observed_mut().splice(range, replace_with);
         }
         self.diff.mark_truncate(start_index);
@@ -323,7 +315,6 @@ where
         F: FnMut(&mut T) -> bool,
         R: RangeBounds<usize>,
     {
-        let append_index = self.inner.diff.append_index;
         let start_index = match range.start_bound() {
             Bound::Included(&n) => n,
             Bound::Excluded(&n) => n + 1,
@@ -331,7 +322,7 @@ where
         };
         let vec = (*self.inner.ptr).as_deref_mut();
         let inner = vec.extract_if(range, filter);
-        let diff = if start_index < append_index {
+        let diff = if start_index < self.inner.diff.append_index {
             Some((&mut self.inner.diff, start_index))
         } else {
             None
@@ -419,8 +410,7 @@ where
     #[inline]
     pub fn resize(&mut self, new_len: usize, value: T) {
         self.untracked_mut().resize(new_len, value);
-        let append_index = self.inner.diff.append_index;
-        if new_len >= append_index {
+        if new_len >= self.inner.diff.append_index {
             // no-op
         } else if cfg!(feature = "truncate") && new_len > 0 {
             self.diff.mark_truncate(new_len);

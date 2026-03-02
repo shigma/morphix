@@ -8,13 +8,14 @@ use crate::builtin::Snapshot;
 use crate::helper::macros::spec_impl_ref_observe;
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverInner};
-use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Adapter, Mutations, Observe};
 
 impl<O, const N: usize> SliceObserverInner for [O; N]
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
+    type Slice = [O::Head; N];
     type Item = O;
 
     #[inline]
@@ -33,7 +34,19 @@ where
     }
 
     #[inline]
-    fn init_range(&self, _start: usize, _end: usize, _slice: &[<Self::Item as ObserverExt>::Head]) {
+    fn observe(slice: &Self::Slice) -> Self {
+        slice.each_ref().map(O::observe)
+    }
+
+    #[inline]
+    fn mark_replace(&mut self) {
+        for ob in self.as_mut_slice() {
+            ob.observed_mut();
+        }
+    }
+
+    #[inline]
+    unsafe fn init_range(&self, _start: usize, _end: usize, _slice: &Self::Slice) {
         // No need to re-initialize fixed-size array.
     }
 }
@@ -305,5 +318,157 @@ impl<T: Snapshot, const N: usize> Snapshot for [T; N] {
     #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         (0..N).all(|i| self[i].eq_snapshot(&snapshot[i]))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+
+    use crate::adapter::Json;
+    use crate::observe::{ObserveExt, SerializeObserverExt};
+    use crate::{Mutation, MutationKind, PathSegment};
+
+    #[test]
+    fn no_change_returns_none() {
+        let mut arr = [1u32, 2, 3];
+        let mut ob = arr.__observe();
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn index_by_usize() {
+        let mut arr = [10u32, 20, 30];
+        let mut ob = arr.__observe();
+        assert_eq!(ob[1], 20);
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none());
+        **ob[1] = 99;
+        assert_eq!(ob[1], 99);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![PathSegment::Negative(2)].into(),
+                kind: MutationKind::Replace(json!(99)),
+            })
+        );
+    }
+
+    #[test]
+    fn multiple_index_mutations() {
+        let mut arr = [1u32, 2, 3];
+        let mut ob = arr.__observe();
+        **ob[0] = 10;
+        **ob[2] = 30;
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Batch(vec![
+                    Mutation {
+                        path: vec![PathSegment::Negative(3)].into(),
+                        kind: MutationKind::Replace(json!(10)),
+                    },
+                    Mutation {
+                        path: vec![PathSegment::Negative(1)].into(),
+                        kind: MutationKind::Replace(json!(30)),
+                    },
+                ]),
+            })
+        );
+    }
+
+    #[test]
+    fn deref_mut_triggers_per_element_replace() {
+        let mut arr = [1u32, 2, 3];
+        let mut ob = arr.__observe();
+        ***ob = [4, 5, 6];
+        let Json(mutation) = ob.flush().unwrap();
+        // DerefMut on array produces a batch of per-element Replace, not a whole-array Replace.
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Batch(vec![
+                    Mutation {
+                        path: vec![PathSegment::Negative(3)].into(),
+                        kind: MutationKind::Replace(json!(4)),
+                    },
+                    Mutation {
+                        path: vec![PathSegment::Negative(2)].into(),
+                        kind: MutationKind::Replace(json!(5)),
+                    },
+                    Mutation {
+                        path: vec![PathSegment::Negative(1)].into(),
+                        kind: MutationKind::Replace(json!(6)),
+                    },
+                ]),
+            })
+        );
+    }
+
+    #[test]
+    fn deref_mut_same_value_returns_none() {
+        let mut arr = [1u32, 2, 3];
+        let mut ob = arr.__observe();
+        ***ob = [1, 2, 3];
+        let Json(mutation) = ob.flush().unwrap();
+        // ShallowObserver detects no change on each element.
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn swap() {
+        let mut arr = [10u32, 20, 30];
+        let mut ob = arr.__observe();
+        ob.swap(0, 2);
+        assert_eq!(ob, [30, 20, 10]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![].into(),
+                kind: MutationKind::Batch(vec![
+                    Mutation {
+                        path: vec![PathSegment::Negative(3)].into(),
+                        kind: MutationKind::Replace(json!(30)),
+                    },
+                    Mutation {
+                        path: vec![PathSegment::Negative(1)].into(),
+                        kind: MutationKind::Replace(json!(10)),
+                    },
+                ]),
+            })
+        );
+    }
+
+    #[test]
+    fn nested_string_append() {
+        let mut arr = ["hello".to_string(), "world".to_string()];
+        let mut ob = arr.__observe();
+        ob[0].push_str("!");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec![PathSegment::Negative(2)].into(),
+                kind: MutationKind::Append(json!("!")),
+            })
+        );
+    }
+
+    #[test]
+    fn flush_resets_state() {
+        let mut arr = ["a".to_string(), "b".to_string()];
+        let mut ob = arr.__observe();
+        ob[0].push_str("!");
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some());
+        // Second flush with no new changes returns None.
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_none(), "expected None, got {mutation:?}");
     }
 }

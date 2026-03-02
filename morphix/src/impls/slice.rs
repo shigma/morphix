@@ -1,4 +1,9 @@
 //! Observer implementation for slices `[T]`.
+//!
+//! ## Stability
+//!
+//! The [`SliceObserverInner`] and [`SliceObserverDiff`] traits are internal abstractions used by
+//! [`SliceObserver`] and may change in future versions without notice.
 
 use std::cell::UnsafeCell;
 use std::fmt::Debug;
@@ -19,12 +24,25 @@ use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
 ///
 /// This trait abstracts over the storage and initialization of element observers, allowing
 /// [`SliceObserver`] to lazily create observers for individual elements as they are accessed.
-pub trait SliceObserverInner {
+pub trait SliceObserverInner: Sized {
+    /// The observed slice type that this storage corresponds to.
+    type Slice: AsRef<[<Self::Item as ObserverExt>::Head]> + ?Sized;
+
     /// The element observer type.
     type Item: Observer<InnerDepth = Zero, Head: Sized>;
 
     /// Creates an uninitialized observer collection.
     fn uninit() -> Self;
+
+    /// Creates an observer collection for the given slice.
+    fn observe(slice: &Self::Slice) -> Self;
+
+    /// Called by [`SliceObserver`]'s [`DerefMut`] implementation to notify element observers that
+    /// the underlying data may have been overwritten.
+    ///
+    /// For `UnsafeCell<Vec<O>>`, this clears the Vec. For `[O; N]`, this triggers
+    /// [`observed_mut()`](QuasiObserver::observed_mut) on each element observer.
+    fn mark_replace(&mut self);
 
     /// Returns a shared slice of element observers.
     fn as_slice(&self) -> &[Self::Item];
@@ -36,7 +54,13 @@ pub trait SliceObserverInner {
     ///
     /// This method ensures that observers exist and are properly bound for elements in the range
     /// `[start, end)`.
-    fn init_range(&self, start: usize, end: usize, slice: &[<Self::Item as ObserverExt>::Head]);
+    ///
+    /// ## Safety
+    ///
+    /// The caller must ensure that no references obtained from [`as_slice`](Self::as_slice) are
+    /// alive when this method is called, as the implementation may create mutable references to
+    /// the same storage through interior mutability.
+    unsafe fn init_range(&self, start: usize, end: usize, slice: &Self::Slice);
 }
 
 // SAFETY: Unlike map observers which use `Box<O>` for pointer stability across rehashing /
@@ -50,7 +74,23 @@ impl<O> SliceObserverInner for UnsafeCell<Vec<O>>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
+    type Slice = [O::Head];
     type Item = O;
+
+    #[inline]
+    fn uninit() -> Self {
+        Default::default()
+    }
+
+    #[inline]
+    fn observe(_slice: &Self::Slice) -> Self {
+        Default::default()
+    }
+
+    #[inline]
+    fn mark_replace(&mut self) {
+        self.get_mut().clear();
+    }
 
     #[inline]
     fn as_slice(&self) -> &[Self::Item] {
@@ -62,12 +102,7 @@ where
         self.get_mut()
     }
 
-    #[inline]
-    fn uninit() -> Self {
-        Default::default()
-    }
-
-    fn init_range(&self, start: usize, end: usize, slice: &[<Self::Item as ObserverExt>::Head]) {
+    unsafe fn init_range(&self, start: usize, end: usize, slice: &Self::Slice) {
         let inner = unsafe { &mut *self.get() };
         inner.resize_with(slice.len(), O::uninit);
         let ob_iter = inner[start..end].iter_mut();
@@ -146,10 +181,10 @@ pub trait SliceObserverDiff: Sized {
     /// Creates the initial mutation state for a slice of the given length.
     fn observe(len: usize) -> Self;
 
-    /// Marks the entire observed value as replaced.
+    /// Called by [`SliceObserver`]'s [`DerefMut`] implementation to update the diff state when the
+    /// underlying data may have been overwritten.
     ///
-    /// Called by [`SliceObserver`]'s [`DerefMut`](std::ops::DerefMut) implementation when the
-    /// mutation cannot be expressed granularly. For [`TruncateAppend`], this delegates to
+    /// For [`TruncateAppend`], this delegates to
     /// [`mark_truncate(0)`](TruncateAppend::mark_truncate), which triggers Replace semantics on
     /// flush. For `()`, this is a no-op.
     fn mark_replace(&mut self);
@@ -207,7 +242,6 @@ impl SliceObserverDiff for TruncateAppend {
             truncate_len,
             append_index,
         } = self;
-        dbg!(truncate_len, append_index, slice.len());
         if append_index == 0 && truncate_len > 0 {
             return Ok((MutationKind::Replace(A::serialize_value(slice)?).into(), None));
         };
@@ -261,7 +295,7 @@ where
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.diff.mark_replace();
-        self.inner = V::uninit();
+        self.inner.mark_replace();
         &mut self.ptr
     }
 }
@@ -282,8 +316,7 @@ where
     V: SliceObserverInner<Item = O>,
     M: SliceObserverDiff,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
+    S: AsDeref<D, Target = V::Slice>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
     #[inline]
@@ -298,10 +331,11 @@ where
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
+        let slice = head.as_deref();
         Self {
             ptr: Pointer::new(head),
-            inner: V::uninit(),
-            diff: M::observe(head.as_deref().as_ref().len()),
+            inner: V::observe(slice),
+            diff: M::observe(slice.as_ref().len()),
             phantom: PhantomData,
         }
     }
@@ -317,8 +351,7 @@ where
     V: SliceObserverInner<Item = O>,
     M: SliceObserverDiff,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
+    S: AsDeref<D, Target = V::Slice>,
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
@@ -350,8 +383,7 @@ where
     V::Item: Observer<InnerDepth = Zero, Head = T>,
     M: SliceObserverDiff,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
+    S: AsDeref<D, Target = V::Slice>,
 {
     fn __init_index<I>(&self, index: &I) -> Option<()>
     where
@@ -363,8 +395,8 @@ where
         if end > len {
             return None;
         }
-        let slice = self.observed_ref().as_ref();
-        self.inner.init_range(start, end, slice);
+        let slice = self.observed_ref();
+        unsafe { self.inner.init_range(start, end, slice) };
         Some(())
     }
 
@@ -388,15 +420,15 @@ where
 
     #[inline]
     pub(crate) fn __force_ref(&self) -> &[V::Item] {
-        let slice = self.observed_ref().as_ref();
-        self.inner.init_range(0, slice.len(), slice);
+        let slice = self.observed_ref();
+        unsafe { self.inner.init_range(0, slice.as_ref().len(), slice) };
         self.inner.as_slice()
     }
 
     #[inline]
     pub(crate) fn __force_mut(&mut self) -> &mut [V::Item] {
-        let slice = (*self).observed_ref().as_ref();
-        self.inner.init_range(0, slice.len(), slice);
+        let slice = (*self).observed_ref();
+        unsafe { self.inner.init_range(0, slice.as_ref().len(), slice) };
         self.inner.as_mut_slice()
     }
 }
@@ -408,8 +440,8 @@ where
     V::Item: Observer<InnerDepth = Zero, Head = T>,
     M: SliceObserverDiff,
     D: Unsigned,
-    S: AsDerefMut<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
+    S: AsDerefMut<D, Target = V::Slice>,
+    S::Target: AsMut<[T]>,
 {
     /// See [`slice::first_mut`].
     #[inline]
@@ -709,8 +741,7 @@ where
     V: SliceObserverInner<Item = O>,
     M: SliceObserverDiff,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
+    S: AsDeref<D, Target = V::Slice>,
     O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
@@ -727,8 +758,8 @@ where
     V: SliceObserverInner<Item = O>,
     M: SliceObserverDiff,
     D: Unsigned,
-    S: AsDerefMut<D>,
-    S::Target: AsRef<[T]> + AsMut<[T]>,
+    S: AsDerefMut<D, Target = V::Slice>,
+    S::Target: AsMut<[T]>,
     O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {

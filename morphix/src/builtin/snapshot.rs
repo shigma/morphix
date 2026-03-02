@@ -118,7 +118,9 @@ impl<T: Snapshot + ?Sized> ReplaceHandler for SnapshotHandler<T> {
     fn flush_replace(&mut self, value: &T) -> bool {
         // SAFETY: `ReplaceHandler::flush_replace` is only called in `Observer::flush_unchecked`, where the
         // observer is assumed to contain a valid pointer
-        !value.eq_snapshot(unsafe { self.snapshot.assume_init_ref() })
+        let changed = !value.eq_snapshot(unsafe { self.snapshot.assume_init_ref() });
+        self.snapshot = MaybeUninit::new(value.to_snapshot());
+        changed
     }
 }
 
