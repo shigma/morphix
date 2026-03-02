@@ -1,6 +1,5 @@
 //! Observer implementation for [`IndexMap<K, V>`].
 
-use std::borrow::Borrow;
 use std::cell::UnsafeCell;
 use std::cmp::Ordering;
 use std::fmt::Debug;
@@ -10,7 +9,7 @@ use std::marker::PhantomData;
 use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 
 use indexmap::map::Entry;
-use indexmap::{IndexMap, TryReserveError};
+use indexmap::{Equivalent, IndexMap, TryReserveError};
 use serde::Serialize;
 
 use crate::builtin::Snapshot;
@@ -247,19 +246,38 @@ where
     }
 }
 
+impl<'ob, K, O, S: ?Sized, D, V> IndexMapObserver<'ob, K, O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = IndexMap<K, V>>,
+    O: Observer<InnerDepth = Zero, Head = V>,
+    K: Eq + Hash,
+{
+    delegate_methods! { observed_mut as IndexMap =>
+        pub fn insert_sorted(&mut self, key: K, value: O::Head) -> (usize, Option<O::Head>)
+        where { K: Ord };
+        pub fn insert_sorted_by<F>(&mut self, key: K, value: O::Head, cmp: F) -> (usize, Option<O::Head>)
+        where { F: FnMut(&K, &O::Head, &K, &O::Head) -> Ordering };
+        pub fn insert_sorted_by_key<B, F>(&mut self, key: K, value: O::Head, sort_key: F) -> (usize, Option<O::Head>)
+        where { B: Ord, F: FnMut(&K, &O::Head) -> B };
+        pub fn insert_before(&mut self, index: usize, key: K, value: O::Head) -> (usize, Option<O::Head>);
+        pub fn shift_insert(&mut self, index: usize, key: K, value: O::Head) -> Option<O::Head>;
+        pub fn replace_index(&mut self, index: usize, key: K) -> Result<K, (usize, K)>;
+    }
+}
+
 impl<'ob, K, O, S: ?Sized, D> IndexMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDeref<D, Target = IndexMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
-    K: Clone,
+    K: Clone + Eq + Hash,
 {
     /// See [`IndexMap::get`].
     pub fn get<Q>(&self, key: &Q) -> Option<&O>
     where
-        K: Borrow<Q> + Eq + Hash,
-        Q: Eq + Hash + ?Sized,
+        Q: ?Sized + Hash + Equivalent<K>,
     {
         let (key, value) = self.observed_ref().get_key_value(key)?;
         let key_cloned = key.clone();
@@ -274,10 +292,7 @@ where
     }
 
     /// See [`IndexMap::get_index`].
-    pub fn get_index(&self, index: usize) -> Option<(&K, &O)>
-    where
-        K: Eq + Hash,
-    {
+    pub fn get_index(&self, index: usize) -> Option<(&K, &O)> {
         let (key, value) = self.observed_ref().get_index(index)?;
         let key_cloned = key.clone();
         match unsafe { (*self.children.get()).entry(key_cloned) } {
@@ -427,6 +442,7 @@ where
     }
 
     /// See [`IndexMap::insert`].
+    #[inline]
     pub fn insert(&mut self, key: K, value: O::Head) -> Option<O::Head> {
         self.insert_full(key, value).1
     }
@@ -455,210 +471,8 @@ where
         }
         (index, old_value)
     }
-}
 
-impl<'ob, K, O, S: ?Sized, D> IndexMapObserver<'ob, K, O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = IndexMap<K, O::Head>>,
-    O: Observer<InnerDepth = Zero>,
-    O::Head: Sized,
-    K: Clone,
-{
-    /// See [`IndexMap::get_mut`].
-    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut O>
-    where
-        K: Borrow<Q> + Eq + Hash,
-        Q: Eq + Hash + ?Sized,
-    {
-        let (key, value) = (*self.ptr).as_deref().get_key_value(key)?;
-        let key_cloned = key.clone();
-        match self.children.get_mut().entry(key_cloned) {
-            Entry::Occupied(occupied) => {
-                let observer = occupied.into_mut().as_mut();
-                unsafe { O::refresh(observer, value) }
-                Some(observer)
-            }
-            Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
-        }
-    }
-
-    /// See [`IndexMap::get_index_mut`].
-    pub fn get_index_mut(&mut self, index: usize) -> Option<(&K, &mut O)>
-    where
-        K: Eq + Hash,
-    {
-        let (key, value) = (*self.ptr).as_deref().get_index(index)?;
-        let key_cloned = key.clone();
-        match self.children.get_mut().entry(key_cloned) {
-            Entry::Occupied(occupied) => {
-                let observer = occupied.into_mut().as_mut();
-                unsafe { O::refresh(observer, value) }
-                Some((key, observer))
-            }
-            Entry::Vacant(vacant) => Some((key, vacant.insert(Box::new(O::observe(value))))),
-        }
-    }
-
-    /// See [`IndexMap::get_full_mut`].
-    pub fn get_full_mut<Q>(&mut self, key: &Q) -> Option<(usize, &K, &mut O)>
-    where
-        K: Borrow<Q> + Eq + Hash,
-        Q: Eq + Hash + ?Sized,
-    {
-        let (index, key, value) = (*self.ptr).as_deref().get_full(key)?;
-        let key_cloned = key.clone();
-        match self.children.get_mut().entry(key_cloned) {
-            Entry::Occupied(occupied) => {
-                let observer = occupied.into_mut().as_mut();
-                unsafe { O::refresh(observer, value) }
-                Some((index, key, observer))
-            }
-            Entry::Vacant(vacant) => Some((index, key, vacant.insert(Box::new(O::observe(value))))),
-        }
-    }
-
-    /// See [`IndexMap::first_mut`].
-    #[inline]
-    pub fn first_mut(&mut self) -> Option<(&K, &mut O)>
-    where
-        K: Eq + Hash,
-    {
-        self.get_index_mut(0)
-    }
-
-    /// See [`IndexMap::last_mut`].
-    #[inline]
-    pub fn last_mut(&mut self) -> Option<(&K, &mut O)>
-    where
-        K: Eq + Hash,
-    {
-        let last = (*self.ptr).as_deref().len().checked_sub(1)?;
-        self.get_index_mut(last)
-    }
-
-    /// See [`IndexMap::shift_remove`].
-    pub fn remove<Q>(&mut self, key: &Q) -> Option<O::Head>
-    where
-        K: Borrow<Q> + Eq + Hash,
-        Q: Eq + Hash + ?Sized,
-    {
-        let Some(diff) = self.diff.as_mut() else {
-            return self.observed_mut().shift_remove(key);
-        };
-        let (key, old_value) = (*self.ptr).as_deref_mut().shift_remove_entry(key)?;
-        mark_deleted(diff, self.children.get_mut(), key);
-        Some(old_value)
-    }
-
-    /// See [`IndexMap::swap_remove`].
-    pub fn swap_remove<Q>(&mut self, key: &Q) -> Option<O::Head>
-    where
-        K: Borrow<Q> + Eq + Hash,
-        Q: Eq + Hash + ?Sized,
-    {
-        let Some(diff) = self.diff.as_mut() else {
-            return self.observed_mut().swap_remove(key);
-        };
-        let (key, old_value) = (*self.ptr).as_deref_mut().swap_remove_entry(key)?;
-        mark_deleted(diff, self.children.get_mut(), key);
-        Some(old_value)
-    }
-
-    /// See [`IndexMap::shift_remove_entry`].
-    pub fn shift_remove_entry<Q>(&mut self, key: &Q) -> Option<(K, O::Head)>
-    where
-        K: Borrow<Q> + Eq + Hash,
-        Q: Eq + Hash + ?Sized,
-    {
-        let Some(diff) = &mut self.diff else {
-            return self.observed_mut().shift_remove_entry(key);
-        };
-        let (key, old_value) = (*self.ptr).as_deref_mut().shift_remove_entry(key)?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
-        Some((key, old_value))
-    }
-
-    /// See [`IndexMap::swap_remove_entry`].
-    pub fn swap_remove_entry<Q>(&mut self, key: &Q) -> Option<(K, O::Head)>
-    where
-        K: Borrow<Q> + Eq + Hash,
-        Q: Eq + Hash + ?Sized,
-    {
-        let Some(diff) = &mut self.diff else {
-            return self.observed_mut().swap_remove_entry(key);
-        };
-        let (key, old_value) = (*self.ptr).as_deref_mut().swap_remove_entry(key)?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
-        Some((key, old_value))
-    }
-
-    /// See [`IndexMap::swap_remove_full`].
-    pub fn swap_remove_full<Q>(&mut self, key: &Q) -> Option<(usize, K, O::Head)>
-    where
-        K: Borrow<Q> + Eq + Hash,
-        Q: Eq + Hash + ?Sized,
-    {
-        let Some(diff) = self.diff.as_mut() else {
-            return self.observed_mut().swap_remove_full(key);
-        };
-        let (index, key, old_value) = (*self.ptr).as_deref_mut().swap_remove_full(key)?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
-        Some((index, key, old_value))
-    }
-
-    /// See [`IndexMap::shift_remove_full`].
-    pub fn shift_remove_full<Q>(&mut self, key: &Q) -> Option<(usize, K, O::Head)>
-    where
-        K: Borrow<Q> + Eq + Hash,
-        Q: Eq + Hash + ?Sized,
-    {
-        let Some(diff) = self.diff.as_mut() else {
-            return self.observed_mut().shift_remove_full(key);
-        };
-        let (index, key, old_value) = (*self.ptr).as_deref_mut().shift_remove_full(key)?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
-        Some((index, key, old_value))
-    }
-
-    /// See [`IndexMap::pop`].
-    pub fn pop(&mut self) -> Option<(K, O::Head)>
-    where
-        K: Eq + Hash,
-    {
-        let Some(diff) = &mut self.diff else {
-            return self.observed_mut().pop();
-        };
-        let (key, old_value) = (*self.ptr).as_deref_mut().pop()?;
-        mark_deleted(diff, self.children.get_mut(), key.clone());
-        Some((key, old_value))
-    }
-
-    /// See [`IndexMap::retain`].
-    #[inline]
-    pub fn retain<F>(&mut self, mut f: F)
-    where
-        K: Eq + Hash,
-        F: FnMut(&K, &mut O::Head) -> bool,
-    {
-        self.extract_if(.., |k, v| !f(k, v)).for_each(drop);
-    }
-
-    // TODO: this drains `other` into individual inserts, which is much slower than
-    // `IndexMap::append`. Consider a bulk-insert approach that updates `diff` in one pass.
-    /// See [`IndexMap::append`].
-    pub fn append(&mut self, other: &mut IndexMap<K, O::Head>)
-    where
-        K: Eq + Hash,
-    {
-        if self.diff.is_none() {
-            return self.observed_mut().append(other);
-        }
-        for (key, value) in std::mem::take(other) {
-            self.insert(key, value);
-        }
-    }
-
+    // TODO
     /// See [`IndexMap::splice`].
     pub fn splice<R, I>(&mut self, range: R, replace_with: I) -> std::vec::IntoIter<(K, O::Head)>
     where
@@ -708,6 +522,187 @@ where
             }
         }
         removed.into_iter()
+    }
+
+    /// See [`IndexMap::append`].
+    #[inline]
+    pub fn append(&mut self, other: &mut IndexMap<K, O::Head>) {
+        self.extend(other.drain(..))
+    }
+
+    /// See [`IndexMap::get_mut`].
+    #[inline]
+    pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut O>
+    where
+        Q: Equivalent<K> + Hash + ?Sized,
+    {
+        self.get_full_mut(key).map(|(_, _, v)| v)
+    }
+
+    /// See [`IndexMap::get_key_value_mut`].
+    #[inline]
+    pub fn get_key_value_mut<Q>(&mut self, key: &Q) -> Option<(&K, &mut O)>
+    where
+        Q: Equivalent<K> + Hash + ?Sized,
+    {
+        self.get_full_mut(key).map(|(_, k, v)| (k, v))
+    }
+
+    /// See [`IndexMap::get_full_mut`].
+    pub fn get_full_mut<Q>(&mut self, key: &Q) -> Option<(usize, &K, &mut O)>
+    where
+        Q: Equivalent<K> + Hash + ?Sized,
+    {
+        let (index, key, value) = (*self.ptr).as_deref().get_full(key)?;
+        let key_cloned = key.clone();
+        match self.children.get_mut().entry(key_cloned) {
+            Entry::Occupied(occupied) => {
+                let observer = occupied.into_mut().as_mut();
+                unsafe { O::refresh(observer, value) }
+                Some((index, key, observer))
+            }
+            Entry::Vacant(vacant) => Some((index, key, vacant.insert(Box::new(O::observe(value))))),
+        }
+    }
+
+    // TODO: get_disjoint_mut
+
+    /// See [`IndexMap::swap_remove`].
+    #[inline]
+    pub fn swap_remove<Q>(&mut self, key: &Q) -> Option<O::Head>
+    where
+        Q: ?Sized + Hash + Equivalent<K>,
+    {
+        self.swap_remove_full(key).map(|(_, _, v)| v)
+    }
+
+    /// See [`IndexMap::swap_remove_entry`].
+    #[inline]
+    pub fn swap_remove_entry<Q>(&mut self, key: &Q) -> Option<(K, O::Head)>
+    where
+        Q: ?Sized + Hash + Equivalent<K>,
+    {
+        self.swap_remove_full(key).map(|(_, k, v)| (k, v))
+    }
+
+    /// See [`IndexMap::swap_remove_full`].
+    pub fn swap_remove_full<Q>(&mut self, key: &Q) -> Option<(usize, K, O::Head)>
+    where
+        Q: ?Sized + Hash + Equivalent<K>,
+    {
+        let Some(diff) = self.diff.as_mut() else {
+            return self.observed_mut().swap_remove_full(key);
+        };
+        let (index, key, old_value) = (*self.ptr).as_deref_mut().swap_remove_full(key)?;
+        mark_deleted(diff, self.children.get_mut(), key.clone());
+        Some((index, key, old_value))
+    }
+
+    /// See [`IndexMap::shift_remove`].
+    #[inline]
+    pub fn shift_remove<Q>(&mut self, key: &Q) -> Option<O::Head>
+    where
+        Q: ?Sized + Hash + Equivalent<K>,
+    {
+        self.shift_remove_full(key).map(|(_, _, v)| v)
+    }
+
+    /// See [`IndexMap::shift_remove_entry`].
+    #[inline]
+    pub fn shift_remove_entry<Q>(&mut self, key: &Q) -> Option<(K, O::Head)>
+    where
+        Q: ?Sized + Hash + Equivalent<K>,
+    {
+        self.shift_remove_full(key).map(|(_, k, v)| (k, v))
+    }
+
+    /// See [`IndexMap::shift_remove_full`].
+    pub fn shift_remove_full<Q>(&mut self, key: &Q) -> Option<(usize, K, O::Head)>
+    where
+        Q: ?Sized + Hash + Equivalent<K>,
+    {
+        let Some(diff) = self.diff.as_mut() else {
+            return self.observed_mut().shift_remove_full(key);
+        };
+        let (index, key, old_value) = (*self.ptr).as_deref_mut().shift_remove_full(key)?;
+        mark_deleted(diff, self.children.get_mut(), key.clone());
+        Some((index, key, old_value))
+    }
+
+    /// See [`IndexMap::pop`].
+    pub fn pop(&mut self) -> Option<(K, O::Head)> {
+        let Some(diff) = &mut self.diff else {
+            return self.observed_mut().pop();
+        };
+        let (key, old_value) = (*self.ptr).as_deref_mut().pop()?;
+        mark_deleted(diff, self.children.get_mut(), key.clone());
+        Some((key, old_value))
+    }
+
+    /// See [`IndexMap::retain`].
+    #[inline]
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&K, &mut O::Head) -> bool,
+    {
+        self.extract_if(.., |k, v| !f(k, v)).for_each(drop);
+    }
+
+    // TODO: as_mut_slice
+
+    /// See [`IndexMap::get_index_mut`].
+    pub fn get_index_mut(&mut self, index: usize) -> Option<(&K, &mut O)> {
+        let (key, value) = (*self.ptr).as_deref().get_index(index)?;
+        let key_cloned = key.clone();
+        match self.children.get_mut().entry(key_cloned) {
+            Entry::Occupied(occupied) => {
+                let observer = occupied.into_mut().as_mut();
+                unsafe { O::refresh(observer, value) }
+                Some((key, observer))
+            }
+            Entry::Vacant(vacant) => Some((key, vacant.insert(Box::new(O::observe(value))))),
+        }
+    }
+
+    // TODO: get_index_entry
+    // TODO: get_disjoint_indices_mut
+    // TODO: get_range_mut
+
+    /// See [`IndexMap::first_mut`].
+    #[inline]
+    pub fn first_mut(&mut self) -> Option<(&K, &mut O)> {
+        self.get_index_mut(0)
+    }
+
+    // TODO: first_entry
+
+    /// See [`IndexMap::last_mut`].
+    #[inline]
+    pub fn last_mut(&mut self) -> Option<(&K, &mut O)> {
+        let last = (*self.ptr).as_deref().len().checked_sub(1)?;
+        self.get_index_mut(last)
+    }
+
+    // TODO: last_entry
+
+    /// See [`IndexMap::swap_remove_index`].
+    pub fn swap_remove_index(&mut self, index: usize) -> Option<(K, O::Head)> {
+        let Some(diff) = self.diff.as_mut() else {
+            return self.observed_mut().swap_remove_index(index);
+        };
+        let (key, old_value) = (*self.ptr).as_deref_mut().swap_remove_index(index)?;
+        mark_deleted(diff, self.children.get_mut(), key.clone());
+        Some((key, old_value))
+    }
+
+    /// See [`IndexMap::shift_remove_index`].
+    pub fn shift_remove_index(&mut self, index: usize) -> Option<(K, O::Head)> {
+        let Some(diff) = self.diff.as_mut() else {
+            return self.observed_mut().shift_remove_index(index);
+        };
+        let (key, old_value) = (*self.ptr).as_deref_mut().shift_remove_index(index)?;
+        mark_deleted(diff, self.children.get_mut(), key.clone());
+        Some((key, old_value))
     }
 }
 
@@ -763,8 +758,8 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = IndexMap<K, V>>,
     O: Observer<InnerDepth = Zero, Head = V>,
-    K: Borrow<Q> + Clone + Eq + Hash,
-    Q: Eq + Hash,
+    K: Clone + Eq + Hash,
+    Q: Hash + Equivalent<K>,
 {
     type Output = O;
 
@@ -779,8 +774,8 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = IndexMap<K, V>>,
     O: Observer<InnerDepth = Zero, Head = V>,
-    K: Borrow<Q> + Clone + Eq + Hash,
-    Q: Eq + Hash,
+    K: Clone + Eq + Hash,
+    Q: Hash + Equivalent<K>,
 {
     #[inline]
     fn index_mut(&mut self, index: &'q Q) -> &mut Self::Output {
@@ -829,6 +824,13 @@ where
     K: Clone + Eq + Hash,
 {
     fn extend<I: IntoIterator<Item = (K, O::Head)>>(&mut self, iter: I) {
+        let iter = iter.into_iter();
+        let additional = if (*self).observed_ref().is_empty() {
+            iter.size_hint().0
+        } else {
+            iter.size_hint().0.div_ceil(2)
+        };
+        self.reserve(additional);
         for (key, value) in iter {
             self.insert(key, value);
         }
@@ -902,7 +904,7 @@ mod tests {
     fn remove_nonexistent_key() {
         let mut map = IndexMap::from([("a", "x".to_string())]);
         let mut ob = map.__observe();
-        assert_eq!(ob.remove("nonexistent"), None);
+        assert_eq!(ob.shift_remove("nonexistent"), None);
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
     }
@@ -912,7 +914,7 @@ mod tests {
         let mut map = IndexMap::from([("a", "x".to_string())]);
         let mut ob = map.__observe();
         assert_eq!(ob.insert("b", "y".to_string()), None);
-        assert_eq!(ob.remove("b"), Some("y".to_string()));
+        assert_eq!(ob.shift_remove("b"), Some("y".to_string()));
         assert_eq!(ob.observed_ref().len(), 1);
         assert_eq!(ob.observed_ref().get("a"), Some(&"x".to_string()));
         let Json(mutation) = ob.flush().unwrap();
@@ -923,7 +925,7 @@ mod tests {
     fn remove_then_insert() {
         let mut map = IndexMap::from([("a", "x".to_string())]);
         let mut ob = map.__observe();
-        assert_eq!(ob.remove("a"), Some("x".to_string()));
+        assert_eq!(ob.shift_remove("a"), Some("x".to_string()));
         assert_eq!(ob.insert("a", "y".to_string()), None);
         assert_eq!(ob.observed_ref().get("a"), Some(&"y".to_string()));
         let Json(mutation) = ob.flush().unwrap();
