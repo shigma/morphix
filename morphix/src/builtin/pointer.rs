@@ -54,11 +54,11 @@ impl<T: ?Sized> GeneralHandler for PointerHandler<T> {
 
 impl<T: ?Sized> ReplaceHandler for PointerHandler<T> {
     #[inline]
-    fn flush_replace(&mut self, value: &T) -> bool {
+    unsafe fn will_replace(&self, value: &T) -> bool {
         !std::ptr::eq(
             value,
             self.ptr
-                .expect("Pointer should not be null in GeneralHandler::flush")
+                .expect("pointer should not be null in GeneralHandler::flush")
                 .as_ptr(),
         )
     }

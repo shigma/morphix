@@ -413,6 +413,6 @@ mod tests {
         ob.reserve(10); // force reallocation
         assert_eq!(**ob[0], Some(1));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(1)));
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!([1])));
     }
 }

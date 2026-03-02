@@ -391,17 +391,7 @@ pub trait SerializeObserver: Observer {
     ///
     /// ## Safety
     ///
-    /// This method assumes the observer contains a valid (non-null) pointer. Calling this on an
-    /// uninitialized observer results in *undefined behavior*. Most users should call
-    /// [`flush`](SerializeObserver::flush) instead, which includes a null pointer check.
-    ///
-    /// ## Implementation Notes
-    ///
-    /// Implementations can safely use [`Deref`](std::ops::Deref) and
-    /// [`DerefMut`](std::ops::DerefMut) to access the observed value, as this method is only
-    /// called when the observer contains a valid pointer. The observer's [`Deref`](std::ops::Deref)
-    /// and [`DerefMut`](std::ops::DerefMut) implementations are guaranteed to be safe when
-    /// `flush_unchecked` is called.
+    /// This method assumes the observer contains a valid pointer.
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error>;
 
     /// Flushes and serializes all recorded mutations using the specified adapter.
@@ -446,6 +436,22 @@ pub trait SerializeObserver: Observer {
             return Ok(Mutations::new());
         }
         unsafe { Self::flush_unchecked::<A>(this) }
+    }
+
+    /// Returns whether the next flush would produce a [`Replace`](crate::MutationKind::Replace)
+    /// mutation.
+    ///
+    /// Used by composite observers (e.g., [`ArrayObserver`](crate::impls::ArrayObserver)) to
+    /// optimize: when all elements would produce [`Replace`](crate::MutationKind::Replace), a
+    /// single whole-container [`Replace`](crate::MutationKind::Replace) is emitted instead of a
+    /// [`Batch`](crate::MutationKind::Batch) of per-element mutations.
+    ///
+    /// ## Safety
+    ///
+    /// Same as [`flush_unchecked`](Self::flush_unchecked): the observer must contain a valid
+    /// pointer.
+    unsafe fn will_replace(_this: &Self) -> bool {
+        false
     }
 }
 

@@ -693,20 +693,13 @@ mod tests {
         ob.push(2);
         **ob[1] = 12;
         let Json(mutation) = ob.flush().unwrap();
+        // All existing elements (only ob[0]) report Replace, and there are appended elements.
+        // The optimization collapses everything into a single whole-vec Replace.
         assert_eq!(
             mutation,
             Some(Mutation {
                 path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Append(json!([12])),
-                    },
-                    Mutation {
-                        path: vec![PathSegment::Negative(2)].into(),
-                        kind: MutationKind::Replace(json!(11)),
-                    },
-                ])
+                kind: MutationKind::Replace(json!([11, 12])),
             })
         );
     }

@@ -363,6 +363,18 @@ where
             return Ok(mutations);
         };
         this.__init_index(&..append_index);
+        // Optimization: if all existing elements would produce Replace, collapse into a single
+        // whole-slice Replace. A single Replace is always more compact than a batch of N
+        // per-element Replace mutations (each carrying a path segment), and supersedes any
+        // Truncate/Append mutations from the diff.
+        if !slice.is_empty()
+            && this.inner.as_slice()[..append_index]
+                .iter()
+                .all(|ob| unsafe { O::will_replace(ob) })
+        {
+            this.inner = V::observe((*this.ptr).as_deref());
+            return Ok(MutationKind::Replace(A::serialize_value(slice)?).into());
+        }
         let (existing, stale) = this.inner.as_mut_slice().split_at_mut(append_index);
         for (index, ob) in existing.iter_mut().enumerate() {
             mutations.insert(
@@ -771,7 +783,7 @@ where
 
 impl<T: Observe> Observe for [T] {
     type Observer<'ob, S, D>
-        = SliceObserver<UnsafeCell<Vec<T::Observer<'ob, T, Zero>>>, (), S, D>
+        = SliceObserver<UnsafeCell<Vec<T::Observer<'ob, T, Zero>>>, TruncateAppend, S, D>
     where
         Self: 'ob,
         D: Unsigned,
@@ -850,5 +862,17 @@ mod tests {
                 ]),
             })
         );
+    }
+
+    #[test]
+    fn boxed_slice_deref_mut_triggers_replace() {
+        let mut boxed: Box<[u32]> = vec![1, 2, 3].into_boxed_slice();
+        let mut ob = boxed.__observe();
+        // Mutate through the slice observer's DerefMut (e.g. via sort).
+        ob.sort();
+        let Json(mutation) = ob.flush().unwrap();
+        // Even though sort is a no-op here (already sorted), DerefMut was triggered
+        // so a Replace should be emitted. With diff type `()`, this bug causes None.
+        assert!(mutation.is_some(), "DerefMut on Box<[T]> should trigger Replace");
     }
 }

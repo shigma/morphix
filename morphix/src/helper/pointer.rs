@@ -90,7 +90,7 @@ impl<S: ?Sized> Pointer<S> {
     /// infrastructure, but must be manually verified if called directly.
     #[inline]
     pub const unsafe fn as_ref<'ob>(this: &Self) -> &'ob S {
-        let ptr = this.0.get().expect("Pointer should not be null");
+        let ptr = this.0.get().expect("pointer should not be null");
         // SAFETY: The caller guarantees the pointer is valid and properly aligned,
         // and that the lifetime 'ob does not outlive the original value.
         unsafe { ptr.as_ref() }
@@ -110,7 +110,7 @@ impl<S: ?Sized> Pointer<S> {
     /// infrastructure, but must be manually verified if called directly.
     #[inline]
     pub const unsafe fn as_mut<'ob>(this: &Self) -> &'ob mut S {
-        let mut ptr = this.0.get().expect("Pointer should not be null");
+        let mut ptr = this.0.get().expect("pointer should not be null");
         // SAFETY: The caller guarantees exclusive access to the pointed value,
         // that the pointer is valid and properly aligned, and that the lifetime
         // 'ob does not outlive the original value.

@@ -57,7 +57,7 @@ where
     unsafe fn flush<A: Adapter>(&mut self, new_value: &T) -> Result<Mutations<A::Value>, A::Error> {
         let old_value = unsafe {
             self.ptr
-                .expect("Pointer should not be null in GeneralHandler::flush")
+                .expect("pointer should not be null in GeneralHandler::flush")
                 .as_ref()
         };
         if !std::ptr::addr_eq(new_value, old_value) {
@@ -78,6 +78,16 @@ where
             return Ok(MutationKind::Replace(A::serialize_value(new_value)?).into());
         }
         Ok(Mutations::new())
+    }
+
+    #[inline]
+    unsafe fn will_replace(&self, value: &T) -> bool {
+        !std::ptr::addr_eq(
+            value,
+            self.ptr
+                .expect("pointer should not be null in GeneralHandler::flush")
+                .as_ptr(),
+        )
     }
 }
 

@@ -82,12 +82,23 @@ pub trait GeneralHandler {
 /// support. Direct implementation of [`SerializeHandler`] is only necessary for handlers
 /// that need to emit non-replace mutations (like [`Append`](MutationKind::Append)).
 pub trait SerializeHandler: GeneralHandler {
-    /// Implementation for [`SerializeObserver::flush_unchecked`].
+    /// Flushes and serializes all recorded mutations.
     ///
     /// ## Safety
     ///
-    /// See [`SerializeObserver::flush_unchecked`].
+    /// This method assumes the handler is constructed with [`observe`](GeneralHandler::observe).
+    ///
+    /// See also [`SerializeObserver::flush_unchecked`].
     unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Mutations<A::Value>, A::Error>;
+
+    /// Returns whether the next flush would produce a [`Replace`](MutationKind::Replace) mutation.
+    ///
+    /// ## Safety
+    ///
+    /// This method assumes the handler is constructed with [`observe`](GeneralHandler::observe).
+    ///
+    /// See also [`SerializeObserver::flush_unchecked`].
+    unsafe fn will_replace(&self, value: &Self::Target) -> bool;
 }
 
 /// A handler that can only express replace-style mutations.
@@ -98,18 +109,14 @@ pub trait SerializeHandler: GeneralHandler {
 /// [`GeneralHandler`] implementations implement this trait rather than [`SerializeHandler`]
 /// directly.
 pub trait ReplaceHandler: GeneralHandler {
-    /// Determines whether the observed value should be reported as replaced.
+    /// Returns whether the next flush would produce a [`Replace`](MutationKind::Replace) mutation.
     ///
-    /// This method is called during [`flush`](SerializeHandler::flush) to check if the value has
-    /// changed. It also resets the handler's internal state, so that an immediate subsequent call
-    /// will return `false` unless new mutations occur.
+    /// ## Safety
     ///
-    /// ## Returns
+    /// This method assumes the handler is constructed with [`observe`](GeneralHandler::observe).
     ///
-    /// - `true`: The value has changed and should be serialized as a
-    ///   [`Replace`](MutationKind::Replace) mutation
-    /// - `false`: No changes detected, no mutation will be emitted
-    fn flush_replace(&mut self, value: &Self::Target) -> bool;
+    /// See also [`SerializeObserver::flush_unchecked`].
+    unsafe fn will_replace(&self, value: &Self::Target) -> bool;
 }
 
 impl<H> SerializeHandler for H
@@ -119,11 +126,18 @@ where
 {
     #[inline]
     unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Mutations<A::Value>, A::Error> {
-        if self.flush_replace(value) {
+        let is_replace = unsafe { ReplaceHandler::will_replace(self, value) };
+        *self = H::observe(value);
+        if is_replace {
             Ok(MutationKind::Replace(A::serialize_value(value)?).into())
         } else {
             Ok(Mutations::new())
         }
+    }
+
+    #[inline]
+    unsafe fn will_replace(&self, value: &Self::Target) -> bool {
+        unsafe { ReplaceHandler::will_replace(self, value) }
     }
 }
 
@@ -265,6 +279,10 @@ where
 {
     unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         unsafe { this.handler.flush::<A>((*this.ptr).as_deref()) }
+    }
+
+    unsafe fn will_replace(this: &Self) -> bool {
+        unsafe { this.handler.will_replace((*this.ptr).as_deref()) }
     }
 }
 

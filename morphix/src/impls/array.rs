@@ -38,6 +38,14 @@ where
     }
 
     #[inline]
+    /// Unlike [`UnsafeCell<Vec<O>>`](UnsafeCell) which clears its storage on `DerefMut` (producing
+    /// a full [`Replace`](crate::MutationKind::Replace)), the array implementation triggers
+    /// [`observed_mut()`](QuasiObserver::observed_mut) on each element, preserving per-element
+    /// granularity. This is appropriate because arrays have a fixed, typically small length —
+    /// the resulting batch of per-element mutations is bounded and comparable in size to a
+    /// whole-array [`Replace`](crate::MutationKind::Replace), while unchanged elements can be
+    /// filtered out by the element observer (e.g.,
+    /// [`SnapshotObserver`](crate::builtin::SnapshotObserver)).
     fn mark_replace(&mut self) {
         for ob in self.as_mut_slice() {
             ob.observed_mut();
@@ -385,32 +393,14 @@ mod tests {
     }
 
     #[test]
-    fn deref_mut_triggers_per_element_replace() {
+    fn deref_mut_triggers_replace() {
         let mut arr = [1u32, 2, 3];
         let mut ob = arr.__observe();
         ***ob = [4, 5, 6];
         let Json(mutation) = ob.flush().unwrap();
-        // DerefMut on array produces a batch of per-element Replace, not a whole-array Replace.
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![PathSegment::Negative(3)].into(),
-                        kind: MutationKind::Replace(json!(4)),
-                    },
-                    Mutation {
-                        path: vec![PathSegment::Negative(2)].into(),
-                        kind: MutationKind::Replace(json!(5)),
-                    },
-                    Mutation {
-                        path: vec![PathSegment::Negative(1)].into(),
-                        kind: MutationKind::Replace(json!(6)),
-                    },
-                ]),
-            })
-        );
+        // DerefMut on array: all elements changed, so the optimization collapses into a single
+        // whole-array Replace instead of a batch of per-element mutations.
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!([4, 5, 6])));
     }
 
     #[test]
