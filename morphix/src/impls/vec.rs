@@ -11,7 +11,7 @@ use std::vec::{Drain, Splice};
 use serde::Serialize;
 
 use crate::builtin::Snapshot;
-use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
+use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceIndexImpl, SliceObserver, TruncateAppend};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
@@ -93,7 +93,7 @@ where
     S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    untracked_methods! { Vec =>
+    delegate_methods! { untracked_mut as Vec =>
         pub fn reserve(&mut self, additional: usize);
         pub fn reserve_exact(&mut self, additional: usize);
         pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
@@ -130,7 +130,7 @@ where
         }
     }
 
-    untracked_methods! { Vec =>
+    delegate_methods! { untracked_mut as Vec =>
         pub fn push(&mut self, value: T);
         pub fn append(&mut self, other: &mut Vec<T>);
     }
@@ -416,7 +416,7 @@ where
     O: Observer<InnerDepth = Zero, Head = T>,
     T: Clone,
 {
-    untracked_methods! { Vec =>
+    delegate_methods! { untracked_mut as Vec =>
         pub fn extend_from_slice(&mut self, other: &[T]);
         pub fn extend_from_within<R>(&mut self, src: R)
         where { R: RangeBounds<usize> };

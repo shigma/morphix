@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 use std::ops::{AddAssign, Bound, Deref, DerefMut, Range, RangeBounds};
 use std::string::Drain;
 
-use crate::helper::macros::{default_impl_ref_observe, untracked_methods};
+use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
 use crate::{Adapter, MutationKind, Mutations, Observe};
@@ -124,7 +124,7 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String>,
 {
-    untracked_methods! { String =>
+    delegate_methods! { untracked_mut as String =>
         pub fn reserve(&mut self, additional: usize);
         pub fn reserve_exact(&mut self, additional: usize);
         pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
@@ -148,7 +148,7 @@ where
         }
     }
 
-    untracked_methods! { String =>
+    delegate_methods! { untracked_mut as String =>
         pub fn push(&mut self, c: char);
         pub fn push_str(&mut self, s: &str);
         pub fn extend_from_within<R>(&mut self, src: R)

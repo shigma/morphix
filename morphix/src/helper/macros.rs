@@ -171,21 +171,23 @@ macro_rules! default_impl_ref_observe {
     };
 }
 
-macro_rules! untracked_methods {
-    ($type:ident => $(
-        // Wrap {} around where clauses for easier parsing
+macro_rules! delegate_methods {
+    ($delegate:ident as $type:ident => $(
+        $(#[doc = $doc:expr])*
         pub fn $name:ident $(<$($gen:tt),*>)? (&mut self $(, $arg:ident: $arg_ty:ty)*) $(-> $ret:ty)? $(where { $($where:tt)+ })?;
     )*) => {
         $(
+            $(#[doc = $doc])*
+            #[doc = ""]
             #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`].")]
             #[inline]
             pub fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $(-> $ret)? $(where $($where)+)? {
-                self.untracked_mut().$name($($arg),*)
+                self.$delegate().$name($($arg),*)
             }
         )*
     };
 }
 
 pub(crate) use {
-    default_impl_ref_observe, spec_impl_observe, spec_impl_observe_from_ref, spec_impl_ref_observe, untracked_methods,
+    default_impl_ref_observe, delegate_methods, spec_impl_observe, spec_impl_observe_from_ref, spec_impl_ref_observe,
 };
