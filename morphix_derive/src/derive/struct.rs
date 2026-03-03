@@ -27,6 +27,7 @@ pub fn derive_observe_for_struct(
     let head = generics_visitor.allocate_ty(parse_quote!(S));
     let depth = generics_visitor.allocate_ty(parse_quote!(N));
     let inner = generics_visitor.allocate_ty(parse_quote!(O));
+    let target = generics_visitor.allocate_ty(parse_quote!(T));
     let ob_lt = generics_visitor.allocate_lt(parse_quote!('ob));
 
     let if_named = match is_named {
@@ -48,6 +49,7 @@ pub fn derive_observe_for_struct(
     let mut skipped_tys = vec![];
     let mut ob_field_tys = vec![];
     let mut deref_fields = vec![];
+    let mut non_deref_members = vec![];
     let mut has_skip_serializing_if = false;
     let field_count = fields.len();
     for (i, field) in fields.iter().enumerate() {
@@ -117,6 +119,7 @@ pub fn derive_observe_for_struct(
                 field_tys.push(quote! { #field_ty });
                 ob_field_tys.push(quote! { #ob_field_ty });
             }
+            non_deref_members.push(field_member.clone());
             refresh_stmts.extend(quote_spanned! { field_span =>
                 ::morphix::observe::Observer::refresh(&mut this.#field_member, &__value.#field_member);
             });
@@ -260,6 +263,7 @@ pub fn derive_observe_for_struct(
 
         assignable_impl = quote! {
             type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
+            type InnerDepth = #depth;
         };
 
         let observer_uninit_expr = match is_named {
@@ -387,6 +391,17 @@ pub fn derive_observe_for_struct(
 
         assignable_impl = quote! {
             type OuterDepth = ::morphix::helper::Succ<#inner::OuterDepth>;
+            type InnerDepth = #depth;
+
+            fn observed_assign<#target>(
+                &mut self,
+                value: #target,
+            ) where
+                Self::Target: ::std::ops::DerefMut<Target: ::morphix::helper::AsDerefMut<#depth, Target = #target>>,
+            {
+                #(let _ = &mut *self.#non_deref_members;)*
+                *::morphix::helper::AsDerefMut::<#depth>::as_deref_mut(self.as_deref_mut_coinductive().deref_mut()) = value;
+            }
         };
 
         let observer_uninit_expr = match is_named {
@@ -529,7 +544,6 @@ pub fn derive_observe_for_struct(
             #depth: ::morphix::helper::Unsigned,
         {
             #assignable_impl
-            type InnerDepth = #depth;
         }
 
         #[automatically_derived]

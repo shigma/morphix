@@ -40,6 +40,17 @@ const _: () = {
     {
         type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
         type InnerDepth = N;
+        fn observed_assign<T>(&mut self, value: T)
+        where
+            Self::Target: ::std::ops::DerefMut<
+                Target: ::morphix::helper::AsDerefMut<N, Target = T>,
+            >,
+        {
+            let _ = &mut *self.b;
+            *::morphix::helper::AsDerefMut::<
+                N,
+            >::as_deref_mut(self.as_deref_mut_coinductive().deref_mut()) = value;
+        }
     }
     #[automatically_derived]
     impl<'ob, T, O, N> ::morphix::observe::Observer for FooObserver<'ob, O>
@@ -162,6 +173,17 @@ const _: () = {
     {
         type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
         type InnerDepth = N;
+        fn observed_assign<T>(&mut self, value: T)
+        where
+            Self::Target: ::std::ops::DerefMut<
+                Target: ::morphix::helper::AsDerefMut<N, Target = T>,
+            >,
+        {
+            let _ = &mut *self.1;
+            *::morphix::helper::AsDerefMut::<
+                N,
+            >::as_deref_mut(self.as_deref_mut_coinductive().deref_mut()) = value;
+        }
     }
     #[automatically_derived]
     impl<'ob, O, N> ::morphix::observe::Observer for BarObserver<'ob, O>
@@ -272,6 +294,16 @@ const _: () = {
     {
         type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
         type InnerDepth = N;
+        fn observed_assign<T>(&mut self, value: T)
+        where
+            Self::Target: ::std::ops::DerefMut<
+                Target: ::morphix::helper::AsDerefMut<N, Target = T>,
+            >,
+        {
+            *::morphix::helper::AsDerefMut::<
+                N,
+            >::as_deref_mut(self.as_deref_mut_coinductive().deref_mut()) = value;
+        }
     }
     #[automatically_derived]
     impl<O, N> ::morphix::observe::Observer for QuxObserver<O>
