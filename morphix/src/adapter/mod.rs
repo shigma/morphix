@@ -6,8 +6,6 @@
 
 use std::mem::take;
 
-use serde::Serialize;
-
 use crate::{Mutation, MutationError, MutationKind, Mutations, Path, PathSegment};
 
 #[cfg(feature = "json")]
@@ -40,10 +38,7 @@ pub trait Adapter: Sized {
     type Error;
 
     /// Constructs the adapter from an optional mutation.
-    fn from_mutation(mutation: Mutations<Self::Value>) -> Self;
-
-    /// Serializes a value into the adapter's Value type.
-    fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error>;
+    fn from_mutations(mutation: Mutations) -> Result<Self, Self::Error>;
 
     /// Gets a mutable reference to a nested value by path segment.
     ///

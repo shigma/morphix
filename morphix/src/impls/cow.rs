@@ -6,7 +6,7 @@ use crate::builtin::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::{DerefObserver, StringObserver};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, RefObserve, SerializeObserver};
-use crate::{Adapter, Mutations, Observe};
+use crate::{Mutations, Observe};
 
 /// Observer implementation for [`Cow<'a, T>`].
 pub struct CowObserver<B, O> {
@@ -94,15 +94,15 @@ where
     O: SerializeObserver<InnerDepth = Zero, Head = T::Owned>,
     T: ToOwned + ?Sized + 'a,
 {
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush(this: &mut Self) -> Mutations {
         if let Some(mut owned) = this.owned.take()
             && !this.mutated
         {
             let head = &**this.inner.as_deref_coinductive();
             this.inner = B::observe(head);
-            unsafe { O::flush::<A>(&mut owned) }
+            unsafe { O::flush(&mut owned) }
         } else {
-            unsafe { B::flush::<A>(&mut this.inner) }
+            unsafe { B::flush(&mut this.inner) }
         }
     }
 }

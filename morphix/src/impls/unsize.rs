@@ -1,12 +1,10 @@
 use std::ops::{Index, RangeFrom};
 use std::ptr::NonNull;
 
-use serde::Serialize;
-
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 use crate::helper::{AsDeref, Unsigned};
 use crate::observe::{DefaultSpec, RefObserve};
-use crate::{Adapter, MutationKind, Mutations};
+use crate::{MutationKind, Mutations};
 
 trait Len {
     fn len(&self) -> usize;
@@ -52,32 +50,32 @@ impl<T: ?Sized> GeneralHandler for UnsizeHandler<T> {
 
 impl<T: ?Sized> SerializeHandler for UnsizeHandler<T>
 where
-    T: Len + Index<RangeFrom<usize>, Output = T> + Serialize,
+    T: Len + Index<RangeFrom<usize>, Output = T> + serde::Serialize + 'static,
 {
-    unsafe fn flush<A: Adapter>(&mut self, new_value: &T) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush(&mut self, new_value: &T) -> Mutations {
         let old_value = unsafe {
             self.ptr
                 .expect("pointer should not be null in GeneralHandler::flush")
                 .as_ref()
         };
         if !std::ptr::addr_eq(new_value, old_value) {
-            return Ok(MutationKind::Replace(A::serialize_value(new_value)?).into());
+            return Mutations::replace(new_value);
         }
         let old_len = old_value.len();
         let new_len = new_value.len();
         if new_len < old_len {
             #[cfg(feature = "truncate")]
-            return Ok(MutationKind::Truncate(old_value[new_len..].len()).into());
+            return MutationKind::Truncate(old_value[new_len..].len()).into();
             #[cfg(not(feature = "truncate"))]
-            return Ok(MutationKind::Replace(A::serialize_value(new_value)?).into());
+            return Mutations::replace_from(new_value);
         }
         if new_len > old_len {
             #[cfg(feature = "append")]
-            return Ok(MutationKind::Append(A::serialize_value(&new_value[old_len..])?).into());
+            return Mutations::append(&new_value[old_len..]);
             #[cfg(not(feature = "append"))]
-            return Ok(MutationKind::Replace(A::serialize_value(new_value)?).into());
+            return Mutations::replace_from(new_value);
         }
-        Ok(Mutations::new())
+        Mutations::new()
     }
 
     #[inline]

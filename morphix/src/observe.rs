@@ -392,33 +392,15 @@ pub trait SerializeObserver: Observer {
     /// ## Safety
     ///
     /// This method assumes the observer contains a valid pointer.
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error>;
-
-    /// Returns a hint about the mutations this observer will produce on the next flush.
-    ///
-    /// Returns `(count, is_replace)` where:
-    /// - `count` is the estimated number of mutations
-    /// - `is_replace` indicates whether the next flush would produce a
-    ///   [`Replace`](crate::MutationKind::Replace) mutation
-    ///
-    /// Used by composite observers (e.g., [`ArrayObserver`](crate::impls::ArrayObserver)) to
-    /// optimize: when all elements would produce [`Replace`](crate::MutationKind::Replace), a
-    /// single whole-container [`Replace`](crate::MutationKind::Replace) is emitted instead of a
-    /// [`Batch`](crate::MutationKind::Batch) of per-element mutations.
-    ///
-    /// ## Safety
-    ///
-    /// Same as [`flush`](Self::flush): the observer must contain a valid pointer.
-    unsafe fn size_hint(_this: &Self) -> (usize, bool) {
-        (0, false)
-    }
+    unsafe fn flush(this: &mut Self) -> Mutations;
 
     /// Flushes mutations for a flattened field, extending into the parent's mutation set.
     ///
     /// ## Safety
     ///
     /// Same as [`flush`](Self::flush): the observer must contain a valid pointer.
-    unsafe fn flush_flatten<A: Adapter>(_this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    #[inline]
+    unsafe fn flush_flatten(_this: &mut Self, _mutations: &mut Mutations) {
         panic!("flush_flatten is not supported for this observer type")
     }
 }
@@ -435,9 +417,9 @@ pub trait SerializeObserverExt: SerializeObserver {
     #[inline]
     fn flush<A: Adapter>(&mut self) -> Result<A, A::Error> {
         if Pointer::is_null((*self).as_deref_coinductive()) {
-            return Ok(A::from_mutation(Mutations::new()));
+            return A::from_mutations(Mutations::new());
         }
-        unsafe { SerializeObserver::flush::<A>(self) }.map(A::from_mutation)
+        A::from_mutations(unsafe { SerializeObserver::flush(self) })
     }
 }
 

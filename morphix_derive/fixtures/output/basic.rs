@@ -84,28 +84,24 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
-        unsafe fn flush<A: ::morphix::Adapter>(
-            this: &mut Self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             if this.__mutated {
                 this.__mutated = false;
-                let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
-                return Ok(
-                    ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
-                );
+                let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+                return ::morphix::Mutations::replace(value);
             }
             let mutations_a = unsafe {
-                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.r#a)?
+                ::morphix::observe::SerializeObserver::flush(&mut this.r#a)
             };
             let mutations_b = unsafe {
-                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.b)?
+                ::morphix::observe::SerializeObserver::flush(&mut this.b)
             };
             let mut mutations = ::morphix::Mutations::with_capacity(
                 mutations_a.len() + mutations_b.len(),
             );
             mutations.insert("A", mutations_a);
             mutations.insert("bar", mutations_b);
-            Ok(mutations)
+            mutations
         }
     }
     #[automatically_derived]
@@ -220,22 +216,18 @@ where
     S: ::morphix::helper::AsDeref<N, Target = Bar>,
     N: ::morphix::helper::Unsigned,
 {
-    unsafe fn flush<A: ::morphix::Adapter>(
-        this: &mut Self,
-    ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+    unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
         if this.2 {
             this.2 = false;
-            let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
-            return Ok(
-                ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
-            );
+            let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+            return ::morphix::Mutations::replace(value);
         }
         let mutations_0 = unsafe {
-            ::morphix::observe::SerializeObserver::flush::<A>(&mut this.0)?
+            ::morphix::observe::SerializeObserver::flush(&mut this.0)
         };
         let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
         mutations.extend(mutations_0);
-        Ok(mutations)
+        mutations
     }
 }
 #[rustfmt::skip]
@@ -325,28 +317,24 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
-        unsafe fn flush<A: ::morphix::Adapter>(
-            this: &mut Self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             if this.3 {
                 this.3 = false;
-                let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
-                return Ok(
-                    ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
-                );
+                let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+                return ::morphix::Mutations::replace(value);
             }
             let mutations_0 = unsafe {
-                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.0)?
+                ::morphix::observe::SerializeObserver::flush(&mut this.0)
             };
             let mutations_1 = unsafe {
-                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.1)?
+                ::morphix::observe::SerializeObserver::flush(&mut this.1)
             };
             let mut mutations = ::morphix::Mutations::with_capacity(
                 mutations_0.len() + mutations_1.len(),
             );
             mutations.insert(0usize, mutations_0);
             mutations.insert(1usize, mutations_1);
-            Ok(mutations)
+            mutations
         }
     }
     #[automatically_derived]

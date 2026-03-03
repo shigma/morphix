@@ -133,7 +133,7 @@ const _: () = {
         _N,
     > ::morphix::observe::SerializeObserver for FooObserver<'ob, 'a, S, T, U, N, _S, _N>
     where
-        Foo<'a, S, T, U, N>: ::serde::Serialize,
+        Foo<'a, S, T, U, N>: ::serde::Serialize + 'static,
         Option<T>: 'ob,
         &'a mut [S; N]: ::morphix::Observe,
         Option<U>: ::morphix::Observe,
@@ -148,21 +148,17 @@ const _: () = {
             Option<U>,
         >: ::morphix::observe::SerializeObserver,
     {
-        unsafe fn flush<A: ::morphix::Adapter>(
-            this: &mut Self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             if this.__mutated {
                 this.__mutated = false;
-                let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
-                return Ok(
-                    ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
-                );
+                let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+                return ::morphix::Mutations::replace(value);
             }
             let mutations_a = unsafe {
-                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.a)?
+                ::morphix::observe::SerializeObserver::flush(&mut this.a)
             };
             let mut mutations_c = unsafe {
-                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.c)?
+                ::morphix::observe::SerializeObserver::flush(&mut this.c)
             };
             let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
             if !mutations_c.is_empty() && Option::is_none(&__inner.c) {
@@ -173,7 +169,7 @@ const _: () = {
             );
             mutations.insert("a", mutations_a);
             mutations.insert("c", mutations_c);
-            Ok(mutations)
+            mutations
         }
     }
     #[automatically_derived]

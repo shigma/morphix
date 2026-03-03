@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 
+use erased_serde::Serialize;
+
 use crate::{Path, PathSegment};
 
 /// A mutation representing a change to a value at a specific path.
@@ -24,6 +26,14 @@ pub struct Mutation<V> {
 }
 
 impl<V> Mutation<V> {
+    #[inline]
+    pub(crate) fn try_map<U, E>(self, f: &mut impl FnMut(V) -> Result<U, E>) -> Result<Mutation<U>, E> {
+        Ok(Mutation {
+            path: self.path,
+            kind: self.kind.try_map(f)?,
+        })
+    }
+
     fn make_batch(&mut self, capacity: usize) -> &mut Vec<Self> {
         if self.path.is_empty()
             && let MutationKind::Batch(ref mut batch) = self.kind
@@ -69,7 +79,7 @@ impl<V> Mutation<V> {
 /// assert!(matches!(result, Some(Mutation { kind: MutationKind::Batch(_), .. })));
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Mutations<V> {
+pub struct Mutations<V = Box<dyn Serialize>> {
     inner: Option<Mutation<V>>,
     capacity: usize,
 }
@@ -206,6 +216,70 @@ impl<V> Mutations<V> {
     /// Returns `true` if this collection contains no mutations.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Returns `true` if this collection contains a single [`Replace`](MutationKind::Replace)
+    /// mutation at the root path.
+    ///
+    /// This is used by composite observers to decide whether to collapse child mutations into a
+    /// single whole-container [`Replace`](MutationKind::Replace). For example, when all elements
+    /// of a slice report `is_replace() == true`, the slice observer emits a single
+    /// [`Replace`](MutationKind::Replace) for the entire slice instead of a
+    /// [`Batch`](MutationKind::Batch) of per-element mutations.
+    pub fn is_replace(&self) -> bool {
+        match &self.inner {
+            Some(mutation) if mutation.path.is_empty() => matches!(mutation.kind, MutationKind::Replace(_)),
+            _ => false,
+        }
+    }
+}
+
+/// A raw-pointer wrapper that implements [`Serialize`](serde::Serialize) for `?Sized` types.
+///
+/// This type enables creating [`Box<dyn Serialize>`](erased_serde::Serialize) from references to
+/// unsized types like `str` and `[T]`, which cannot be directly cast to `&dyn Serialize` because
+/// `&dyn Serialize` requires `Sized`. By wrapping the raw pointer in a `Sized` struct, the
+/// [`Serialize`](serde::Serialize) implementation can dereference the pointer during serialization.
+///
+/// ## Safety
+///
+/// The pointed-to value must remain valid until serialization occurs. This is guaranteed by the
+/// observer's `'ob` lifetime — the observed data outlives all mutations produced by
+/// [`flush`](crate::observe::SerializeObserver::flush).
+struct SerializeRef<T: ?Sized>(*const T);
+
+impl<T> serde::Serialize for SerializeRef<T>
+where
+    T: serde::Serialize + ?Sized,
+{
+    #[inline]
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        unsafe { &*self.0 }.serialize(serializer)
+    }
+}
+
+impl Mutations {
+    /// Creates a [`Mutations`] containing a single [`Replace`](MutationKind::Replace) mutation
+    /// with the given value.
+    ///
+    /// The value is wrapped in a [`Box<dyn Serialize>`](erased_serde::Serialize) via
+    /// [`SerializeRef`], allowing unsized types like `str` and `[T]` to be used.
+    #[inline]
+    pub fn replace<T: serde::Serialize + ?Sized + 'static>(value: &T) -> Self {
+        MutationKind::Replace(Box::new(SerializeRef(value)) as Box<dyn Serialize>).into()
+    }
+
+    /// Creates a [`Mutations`] containing a single [`Append`](MutationKind::Append) mutation
+    /// with the given value.
+    ///
+    /// The value is wrapped in a [`Box<dyn Serialize>`](erased_serde::Serialize) via
+    /// [`SerializeRef`], allowing unsized types like `str` and `[T]` to be used.
+    #[inline]
+    pub fn append<T: serde::Serialize + ?Sized + 'static>(value: &T) -> Self {
+        MutationKind::Append(Box::new(SerializeRef(value)) as Box<dyn Serialize>).into()
     }
 }
 
@@ -368,4 +442,22 @@ pub enum MutationKind<T> {
     /// - Redundant changes are eliminated
     /// - Nested paths are consolidated when possible
     Batch(Vec<Mutation<T>>),
+}
+
+impl<T> MutationKind<T> {
+    #[inline]
+    pub(crate) fn try_map<U, E>(self, f: &mut impl FnMut(T) -> Result<U, E>) -> Result<MutationKind<U>, E> {
+        Ok(match self {
+            MutationKind::Replace(value) => MutationKind::Replace(f(value)?),
+            #[cfg(feature = "append")]
+            MutationKind::Append(value) => MutationKind::Append(f(value)?),
+            #[cfg(feature = "truncate")]
+            MutationKind::Truncate(len) => MutationKind::Truncate(len),
+            #[cfg(feature = "delete")]
+            MutationKind::Delete => MutationKind::Delete,
+            MutationKind::Batch(batch) => {
+                MutationKind::Batch(batch.into_iter().map(|m| m.try_map(f)).collect::<Result<_, E>>()?)
+            }
+        })
+    }
 }

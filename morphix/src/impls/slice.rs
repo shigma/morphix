@@ -14,11 +14,9 @@ use std::slice::{
     SplitInclusiveMut, SplitMut, SplitNMut,
 };
 
-use serde::Serialize;
-
 use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
-use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
+use crate::{MutationKind, Mutations, Observe, PathSegment};
 
 /// Trait for managing the internal observer storage within a slice observer.
 ///
@@ -195,8 +193,7 @@ pub trait SliceObserverDiff: Sized {
     /// the boundary below which inner observers should be flushed. Returns `(mutations, None)` for
     /// a full [`Replace`](MutationKind::Replace), indicating the caller should skip inner observer
     /// flushing.
-    #[expect(clippy::type_complexity)]
-    fn flush<A: Adapter, T: Serialize>(self, slice: &[T]) -> Result<(Mutations<A::Value>, Option<usize>), A::Error>;
+    fn flush<T: serde::Serialize + 'static>(self, slice: &[T]) -> (Mutations, Option<usize>);
 }
 
 impl SliceObserverDiff for () {
@@ -210,8 +207,8 @@ impl SliceObserverDiff for () {
     fn mark_replace(&mut self) {}
 
     #[inline]
-    fn flush<A: Adapter, T: Serialize>(self, slice: &[T]) -> Result<(Mutations<A::Value>, Option<usize>), A::Error> {
-        Ok((Mutations::<A::Value>::new(), Some(slice.len())))
+    fn flush<T: serde::Serialize + 'static>(self, slice: &[T]) -> (Mutations, Option<usize>) {
+        (Mutations::new(), Some(slice.len()))
     }
 }
 
@@ -237,13 +234,13 @@ impl SliceObserverDiff for TruncateAppend {
         self.mark_truncate(0);
     }
 
-    fn flush<A: Adapter, T: Serialize>(self, slice: &[T]) -> Result<(Mutations<A::Value>, Option<usize>), A::Error> {
+    fn flush<T: serde::Serialize + 'static>(self, slice: &[T]) -> (Mutations, Option<usize>) {
         let TruncateAppend {
             truncate_len,
             append_index,
         } = self;
         if append_index == 0 && truncate_len > 0 {
-            return Ok((MutationKind::Replace(A::serialize_value(slice)?).into(), None));
+            return (Mutations::replace(slice), None);
         };
         let mut mutations = Mutations::new();
         #[cfg(feature = "truncate")]
@@ -252,9 +249,9 @@ impl SliceObserverDiff for TruncateAppend {
         }
         #[cfg(feature = "append")]
         if slice.len() > append_index {
-            mutations.extend(MutationKind::Append(A::serialize_value(&slice[append_index..])?));
+            mutations.extend(Mutations::append(&slice[append_index..]));
         }
-        Ok((mutations, Some(append_index)))
+        (mutations, Some(append_index))
     }
 }
 
@@ -353,38 +350,31 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = V::Slice>,
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
-    T: Serialize,
+    T: serde::Serialize + 'static,
 {
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush(this: &mut Self) -> Mutations {
         let slice = (*this.ptr).as_deref().as_ref();
         let diff = std::mem::replace(&mut this.diff, M::observe(slice.len()));
-        let (mut mutations, append_index) = diff.flush::<A, T>(slice)?;
+        let (mut mutations, append_index) = diff.flush::<T>(slice);
         let Some(append_index) = append_index else {
-            return Ok(mutations);
+            return mutations;
         };
         this.__init_index(&..append_index);
-        // Optimization: if all existing elements would produce Replace, collapse into a single
-        // whole-slice Replace. A single Replace is always more compact than a batch of N
-        // per-element Replace mutations (each carrying a path segment), and supersedes any
-        // Truncate/Append mutations from the diff.
-        if !slice.is_empty()
-            && this.inner.as_slice()[..append_index]
-                .iter()
-                .all(|ob| unsafe { O::size_hint(ob) }.1)
-        {
-            this.inner = V::observe((*this.ptr).as_deref());
-            return Ok(MutationKind::Replace(A::serialize_value(slice)?).into());
-        }
         let (existing, stale) = this.inner.as_mut_slice().split_at_mut(append_index);
+        let mut is_replace = true;
         for (index, ob) in existing.iter_mut().enumerate() {
-            mutations.insert(PathSegment::Negative(slice.len() - index), unsafe {
-                SerializeObserver::flush::<A>(ob)?
-            });
+            let inner_mutations = unsafe { SerializeObserver::flush(ob) };
+            is_replace &= inner_mutations.is_replace();
+            mutations.insert(PathSegment::Negative(slice.len() - index), inner_mutations);
         }
         for observer in stale {
             *observer = O::uninit();
         }
-        Ok(mutations)
+        if is_replace && !existing.is_empty() {
+            this.inner = V::observe((*this.ptr).as_deref());
+            return Mutations::replace(slice);
+        }
+        mutations
     }
 }
 

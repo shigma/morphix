@@ -3,11 +3,9 @@ use std::marker::PhantomData;
 use std::num::NonZero;
 use std::ops::{Deref, DerefMut};
 
-use serde::Serialize;
-
+use crate::Mutations;
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, SerializeObserver};
-use crate::{Adapter, MutationKind, Mutations};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
 ///
@@ -89,14 +87,17 @@ pub trait SerializeHandler: GeneralHandler {
     /// This method assumes the handler is constructed with [`observe`](GeneralHandler::observe).
     ///
     /// See also [`SerializeObserver::flush`].
-    unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Mutations<A::Value>, A::Error>;
+    unsafe fn flush(&mut self, value: &Self::Target) -> Mutations;
 
     /// Returns a hint about the mutations this handler will produce on the next flush.
     ///
     /// Returns `(count, is_replace)` where:
-    /// - `count` is the estimated number of mutations
     /// - `is_replace` indicates whether the next flush would produce a
     ///   [`Replace`](MutationKind::Replace) mutation
+    /// - `count`: if `is_replace` is true, the number of mutations that
+    ///   [`flush_flatten`](SerializeObserver::flush_flatten) would contribute to the parent's
+    ///   mutation set; if `is_replace` is false, the number of mutations the
+    ///   [`flush`](SerializeObserver::flush) would produce
     ///
     /// ## Safety
     ///
@@ -127,16 +128,16 @@ pub trait ReplaceHandler: GeneralHandler {
 impl<H> SerializeHandler for H
 where
     H: ReplaceHandler,
-    H::Target: Serialize,
+    H::Target: serde::Serialize + 'static,
 {
     #[inline]
-    unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush(&mut self, value: &Self::Target) -> Mutations {
         let is_replace = unsafe { ReplaceHandler::is_replace(self, value) };
         *self = H::observe(value);
         if is_replace {
-            Ok(MutationKind::Replace(A::serialize_value(value)?).into())
+            Mutations::replace(value)
         } else {
-            Ok(Mutations::new())
+            Mutations::new()
         }
     }
 
@@ -283,12 +284,9 @@ where
     H: SerializeHandler<Target = T>,
     D: Unsigned,
 {
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        unsafe { this.handler.flush::<A>((*this.ptr).as_deref()) }
-    }
-
-    unsafe fn size_hint(this: &Self) -> (usize, bool) {
-        unsafe { this.handler.size_hint((*this.ptr).as_deref()) }
+    #[inline]
+    unsafe fn flush(this: &mut Self) -> Mutations {
+        unsafe { this.handler.flush((*this.ptr).as_deref()) }
     }
 }
 

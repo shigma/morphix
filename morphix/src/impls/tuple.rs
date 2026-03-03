@@ -2,13 +2,11 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
-use serde::Serialize;
-
 use crate::builtin::{PointerObserver, Snapshot};
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
-use crate::{Adapter, Mutations, Observe};
+use crate::{Mutations, Observe};
 
 /// Observer implementation for tuple `(T,)`.
 pub struct TupleObserver<O, S: ?Sized, D = Zero>(pub O, Pointer<S>, PhantomData<D>);
@@ -75,14 +73,14 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = (O::Head,)>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: Serialize + Sized,
+    O::Head: serde::Serialize + Sized,
 {
     #[inline]
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        let mutations_0 = unsafe { SerializeObserver::flush::<A>(&mut this.0)? };
+    unsafe fn flush(this: &mut Self) -> Mutations {
+        let mutations_0 = unsafe { SerializeObserver::flush(&mut this.0) };
         let mut mutations = Mutations::new();
         mutations.insert(0, mutations_0);
-        Ok(mutations)
+        mutations
     }
 }
 
@@ -286,18 +284,18 @@ macro_rules! tuple_observer {
         where
             D: Unsigned,
             S: AsDeref<D, Target = ($($o::Head,)*)>,
-            $($o: SerializeObserver<InnerDepth = Zero, Head: Serialize + Sized>,)*
+            $($o: SerializeObserver<InnerDepth = Zero, Head: serde::Serialize + Sized>,)*
         {
             #[inline]
-            unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-                let mutations_tuple = ($(unsafe { SerializeObserver::flush::<A>(&mut this.$n)? },)*);
+            unsafe fn flush(this: &mut Self) -> Mutations {
+                let mutations_tuple = ($(unsafe { SerializeObserver::flush(&mut this.$n) },)*);
                 let mut mutations = Mutations::with_capacity(
                     0 $(+ mutations_tuple.$n.len())*
                 );
                 $(
                     mutations.insert($n, mutations_tuple.$n);
                 )*
-                Ok(mutations)
+                mutations
             }
         }
 

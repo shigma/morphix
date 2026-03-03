@@ -8,14 +8,12 @@ use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 use std::slice::SliceIndex;
 use std::vec::{Drain, Splice};
 
-use serde::Serialize;
-
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverDiff, TruncateAppend};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
-use crate::{Adapter, Mutations, Observe};
+use crate::{Mutations, Observe};
 
 /// Observer implementation for [`Vec<T>`].
 pub struct VecObserver<O, S: ?Sized, D = Zero> {
@@ -79,11 +77,11 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = Vec<T>>,
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
-    T: Serialize,
+    T: serde::Serialize + 'static,
 {
     #[inline]
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        unsafe { SliceObserver::flush::<A>(&mut this.inner) }
+    unsafe fn flush(this: &mut Self) -> Mutations {
+        unsafe { SliceObserver::flush(&mut this.inner) }
     }
 }
 

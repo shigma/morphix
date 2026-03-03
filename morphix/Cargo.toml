@@ -27,6 +27,7 @@ yaml = ["dep:serde_yaml_ng"]
 features = ["full"]
 
 [dependencies]
+erased-serde = { version = "0.4.10" }
 morphix_derive = { version = "0.15.1", path = "../morphix_derive", optional = true, default-features = false }
 serde = { version = "1" }
 serde_json = { version = "1", optional = true }

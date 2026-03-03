@@ -8,7 +8,7 @@ use std::string::Drain;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
-use crate::{Adapter, MutationKind, Mutations, Observe};
+use crate::{MutationKind, Mutations, Observe};
 
 /// Observer implementation for [`String`].
 pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
@@ -92,13 +92,13 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = String>,
 {
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush(this: &mut Self) -> Mutations {
         let len = (*this.ptr).as_deref().len();
         let Some(truncate_append) = this.mutation.replace(TruncateAppend {
             append_index: len,
             truncate_len: 0,
         }) else {
-            return Ok(MutationKind::Replace(A::serialize_value((*this.ptr).as_deref())?).into());
+            return Mutations::replace((*this.ptr).as_deref());
         };
         let TruncateAppend {
             append_index,
@@ -111,11 +111,9 @@ where
         }
         #[cfg(feature = "append")]
         if len > append_index {
-            mutations.extend(MutationKind::Append(A::serialize_value(
-                &(*this.ptr).as_deref()[append_index..],
-            )?));
+            mutations.extend(Mutations::append(&(*this.ptr).as_deref()[append_index..]));
         }
-        Ok(mutations)
+        mutations
     }
 }
 

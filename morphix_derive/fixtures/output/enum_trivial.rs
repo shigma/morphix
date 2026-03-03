@@ -86,22 +86,15 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
-        unsafe fn flush<A: ::morphix::Adapter>(
-            this: &mut Self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             let __value = this.__ptr.as_deref();
             let __initial = this.__initial;
             this.__initial = FooObserverInitial::new(__value);
             match (__initial, __value) {
                 (FooObserverInitial::A, Foo::A)
                 | (FooObserverInitial::B, Foo::B())
-                | (FooObserverInitial::C, Foo::C {}) => Ok(::morphix::Mutations::new()),
-                _ => {
-                    Ok(
-                        ::morphix::MutationKind::Replace(A::serialize_value(__value)?)
-                            .into(),
-                    )
-                }
+                | (FooObserverInitial::C, Foo::C {}) => ::morphix::Mutations::new(),
+                _ => ::morphix::Mutations::replace(__value),
             }
         }
     }

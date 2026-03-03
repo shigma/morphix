@@ -168,7 +168,7 @@ pub fn derive_observe_for_struct(
             });
         }
         flush_stmts_1.extend(quote_spanned! { field_span =>
-            let #mutability #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_member)? };
+            let #mutability #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.#field_member) };
         });
         flush_capacity.push(quote_spanned! { field_span =>
             #mutation_ident.len()
@@ -327,8 +327,8 @@ pub fn derive_observe_for_struct(
         serialize_observer_impl_prefix = quote! {
             if this.#mutated_field {
                 this.#mutated_field = false;
-                let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
-                return Ok(::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into());
+                let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+                return ::morphix::Mutations::replace(value);
             };
         };
 
@@ -455,7 +455,7 @@ pub fn derive_observe_for_struct(
 
     let serialize_observer_impl = if flush_capacity.is_empty() {
         quote! {
-            Ok(::morphix::Mutations::new())
+            ::morphix::Mutations::new()
         }
     } else {
         quote! {
@@ -463,7 +463,7 @@ pub fn derive_observe_for_struct(
             #flush_stmts_2
             let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
             #flush_stmts_3
-            Ok(mutations)
+            mutations
         }
     };
 
@@ -476,7 +476,7 @@ pub fn derive_observe_for_struct(
         quote! {}
     } else {
         quote! {
-            #input_ident #input_type_generics: ::serde::Serialize,
+            #input_ident #input_type_generics: ::serde::Serialize + 'static,
         }
     };
     let self_serialize_predicates = if input_trivial {
@@ -571,9 +571,7 @@ pub fn derive_observe_for_struct(
             #depth: ::morphix::helper::Unsigned,
             #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
         {
-            unsafe fn flush<A: ::morphix::Adapter>(
-                this: &mut Self,
-            ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+            unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
                 #serialize_observer_impl_prefix
                 #serialize_observer_impl
             }

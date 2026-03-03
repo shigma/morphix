@@ -4,7 +4,7 @@ use std::ops::{Deref, DerefMut};
 use crate::builtin::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned};
 use crate::observe::{Observer, ObserverExt, RefObserve, SerializeObserver};
-use crate::{Adapter, Mutations, Observe};
+use crate::{Mutations, Observe};
 
 /// Observer implementation for pointer types such as [`Box<T>`] and `&mut T`.
 ///
@@ -71,8 +71,8 @@ where
     D: Unsigned,
 {
     #[inline]
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        unsafe { O::flush::<A>(&mut this.inner) }
+    unsafe fn flush(this: &mut Self) -> Mutations {
+        unsafe { O::flush(&mut this.inner) }
     }
 }
 

@@ -85,28 +85,26 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, T, O, N> ::morphix::observe::SerializeObserver for FooObserver<'ob, O>
     where
-        Foo<T>: ::serde::Serialize,
+        Foo<T>: ::serde::Serialize + 'static,
         Vec<T>: 'ob,
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
         O::Head: ::morphix::helper::AsDeref<N, Target = Foo<T>>,
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {
-        unsafe fn flush<A: ::morphix::Adapter>(
-            this: &mut Self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             let mutations_a = unsafe {
-                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.a)?
+                ::morphix::observe::SerializeObserver::flush(&mut this.a)
             };
             let mutations_b = unsafe {
-                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.b)?
+                ::morphix::observe::SerializeObserver::flush(&mut this.b)
             };
             let mut mutations = ::morphix::Mutations::with_capacity(
                 mutations_a.len() + mutations_b.len(),
             );
             mutations.extend(mutations_a);
             mutations.insert("b", mutations_b);
-            Ok(mutations)
+            mutations
         }
     }
     #[automatically_derived]
@@ -219,21 +217,19 @@ const _: () = {
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {
-        unsafe fn flush<A: ::morphix::Adapter>(
-            this: &mut Self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             let mutations_0 = unsafe {
-                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.0)?
+                ::morphix::observe::SerializeObserver::flush(&mut this.0)
             };
             let mutations_1 = unsafe {
-                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.1)?
+                ::morphix::observe::SerializeObserver::flush(&mut this.1)
             };
             let mut mutations = ::morphix::Mutations::with_capacity(
                 mutations_0.len() + mutations_1.len(),
             );
             mutations.insert(0usize, mutations_0);
             mutations.insert(1usize, mutations_1);
-            Ok(mutations)
+            mutations
         }
     }
     #[automatically_derived]
@@ -333,15 +329,13 @@ const _: () = {
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {
-        unsafe fn flush<A: ::morphix::Adapter>(
-            this: &mut Self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             let mutations_0 = unsafe {
-                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.0)?
+                ::morphix::observe::SerializeObserver::flush(&mut this.0)
             };
             let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
             mutations.extend(mutations_0);
-            Ok(mutations)
+            mutations
         }
     }
     #[automatically_derived]

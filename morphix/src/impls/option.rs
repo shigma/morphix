@@ -2,13 +2,11 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
-use serde::Serialize;
-
+use crate::Mutations;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, ObserverExt, SerializeObserver};
-use crate::{Adapter, MutationKind, Mutations};
 
 /// Observer implementation for [`Option<T>`].
 pub struct OptionObserver<O, S: ?Sized, D = Zero> {
@@ -93,9 +91,9 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = Option<O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: Serialize + Sized,
+    O::Head: serde::Serialize + Sized + 'static,
 {
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush(this: &mut Self) -> Mutations {
         let option = (*this.ptr).as_deref();
         let initial = this.initial;
         this.initial = option.is_some();
@@ -103,12 +101,12 @@ where
             && initial
             && option.is_some()
         {
-            return unsafe { SerializeObserver::flush::<A>(&mut ob) };
+            return unsafe { SerializeObserver::flush(&mut ob) };
         }
         if initial || option.is_some() {
-            Ok(MutationKind::Replace(A::serialize_value(option)?).into())
+            Mutations::replace(option)
         } else {
-            Ok(Mutations::new())
+            Mutations::new()
         }
     }
 }
@@ -291,6 +289,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+    use crate::MutationKind;
     use crate::adapter::Json;
     use crate::builtin::GeneralObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};

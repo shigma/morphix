@@ -179,14 +179,14 @@ pub fn derive_observe_for_enum(
                     && let Some(path) = field_meta.serde.skip_serializing_if
                 {
                     quote_spanned! { field_span =>
-                        let mut #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)? };
+                        let mut #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(#flush_ident) };
                         if !#mutation_ident.is_empty() && #path(::morphix::helper::QuasiObserver::observed_ref(#flush_ident)) {
                             #mutation_ident = ::morphix::MutationKind::Delete.into();
                         }
                     }
                 } else {
                     quote_spanned! { field_span =>
-                        let #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)? };
+                        let #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(#flush_ident) };
                     }
                 },
             );
@@ -224,13 +224,13 @@ pub fn derive_observe_for_enum(
         }
 
         let variant_flush_expr = if flush_capacity.is_empty() {
-            quote! { Ok(::morphix::Mutations::new()) }
+            quote! { ::morphix::Mutations::new() }
         } else {
             quote! {{
                 #pre_flush_stmts
                 let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
                 #post_flush_stmts
-                Ok(mutations)
+                mutations
             }}
         };
 
@@ -300,7 +300,7 @@ pub fn derive_observe_for_enum(
         (Self::__None, _) => {},
     });
     variant_flush_arms.extend(quote! {
-        Self::__None => Ok(::morphix::Mutations::new()),
+        Self::__None => ::morphix::Mutations::new(),
     });
 
     let ob_flush_prefix_stmt = if has_initial {
@@ -315,13 +315,13 @@ pub fn derive_observe_for_enum(
     let ob_flush_suffix_stmt = if has_initial {
         quote! {
             match (__initial, __value) {
-                #initial_flush_pats => Ok(::morphix::Mutations::new()),
-                _ => Ok(::morphix::MutationKind::Replace(A::serialize_value(__value)?).into()),
+                #initial_flush_pats => ::morphix::Mutations::new(),
+                _ => ::morphix::Mutations::replace(__value),
             }
         }
     } else {
         quote! {
-            Ok(::morphix::MutationKind::Replace(A::serialize_value(this.as_deref())?).into())
+            ::morphix::Mutations::replace(this.as_deref())
         }
     };
 
@@ -360,7 +360,7 @@ pub fn derive_observe_for_enum(
         quote! {}
     } else {
         quote! {
-            #input_ident #input_type_generics: ::serde::Serialize,
+            #input_ident #input_type_generics: ::serde::Serialize + 'static,
         }
     };
     let self_serialize_predicates = if input_trivial {
@@ -424,7 +424,7 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            fn flush<A: ::morphix::Adapter>(&mut self) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error>
+            fn flush(&mut self) -> ::morphix::Mutations
             where
                 #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
             {
@@ -548,13 +548,11 @@ pub fn derive_observe_for_enum(
             #depth: ::morphix::helper::Unsigned,
             #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
         {
-            unsafe fn flush<A: ::morphix::Adapter>(
-                this: &mut Self,
-            ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+            unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
                 #ob_flush_prefix_stmt
                 #(#if_has_variant
                     if !this.__mutated {
-                        return this.__variant.flush::<A>();
+                        return this.__variant.flush();
                     }
                     this.__mutated = false;
                     this.__variant = #ob_variant_ident::__None;

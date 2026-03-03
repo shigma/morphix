@@ -2,13 +2,11 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::slice::SliceIndex;
 
-use serde::Serialize;
-
 use crate::builtin::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverInner};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
-use crate::{Adapter, Mutations, Observe};
+use crate::{Mutations, Observe};
 
 impl<O, const N: usize> SliceObserverInner for [O; N]
 where
@@ -153,11 +151,11 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = [T; N]>,
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
-    T: Serialize,
+    T: serde::Serialize + 'static,
 {
     #[inline]
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        unsafe { SliceObserver::flush::<A>(&mut this.inner) }
+    unsafe fn flush(this: &mut Self) -> Mutations {
+        unsafe { SliceObserver::flush(&mut this.inner) }
     }
 }
 

@@ -1,4 +1,3 @@
-use serde::Serialize;
 use serde_json::value::Serializer;
 use serde_json::{Error, Value};
 
@@ -32,12 +31,13 @@ impl Adapter for Json {
     type Value = Value;
     type Error = Error;
 
-    fn from_mutation(mutation: Mutations<Self::Value>) -> Self {
-        Json(mutation.into_inner())
-    }
-
-    fn serialize_value<T: Serialize + ?Sized>(value: &T) -> Result<Self::Value, Self::Error> {
-        value.serialize(Serializer)
+    fn from_mutations(mutation: Mutations) -> Result<Self, Self::Error> {
+        Ok(Self(
+            mutation
+                .into_inner()
+                .map(|mutation| mutation.try_map(&mut |value| erased_serde::serialize(&*value, Serializer)))
+                .transpose()?,
+        ))
     }
 
     fn get_mut<'a>(

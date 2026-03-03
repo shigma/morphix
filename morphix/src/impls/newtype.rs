@@ -4,13 +4,11 @@ use std::marker::PhantomData;
 use std::num::{Saturating, Wrapping};
 use std::ops::{Deref, DerefMut};
 
-use serde::Serialize;
-
+use crate::Mutations;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, SerializeObserver};
-use crate::{Adapter, Mutations};
 
 /// Helper trait to access the inner field of a transparent newtype wrapper.
 pub trait Newtype {
@@ -112,11 +110,11 @@ where
     D: Unsigned,
     S: AsDeref<D, Target: Newtype<Inner = O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: Serialize + Sized,
+    O::Head: serde::Serialize + Sized,
 {
     #[inline]
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        unsafe { SerializeObserver::flush::<A>(&mut this.0) }
+    unsafe fn flush(this: &mut Self) -> Mutations {
+        unsafe { SerializeObserver::flush(&mut this.0) }
     }
 }
 

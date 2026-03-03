@@ -62,23 +62,21 @@ const _: () = {
                 }
             }
         }
-        fn flush<A: ::morphix::Adapter>(
-            &mut self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        fn flush(&mut self) -> ::morphix::Mutations {
             match self {
                 Self::A(u0) => {
                     let mutations_0 = unsafe {
-                        ::morphix::observe::SerializeObserver::flush::<A>(u0)?
+                        ::morphix::observe::SerializeObserver::flush(u0)
                     };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_0.len(),
                     );
                     mutations.extend(mutations_0);
-                    Ok(mutations)
+                    mutations
                 }
                 Self::C { bar, qux } => {
                     let mut mutations_bar = unsafe {
-                        ::morphix::observe::SerializeObserver::flush::<A>(bar)?
+                        ::morphix::observe::SerializeObserver::flush(bar)
                     };
                     if !mutations_bar.is_empty()
                         && String::is_empty(
@@ -88,16 +86,16 @@ const _: () = {
                         mutations_bar = ::morphix::MutationKind::Delete.into();
                     }
                     let mutations_qux = unsafe {
-                        ::morphix::observe::SerializeObserver::flush::<A>(qux)?
+                        ::morphix::observe::SerializeObserver::flush(qux)
                     };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_bar.len() + mutations_qux.len(),
                     );
                     mutations.insert("bar", mutations_bar);
                     mutations.extend(mutations_qux);
-                    Ok(mutations)
+                    mutations
                 }
-                Self::__None => Ok(::morphix::Mutations::new()),
+                Self::__None => ::morphix::Mutations::new(),
             }
         }
     }
@@ -163,22 +161,17 @@ const _: () = {
     impl<'ob, const N: usize, S: ?Sized, _N> ::morphix::observe::SerializeObserver
     for FooObserver<'ob, N, S, _N>
     where
-        Foo<N>: ::serde::Serialize,
+        Foo<N>: ::serde::Serialize + 'static,
         S: ::morphix::helper::AsDeref<_N, Target = Foo<N>>,
         _N: ::morphix::helper::Unsigned,
     {
-        unsafe fn flush<A: ::morphix::Adapter>(
-            this: &mut Self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             if !this.__mutated {
-                return this.__variant.flush::<A>();
+                return this.__variant.flush();
             }
             this.__mutated = false;
             this.__variant = FooObserverVariant::__None;
-            Ok(
-                ::morphix::MutationKind::Replace(A::serialize_value(this.as_deref())?)
-                    .into(),
-            )
+            ::morphix::Mutations::replace(this.as_deref())
         }
     }
     #[automatically_derived]

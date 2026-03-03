@@ -85,45 +85,43 @@ const _: () = {
                 }
             }
         }
-        fn flush<A: ::morphix::Adapter>(
-            &mut self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        fn flush(&mut self) -> ::morphix::Mutations {
             match self {
                 Self::A(u0) => {
                     let mutations_0 = unsafe {
-                        ::morphix::observe::SerializeObserver::flush::<A>(u0)?
+                        ::morphix::observe::SerializeObserver::flush(u0)
                     };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_0.len(),
                     );
                     mutations.extend(mutations_0);
-                    Ok(mutations)
+                    mutations
                 }
                 Self::B(u0, u1) => {
                     let mutations_0 = unsafe {
-                        ::morphix::observe::SerializeObserver::flush::<A>(u0)?
+                        ::morphix::observe::SerializeObserver::flush(u0)
                     };
                     let mutations_1 = unsafe {
-                        ::morphix::observe::SerializeObserver::flush::<A>(u1)?
+                        ::morphix::observe::SerializeObserver::flush(u1)
                     };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_0.len() + mutations_1.len(),
                     );
                     mutations.insert(0usize, mutations_0);
                     mutations.insert(1usize, mutations_1);
-                    Ok(mutations)
+                    mutations
                 }
                 Self::C { bar } => {
                     let mutations_bar = unsafe {
-                        ::morphix::observe::SerializeObserver::flush::<A>(bar)?
+                        ::morphix::observe::SerializeObserver::flush(bar)
                     };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_bar.len(),
                     );
                     mutations.insert("BAR", mutations_bar);
-                    Ok(mutations)
+                    mutations
                 }
-                Self::__None => Ok(::morphix::Mutations::new()),
+                Self::__None => ::morphix::Mutations::new(),
             }
         }
     }
@@ -190,27 +188,20 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
-        unsafe fn flush<A: ::morphix::Adapter>(
-            this: &mut Self,
-        ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
+        unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             let __value = this.__ptr.as_deref();
             let __initial = this.__initial;
             this.__initial = FooObserverInitial::new(__value);
             if !this.__mutated {
-                return this.__variant.flush::<A>();
+                return this.__variant.flush();
             }
             this.__mutated = false;
             this.__variant = FooObserverVariant::__None;
             match (__initial, __value) {
                 (FooObserverInitial::D, Foo::D)
                 | (FooObserverInitial::E, Foo::E())
-                | (FooObserverInitial::F, Foo::F {}) => Ok(::morphix::Mutations::new()),
-                _ => {
-                    Ok(
-                        ::morphix::MutationKind::Replace(A::serialize_value(__value)?)
-                            .into(),
-                    )
-                }
+                | (FooObserverInitial::F, Foo::F {}) => ::morphix::Mutations::new(),
+                _ => ::morphix::Mutations::replace(__value),
             }
         }
     }

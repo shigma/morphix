@@ -9,13 +9,11 @@ use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
 
-use serde::Serialize;
-
 use crate::builtin::Snapshot;
 use crate::helper::macros::default_impl_ref_observe;
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
-use crate::{Adapter, MutationKind, Mutations, Observe, PathSegment};
+use crate::{MutationKind, Mutations, Observe, PathSegment};
 
 enum ValueState {
     /// Key existed in the original map and was overwritten via
@@ -184,12 +182,12 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = BTreeMap<K, O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: Serialize + Sized,
-    K: Serialize + Ord + Into<PathSegment>,
+    O::Head: serde::Serialize + Sized + 'static,
+    K: serde::Serialize + Ord + Into<PathSegment> + 'static,
 {
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush(this: &mut Self) -> Mutations {
         let Some(diff) = this.diff.take() else {
-            return Ok(MutationKind::Replace(A::serialize_value((*this).observed_ref())?).into());
+            return Mutations::replace((*this).observed_ref());
         };
         let mut mutations = Mutations::new();
         for (key, state) in diff {
@@ -206,7 +204,7 @@ where
                         .as_deref()
                         .get(&key)
                         .expect("replaced key not found in observed map");
-                    mutations.insert(key, MutationKind::Replace(A::serialize_value(value)?));
+                    mutations.insert(key, Mutations::replace(value));
                 }
             }
         }
@@ -216,9 +214,9 @@ where
                 .get(&key)
                 .expect("observer key not found in observed map");
             unsafe { O::refresh(&mut ob, value) }
-            mutations.insert(key, unsafe { O::flush::<A>(&mut ob)? });
+            mutations.insert(key, unsafe { O::flush(&mut ob) });
         }
-        Ok(mutations)
+        mutations
     }
 }
 

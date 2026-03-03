@@ -2,13 +2,11 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
-use serde::Serialize;
-
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe_from_ref, spec_impl_ref_observe};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, SerializeObserver};
-use crate::{Adapter, MutationKind, Mutations};
+use crate::{MutationKind, Mutations};
 
 trait Weak<T: ?Sized> {
     type Ptr: Deref<Target = T>;
@@ -115,25 +113,28 @@ where
     D: Unsigned,
     S: AsDeref<D, Target: Weak<O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: Serialize,
+    O::Head: serde::Serialize + 'static,
 {
     #[inline]
-    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush(this: &mut Self) -> Mutations {
         let rc = (*this.ptr).as_deref().upgrade();
         let initial = this.initial;
         this.initial = rc.is_some();
         if !this.mutated {
             if let Some(ob) = &mut this.inner {
-                return unsafe { SerializeObserver::flush::<A>(ob) };
+                return unsafe { SerializeObserver::flush(ob) };
             } else {
-                return Ok(Mutations::new());
+                return Mutations::new();
             }
         }
         this.mutated = false;
-        if initial || rc.is_some() {
-            Ok(MutationKind::Replace(A::serialize_value(&rc.as_deref())?).into())
+        if !initial {
+            return Mutations::new();
+        }
+        if let Some(rc) = rc {
+            Mutations::replace(&*rc)
         } else {
-            Ok(Mutations::new())
+            MutationKind::Replace(Box::new(None::<()>) as Box<dyn erased_serde::Serialize>).into()
         }
     }
 }
