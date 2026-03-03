@@ -413,7 +413,7 @@ where
     }
 }
 
-macro_rules! impl_assign_ops {
+macro_rules! impl_ops_assign {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
             impl<'ob, H, S: ?Sized, D, T: ?Sized, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, D>
@@ -432,7 +432,7 @@ macro_rules! impl_assign_ops {
     };
 }
 
-impl_assign_ops! {
+impl_ops_assign! {
     AddAssign => add_assign,
     SubAssign => sub_assign,
     MulAssign => mul_assign,
@@ -479,34 +479,30 @@ impl_ops_copy! {
     Shr => shr,
 }
 
-impl<'ob, H, S: ?Sized, D> std::ops::Neg for GeneralObserver<'ob, H, S, D>
-where
-    H: GeneralHandler,
-    S: AsDeref<D>,
-    D: Unsigned,
-    S::Target: std::ops::Neg + Copy,
-{
-    type Output = <S::Target as std::ops::Neg>::Output;
+macro_rules! impl_ops_copy_unary {
+    ($($trait:ident => $method:ident),* $(,)?) => {
+        $(
+            impl<'ob, H, S: ?Sized, D> std::ops::$trait for GeneralObserver<'ob, H, S, D>
+            where
+                H: GeneralHandler,
+                S: AsDeref<D>,
+                D: Unsigned,
+                S::Target: std::ops::$trait + Copy,
+            {
+                type Output = <S::Target as std::ops::$trait>::Output;
 
-    #[inline]
-    fn neg(self) -> Self::Output {
-        (*self.observed_ref()).neg()
+                #[inline]
+                fn $method(self) -> Self::Output {
+                    (*self.observed_ref()).$method()
+                }
+            }
+        )*
     }
 }
 
-impl<'ob, H, S: ?Sized, D> std::ops::Not for GeneralObserver<'ob, H, S, D>
-where
-    H: GeneralHandler,
-    S: AsDeref<D>,
-    D: Unsigned,
-    S::Target: std::ops::Not + Copy,
-{
-    type Output = <S::Target as std::ops::Not>::Output;
-
-    #[inline]
-    fn not(self) -> Self::Output {
-        (*self.observed_ref()).not()
-    }
+impl_ops_copy_unary! {
+    Neg => neg,
+    Not => not,
 }
 
 macro_rules! impl_partial_eq {

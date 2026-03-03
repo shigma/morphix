@@ -12,6 +12,40 @@ use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned,
 use crate::observe::{Observer, SerializeObserver};
 use crate::{Adapter, Mutations};
 
+/// Helper trait to access the inner field of a transparent newtype wrapper.
+pub trait Newtype {
+    type Inner;
+
+    fn as_inner(&self) -> &Self::Inner;
+}
+
+impl<T> Newtype for Wrapping<T> {
+    type Inner = T;
+
+    #[inline]
+    fn as_inner(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> Newtype for Saturating<T> {
+    type Inner = T;
+
+    #[inline]
+    fn as_inner(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> Newtype for Reverse<T> {
+    type Inner = T;
+
+    #[inline]
+    fn as_inner(&self) -> &T {
+        &self.0
+    }
+}
+
 /// Observer implementation for transparent newtype wrappers such as
 /// [`Wrapping<T>`], [`Saturating<T>`], and [`Reverse<T>`].
 pub struct NewtypeObserver<O, S: ?Sized, D = Zero>(pub O, Pointer<S>, PhantomData<D>);
@@ -49,7 +83,7 @@ where
 impl<O, S: ?Sized, D> Observer for NewtypeObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target: NewtypeInner<Inner = O::Head>>,
+    S: AsDeref<D, Target: Newtype<Inner = O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
@@ -76,7 +110,7 @@ where
 impl<O, S: ?Sized, D> SerializeObserver for NewtypeObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target: NewtypeInner<Inner = O::Head>>,
+    S: AsDeref<D, Target: Newtype<Inner = O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized,
 {
@@ -153,38 +187,125 @@ where
     }
 }
 
-/// Helper trait to access the inner field of a transparent newtype wrapper.
-pub trait NewtypeInner {
-    type Inner;
-
-    fn as_inner(&self) -> &Self::Inner;
+macro_rules! impl_fmt {
+    ($($trait:ident),* $(,)?) => {
+        $(
+            impl<O, S: ?Sized, D> std::fmt::$trait for NewtypeObserver<O, S, D>
+            where
+                O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+                D: Unsigned,
+                S: AsDeref<D>,
+                S::Target: std::fmt::$trait,
+            {
+                #[inline]
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    std::fmt::$trait::fmt(self.observed_ref(), f)
+                }
+            }
+        )*
+    };
 }
 
-impl<T> NewtypeInner for Wrapping<T> {
-    type Inner = T;
-
-    #[inline]
-    fn as_inner(&self) -> &T {
-        &self.0
-    }
+impl_fmt! {
+    Binary,
+    Display,
+    LowerExp,
+    LowerHex,
+    Octal,
+    UpperExp,
+    UpperHex,
 }
 
-impl<T> NewtypeInner for Saturating<T> {
-    type Inner = T;
-
-    #[inline]
-    fn as_inner(&self) -> &T {
-        &self.0
-    }
+macro_rules! impl_ops_assign {
+    ($($trait:ident => $method:ident),* $(,)?) => {
+        $(
+            impl<O, S: ?Sized, D, U> std::ops::$trait<U> for NewtypeObserver<O, S, D>
+            where
+                S: AsDerefMut<D>,
+                O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+                D: Unsigned,
+                S::Target: std::ops::$trait<U>,
+            {
+                #[inline]
+                fn $method(&mut self, rhs: U) {
+                    self.observed_mut().$method(rhs);
+                }
+            }
+        )*
+    };
 }
 
-impl<T> NewtypeInner for Reverse<T> {
-    type Inner = T;
+impl_ops_assign! {
+    AddAssign => add_assign,
+    SubAssign => sub_assign,
+    MulAssign => mul_assign,
+    DivAssign => div_assign,
+    RemAssign => rem_assign,
+    BitAndAssign => bitand_assign,
+    BitOrAssign => bitor_assign,
+    BitXorAssign => bitxor_assign,
+    ShlAssign => shl_assign,
+    ShrAssign => shr_assign,
+}
 
-    #[inline]
-    fn as_inner(&self) -> &T {
-        &self.0
-    }
+macro_rules! impl_ops_copy {
+    ($($trait:ident => $method:ident),* $(,)?) => {
+        $(
+            impl<O, S: ?Sized, D, U> std::ops::$trait<U> for NewtypeObserver<O, S, D>
+            where
+                O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+                S: AsDeref<D>,
+                D: Unsigned,
+                S::Target: std::ops::$trait<U> + Copy,
+            {
+                type Output = <S::Target as std::ops::$trait<U>>::Output;
+
+                #[inline]
+                fn $method(self, rhs: U) -> Self::Output {
+                    self.observed_ref().$method(rhs)
+                }
+            }
+        )*
+    };
+}
+
+impl_ops_copy! {
+    Add => add,
+    Sub => sub,
+    Mul => mul,
+    Div => div,
+    Rem => rem,
+    BitAnd => bitand,
+    BitOr => bitor,
+    BitXor => bitxor,
+    Shl => shl,
+    Shr => shr,
+}
+
+macro_rules! impl_ops_copy_unary {
+    ($($trait:ident => $method:ident),* $(,)?) => {
+        $(
+            impl<O, S: ?Sized, D> std::ops::$trait for NewtypeObserver<O, S, D>
+            where
+                O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+                S: AsDeref<D>,
+                D: Unsigned,
+                S::Target: std::ops::$trait + Copy,
+            {
+                type Output = <S::Target as std::ops::$trait>::Output;
+
+                #[inline]
+                fn $method(self) -> Self::Output {
+                    (*self.observed_ref()).$method()
+                }
+            }
+        )*
+    };
+}
+
+impl_ops_copy_unary! {
+    Neg => neg,
+    Not => not,
 }
 
 macro_rules! impl_newtype {
@@ -316,5 +437,23 @@ mod tests {
         ob.0.push_str(" world");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!(" world")));
+    }
+
+    #[test]
+    fn wrapping_add_assign() {
+        let mut value = Wrapping(10u32);
+        let mut ob = value.__observe();
+        ob += Wrapping(5u32);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(15)));
+    }
+
+    #[test]
+    fn saturating_sub_assign() {
+        let mut value = Saturating(10u32);
+        let mut ob = value.__observe();
+        ob -= Saturating(3u32);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(7)));
     }
 }
