@@ -295,7 +295,7 @@ macro_rules! tuple_observer {
             #[inline]
             unsafe fn flush(this: &mut Self) -> Mutations {
                 let mutations_tuple = ($(unsafe { SerializeObserver::flush(&mut this.$n) },)*);
-                let capacity = 0 $(+ mutations_tuple.$n.len())*;
+                let capacity = 0 $(+ mutations_tuple.$n.is_replace() as usize)*;
                 if capacity == $ptr {
                     return Mutations::replace((*this).observed_ref());
                 }

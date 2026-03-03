@@ -166,6 +166,7 @@ pub enum MutationKind<T> {
 }
 
 impl<T> MutationKind<T> {
+    #[cfg(any(feature = "json", feature = "yaml"))]
     #[inline]
     pub(crate) fn try_map<U, E>(self, f: &mut impl FnMut(T) -> Result<U, E>) -> Result<MutationKind<U>, E> {
         Ok(match self {
@@ -205,6 +206,7 @@ pub struct Mutation<V> {
 }
 
 impl<V> Mutation<V> {
+    #[cfg(any(feature = "json", feature = "yaml"))]
     #[inline]
     pub(crate) fn try_map<U, E>(self, f: &mut impl FnMut(V) -> Result<U, E>) -> Result<Mutation<U>, E> {
         Ok(Mutation {

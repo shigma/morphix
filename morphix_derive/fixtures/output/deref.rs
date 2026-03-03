@@ -100,7 +100,7 @@ const _: () = {
                 ::morphix::observe::SerializeObserver::flush(&mut this.b)
             };
             let mut mutations = ::morphix::Mutations::with_capacity(
-                mutations_a.len() + mutations_b.len(),
+                mutations_a.len() + (!mutations_b.is_empty()) as usize,
             );
             mutations.extend(mutations_a);
             mutations.insert("b", mutations_b);
@@ -225,7 +225,7 @@ const _: () = {
                 ::morphix::observe::SerializeObserver::flush(&mut this.1)
             };
             let mut mutations = ::morphix::Mutations::with_capacity(
-                mutations_0.len() + mutations_1.len(),
+                (!mutations_0.is_empty()) as usize + (!mutations_1.is_empty()) as usize,
             );
             mutations.insert(0usize, mutations_0);
             mutations.insert(1usize, mutations_1);

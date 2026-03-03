@@ -32,7 +32,6 @@ const _: () = {
         pub b: ::morphix::helper::Pointer<Option<T>>,
         pub c: ::morphix::observe::DefaultObserver<'ob, Option<U>>,
         __ptr: ::morphix::helper::Pointer<_S>,
-        __mutated: bool,
         __phantom: ::std::marker::PhantomData<&'ob mut _N>,
     }
     #[automatically_derived]
@@ -55,7 +54,8 @@ const _: () = {
         Option<U>: ::morphix::Observe,
     {
         fn deref_mut(&mut self) -> &mut Self::Target {
-            self.__mutated = true;
+            ::morphix::helper::QuasiObserver::observed_mut(&mut self.a);
+            ::morphix::helper::QuasiObserver::observed_mut(&mut self.c);
             &mut self.__ptr
         }
     }
@@ -95,7 +95,6 @@ const _: () = {
                 b: ::morphix::helper::Pointer::uninit(),
                 c: ::morphix::observe::Observer::uninit(),
                 __ptr: ::morphix::helper::Pointer::uninit(),
-                __mutated: false,
                 __phantom: ::std::marker::PhantomData,
             }
         }
@@ -107,7 +106,6 @@ const _: () = {
                 b: ::morphix::helper::Pointer::new(&__value.b),
                 c: ::morphix::observe::Observer::observe(&__value.c),
                 __ptr,
-                __mutated: false,
                 __phantom: ::std::marker::PhantomData,
             }
         }
@@ -149,23 +147,23 @@ const _: () = {
         >: ::morphix::observe::SerializeObserver,
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
-            if this.__mutated {
-                this.__mutated = false;
-                let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
-                return ::morphix::Mutations::replace(value);
-            }
             let mutations_a = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.a)
             };
             let mut mutations_c = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.c)
             };
+            let is_replace = mutations_a.is_replace() && mutations_c.is_replace();
+            if is_replace {
+                let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+                return ::morphix::Mutations::replace(value);
+            }
             let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
             if !mutations_c.is_empty() && Option::is_none(&__inner.c) {
                 mutations_c = ::morphix::MutationKind::Delete.into();
             }
             let mut mutations = ::morphix::Mutations::with_capacity(
-                mutations_a.len() + mutations_c.len(),
+                (!mutations_a.is_empty()) as usize + (!mutations_c.is_empty()) as usize,
             );
             mutations.insert("a", mutations_a);
             mutations.insert("c", mutations_c);

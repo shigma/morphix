@@ -115,23 +115,13 @@ fn serde_rename_all_path_segments() {
     let mut w = WithRenameAll { foo_bar: 1, baz_qux: 2 };
     let Json(mutation) = observe!(w => {
         w.foo_bar = 10;
-        w.baz_qux = 20;
     })
     .unwrap();
     assert_eq!(
         mutation,
         Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Batch(vec![
-                Mutation {
-                    path: vec!["fooBar".into()].into(),
-                    kind: MutationKind::Replace(json!(10)),
-                },
-                Mutation {
-                    path: vec!["bazQux".into()].into(),
-                    kind: MutationKind::Replace(json!(20)),
-                },
-            ]),
+            path: vec!["fooBar".into()].into(),
+            kind: MutationKind::Replace(json!(10)),
         })
     );
 }
@@ -173,11 +163,15 @@ fn serde_flatten_extends() {
 struct WithSkipIf {
     #[serde(skip_serializing_if = "Option::is_none")]
     val: Option<i32>,
+    other: i32,
 }
 
 #[test]
 fn serde_skip_serializing_if_delete() {
-    let mut w = WithSkipIf { val: Some(42) };
+    let mut w = WithSkipIf {
+        val: Some(42),
+        other: 10,
+    };
     let Json(mutation) = observe!(w => {
         w.val = None;
     })
@@ -187,6 +181,22 @@ fn serde_skip_serializing_if_delete() {
         Some(Mutation {
             path: vec!["val".into()].into(),
             kind: MutationKind::Delete,
+        })
+    );
+}
+
+#[test]
+fn serde_skip_serializing_if_replace() {
+    let mut w = WithSkipIf { val: None, other: 10 };
+    let Json(mutation) = observe!(w => {
+        let _ = w.val.insert(42);
+    })
+    .unwrap();
+    assert_eq!(
+        mutation,
+        Some(Mutation {
+            path: vec!["val".into()].into(),
+            kind: MutationKind::Replace(json!(42)),
         })
     );
 }
@@ -219,8 +229,8 @@ fn morphix_skip_with_tracked() {
     assert_eq!(
         mutation,
         Some(Mutation {
-            path: vec!["a".into()].into(),
-            kind: MutationKind::Replace(json!(10)),
+            path: vec![].into(),
+            kind: MutationKind::Replace(json!({"a": 10, "b": 99})),
         })
     );
 }
@@ -371,22 +381,6 @@ fn serde_flatten_with_normal_field() {
                     kind: MutationKind::Replace(json!(30)),
                 },
             ]),
-        })
-    );
-}
-
-#[test]
-fn serde_skip_serializing_if_replace() {
-    let mut w = WithSkipIf { val: None };
-    let Json(mutation) = observe!(w => {
-        w.val = Some(42);
-    })
-    .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["val".into()].into(),
-            kind: MutationKind::Replace(json!(42)),
         })
     );
 }

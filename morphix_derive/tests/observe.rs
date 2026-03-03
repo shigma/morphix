@@ -59,16 +59,7 @@ fn assignment_tracks_mutation() {
         mutation,
         Some(Mutation {
             path: Default::default(),
-            kind: MutationKind::Batch(vec![
-                Mutation {
-                    path: vec!["x".into()].into(),
-                    kind: MutationKind::Replace(json!(42)),
-                },
-                Mutation {
-                    path: vec!["y".into()].into(),
-                    kind: MutationKind::Replace(json!(99)),
-                },
-            ]),
+            kind: MutationKind::Replace(json!({"x": 42, "y": 99})),
         })
     );
 }
@@ -196,16 +187,7 @@ fn compound_assignment() {
         mutation,
         Some(Mutation {
             path: Default::default(),
-            kind: MutationKind::Batch(vec![
-                Mutation {
-                    path: vec!["x".into()].into(),
-                    kind: MutationKind::Replace(json!(15)),
-                },
-                Mutation {
-                    path: vec!["y".into()].into(),
-                    kind: MutationKind::Replace(json!(17)),
-                },
-            ]),
+            kind: MutationKind::Replace(json!({"x": 15, "y": 17})),
         })
     );
 }

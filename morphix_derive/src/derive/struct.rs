@@ -43,6 +43,7 @@ pub fn derive_observe_for_struct(
     let mut flush_stmts_2 = quote! {};
     let mut flush_stmts_3 = quote! {};
     let mut flush_capacity = vec![];
+    let mut is_replace_checks = vec![];
     let mut debug_chain = quote! {};
 
     let mut field_tys = vec![];
@@ -170,8 +171,8 @@ pub fn derive_observe_for_struct(
         flush_stmts_1.extend(quote_spanned! { field_span =>
             let #mutability #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.#field_member) };
         });
-        flush_capacity.push(quote_spanned! { field_span =>
-            #mutation_ident.len()
+        is_replace_checks.push(quote_spanned! { field_span =>
+            #mutation_ident.is_replace()
         });
         if !field_meta.serde.flatten && (is_named || fields.len() > 1) {
             let segment = if let Some(rename) = &field_meta.serde.rename {
@@ -179,10 +180,16 @@ pub fn derive_observe_for_struct(
             } else {
                 default_segment
             };
+            flush_capacity.push(quote_spanned! { field_span =>
+                (!#mutation_ident.is_empty()) as usize
+            });
             flush_stmts_3.extend(quote_spanned! { field_span =>
                 mutations.insert(#segment, #mutation_ident);
             });
         } else {
+            flush_capacity.push(quote_spanned! { field_span =>
+                #mutation_ident.len()
+            });
             flush_stmts_3.extend(quote_spanned! { field_span =>
                 mutations.extend(#mutation_ident);
             });
@@ -243,7 +250,6 @@ pub fn derive_observe_for_struct(
 
         ob_fields.extend(quote! {
             #(#if_named __ptr:)* ::morphix::helper::Pointer<#head>,
-            #(#if_named __mutated:)* bool,
             #(#if_named __phantom:)* ::std::marker::PhantomData<&#ob_lt mut #depth>,
         });
 
@@ -253,12 +259,8 @@ pub fn derive_observe_for_struct(
             true => quote! { __ptr },
             false => syn::Index::from(fields.len()).to_token_stream(),
         };
-        let mutated_field = match is_named {
-            true => quote! { __mutated },
-            false => syn::Index::from(fields.len() + 1).to_token_stream(),
-        };
         deref_mut_impl = quote! {
-            self.#mutated_field = true;
+            #(::morphix::helper::QuasiObserver::observed_mut(&mut self.#non_deref_members);)*
         };
 
         assignable_impl = quote! {
@@ -271,7 +273,6 @@ pub fn derive_observe_for_struct(
                 Self {
                     #uninit_fields
                     __ptr: ::morphix::helper::Pointer::uninit(),
-                    __mutated: false,
                     __phantom: ::std::marker::PhantomData,
                 }
             },
@@ -279,7 +280,6 @@ pub fn derive_observe_for_struct(
                 Self (
                     #uninit_fields
                     ::morphix::helper::Pointer::uninit(),
-                    false,
                     ::std::marker::PhantomData,
                 )
             },
@@ -290,7 +290,6 @@ pub fn derive_observe_for_struct(
                 Self {
                     #observe_fields
                     __ptr,
-                    __mutated: false,
                     __phantom: ::std::marker::PhantomData,
                 }
             },
@@ -298,7 +297,6 @@ pub fn derive_observe_for_struct(
                 Self (
                     #observe_fields
                     __ptr,
-                    false,
                     ::std::marker::PhantomData,
                 )
             },
@@ -325,11 +323,11 @@ pub fn derive_observe_for_struct(
         };
 
         serialize_observer_impl_prefix = quote! {
-            if this.#mutated_field {
-                this.#mutated_field = false;
+            let is_replace = #(#is_replace_checks)&&*;
+            if is_replace {
                 let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
                 return ::morphix::Mutations::replace(value);
-            };
+            }
         };
 
         input_observe_predicates = quote! {};
@@ -453,18 +451,13 @@ pub fn derive_observe_for_struct(
         input_observer_type_generics = quote! { <#(#ob_type_arguments),*> };
     }
 
-    let serialize_observer_impl = if flush_capacity.is_empty() {
-        quote! {
-            ::morphix::Mutations::new()
-        }
-    } else {
-        quote! {
-            #flush_stmts_1
-            #flush_stmts_2
-            let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
-            #flush_stmts_3
-            mutations
-        }
+    let serialize_observer_impl = quote! {
+        #flush_stmts_1
+        #serialize_observer_impl_prefix
+        #flush_stmts_2
+        let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
+        #flush_stmts_3
+        mutations
     };
 
     let (ob_impl_generics, ob_type_generics, _) = ob_generics.split_for_impl();
@@ -572,7 +565,6 @@ pub fn derive_observe_for_struct(
             #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
         {
             unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
-                #serialize_observer_impl_prefix
                 #serialize_observer_impl
             }
         }

@@ -53,8 +53,8 @@ assert_eq!(
         path: vec![].into(),
         kind: MutationKind::Batch(vec![
             Mutation {
-                path: vec!["bar".into(), "baz".into()].into(),
-                kind: MutationKind::Replace(json!(43)),
+                path: vec!["bar".into()].into(),
+                kind: MutationKind::Replace(json!({"baz": 43})),
             },
             Mutation {
                 path: vec!["qux".into()].into(),
