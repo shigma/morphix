@@ -120,9 +120,9 @@ where
         let (existing, stale) = self.inner.get_mut().split_at_mut(append_index);
         let mut is_replace = true;
         for (index, ob) in existing.iter_mut().enumerate().rev() {
-            let inner_mutations = unsafe { SerializeObserver::flush(ob) };
-            is_replace &= inner_mutations.is_replace();
-            mutations.insert(PathSegment::Negative(slice.len() - index), inner_mutations);
+            let mutations_i = unsafe { SerializeObserver::flush(ob) };
+            is_replace &= mutations_i.is_replace();
+            mutations.insert(PathSegment::Negative(slice.len() - index), mutations_i);
         }
         for observer in stale {
             *observer = O::uninit();

@@ -381,7 +381,7 @@ mod tests {
         assert_eq!(
             mutation,
             Some(Mutation {
-                path: vec![1usize.into()].into(),
+                path: vec![1.into()].into(),
                 kind: MutationKind::Replace(json!(99)),
             })
         );
@@ -400,11 +400,11 @@ mod tests {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
-                        path: vec![0usize.into()].into(),
+                        path: vec![0.into()].into(),
                         kind: MutationKind::Replace(json!(10)),
                     },
                     Mutation {
-                        path: vec![2usize.into()].into(),
+                        path: vec![2.into()].into(),
                         kind: MutationKind::Replace(json!(30)),
                     },
                 ]),
@@ -446,11 +446,11 @@ mod tests {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
-                        path: vec![0usize.into()].into(),
+                        path: vec![0.into()].into(),
                         kind: MutationKind::Replace(json!(30)),
                     },
                     Mutation {
-                        path: vec![2usize.into()].into(),
+                        path: vec![2.into()].into(),
                         kind: MutationKind::Replace(json!(10)),
                     },
                 ]),
@@ -467,7 +467,7 @@ mod tests {
         assert_eq!(
             mutation,
             Some(Mutation {
-                path: vec![0usize.into()].into(),
+                path: vec![0.into()].into(),
                 kind: MutationKind::Append(json!("!")),
             })
         );

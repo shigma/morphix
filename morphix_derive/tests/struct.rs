@@ -298,11 +298,11 @@ fn tuple_struct_multi_field() {
             path: Default::default(),
             kind: MutationKind::Batch(vec![
                 Mutation {
-                    path: vec![0usize.into()].into(),
+                    path: vec![0.into()].into(),
                     kind: MutationKind::Replace(json!(42)),
                 },
                 Mutation {
-                    path: vec![1usize.into()].into(),
+                    path: vec![1.into()].into(),
                     kind: MutationKind::Append(json!("!")),
                 },
             ]),

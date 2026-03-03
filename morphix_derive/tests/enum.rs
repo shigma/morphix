@@ -352,11 +352,11 @@ fn tuple_variant_multi_field() {
             path: Default::default(),
             kind: MutationKind::Batch(vec![
                 Mutation {
-                    path: vec!["Pair".into(), 0usize.into()].into(),
+                    path: vec!["Pair".into(), 0.into()].into(),
                     kind: MutationKind::Replace(json!(42)),
                 },
                 Mutation {
-                    path: vec!["Pair".into(), 1usize.into()].into(),
+                    path: vec!["Pair".into(), 1.into()].into(),
                     kind: MutationKind::Append(json!("!")),
                 },
             ]),

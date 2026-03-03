@@ -75,14 +75,18 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = (O::Head,)>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: Serialize + Sized,
+    O::Head: Serialize + Sized + 'static,
 {
     #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
         let mutations_0 = unsafe { SerializeObserver::flush(&mut this.0) };
-        let mut mutations = Mutations::new();
-        mutations.insert(0, mutations_0);
-        mutations
+        if mutations_0.is_replace() {
+            Mutations::replace((*this).observed_ref())
+        } else {
+            let mut mutations = Mutations::new();
+            mutations.insert(0, mutations_0);
+            mutations
+        }
     }
 }
 
@@ -286,14 +290,16 @@ macro_rules! tuple_observer {
         where
             D: Unsigned,
             S: AsDeref<D, Target = ($($o::Head,)*)>,
-            $($o: SerializeObserver<InnerDepth = Zero, Head: Serialize + Sized>,)*
+            $($o: SerializeObserver<InnerDepth = Zero, Head: Serialize + Sized + 'static>,)*
         {
             #[inline]
             unsafe fn flush(this: &mut Self) -> Mutations {
                 let mutations_tuple = ($(unsafe { SerializeObserver::flush(&mut this.$n) },)*);
-                let mut mutations = Mutations::with_capacity(
-                    0 $(+ mutations_tuple.$n.len())*
-                );
+                let capacity = 0 $(+ mutations_tuple.$n.len())*;
+                if capacity == $ptr {
+                    return Mutations::replace((*this).observed_ref());
+                }
+                let mut mutations = Mutations::with_capacity(capacity);
                 $(
                     mutations.insert($n, mutations_tuple.$n);
                 )*
@@ -457,6 +463,21 @@ mod tests {
     }
 
     #[test]
+    fn append_triggers_append() {
+        let mut tuple = (String::from("hello"),);
+        let mut ob = tuple.__observe();
+        ob.0.push_str(" world");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation.unwrap(),
+            Mutation {
+                path: vec![0.into()].into(),
+                kind: MutationKind::Append(json!(" world")),
+            }
+        );
+    }
+
+    #[test]
     fn deref_triggers_replace() {
         // Same-length replacement: inner StringObserver cannot detect this
         // because it only tracks length-based changes (append/truncate).
@@ -467,8 +488,8 @@ mod tests {
         assert_eq!(
             mutation.unwrap(),
             Mutation {
-                path: vec![0.into()].into(),
-                kind: MutationKind::Replace(json!("world")),
+                path: vec![].into(),
+                kind: MutationKind::Replace(json!(["world"])),
             }
         );
 
@@ -481,8 +502,8 @@ mod tests {
         assert_eq!(
             mutation.unwrap(),
             Mutation {
-                path: vec![0.into()].into(),
-                kind: MutationKind::Replace(json!("hello world")),
+                path: vec![].into(),
+                kind: MutationKind::Replace(json!(["hello world"])),
             }
         );
     }
