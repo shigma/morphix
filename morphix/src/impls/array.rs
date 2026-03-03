@@ -40,15 +40,15 @@ where
     #[inline]
     /// Unlike [`UnsafeCell<Vec<O>>`](UnsafeCell) which clears its storage on `DerefMut` (producing
     /// a full [`Replace`](crate::MutationKind::Replace)), the array implementation triggers
-    /// [`observed_mut()`](QuasiObserver::observed_mut) on each element, preserving per-element
-    /// granularity. This is appropriate because arrays have a fixed, typically small length —
-    /// the resulting batch of per-element mutations is bounded and comparable in size to a
-    /// whole-array [`Replace`](crate::MutationKind::Replace), while unchanged elements can be
-    /// filtered out by the element observer (e.g.,
+    /// [`as_deref_mut_coinductive()`](crate::helper::AsDerefMutCoinductive::as_deref_mut_coinductive)
+    /// on each element, preserving per-element granularity. This is appropriate because arrays have
+    /// a fixed, typically small length — the resulting batch of per-element mutations is bounded
+    /// and comparable in size to a whole-array [`Replace`](crate::MutationKind::Replace), while
+    /// unchanged elements can be filtered out by the element observer (e.g.,
     /// [`SnapshotObserver`](crate::builtin::SnapshotObserver)).
     fn mark_replace(&mut self) {
         for ob in self.as_mut_slice() {
-            ob.observed_mut();
+            ob.as_deref_mut_coinductive();
         }
     }
 

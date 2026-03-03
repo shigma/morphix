@@ -27,6 +27,7 @@
         "indexmap",
         "metas",
         "morphix",
+        "newtype",
         "prettyplease",
         "qself",
         "rchunks",
