@@ -92,7 +92,7 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = String>,
 {
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let len = (*this.ptr).as_deref().len();
         let Some(truncate_append) = this.mutation.replace(TruncateAppend {
             append_index: len,

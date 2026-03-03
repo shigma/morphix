@@ -183,7 +183,7 @@ where
     O::Head: Serialize + Sized,
     K: Serialize + Eq + Hash + Into<PathSegment>,
 {
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let Some(diff) = this.diff.take() else {
             return Ok(MutationKind::Replace(A::serialize_value((*this).observed_ref())?).into());
         };
@@ -212,7 +212,7 @@ where
                 .get(&key)
                 .expect("observer key not found in observed map");
             unsafe { O::refresh(&mut ob, value) }
-            mutations.insert(key, unsafe { O::flush_unchecked::<A>(&mut ob)? });
+            mutations.insert(key, unsafe { O::flush::<A>(&mut ob)? });
         }
         Ok(mutations)
     }

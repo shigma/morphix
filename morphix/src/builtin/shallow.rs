@@ -74,7 +74,7 @@ impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
 
 impl<T: ?Sized> ReplaceHandler for ShallowHandler<T> {
     #[inline]
-    unsafe fn will_replace(&self, _value: &T) -> bool {
+    unsafe fn is_replace(&self, _value: &T) -> bool {
         self.mutated
     }
 }

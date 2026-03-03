@@ -115,8 +115,8 @@ where
     O::Head: Serialize + Sized,
 {
     #[inline]
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        SerializeObserver::flush::<A>(&mut this.0)
+    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+        unsafe { SerializeObserver::flush::<A>(&mut this.0) }
     }
 }
 

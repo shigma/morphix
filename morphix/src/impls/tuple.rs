@@ -78,8 +78,8 @@ where
     O::Head: Serialize + Sized,
 {
     #[inline]
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        let mutations_0 = SerializeObserver::flush::<A>(&mut this.0)?;
+    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+        let mutations_0 = unsafe { SerializeObserver::flush::<A>(&mut this.0)? };
         let mut mutations = Mutations::new();
         mutations.insert(0, mutations_0);
         Ok(mutations)
@@ -289,8 +289,8 @@ macro_rules! tuple_observer {
             $($o: SerializeObserver<InnerDepth = Zero, Head: Serialize + Sized>,)*
         {
             #[inline]
-            unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-                let mutations_tuple = ($(SerializeObserver::flush::<A>(&mut this.$n)?,)*);
+            unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+                let mutations_tuple = ($(unsafe { SerializeObserver::flush::<A>(&mut this.$n)? },)*);
                 let mut mutations = Mutations::with_capacity(
                     0 $(+ mutations_tuple.$n.len())*
                 );

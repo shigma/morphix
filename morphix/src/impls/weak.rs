@@ -118,13 +118,13 @@ where
     O::Head: Serialize,
 {
     #[inline]
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let rc = (*this.ptr).as_deref().upgrade();
         let initial = this.initial;
         this.initial = rc.is_some();
         if !this.mutated {
             if let Some(ob) = &mut this.inner {
-                return SerializeObserver::flush::<A>(ob);
+                return unsafe { SerializeObserver::flush::<A>(ob) };
             } else {
                 return Ok(Mutations::new());
             }

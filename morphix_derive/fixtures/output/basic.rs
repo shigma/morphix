@@ -84,7 +84,7 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
-        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             if this.__mutated {
@@ -94,12 +94,12 @@ const _: () = {
                     ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
                 );
             }
-            let mutations_a = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.r#a)?;
-            let mutations_b = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.b)?;
+            let mutations_a = unsafe {
+                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.r#a)?
+            };
+            let mutations_b = unsafe {
+                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.b)?
+            };
             let mut mutations = ::morphix::Mutations::with_capacity(
                 mutations_a.len() + mutations_b.len(),
             );
@@ -220,7 +220,7 @@ where
     S: ::morphix::helper::AsDeref<N, Target = Bar>,
     N: ::morphix::helper::Unsigned,
 {
-    unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+    unsafe fn flush<A: ::morphix::Adapter>(
         this: &mut Self,
     ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
         if this.2 {
@@ -230,9 +230,9 @@ where
                 ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
             );
         }
-        let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
-            A,
-        >(&mut this.0)?;
+        let mutations_0 = unsafe {
+            ::morphix::observe::SerializeObserver::flush::<A>(&mut this.0)?
+        };
         let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
         mutations.extend(mutations_0);
         Ok(mutations)
@@ -325,7 +325,7 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
-        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             if this.3 {
@@ -335,12 +335,12 @@ const _: () = {
                     ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
                 );
             }
-            let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.0)?;
-            let mutations_1 = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.1)?;
+            let mutations_0 = unsafe {
+                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.0)?
+            };
+            let mutations_1 = unsafe {
+                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.1)?
+            };
             let mut mutations = ::morphix::Mutations::with_capacity(
                 mutations_0.len() + mutations_1.len(),
             );

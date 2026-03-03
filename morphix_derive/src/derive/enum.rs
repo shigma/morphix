@@ -179,14 +179,14 @@ pub fn derive_observe_for_enum(
                     && let Some(path) = field_meta.serde.skip_serializing_if
                 {
                     quote_spanned! { field_span =>
-                        let mut #mutation_ident = ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)?;
+                        let mut #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)? };
                         if !#mutation_ident.is_empty() && #path(::morphix::helper::QuasiObserver::observed_ref(#flush_ident)) {
                             #mutation_ident = ::morphix::MutationKind::Delete.into();
                         }
                     }
                 } else {
                     quote_spanned! { field_span =>
-                        let #mutation_ident = ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)?;
+                        let #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush::<A>(#flush_ident)? };
                     }
                 },
             );
@@ -548,7 +548,7 @@ pub fn derive_observe_for_enum(
             #depth: ::morphix::helper::Unsigned,
             #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
         {
-            unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+            unsafe fn flush<A: ::morphix::Adapter>(
                 this: &mut Self,
             ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
                 #ob_flush_prefix_stmt

@@ -94,15 +94,15 @@ where
     O: SerializeObserver<InnerDepth = Zero, Head = T::Owned>,
     T: ToOwned + ?Sized + 'a,
 {
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         if let Some(mut owned) = this.owned.take()
             && !this.mutated
         {
             let head = &**this.inner.as_deref_coinductive();
             this.inner = B::observe(head);
-            unsafe { O::flush_unchecked::<A>(&mut owned) }
+            unsafe { O::flush::<A>(&mut owned) }
         } else {
-            unsafe { B::flush_unchecked::<A>(&mut this.inner) }
+            unsafe { B::flush::<A>(&mut this.inner) }
         }
     }
 }

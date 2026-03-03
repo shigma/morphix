@@ -67,9 +67,9 @@ const _: () = {
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             match self {
                 Self::A(u0) => {
-                    let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(u0)?;
+                    let mutations_0 = unsafe {
+                        ::morphix::observe::SerializeObserver::flush::<A>(u0)?
+                    };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_0.len(),
                     );
@@ -77,9 +77,9 @@ const _: () = {
                     Ok(mutations)
                 }
                 Self::C { bar, qux } => {
-                    let mut mutations_bar = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(bar)?;
+                    let mut mutations_bar = unsafe {
+                        ::morphix::observe::SerializeObserver::flush::<A>(bar)?
+                    };
                     if !mutations_bar.is_empty()
                         && String::is_empty(
                             ::morphix::helper::QuasiObserver::observed_ref(bar),
@@ -87,9 +87,9 @@ const _: () = {
                     {
                         mutations_bar = ::morphix::MutationKind::Delete.into();
                     }
-                    let mutations_qux = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(qux)?;
+                    let mutations_qux = unsafe {
+                        ::morphix::observe::SerializeObserver::flush::<A>(qux)?
+                    };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_bar.len() + mutations_qux.len(),
                     );
@@ -167,7 +167,7 @@ const _: () = {
         S: ::morphix::helper::AsDeref<_N, Target = Foo<N>>,
         _N: ::morphix::helper::Unsigned,
     {
-        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             if !this.__mutated {

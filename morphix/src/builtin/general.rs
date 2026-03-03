@@ -88,17 +88,22 @@ pub trait SerializeHandler: GeneralHandler {
     ///
     /// This method assumes the handler is constructed with [`observe`](GeneralHandler::observe).
     ///
-    /// See also [`SerializeObserver::flush_unchecked`].
+    /// See also [`SerializeObserver::flush`].
     unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Mutations<A::Value>, A::Error>;
 
-    /// Returns whether the next flush would produce a [`Replace`](MutationKind::Replace) mutation.
+    /// Returns a hint about the mutations this handler will produce on the next flush.
+    ///
+    /// Returns `(count, is_replace)` where:
+    /// - `count` is the estimated number of mutations
+    /// - `is_replace` indicates whether the next flush would produce a
+    ///   [`Replace`](MutationKind::Replace) mutation
     ///
     /// ## Safety
     ///
     /// This method assumes the handler is constructed with [`observe`](GeneralHandler::observe).
     ///
-    /// See also [`SerializeObserver::flush_unchecked`].
-    unsafe fn will_replace(&self, value: &Self::Target) -> bool;
+    /// See also [`SerializeObserver::size_hint`].
+    unsafe fn size_hint(&self, value: &Self::Target) -> (usize, bool);
 }
 
 /// A handler that can only express replace-style mutations.
@@ -115,8 +120,8 @@ pub trait ReplaceHandler: GeneralHandler {
     ///
     /// This method assumes the handler is constructed with [`observe`](GeneralHandler::observe).
     ///
-    /// See also [`SerializeObserver::flush_unchecked`].
-    unsafe fn will_replace(&self, value: &Self::Target) -> bool;
+    /// See also [`SerializeObserver::flush`].
+    unsafe fn is_replace(&self, value: &Self::Target) -> bool;
 }
 
 impl<H> SerializeHandler for H
@@ -126,7 +131,7 @@ where
 {
     #[inline]
     unsafe fn flush<A: Adapter>(&mut self, value: &Self::Target) -> Result<Mutations<A::Value>, A::Error> {
-        let is_replace = unsafe { ReplaceHandler::will_replace(self, value) };
+        let is_replace = unsafe { ReplaceHandler::is_replace(self, value) };
         *self = H::observe(value);
         if is_replace {
             Ok(MutationKind::Replace(A::serialize_value(value)?).into())
@@ -136,8 +141,9 @@ where
     }
 
     #[inline]
-    unsafe fn will_replace(&self, value: &Self::Target) -> bool {
-        unsafe { ReplaceHandler::will_replace(self, value) }
+    unsafe fn size_hint(&self, value: &Self::Target) -> (usize, bool) {
+        let is_replace = unsafe { ReplaceHandler::is_replace(self, value) };
+        (is_replace as usize, is_replace)
     }
 }
 
@@ -277,12 +283,12 @@ where
     H: SerializeHandler<Target = T>,
     D: Unsigned,
 {
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         unsafe { this.handler.flush::<A>((*this.ptr).as_deref()) }
     }
 
-    unsafe fn will_replace(this: &Self) -> bool {
-        unsafe { this.handler.will_replace((*this.ptr).as_deref()) }
+    unsafe fn size_hint(this: &Self) -> (usize, bool) {
+        unsafe { this.handler.size_hint((*this.ptr).as_deref()) }
     }
 }
 

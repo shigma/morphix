@@ -71,8 +71,8 @@ where
     D: Unsigned,
 {
     #[inline]
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        unsafe { O::flush_unchecked::<A>(&mut this.inner) }
+    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+        unsafe { O::flush::<A>(&mut this.inner) }
     }
 }
 

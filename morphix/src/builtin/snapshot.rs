@@ -115,8 +115,8 @@ impl<T: Snapshot + ?Sized> GeneralHandler for SnapshotHandler<T> {
 
 impl<T: Snapshot + ?Sized> ReplaceHandler for SnapshotHandler<T> {
     #[inline]
-    unsafe fn will_replace(&self, value: &T) -> bool {
-        // SAFETY: only called from `flush_unchecked`, where the observer contains a valid pointer
+    unsafe fn is_replace(&self, value: &T) -> bool {
+        // SAFETY: only called from `flush`, where the observer contains a valid pointer
         !value.eq_snapshot(unsafe { self.snapshot.assume_init_ref() })
     }
 }

@@ -90,9 +90,9 @@ const _: () = {
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             match self {
                 Self::A(u0) => {
-                    let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(u0)?;
+                    let mutations_0 = unsafe {
+                        ::morphix::observe::SerializeObserver::flush::<A>(u0)?
+                    };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_0.len(),
                     );
@@ -100,12 +100,12 @@ const _: () = {
                     Ok(mutations)
                 }
                 Self::B(u0, u1) => {
-                    let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(u0)?;
-                    let mutations_1 = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(u1)?;
+                    let mutations_0 = unsafe {
+                        ::morphix::observe::SerializeObserver::flush::<A>(u0)?
+                    };
+                    let mutations_1 = unsafe {
+                        ::morphix::observe::SerializeObserver::flush::<A>(u1)?
+                    };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_0.len() + mutations_1.len(),
                     );
@@ -114,9 +114,9 @@ const _: () = {
                     Ok(mutations)
                 }
                 Self::C { bar } => {
-                    let mutations_bar = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(bar)?;
+                    let mutations_bar = unsafe {
+                        ::morphix::observe::SerializeObserver::flush::<A>(bar)?
+                    };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_bar.len(),
                     );
@@ -190,7 +190,7 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
-        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             let __value = this.__ptr.as_deref();

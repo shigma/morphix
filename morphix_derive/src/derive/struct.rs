@@ -168,7 +168,7 @@ pub fn derive_observe_for_struct(
             });
         }
         flush_stmts_1.extend(quote_spanned! { field_span =>
-            let #mutability #mutation_ident = ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_member)?;
+            let #mutability #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush::<A>(&mut this.#field_member)? };
         });
         flush_capacity.push(quote_spanned! { field_span =>
             #mutation_ident.len()
@@ -571,7 +571,7 @@ pub fn derive_observe_for_struct(
             #depth: ::morphix::helper::Unsigned,
             #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
         {
-            unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+            unsafe fn flush<A: ::morphix::Adapter>(
                 this: &mut Self,
             ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
                 #serialize_observer_impl_prefix

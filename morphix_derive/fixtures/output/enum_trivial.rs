@@ -86,7 +86,7 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
-        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             let __value = this.__ptr.as_deref();

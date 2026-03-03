@@ -148,7 +148,7 @@ const _: () = {
             Option<U>,
         >: ::morphix::observe::SerializeObserver,
     {
-        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             if this.__mutated {
@@ -158,12 +158,12 @@ const _: () = {
                     ::morphix::MutationKind::Replace(A::serialize_value(__inner)?).into(),
                 );
             }
-            let mutations_a = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.a)?;
-            let mut mutations_c = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.c)?;
+            let mutations_a = unsafe {
+                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.a)?
+            };
+            let mut mutations_c = unsafe {
+                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.c)?
+            };
             let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
             if !mutations_c.is_empty() && Option::is_none(&__inner.c) {
                 mutations_c = ::morphix::MutationKind::Delete.into();

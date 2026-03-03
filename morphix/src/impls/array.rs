@@ -156,8 +156,8 @@ where
     T: Serialize,
 {
     #[inline]
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
-        unsafe { SliceObserver::flush_unchecked::<A>(&mut this.inner) }
+    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+        unsafe { SliceObserver::flush::<A>(&mut this.inner) }
     }
 }
 

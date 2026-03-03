@@ -53,7 +53,7 @@ impl<T: ?Sized> GeneralHandler for NoopHandler<T> {
 
 impl<T: ?Sized> ReplaceHandler for NoopHandler<T> {
     #[inline]
-    unsafe fn will_replace(&self, _value: &T) -> bool {
+    unsafe fn is_replace(&self, _value: &T) -> bool {
         false
     }
 }

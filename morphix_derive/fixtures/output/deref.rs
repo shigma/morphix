@@ -92,15 +92,15 @@ const _: () = {
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {
-        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
-            let mutations_a = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.a)?;
-            let mutations_b = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.b)?;
+            let mutations_a = unsafe {
+                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.a)?
+            };
+            let mutations_b = unsafe {
+                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.b)?
+            };
             let mut mutations = ::morphix::Mutations::with_capacity(
                 mutations_a.len() + mutations_b.len(),
             );
@@ -219,15 +219,15 @@ const _: () = {
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {
-        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
-            let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.0)?;
-            let mutations_1 = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.1)?;
+            let mutations_0 = unsafe {
+                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.0)?
+            };
+            let mutations_1 = unsafe {
+                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.1)?
+            };
             let mut mutations = ::morphix::Mutations::with_capacity(
                 mutations_0.len() + mutations_1.len(),
             );
@@ -333,12 +333,12 @@ const _: () = {
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {
-        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
-            let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
-                A,
-            >(&mut this.0)?;
+            let mutations_0 = unsafe {
+                ::morphix::observe::SerializeObserver::flush::<A>(&mut this.0)?
+            };
             let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
             mutations.extend(mutations_0);
             Ok(mutations)

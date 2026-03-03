@@ -120,12 +120,12 @@ const _: () = {
             match self {
                 Self::A(_) => Ok(::morphix::Mutations::new()),
                 Self::B(u0, u1) => {
-                    let mutations_0 = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(u0)?;
-                    let mutations_1 = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(u1)?;
+                    let mutations_0 = unsafe {
+                        ::morphix::observe::SerializeObserver::flush::<A>(u0)?
+                    };
+                    let mutations_1 = unsafe {
+                        ::morphix::observe::SerializeObserver::flush::<A>(u1)?
+                    };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_0.len() + mutations_1.len(),
                     );
@@ -134,9 +134,9 @@ const _: () = {
                     Ok(mutations)
                 }
                 Self::C { qux, .. } => {
-                    let mutations_qux = ::morphix::observe::SerializeObserver::flush::<
-                        A,
-                    >(qux)?;
+                    let mutations_qux = unsafe {
+                        ::morphix::observe::SerializeObserver::flush::<A>(qux)?
+                    };
                     let mut mutations = ::morphix::Mutations::with_capacity(
                         mutations_qux.len(),
                     );
@@ -237,7 +237,7 @@ const _: () = {
             U,
         >: ::morphix::observe::SerializeObserver,
     {
-        unsafe fn flush_unchecked<A: ::morphix::Adapter>(
+        unsafe fn flush<A: ::morphix::Adapter>(
             this: &mut Self,
         ) -> ::std::result::Result<::morphix::Mutations<A::Value>, A::Error> {
             let __value = this.__ptr.as_deref();

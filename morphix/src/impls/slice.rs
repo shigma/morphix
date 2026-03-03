@@ -355,7 +355,7 @@ where
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
     T: Serialize,
 {
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let slice = (*this.ptr).as_deref().as_ref();
         let diff = std::mem::replace(&mut this.diff, M::observe(slice.len()));
         let (mut mutations, append_index) = diff.flush::<A, T>(slice)?;
@@ -370,17 +370,16 @@ where
         if !slice.is_empty()
             && this.inner.as_slice()[..append_index]
                 .iter()
-                .all(|ob| unsafe { O::will_replace(ob) })
+                .all(|ob| unsafe { O::size_hint(ob) }.1)
         {
             this.inner = V::observe((*this.ptr).as_deref());
             return Ok(MutationKind::Replace(A::serialize_value(slice)?).into());
         }
         let (existing, stale) = this.inner.as_mut_slice().split_at_mut(append_index);
         for (index, ob) in existing.iter_mut().enumerate() {
-            mutations.insert(
-                PathSegment::Negative(slice.len() - index),
-                SerializeObserver::flush::<A>(ob)?,
-            );
+            mutations.insert(PathSegment::Negative(slice.len() - index), unsafe {
+                SerializeObserver::flush::<A>(ob)?
+            });
         }
         for observer in stale {
             *observer = O::uninit();

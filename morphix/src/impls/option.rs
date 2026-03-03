@@ -95,7 +95,7 @@ where
     O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized,
 {
-    unsafe fn flush_unchecked<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
+    unsafe fn flush<A: Adapter>(this: &mut Self) -> Result<Mutations<A::Value>, A::Error> {
         let option = (*this.ptr).as_deref();
         let initial = this.initial;
         this.initial = option.is_some();
@@ -103,7 +103,7 @@ where
             && initial
             && option.is_some()
         {
-            return SerializeObserver::flush::<A>(&mut ob);
+            return unsafe { SerializeObserver::flush::<A>(&mut ob) };
         }
         if initial || option.is_some() {
             Ok(MutationKind::Replace(A::serialize_value(option)?).into())
