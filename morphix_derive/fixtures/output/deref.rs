@@ -85,7 +85,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, T, O, N> ::morphix::observe::SerializeObserver for FooObserver<'ob, O>
     where
-        Foo<T>: ::serde::Serialize + 'static,
+        Foo<T>: ::morphix::helper::serde::Serialize + 'static,
         Vec<T>: 'ob,
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
         O::Head: ::morphix::helper::AsDeref<N, Target = Foo<T>>,
@@ -110,7 +110,7 @@ const _: () = {
     #[automatically_derived]
     impl<T> ::morphix::Observe for Foo<T>
     where
-        Self: ::serde::Serialize,
+        Self: ::morphix::helper::serde::Serialize,
         Vec<T>: ::morphix::Observe,
     {
         type Observer<'ob, S, N> = FooObserver<

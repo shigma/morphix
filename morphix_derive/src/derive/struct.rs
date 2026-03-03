@@ -469,14 +469,14 @@ pub fn derive_observe_for_struct(
         quote! {}
     } else {
         quote! {
-            #input_ident #input_type_generics: ::serde::Serialize + 'static,
+            #input_ident #input_type_generics: ::morphix::helper::serde::Serialize + 'static,
         }
     };
     let self_serialize_predicates = if input_trivial {
         quote! {}
     } else {
         quote! {
-            Self: ::serde::Serialize,
+            Self: ::morphix::helper::serde::Serialize,
         }
     };
 

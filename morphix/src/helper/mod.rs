@@ -21,4 +21,5 @@ pub use deref::{AsDeref, AsDerefCoinductive, AsDerefMut, AsDerefMutCoinductive};
 pub use pointer::Pointer;
 pub use quasi::QuasiObserver;
 pub use unsigned::{Succ, Unsigned, Zero};
+#[doc(hidden)]
 pub use {erased_serde, serde};

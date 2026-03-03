@@ -131,7 +131,7 @@ const _: () = {
         _N,
     > ::morphix::observe::SerializeObserver for FooObserver<'ob, 'a, S, T, U, N, _S, _N>
     where
-        Foo<'a, S, T, U, N>: ::serde::Serialize + 'static,
+        Foo<'a, S, T, U, N>: ::morphix::helper::serde::Serialize + 'static,
         Option<T>: 'ob,
         &'a mut [S; N]: ::morphix::Observe,
         Option<U>: ::morphix::Observe,
@@ -173,7 +173,7 @@ const _: () = {
     #[automatically_derived]
     impl<'a, S, T, U, const N: usize> ::morphix::Observe for Foo<'a, S, T, U, N>
     where
-        Self: ::serde::Serialize,
+        Self: ::morphix::helper::serde::Serialize,
         &'a mut [S; N]: ::morphix::Observe,
         Option<U>: ::morphix::Observe,
     {
