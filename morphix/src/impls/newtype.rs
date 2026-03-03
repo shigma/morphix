@@ -109,8 +109,7 @@ impl<O, S: ?Sized, D> SerializeObserver for NewtypeObserver<O, S, D>
 where
     D: Unsigned,
     S: AsDeref<D, Target: Newtype<Inner = O::Head>>,
-    O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: serde::Serialize + Sized,
+    O: SerializeObserver<InnerDepth = Zero, Head: Sized>,
 {
     #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {

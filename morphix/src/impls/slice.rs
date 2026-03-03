@@ -13,6 +13,8 @@ use std::slice::{
     SplitInclusiveMut, SplitMut, SplitNMut,
 };
 
+use serde::Serialize;
+
 use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::vec::VecObserverState;
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
@@ -70,7 +72,7 @@ pub trait SliceObserverState: Sized {
     fn flush(&mut self, slice: &Self::Slice) -> Mutations
     where
         Self::Item: SerializeObserver,
-        <Self::Item as ObserverExt>::Head: serde::Serialize + 'static;
+        <Self::Item as ObserverExt>::Head: Serialize + 'static;
 }
 
 /// Observer implementation for slices `[T]`.
@@ -148,7 +150,7 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = V::Slice>,
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
-    T: serde::Serialize + 'static,
+    T: Serialize + 'static,
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
         this.state.flush((*this.ptr).as_deref())

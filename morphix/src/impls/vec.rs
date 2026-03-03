@@ -8,6 +8,8 @@ use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 use std::slice::SliceIndex;
 use std::vec::{Drain, Splice};
 
+use serde::Serialize;
+
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
@@ -101,7 +103,7 @@ where
     fn flush(&mut self, slice: &Self::Slice) -> Mutations
     where
         Self::Item: SerializeObserver,
-        <Self::Item as ObserverExt>::Head: serde::Serialize + 'static,
+        <Self::Item as ObserverExt>::Head: Serialize + 'static,
     {
         let append_index = core::mem::replace(&mut self.append_index, slice.len());
         let truncate_len = core::mem::replace(&mut self.truncate_len, 0);
@@ -204,7 +206,7 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = Vec<T>>,
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
-    T: serde::Serialize + 'static,
+    T: Serialize + 'static,
 {
     #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {

@@ -9,6 +9,8 @@ use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, RangeBounds};
 
+use serde::Serialize;
+
 use crate::builtin::Snapshot;
 use crate::helper::macros::default_impl_ref_observe;
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
@@ -182,8 +184,8 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = BTreeMap<K, O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: serde::Serialize + Sized + 'static,
-    K: serde::Serialize + Ord + Into<PathSegment> + 'static,
+    O::Head: Serialize + Sized + 'static,
+    K: Serialize + Ord + Into<PathSegment> + 'static,
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
         let Some(diff) = this.diff.take() else {

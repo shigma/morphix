@@ -10,6 +10,8 @@ use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
+use serde::Serialize;
+
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
@@ -178,8 +180,8 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = HashMap<K, O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: serde::Serialize + Sized + 'static,
-    K: serde::Serialize + Eq + Hash + Into<PathSegment> + 'static,
+    O::Head: Serialize + Sized + 'static,
+    K: Serialize + Eq + Hash + Into<PathSegment> + 'static,
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
         let Some(diff) = this.diff.take() else {

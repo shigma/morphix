@@ -77,17 +77,6 @@ where
         }
         Mutations::new()
     }
-
-    #[inline]
-    unsafe fn size_hint(&self, value: &T) -> (usize, bool) {
-        let is_replace = !std::ptr::addr_eq(
-            value,
-            self.ptr
-                .expect("pointer should not be null in GeneralHandler::flush")
-                .as_ptr(),
-        );
-        (is_replace as usize, is_replace)
-    }
 }
 
 impl<T: ?Sized> DebugHandler for UnsizeHandler<T> {

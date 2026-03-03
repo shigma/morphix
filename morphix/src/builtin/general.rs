@@ -3,6 +3,8 @@ use std::marker::PhantomData;
 use std::num::NonZero;
 use std::ops::{Deref, DerefMut};
 
+use serde::Serialize;
+
 use crate::Mutations;
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, SerializeObserver};
@@ -73,12 +75,12 @@ pub trait GeneralHandler {
 ///
 /// A blanket implementation is provided for all types that implement [`ReplaceHandler`]
 /// where the observed type implements [`Serialize`]. This automatically converts the
-/// boolean result from [`flush_replace`](ReplaceHandler::flush_replace) into a
-/// [`Replace`](MutationKind::Replace) mutation when changes are detected.
+/// boolean result from [`is_replace`](ReplaceHandler::is_replace) into a
+/// [`Replace`](crate::MutationKind::Replace) mutation when changes are detected.
 ///
 /// Most handlers only need to implement [`ReplaceHandler`] to gain full serialization
 /// support. Direct implementation of [`SerializeHandler`] is only necessary for handlers
-/// that need to emit non-replace mutations (like [`Append`](MutationKind::Append)).
+/// that need to emit non-replace mutations (like [`Append`](crate::MutationKind::Append)).
 pub trait SerializeHandler: GeneralHandler {
     /// Flushes and serializes all recorded mutations.
     ///
@@ -88,34 +90,18 @@ pub trait SerializeHandler: GeneralHandler {
     ///
     /// See also [`SerializeObserver::flush`].
     unsafe fn flush(&mut self, value: &Self::Target) -> Mutations;
-
-    /// Returns a hint about the mutations this handler will produce on the next flush.
-    ///
-    /// Returns `(count, is_replace)` where:
-    /// - `is_replace` indicates whether the next flush would produce a
-    ///   [`Replace`](MutationKind::Replace) mutation
-    /// - `count`: if `is_replace` is true, the number of mutations that
-    ///   [`flush_flatten`](SerializeObserver::flush_flatten) would contribute to the parent's
-    ///   mutation set; if `is_replace` is false, the number of mutations the
-    ///   [`flush`](SerializeObserver::flush) would produce
-    ///
-    /// ## Safety
-    ///
-    /// This method assumes the handler is constructed with [`observe`](GeneralHandler::observe).
-    ///
-    /// See also [`SerializeObserver::size_hint`].
-    unsafe fn size_hint(&self, value: &Self::Target) -> (usize, bool);
 }
 
 /// A handler that can only express replace-style mutations.
 ///
 /// This trait provides a simplified interface for handlers that only need to track whether the
 /// observed value has changed, without distinguishing between different mutation kinds (like
-/// [`Append`](MutationKind::Append) or [`Truncate`](MutationKind::Truncate)). Most
+/// [`Append`](crate::MutationKind::Append) or [`Truncate`](crate::MutationKind::Truncate)). Most
 /// [`GeneralHandler`] implementations implement this trait rather than [`SerializeHandler`]
 /// directly.
 pub trait ReplaceHandler: GeneralHandler {
-    /// Returns whether the next flush would produce a [`Replace`](MutationKind::Replace) mutation.
+    /// Returns whether the next flush would produce a [`Replace`](crate::MutationKind::Replace)
+    /// mutation.
     ///
     /// ## Safety
     ///
@@ -128,7 +114,7 @@ pub trait ReplaceHandler: GeneralHandler {
 impl<H> SerializeHandler for H
 where
     H: ReplaceHandler,
-    H::Target: serde::Serialize + 'static,
+    H::Target: Serialize + 'static,
 {
     #[inline]
     unsafe fn flush(&mut self, value: &Self::Target) -> Mutations {
@@ -139,12 +125,6 @@ where
         } else {
             Mutations::new()
         }
-    }
-
-    #[inline]
-    unsafe fn size_hint(&self, value: &Self::Target) -> (usize, bool) {
-        let is_replace = unsafe { ReplaceHandler::is_replace(self, value) };
-        (is_replace as usize, is_replace)
     }
 }
 
@@ -194,7 +174,7 @@ pub trait DebugHandler: GeneralHandler {
 ///
 /// [`GeneralObserver`] can:
 /// - Detect whether a value has changed via [`DerefMut`]
-/// - Produce [`Replace`](MutationKind::Replace) mutations when changes are detected
+/// - Produce [`Replace`](crate::MutationKind::Replace) mutations when changes are detected
 ///
 /// [`GeneralObserver`] cannot:
 /// - Track field-level changes or interior mutations within complex types

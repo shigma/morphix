@@ -2,11 +2,14 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
+use serde::Serialize;
+
+use crate::Mutations;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe_from_ref, spec_impl_ref_observe};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::mutation::SerializeRef;
 use crate::observe::{Observer, SerializeObserver};
-use crate::{MutationKind, Mutations};
 
 trait Weak<T: ?Sized> {
     type Ptr: Deref<Target = T>;
@@ -113,7 +116,7 @@ where
     D: Unsigned,
     S: AsDeref<D, Target: Weak<O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: serde::Serialize + 'static,
+    O::Head: Serialize + 'static,
 {
     #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
@@ -128,13 +131,10 @@ where
             }
         }
         this.mutated = false;
-        if !initial {
-            return Mutations::new();
-        }
-        if let Some(rc) = rc {
-            Mutations::replace(&*rc)
+        if initial || rc.is_some() {
+            Mutations::replace_owned(rc.as_deref().map(|v| SerializeRef(v)))
         } else {
-            MutationKind::Replace(Box::new(None::<()>) as Box<dyn erased_serde::Serialize>).into()
+            Mutations::new()
         }
     }
 }

@@ -10,6 +10,7 @@ use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 
 use indexmap::map::Entry;
 use indexmap::{Equivalent, IndexMap, TryReserveError};
+use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
@@ -178,8 +179,8 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = IndexMap<K, O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: serde::Serialize + Sized + 'static,
-    K: serde::Serialize + Eq + Hash + Into<PathSegment> + 'static,
+    O::Head: Serialize + Sized + 'static,
+    K: Serialize + Eq + Hash + Into<PathSegment> + 'static,
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
         let Some(diff) = this.diff.take() else {

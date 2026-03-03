@@ -2,6 +2,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
+use serde::Serialize;
+
 use crate::builtin::{PointerObserver, Snapshot};
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
@@ -73,7 +75,7 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = (O::Head,)>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: serde::Serialize + Sized,
+    O::Head: Serialize + Sized,
 {
     #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
@@ -284,7 +286,7 @@ macro_rules! tuple_observer {
         where
             D: Unsigned,
             S: AsDeref<D, Target = ($($o::Head,)*)>,
-            $($o: SerializeObserver<InnerDepth = Zero, Head: serde::Serialize + Sized>,)*
+            $($o: SerializeObserver<InnerDepth = Zero, Head: Serialize + Sized>,)*
         {
             #[inline]
             unsafe fn flush(this: &mut Self) -> Mutations {

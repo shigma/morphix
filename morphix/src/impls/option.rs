@@ -2,6 +2,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
+use serde::Serialize;
+
 use crate::Mutations;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
@@ -91,7 +93,7 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = Option<O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
-    O::Head: serde::Serialize + Sized + 'static,
+    O::Head: Serialize + Sized + 'static,
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
         let option = (*this.ptr).as_deref();

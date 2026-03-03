@@ -2,6 +2,8 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 use std::slice::SliceIndex;
 
+use serde::Serialize;
+
 use crate::builtin::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverState};
@@ -35,14 +37,16 @@ where
         slice.each_ref().map(O::observe)
     }
 
-    /// Unlike [`UnsafeCell<Vec<O>>`](UnsafeCell) which clears its storage on `DerefMut` (producing
-    /// a full [`Replace`](crate::MutationKind::Replace)), the array implementation triggers
-    /// [`as_deref_mut_coinductive()`](crate::helper::AsDerefMutCoinductive::as_deref_mut_coinductive)
-    /// on each element, preserving per-element granularity. This is appropriate because arrays have
-    /// a fixed, typically small length — the resulting batch of per-element mutations is bounded
-    /// and comparable in size to a whole-array [`Replace`](crate::MutationKind::Replace), while
+    /// Unlike [`UnsafeCell<Vec<O>>`](core::cell::UnsafeCell) which clears its storage on `DerefMut`
+    /// (producing a full [`Replace`](crate::MutationKind::Replace)), the array implementation
+    /// triggers [`as_deref_mut_coinductive()`][as_deref_mut_coinductive] on each element,
+    /// preserving per-element granularity. This is appropriate because arrays have a fixed,
+    /// typically small length — the resulting batch of per-element mutations is bounded and
+    /// comparable in size to a whole-array [`Replace`](crate::MutationKind::Replace), while
     /// unchanged elements can be filtered out by the element observer (e.g.,
     /// [`SnapshotObserver`](crate::builtin::SnapshotObserver)).
+    ///
+    /// [as_deref_mut_coinductive]: crate::helper::AsDerefMutCoinductive::as_deref_mut_coinductive
     #[inline]
     fn mark_replace(&mut self) {
         for ob in self.as_mut_slice() {
@@ -58,7 +62,7 @@ where
     fn flush(&mut self, slice: &Self::Slice) -> Mutations
     where
         Self::Item: SerializeObserver,
-        <Self::Item as crate::observe::ObserverExt>::Head: serde::Serialize + 'static,
+        <Self::Item as crate::observe::ObserverExt>::Head: Serialize + 'static,
     {
         let mut mutations = Mutations::new();
         let mut is_replace = true;
@@ -169,7 +173,7 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = [T; N]>,
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
-    T: serde::Serialize + 'static,
+    T: Serialize + 'static,
 {
     #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
