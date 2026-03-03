@@ -4,11 +4,11 @@ use std::slice::SliceIndex;
 
 use crate::builtin::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
-use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverInner};
+use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverState};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Mutations, Observe};
 
-impl<O, const N: usize> SliceObserverInner for [O; N]
+impl<O, const N: usize> SliceObserverState for [O; N]
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
@@ -35,7 +35,6 @@ where
         slice.each_ref().map(O::observe)
     }
 
-    #[inline]
     /// Unlike [`UnsafeCell<Vec<O>>`](UnsafeCell) which clears its storage on `DerefMut` (producing
     /// a full [`Replace`](crate::MutationKind::Replace)), the array implementation triggers
     /// [`as_deref_mut_coinductive()`](crate::helper::AsDerefMutCoinductive::as_deref_mut_coinductive)
@@ -44,6 +43,7 @@ where
     /// and comparable in size to a whole-array [`Replace`](crate::MutationKind::Replace), while
     /// unchanged elements can be filtered out by the element observer (e.g.,
     /// [`SnapshotObserver`](crate::builtin::SnapshotObserver)).
+    #[inline]
     fn mark_replace(&mut self) {
         for ob in self.as_mut_slice() {
             ob.as_deref_mut_coinductive();
@@ -54,11 +54,29 @@ where
     unsafe fn init_range(&self, _start: usize, _end: usize, _slice: &Self::Slice) {
         // No need to re-initialize fixed-size array.
     }
+
+    fn flush(&mut self, slice: &Self::Slice) -> Mutations
+    where
+        Self::Item: SerializeObserver,
+        <Self::Item as crate::observe::ObserverExt>::Head: serde::Serialize + 'static,
+    {
+        let mut mutations = Mutations::new();
+        let mut is_replace = true;
+        for (index, ob) in self.iter_mut().enumerate() {
+            let inner_mutations = unsafe { SerializeObserver::flush(ob) };
+            is_replace &= inner_mutations.is_replace();
+            mutations.insert(index, inner_mutations);
+        }
+        if is_replace {
+            return Mutations::replace(slice.as_ref());
+        };
+        mutations
+    }
 }
 
 /// Observer implementation for arrays `[T; N]`.
 pub struct ArrayObserver<const N: usize, O, S: ?Sized, D = Zero> {
-    inner: SliceObserver<[O; N], (), S, D>,
+    inner: SliceObserver<[O; N], S, D>,
 }
 
 impl<const N: usize, O, S: ?Sized, D, T> ArrayObserver<N, O, S, D>
@@ -83,19 +101,19 @@ where
     #[inline]
     pub fn each_ref(&self) -> [&O; N] {
         self.inner.__force_ref();
-        self.inner.inner.each_ref()
+        self.inner.state.each_ref()
     }
 
     /// See [`array::each_mut`].
     #[inline]
     pub fn each_mut(&mut self) -> [&mut O; N] {
         self.inner.__force_mut();
-        self.inner.inner.each_mut()
+        self.inner.state.each_mut()
     }
 }
 
 impl<const N: usize, O, S: ?Sized, D> Deref for ArrayObserver<N, O, S, D> {
-    type Target = SliceObserver<[O; N], (), S, D>;
+    type Target = SliceObserver<[O; N], S, D>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -136,7 +154,7 @@ where
     #[inline]
     fn observe(head: &Self::Head) -> Self {
         Self {
-            inner: SliceObserver::<[O; N], (), S, D>::observe(head),
+            inner: SliceObserver::<[O; N], S, D>::observe(head),
         }
     }
 
@@ -336,7 +354,7 @@ mod tests {
 
     use crate::adapter::Json;
     use crate::observe::{ObserveExt, SerializeObserverExt};
-    use crate::{Mutation, MutationKind, PathSegment};
+    use crate::{Mutation, MutationKind};
 
     #[test]
     fn no_change_returns_none() {
@@ -359,7 +377,7 @@ mod tests {
         assert_eq!(
             mutation,
             Some(Mutation {
-                path: vec![PathSegment::Negative(2)].into(),
+                path: vec![1usize.into()].into(),
                 kind: MutationKind::Replace(json!(99)),
             })
         );
@@ -378,11 +396,11 @@ mod tests {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
-                        path: vec![PathSegment::Negative(3)].into(),
+                        path: vec![0usize.into()].into(),
                         kind: MutationKind::Replace(json!(10)),
                     },
                     Mutation {
-                        path: vec![PathSegment::Negative(1)].into(),
+                        path: vec![2usize.into()].into(),
                         kind: MutationKind::Replace(json!(30)),
                     },
                 ]),
@@ -424,11 +442,11 @@ mod tests {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
-                        path: vec![PathSegment::Negative(3)].into(),
+                        path: vec![0usize.into()].into(),
                         kind: MutationKind::Replace(json!(30)),
                     },
                     Mutation {
-                        path: vec![PathSegment::Negative(1)].into(),
+                        path: vec![2usize.into()].into(),
                         kind: MutationKind::Replace(json!(10)),
                     },
                 ]),
@@ -445,7 +463,7 @@ mod tests {
         assert_eq!(
             mutation,
             Some(Mutation {
-                path: vec![PathSegment::Negative(2)].into(),
+                path: vec![0usize.into()].into(),
                 kind: MutationKind::Append(json!("!")),
             })
         );

@@ -11,18 +11,145 @@ use std::vec::{Drain, Splice};
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
-use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverDiff, TruncateAppend};
+use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverState};
 use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
-use crate::{Mutations, Observe};
+use crate::{MutationKind, Mutations, Observe, PathSegment};
+
+/// Observer state for dynamically-sized slices ([`Vec<T>`], `Box<[T]>`), tracking append and
+/// truncate boundaries.
+///
+/// The `append_index` divides the observed slice into two regions: elements before it are
+/// "existing" (may have individual observer state), and elements from `append_index` onward are
+/// "appended" (new since the last flush).
+///
+/// ## Replace Semantics
+///
+/// During [`flush`](SliceObserverState::flush), if all existing elements' inner observers report
+/// [`Replace`](MutationKind::Replace) and there was at least some tracked content
+/// (`append_index > 0` or `truncate_len > 0`), the granular mutations are collapsed into a single
+/// whole-slice [`Replace`](MutationKind::Replace).
+pub struct VecObserverState<O> {
+    /// Number of elements truncated from the end since the last flush.
+    pub truncate_len: usize,
+    /// Starting index of appended elements. Elements before this index are "existing" and have
+    /// their inner observers flushed individually.
+    pub append_index: usize,
+    /// Lazily-initialized element observer storage.
+    ///
+    /// Unlike map observers which use [`Box<O>`] for pointer stability across rehashing /
+    /// node-splits, we store observers inline in a [`Vec<O>`]. This is sound because `init_range`
+    /// always resizes to `values.len()` (the full observed slice length), not just `end`. Since
+    /// `values.len()` can only change through `&mut self` operations (push, pop, etc.), it
+    /// stays constant for the entire duration of any `&self` borrow. Therefore, the first
+    /// `init_range` call sizes the Vec to its final length, and subsequent calls within the
+    /// same `&self` borrow lifetime never trigger reallocation, keeping all previously returned
+    /// references valid.
+    pub inner: UnsafeCell<Vec<O>>,
+}
+
+impl<O> SliceObserverState for VecObserverState<O>
+where
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+{
+    type Slice = [O::Head];
+    type Item = O;
+
+    #[inline]
+    fn uninit() -> Self {
+        Self {
+            truncate_len: 0,
+            append_index: 0,
+            inner: UnsafeCell::new(Vec::new()),
+        }
+    }
+
+    #[inline]
+    fn observe(slice: &Self::Slice) -> Self {
+        Self {
+            truncate_len: 0,
+            append_index: slice.as_ref().len(),
+            inner: UnsafeCell::new(Vec::new()),
+        }
+    }
+
+    #[inline]
+    fn mark_replace(&mut self) {
+        self.inner.get_mut().clear();
+        self.mark_truncate(0);
+    }
+
+    #[inline]
+    fn as_slice(&self) -> &[Self::Item] {
+        unsafe { &*self.inner.get() }
+    }
+
+    #[inline]
+    fn as_mut_slice(&mut self) -> &mut [Self::Item] {
+        self.inner.get_mut()
+    }
+
+    unsafe fn init_range(&self, start: usize, end: usize, slice: &Self::Slice) {
+        let inner = unsafe { &mut *self.inner.get() };
+        inner.resize_with(slice.len(), O::uninit);
+        let ob_iter = inner[start..end].iter_mut();
+        let value_iter = slice[start..end].iter();
+        for (ob, value) in ob_iter.zip(value_iter) {
+            unsafe { Observer::force(ob, value) }
+        }
+    }
+
+    fn flush(&mut self, slice: &Self::Slice) -> Mutations
+    where
+        Self::Item: SerializeObserver,
+        <Self::Item as ObserverExt>::Head: serde::Serialize + 'static,
+    {
+        let append_index = core::mem::replace(&mut self.append_index, slice.len());
+        let truncate_len = core::mem::replace(&mut self.truncate_len, 0);
+        let mut mutations = Mutations::new();
+        #[cfg(feature = "truncate")]
+        if truncate_len > 0 {
+            mutations.extend(MutationKind::Truncate(truncate_len));
+        }
+        #[cfg(feature = "append")]
+        if slice.len() > append_index {
+            mutations.extend(Mutations::append(&slice[append_index..]));
+        }
+        unsafe { self.init_range(0, append_index, slice) }
+        let (existing, stale) = self.inner.get_mut().split_at_mut(append_index);
+        let mut is_replace = true;
+        for (index, ob) in existing.iter_mut().enumerate().rev() {
+            let inner_mutations = unsafe { SerializeObserver::flush(ob) };
+            is_replace &= inner_mutations.is_replace();
+            mutations.insert(PathSegment::Negative(slice.len() - index), inner_mutations);
+        }
+        for observer in stale {
+            *observer = O::uninit();
+        }
+        if is_replace && (append_index > 0 || truncate_len > 0) {
+            return Mutations::replace(slice);
+        };
+        mutations
+    }
+}
+
+impl<O> VecObserverState<O> {
+    /// Marks elements from `index` onward as truncated.
+    ///
+    /// Accumulates `append_index - index` into `truncate_len` and moves `append_index` down to
+    /// `index`. When `index` is 0, this triggers Replace semantics on flush.
+    pub fn mark_truncate(&mut self, index: usize) {
+        self.truncate_len += self.append_index - index;
+        self.append_index = index;
+    }
+}
 
 /// Observer implementation for [`Vec<T>`].
 pub struct VecObserver<O, S: ?Sized, D = Zero> {
-    inner: SliceObserver<UnsafeCell<Vec<O>>, TruncateAppend, S, Succ<D>>,
+    inner: SliceObserver<VecObserverState<O>, S, Succ<D>>,
 }
 
 impl<O, S: ?Sized, D> Deref for VecObserver<O, S, D> {
-    type Target = SliceObserver<UnsafeCell<Vec<O>>, TruncateAppend, S, Succ<D>>;
-
+    type Target = SliceObserver<VecObserverState<O>, S, Succ<D>>;
     #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -62,7 +189,7 @@ where
     #[inline]
     fn observe(head: &Self::Head) -> Self {
         Self {
-            inner: SliceObserver::<UnsafeCell<Vec<O>>, TruncateAppend, S, Succ<D>>::observe(head),
+            inner: SliceObserver::<VecObserverState<O>, S, Succ<D>>::observe(head),
         }
     }
 
@@ -128,7 +255,7 @@ where
     /// See [`Vec::insert`].
     #[inline]
     pub fn insert(&mut self, index: usize, element: T) {
-        if index >= self.inner.diff.append_index {
+        if index >= self.state.append_index {
             self.untracked_mut().insert(index, element)
         } else {
             self.observed_mut().insert(index, element)
@@ -146,7 +273,7 @@ where
     /// See [`Vec::clear`].
     #[inline]
     pub fn clear(&mut self) {
-        if self.inner.diff.append_index == 0 {
+        if self.state.append_index == 0 {
             self.untracked_mut().clear()
         } else {
             self.observed_mut().clear()
@@ -156,12 +283,12 @@ where
     /// See [`Vec::remove`].
     pub fn remove(&mut self, index: usize) -> T {
         let value = self.untracked_mut().remove(index);
-        if index >= self.inner.diff.append_index {
+        if index >= self.state.append_index {
             // no-op
-        } else if cfg!(feature = "truncate") && index + 1 == self.inner.diff.append_index {
-            self.diff.mark_truncate(index);
+        } else if cfg!(feature = "truncate") && index + 1 == self.state.append_index {
+            self.state.mark_truncate(index);
         } else {
-            self.diff.mark_replace();
+            self.state.mark_replace();
         }
         value
     }
@@ -169,12 +296,12 @@ where
     /// See [`Vec::swap_remove`].
     pub fn swap_remove(&mut self, index: usize) -> T {
         let value = self.untracked_mut().remove(index);
-        if index >= self.inner.diff.append_index {
+        if index >= self.state.append_index {
             // no-op
-        } else if cfg!(feature = "truncate") && index + 1 == self.inner.diff.append_index {
-            self.diff.mark_truncate(index);
+        } else if cfg!(feature = "truncate") && index + 1 == self.state.append_index {
+            self.state.mark_truncate(index);
         } else {
-            self.diff.mark_replace();
+            self.state.mark_replace();
         }
         value
     }
@@ -183,12 +310,12 @@ where
     pub fn pop(&mut self) -> Option<T> {
         let value = self.untracked_mut().pop()?;
         let len = (*self).observed_ref().len();
-        if len >= self.inner.diff.append_index {
+        if len >= self.state.append_index {
             // no-op
-        } else if cfg!(feature = "truncate") && len + 1 == self.inner.diff.append_index {
-            self.diff.mark_truncate(len);
+        } else if cfg!(feature = "truncate") && len + 1 == self.state.append_index {
+            self.state.mark_truncate(len);
         } else {
-            self.diff.mark_replace();
+            self.state.mark_replace();
         }
         Some(value)
     }
@@ -203,24 +330,24 @@ where
     /// See [`Vec::truncate`].
     pub fn truncate(&mut self, len: usize) {
         self.untracked_mut().truncate(len);
-        if len >= self.inner.diff.append_index {
+        if len >= self.state.append_index {
             // no-op
         } else if cfg!(feature = "truncate") && len > 0 {
-            self.diff.mark_truncate(len);
+            self.state.mark_truncate(len);
         } else {
-            self.diff.mark_replace();
+            self.state.mark_replace();
         }
     }
 
     /// See [`Vec::split_off`].
     pub fn split_off(&mut self, at: usize) -> Vec<T> {
         let vec = self.untracked_mut().split_off(at);
-        if at >= self.inner.diff.append_index {
+        if at >= self.state.append_index {
             // no-op
         } else if cfg!(feature = "truncate") && at > 0 {
-            self.diff.mark_truncate(at);
+            self.state.mark_truncate(at);
         } else {
-            self.diff.mark_replace();
+            self.state.mark_replace();
         }
         vec
     }
@@ -232,12 +359,12 @@ where
         F: FnMut() -> T,
     {
         self.untracked_mut().resize_with(new_len, f);
-        if new_len >= self.inner.diff.append_index {
+        if new_len >= self.state.append_index {
             // no-op
         } else if cfg!(feature = "truncate") && new_len > 0 {
-            self.diff.mark_truncate(new_len);
+            self.state.mark_truncate(new_len);
         } else {
-            self.diff.mark_replace();
+            self.state.mark_replace();
         }
     }
 
@@ -251,7 +378,7 @@ where
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= self.inner.diff.append_index {
+        if start_index >= self.state.append_index {
             return self.untracked_mut().drain(range);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
@@ -262,10 +389,10 @@ where
             Bound::Excluded(&n) => n,
             Bound::Unbounded => (*self).observed_ref().len(),
         };
-        if end_index < self.inner.diff.append_index {
+        if end_index < self.state.append_index {
             return self.observed_mut().drain(range);
         }
-        self.diff.mark_truncate(start_index);
+        self.state.mark_truncate(start_index);
         self.observed_mut().drain(range)
     }
 
@@ -280,7 +407,7 @@ where
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= self.inner.diff.append_index {
+        if start_index >= self.state.append_index {
             return self.untracked_mut().splice(range, replace_with);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
@@ -291,10 +418,10 @@ where
             Bound::Excluded(&n) => n,
             Bound::Unbounded => (*self).observed_ref().len(),
         };
-        if end_index < self.inner.diff.append_index {
+        if end_index < self.state.append_index {
             return self.observed_mut().splice(range, replace_with);
         }
-        self.diff.mark_truncate(start_index);
+        self.state.mark_truncate(start_index);
         self.untracked_mut().splice(range, replace_with)
     }
 
@@ -308,7 +435,7 @@ where
     }
 
     /// See [`Vec::extract_if`].
-    pub fn extract_if<F, R>(&mut self, range: R, filter: F) -> ExtractIf<'_, T, F>
+    pub fn extract_if<F, R>(&mut self, range: R, filter: F) -> ExtractIf<'_, O, F>
     where
         F: FnMut(&mut T) -> bool,
         R: RangeBounds<usize>,
@@ -320,42 +447,44 @@ where
         };
         let vec = (*self.inner.ptr).as_deref_mut();
         let inner = vec.extract_if(range, filter);
-        let diff = if start_index < self.inner.diff.append_index {
-            Some((&mut self.inner.diff, start_index))
+        let state = if start_index < self.inner.state.append_index {
+            Some((&mut self.inner.state, start_index))
         } else {
             None
         };
-        ExtractIf { inner, diff }
+        ExtractIf { inner, state }
     }
 }
 
 /// Iterator produced by [`VecObserver::extract_if`].
 #[cfg(any(feature = "append", feature = "truncate"))]
-pub struct ExtractIf<'a, T, F>
+pub struct ExtractIf<'a, O, F>
 where
-    F: FnMut(&mut T) -> bool,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    F: FnMut(&mut O::Head) -> bool,
 {
-    inner: std::vec::ExtractIf<'a, T, F>,
-    diff: Option<(&'a mut TruncateAppend, usize)>,
+    inner: std::vec::ExtractIf<'a, O::Head, F>,
+    state: Option<(&'a mut VecObserverState<O>, usize)>,
 }
 
 #[cfg(any(feature = "append", feature = "truncate"))]
-impl<T, F> Iterator for ExtractIf<'_, T, F>
+impl<O, F> Iterator for ExtractIf<'_, O, F>
 where
-    F: FnMut(&mut T) -> bool,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    F: FnMut(&mut O::Head) -> bool,
 {
-    type Item = T;
+    type Item = O::Head;
 
     fn next(&mut self) -> Option<Self::Item> {
         let value = self.inner.next()?;
         // Update diff on first extraction. We use `start_index` (range start) instead of
         // the actual index of the extracted element because `std::vec::ExtractIf` only
         // yields `T` values without index information.
-        if let Some((diff, start_index)) = self.diff.take() {
+        if let Some((state, start_index)) = self.state.take() {
             if cfg!(feature = "truncate") && start_index > 0 {
-                diff.mark_truncate(start_index);
+                state.mark_truncate(start_index);
             } else {
-                diff.mark_replace();
+                state.mark_replace();
             }
         }
         Some(value)
@@ -368,12 +497,18 @@ where
 }
 
 #[cfg(any(feature = "append", feature = "truncate"))]
-impl<T, F> FusedIterator for ExtractIf<'_, T, F> where F: FnMut(&mut T) -> bool {}
+impl<O, F> FusedIterator for ExtractIf<'_, O, F>
+where
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    F: FnMut(&mut O::Head) -> bool,
+{
+}
 
 #[cfg(any(feature = "append", feature = "truncate"))]
-impl<T: Debug, F> Debug for ExtractIf<'_, T, F>
+impl<O, F> Debug for ExtractIf<'_, O, F>
 where
-    F: FnMut(&mut T) -> bool,
+    O: Observer<InnerDepth = Zero, Head: Debug + Sized>,
+    F: FnMut(&mut O::Head) -> bool,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -408,12 +543,12 @@ where
     #[inline]
     pub fn resize(&mut self, new_len: usize, value: T) {
         self.untracked_mut().resize(new_len, value);
-        if new_len >= self.inner.diff.append_index {
+        if new_len >= self.state.append_index {
             // no-op
         } else if cfg!(feature = "truncate") && new_len > 0 {
-            self.diff.mark_truncate(new_len);
+            self.state.mark_truncate(new_len);
         } else {
-            self.diff.mark_replace();
+            self.state.mark_replace();
         }
     }
 }
@@ -720,12 +855,12 @@ mod tests {
                 path: vec![].into(),
                 kind: MutationKind::Batch(vec![
                     Mutation {
-                        path: vec![PathSegment::Negative(3)].into(),
-                        kind: MutationKind::Replace(json!(222)),
-                    },
-                    Mutation {
                         path: vec![PathSegment::Negative(2)].into(),
                         kind: MutationKind::Replace(json!(333)),
+                    },
+                    Mutation {
+                        path: vec![PathSegment::Negative(3)].into(),
+                        kind: MutationKind::Replace(json!(222)),
                     }
                 ]),
             })
