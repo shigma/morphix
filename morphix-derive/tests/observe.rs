@@ -1,5 +1,6 @@
 use morphix::adapter::Json;
-use morphix::{Mutation, MutationKind, Observe, observe};
+use morphix::{Observe, observe};
+use morphix_test_utils::*;
 use serde::Serialize;
 use serde_json::json;
 
@@ -22,13 +23,7 @@ fn arm_form_basic() {
         p.x = 10;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["x".into()].into(),
-            kind: MutationKind::Replace(json!(10)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(x, json!(10))));
 }
 
 #[test]
@@ -38,13 +33,7 @@ fn closure_form() {
     });
     let mut p = Point { x: 1, y: 2 };
     let Json(mutation) = cb(&mut p).unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["x".into()].into(),
-            kind: MutationKind::Replace(json!(10)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(x, json!(10))));
 }
 
 #[test]
@@ -55,13 +44,7 @@ fn assignment_tracks_mutation() {
         p.y = 99;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!({"x": 42, "y": 99})),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!({"x": 42, "y": 99}))));
 }
 
 #[test]
@@ -73,13 +56,7 @@ fn comparison_works() {
         }
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["y".into()].into(),
-            kind: MutationKind::Replace(json!(20)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(y, json!(20))));
 }
 
 #[test]
@@ -117,19 +94,7 @@ fn nested_field_access() {
     // Single inner mutation gets flattened (path combined)
     assert_eq!(
         mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Batch(vec![
-                Mutation {
-                    path: vec!["pos".into(), "x".into()].into(),
-                    kind: MutationKind::Replace(json!(100)),
-                },
-                Mutation {
-                    path: vec!["label".into()].into(),
-                    kind: MutationKind::Append(json!("!")),
-                },
-            ]),
-        })
+        Some(batch!(_, replace!(pos.x, json!(100)), append!(label, json!("!"))))
     );
 }
 
@@ -157,22 +122,10 @@ fn closure_multiple_calls() {
     let mut p = Point { x: 0, y: 0 };
 
     let Json(mutation1) = cb(&mut p).unwrap();
-    assert_eq!(
-        mutation1,
-        Some(Mutation {
-            path: vec!["x".into()].into(),
-            kind: MutationKind::Replace(json!(1)),
-        })
-    );
+    assert_eq!(mutation1, Some(replace!(x, json!(1))));
 
     let Json(mutation2) = cb(&mut p).unwrap();
-    assert_eq!(
-        mutation2,
-        Some(Mutation {
-            path: vec!["x".into()].into(),
-            kind: MutationKind::Replace(json!(2)),
-        })
-    );
+    assert_eq!(mutation2, Some(replace!(x, json!(2))));
 }
 
 #[test]
@@ -183,11 +136,5 @@ fn compound_assignment() {
         p.y -= 3;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!({"x": 15, "y": 17})),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!({"x": 15, "y": 17}))));
 }

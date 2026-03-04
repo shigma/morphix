@@ -1,5 +1,6 @@
 use morphix::adapter::Json;
-use morphix::{Mutation, MutationKind, Observe, observe};
+use morphix::{Observe, observe};
+use morphix_test_utils::*;
 use serde::Serialize;
 use serde_json::json;
 
@@ -29,13 +30,7 @@ fn single_field_mutation() {
         s.x = 20;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["x".into()].into(),
-            kind: MutationKind::Replace(json!(20)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(x, json!(20))));
 }
 
 #[test]
@@ -46,22 +41,7 @@ fn multiple_field_mutations_batch() {
         s.y.push_str("b");
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Batch(vec![
-                Mutation {
-                    path: vec!["x".into()].into(),
-                    kind: MutationKind::Replace(json!(2)),
-                },
-                Mutation {
-                    path: vec!["y".into()].into(),
-                    kind: MutationKind::Append(json!("b")),
-                },
-            ]),
-        })
-    );
+    assert_eq!(mutation, Some(batch!(_, replace!(x, json!(2)), append!(y, json!("b")))));
 }
 
 #[test]
@@ -71,13 +51,7 @@ fn full_replace_via_deref_mut() {
         *s = Simple { x: 99, y: "z".into() };
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!({"x": 99, "y": "z"})),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!({"x": 99, "y": "z"}))));
 }
 
 #[derive(Serialize, Observe)]
@@ -94,13 +68,7 @@ fn serde_rename_path_segments() {
         w.a = 10;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["alpha".into()].into(),
-            kind: MutationKind::Replace(json!(10)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(alpha, json!(10))));
 }
 
 #[derive(Serialize, Observe)]
@@ -117,13 +85,7 @@ fn serde_rename_all_path_segments() {
         w.foo_bar = 10;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["fooBar".into()].into(),
-            kind: MutationKind::Replace(json!(10)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(fooBar, json!(10))));
 }
 
 #[derive(Serialize, Observe)]
@@ -150,13 +112,7 @@ fn serde_flatten_extends() {
     })
     .unwrap();
     // Flattened field's path should NOT be nested under "inner"
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["c".into()].into(),
-            kind: MutationKind::Replace(json!(30)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(c, json!(30))));
 }
 
 #[derive(Serialize, Observe)]
@@ -176,13 +132,7 @@ fn serde_skip_serializing_if_delete() {
         w.val = None;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["val".into()].into(),
-            kind: MutationKind::Delete,
-        })
-    );
+    assert_eq!(mutation, Some(delete!(val)));
 }
 
 #[test]
@@ -192,13 +142,7 @@ fn serde_skip_serializing_if_replace() {
         let _ = w.val.insert(42);
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["val".into()].into(),
-            kind: MutationKind::Replace(json!(42)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(val, json!(42))));
 }
 
 #[derive(Serialize, Observe)]
@@ -226,13 +170,7 @@ fn morphix_skip_with_tracked() {
         w.b = 99;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec![].into(),
-            kind: MutationKind::Replace(json!({"a": 10, "b": 99})),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!({"a": 10, "b": 99}))));
 }
 
 #[derive(Serialize, Observe)]
@@ -255,19 +193,7 @@ fn nested_struct_observation() {
     // Single inner mutation gets flattened (no Batch wrapper for single mutation)
     assert_eq!(
         mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Batch(vec![
-                Mutation {
-                    path: vec!["inner".into(), "c".into()].into(),
-                    kind: MutationKind::Replace(json!(100)),
-                },
-                Mutation {
-                    path: vec!["x".into()].into(),
-                    kind: MutationKind::Replace(json!(20)),
-                },
-            ]),
-        })
+        Some(batch!(_, replace!(inner.c, json!(100)), replace!(x, json!(20))))
     );
 }
 
@@ -282,13 +208,7 @@ fn tuple_struct_single_field() {
     })
     .unwrap();
     // Single unnamed field extends directly (no segment)
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Append(json!(" world")),
-        })
-    );
+    assert_eq!(mutation, Some(append!(_, json!(" world"))));
 }
 
 #[derive(Serialize, Observe)]
@@ -304,19 +224,7 @@ fn tuple_struct_multi_field() {
     .unwrap();
     assert_eq!(
         mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Batch(vec![
-                Mutation {
-                    path: vec![0.into()].into(),
-                    kind: MutationKind::Replace(json!(42)),
-                },
-                Mutation {
-                    path: vec![1.into()].into(),
-                    kind: MutationKind::Append(json!("!")),
-                },
-            ]),
-        })
+        Some(batch!(_, replace!(0, json!(42)), append!(1, json!("!"))))
     );
 }
 
@@ -369,19 +277,7 @@ fn serde_flatten_with_normal_field() {
     .unwrap();
     assert_eq!(
         mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Batch(vec![
-                Mutation {
-                    path: vec!["a".into()].into(),
-                    kind: MutationKind::Replace(json!(10)),
-                },
-                Mutation {
-                    path: vec!["c".into()].into(),
-                    kind: MutationKind::Replace(json!(30)),
-                },
-            ]),
-        })
+        Some(batch!(_, replace!(a, json!(10)), replace!(c, json!(30))))
     );
 }
 
@@ -397,11 +293,5 @@ fn vec_field_append() {
         w.items.push(3);
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["items".into()].into(),
-            kind: MutationKind::Append(json!([3])),
-        })
-    );
+    assert_eq!(mutation, Some(append!(items, json!([3]))));
 }

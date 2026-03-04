@@ -3,6 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use morphix::adapter::Json;
 use morphix::{Mutation, MutationKind, Observe, observe};
+use morphix_test_utils::*;
 use serde::Serialize;
 use serde_json::json;
 
@@ -31,13 +32,7 @@ fn deref_delegates() {
     })
     .unwrap();
     // Vec push produces Append through the deref observer
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Append(json!([4])),
-        })
-    );
+    assert_eq!(mutation, Some(append!(_, json!([4]))));
 }
 
 #[test]
@@ -54,13 +49,7 @@ fn deref_vec_replace() {
         w.clear();
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!([])),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!([]))));
 }
 
 #[test]
@@ -116,13 +105,7 @@ fn deref_replace_outer() {
         o = Outer { a: 100, b: 100, inner: Inner { c: 200 } };
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!({"a": 100, "b": 100, "c": 200})),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!({"a": 100, "b": 100, "c": 200}))));
 }
 
 #[test]
@@ -139,19 +122,7 @@ fn deref_replace_inner() {
     .unwrap();
     assert_eq!(
         mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Batch(vec![
-                Mutation {
-                    path: vec!["a".into()].into(),
-                    kind: MutationKind::Replace(json!(10)),
-                },
-                Mutation {
-                    path: vec!["c".into()].into(),
-                    kind: MutationKind::Replace(json!(200)),
-                },
-            ]),
-        })
+        Some(batch!(_, replace!(a, json!(10)), replace!(c, json!(200))))
     );
 }
 
@@ -194,13 +165,7 @@ fn flat_map_granular_insert() {
         f.map.insert("y".into(), 2);
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["y".into()].into(),
-            kind: MutationKind::Replace(json!(2)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(y, json!(2))));
 }
 
 #[test]
@@ -213,13 +178,7 @@ fn flat_map_granular_remove() {
         f.map.remove("y");
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["y".into()].into(),
-            kind: MutationKind::Delete,
-        })
-    );
+    assert_eq!(mutation, Some(delete!(y)));
 }
 
 #[test]
@@ -232,13 +191,7 @@ fn flat_map_b_only() {
         f.b = 20;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["b".into()].into(),
-            kind: MutationKind::Replace(json!(20)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(b, json!(20))));
 }
 
 #[test]
@@ -255,20 +208,8 @@ fn flat_map_map_and_b_no_collapse() {
     // Map insert is granular (is_replace=false), so no collapse despite b also changing
     let batch = sorted_mutations(mutation);
     assert_eq!(batch.len(), 2);
-    assert_eq!(
-        batch[0],
-        Mutation {
-            path: vec!["b".into()].into(),
-            kind: MutationKind::Replace(json!(20)),
-        }
-    );
-    assert_eq!(
-        batch[1],
-        Mutation {
-            path: vec!["x".into()].into(),
-            kind: MutationKind::Replace(json!(99)),
-        }
-    );
+    assert_eq!(batch[0], replace!(b, json!(20)));
+    assert_eq!(batch[1], replace!(x, json!(99)));
 }
 
 #[test]
@@ -282,13 +223,7 @@ fn flat_map_map_replace_b_unchanged() {
     })
     .unwrap();
     // Only map reports Replace, b unchanged → per-field mutation
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["x".into()].into(),
-            kind: MutationKind::Replace(json!(99)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(x, json!(99))));
 }
 
 #[test]
@@ -302,13 +237,7 @@ fn flat_map_deref_mut_full_replace() {
     })
     .unwrap();
     // Full outer replace → whole-struct Replace
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!({"y": 2, "b": 20})),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!({"y": 2, "b": 20}))));
 }
 
 #[test]
@@ -325,20 +254,8 @@ fn flat_map_map_deref_mut_with_new_keys() {
     // Map flatten produces: delete "x", replace "y"
     let batch = sorted_mutations(mutation);
     assert_eq!(batch.len(), 2);
-    assert_eq!(
-        batch[0],
-        Mutation {
-            path: vec!["x".into()].into(),
-            kind: MutationKind::Delete,
-        }
-    );
-    assert_eq!(
-        batch[1],
-        Mutation {
-            path: vec!["y".into()].into(),
-            kind: MutationKind::Replace(json!(2)),
-        }
-    );
+    assert_eq!(batch[0], delete!(x));
+    assert_eq!(batch[1], replace!(y, json!(2)));
 }
 
 #[test]
@@ -353,11 +270,5 @@ fn flat_map_map_deref_mut_and_b_collapse() {
     })
     .unwrap();
     // Both map (is_replace=true) and b report Replace → collapse
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!({"x": 99, "b": 20})),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!({"x": 99, "b": 20}))));
 }

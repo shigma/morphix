@@ -1,6 +1,7 @@
 use morphix::adapter::Json;
 use morphix::observe::{ObserveExt, ObserverExt, SerializeObserverExt};
-use morphix::{Mutation, MutationKind, Observe, observe};
+use morphix::{Observe, observe};
+use morphix_test_utils::*;
 use serde::Serialize;
 use serde_json::json;
 
@@ -26,13 +27,7 @@ fn unit_variant_change_to_unit() {
         *s = Shape::Origin;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!("Origin")),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!("Origin"))));
 }
 
 #[test]
@@ -42,13 +37,7 @@ fn unit_to_field_variant() {
         *s = Shape::Circle { radius: 5.0 };
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!({"Circle": {"radius": 5.0}})),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!({"Circle": {"radius": 5.0}}))));
 }
 
 #[test]
@@ -58,13 +47,7 @@ fn field_to_unit_variant() {
         *s = Shape::Point;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!("Point")),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!("Point"))));
 }
 
 #[test]
@@ -77,13 +60,7 @@ fn field_variant_inner_mutation() {
     }
     let Json(mutation) = ob.flush().unwrap();
     // External tagging: variant + field combined into path
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["Circle".into(), "radius".into()].into(),
-            kind: MutationKind::Replace(json!(5.0)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(Circle.radius, json!(5.0))));
 }
 
 #[test]
@@ -101,19 +78,11 @@ fn field_variant_multiple_inner_mutations() {
     // External tagging: variant + field combined via insert2
     assert_eq!(
         mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Batch(vec![
-                Mutation {
-                    path: vec!["Rectangle".into(), "width".into()].into(),
-                    kind: MutationKind::Replace(json!(15.0)),
-                },
-                Mutation {
-                    path: vec!["Rectangle".into(), "height".into()].into(),
-                    kind: MutationKind::Replace(json!(25.0)),
-                },
-            ]),
-        })
+        Some(batch!(
+            _,
+            replace!(Rectangle.width, json!(15.0)),
+            replace!(Rectangle.height, json!(25.0)),
+        ))
     );
 }
 
@@ -136,13 +105,7 @@ fn field_variant_deref_mut_replace() {
         *s = Shape::Circle { radius: 10.0 };
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!({"Circle": {"radius": 10.0}})),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!({"Circle": {"radius": 10.0}}))));
 }
 
 #[derive(Serialize, Observe)]
@@ -159,13 +122,7 @@ fn enum_rename_all_variant() {
         *a = Action::DoSomething { value: 42 };
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!({"do_something": {"value": 42}})),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!({"do_something": {"value": 42}}))));
 }
 
 #[test]
@@ -177,13 +134,7 @@ fn enum_rename_all_inner_mutation() {
     }
     let Json(mutation) = ob.flush().unwrap();
     // External tagging with rename_all: variant + field combined
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["do_something".into(), "value".into()].into(),
-            kind: MutationKind::Replace(json!(99)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(do_something.value, json!(99))));
 }
 
 #[test]
@@ -237,13 +188,7 @@ fn all_unit_enum_change() {
         *c = Color::Blue;
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!("Blue")),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!("Blue"))));
 }
 
 #[derive(Serialize, Observe)]
@@ -262,13 +207,7 @@ fn internal_tag_inner_mutation() {
     }
     let Json(mutation) = ob.flush().unwrap();
     // Internal tagging: no variant segment in path
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["x".into()].into(),
-            kind: MutationKind::Replace(json!(50)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(x, json!(50))));
 }
 
 #[test]
@@ -278,13 +217,7 @@ fn internal_tag_variant_change() {
         *e = Event::Scroll { delta: 5 };
     })
     .unwrap();
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Replace(json!({"type": "Scroll", "delta": 5})),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(_, json!({"type": "Scroll", "delta": 5}))));
 }
 
 #[derive(Serialize, Observe)]
@@ -303,13 +236,7 @@ fn field_variant_vec_append() {
     }
     let Json(mutation) = ob.flush().unwrap();
     // External tagging: variant + field combined
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["Items".into(), "list".into()].into(),
-            kind: MutationKind::Append(json!([4])),
-        })
-    );
+    assert_eq!(mutation, Some(append!(Items.list, json!([4]))));
 }
 
 #[derive(Serialize, Observe)]
@@ -327,13 +254,7 @@ fn tuple_variant_single_field() {
     }
     let Json(mutation) = ob.flush().unwrap();
     // External tagging: single tuple field uses variant name + index
-    assert_eq!(
-        mutation,
-        Some(Mutation {
-            path: vec!["Single".into()].into(),
-            kind: MutationKind::Replace(json!(20)),
-        })
-    );
+    assert_eq!(mutation, Some(replace!(Single, json!(20))));
 }
 
 #[test]
@@ -348,18 +269,6 @@ fn tuple_variant_multi_field() {
     // External tagging: variant + index combined via insert2
     assert_eq!(
         mutation,
-        Some(Mutation {
-            path: Default::default(),
-            kind: MutationKind::Batch(vec![
-                Mutation {
-                    path: vec!["Pair".into(), 0.into()].into(),
-                    kind: MutationKind::Replace(json!(42)),
-                },
-                Mutation {
-                    path: vec!["Pair".into(), 1.into()].into(),
-                    kind: MutationKind::Append(json!("!")),
-                },
-            ]),
-        })
+        Some(batch!(_, replace!(Pair.0, json!(42)), append!(Pair.1, json!("!"))))
     );
 }

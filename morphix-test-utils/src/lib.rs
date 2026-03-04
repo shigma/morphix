@@ -10,11 +10,11 @@
 //!
 //! # Macros
 //!
-//! - `replace!(path, value)` — [`MutationKind::Replace`](::morphix::MutationKind::Replace)
-//! - `append!(path, value)` — [`MutationKind::Append`](::morphix::MutationKind::Append) (feature `append`)
-//! - `truncate!(path, len)` — [`MutationKind::Truncate`](::morphix::MutationKind::Truncate) (feature `truncate`)
-//! - `delete!(path)` — [`MutationKind::Delete`](::morphix::MutationKind::Delete) (feature `delete`)
-//! - `batch!(path, items...)` — [`MutationKind::Batch`](::morphix::MutationKind::Batch)
+//! - [`replace!(path, value)`](replace!)
+//! - [`append!(path, value)`](append!) (feature `append`)
+//! - [`truncate!(path, len)`](truncate!) (feature `truncate`)
+//! - [`delete!(path)`](delete!) (feature `delete`)
+//! - [`batch!(path, items...)`](batch!)
 
 #[doc(hidden)]
 #[macro_export]
