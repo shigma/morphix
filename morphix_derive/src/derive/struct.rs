@@ -307,15 +307,15 @@ pub fn derive_observe_for_struct(
                 #observer_uninit_expr
             }
 
-            fn observe(value: &#head) -> Self {
-                let __ptr = ::morphix::helper::Pointer::new(value);
-                let __value = value.as_deref();
+            fn observe(head: &#head) -> Self {
+                let __ptr = ::morphix::helper::Pointer::new(head);
+                let __value = head.as_deref();
                 #observer_observe_expr
             }
 
-            unsafe fn refresh(this: &mut Self, value: &#head) {
-                ::morphix::helper::Pointer::set(this, value);
-                let __value = value.as_deref();
+            unsafe fn refresh(this: &mut Self, head: &#head) {
+                ::morphix::helper::Pointer::set(this, head);
+                let __value = head.as_deref();
                 unsafe {
                     #refresh_stmts
                 }
@@ -414,7 +414,7 @@ pub fn derive_observe_for_struct(
 
         let prepare_value = if field_count > 1 {
             quote! {
-                let __value = ::morphix::helper::AsDeref::<#depth>::as_deref(value);
+                let __value = ::morphix::helper::AsDeref::<#depth>::as_deref(head);
             }
         } else {
             quote! {}
@@ -425,16 +425,16 @@ pub fn derive_observe_for_struct(
                 #observer_uninit_expr
             }
 
-            fn observe(value: &#inner::Head) -> Self {
-                let __inner = ::morphix::observe::Observer::observe(value);
+            fn observe(head: &#inner::Head) -> Self {
+                let __inner = ::morphix::observe::Observer::observe(head);
                 #prepare_value
                 #observer_observe_expr
             }
 
-            unsafe fn refresh(this: &mut Self, value: &#inner::Head) {
+            unsafe fn refresh(this: &mut Self, head: &#inner::Head) {
                 #prepare_value
                 unsafe {
-                    ::morphix::observe::Observer::refresh(&mut this.#field_member, value);
+                    ::morphix::observe::Observer::refresh(&mut this.#field_member, head);
                     #refresh_stmts
                 }
             }

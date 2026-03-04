@@ -202,9 +202,9 @@ const _: () = {
                 __variant: FooObserverVariant::__None,
             }
         }
-        fn observe(value: &_S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(value);
-            let __value = value.as_deref();
+        fn observe(head: &_S) -> Self {
+            let __ptr = ::morphix::helper::Pointer::new(head);
+            let __value = head.as_deref();
             Self {
                 __ptr,
                 __mutated: false,
@@ -213,9 +213,9 @@ const _: () = {
                 __variant: FooObserverVariant::observe(__value),
             }
         }
-        unsafe fn refresh(this: &mut Self, value: &_S) {
-            ::morphix::helper::Pointer::set(this, value);
-            let __value = value.as_deref();
+        unsafe fn refresh(this: &mut Self, head: &_S) {
+            ::morphix::helper::Pointer::set(this, head);
+            let __value = head.as_deref();
             unsafe { this.__variant.refresh(__value) }
         }
     }

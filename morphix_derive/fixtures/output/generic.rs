@@ -98,9 +98,9 @@ const _: () = {
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        fn observe(value: &_S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(value);
-            let __value = value.as_deref();
+        fn observe(head: &_S) -> Self {
+            let __ptr = ::morphix::helper::Pointer::new(head);
+            let __value = head.as_deref();
             Self {
                 a: ::morphix::observe::Observer::observe(&__value.a),
                 b: ::morphix::helper::Pointer::new(&__value.b),
@@ -109,9 +109,9 @@ const _: () = {
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, value: &_S) {
-            ::morphix::helper::Pointer::set(this, value);
-            let __value = value.as_deref();
+        unsafe fn refresh(this: &mut Self, head: &_S) {
+            ::morphix::helper::Pointer::set(this, head);
+            let __value = head.as_deref();
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.a, &__value.a);
                 ::morphix::helper::Pointer::set(&this.b, &__value.b);

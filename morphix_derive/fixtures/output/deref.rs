@@ -66,18 +66,18 @@ const _: () = {
                 b: ::morphix::observe::Observer::uninit(),
             }
         }
-        fn observe(value: &O::Head) -> Self {
-            let __inner = ::morphix::observe::Observer::observe(value);
-            let __value = ::morphix::helper::AsDeref::<N>::as_deref(value);
+        fn observe(head: &O::Head) -> Self {
+            let __inner = ::morphix::observe::Observer::observe(head);
+            let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
             Self {
                 a: __inner,
                 b: ::morphix::observe::Observer::observe(&__value.b),
             }
         }
-        unsafe fn refresh(this: &mut Self, value: &O::Head) {
-            let __value = ::morphix::helper::AsDeref::<N>::as_deref(value);
+        unsafe fn refresh(this: &mut Self, head: &O::Head) {
+            let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
             unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.a, value);
+                ::morphix::observe::Observer::refresh(&mut this.a, head);
                 ::morphix::observe::Observer::refresh(&mut this.b, &__value.b);
             }
         }
@@ -202,15 +202,15 @@ const _: () = {
                 ::morphix::observe::Observer::uninit(),
             )
         }
-        fn observe(value: &O::Head) -> Self {
-            let __inner = ::morphix::observe::Observer::observe(value);
-            let __value = ::morphix::helper::AsDeref::<N>::as_deref(value);
+        fn observe(head: &O::Head) -> Self {
+            let __inner = ::morphix::observe::Observer::observe(head);
+            let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
             Self(__inner, ::morphix::observe::Observer::observe(&__value.1))
         }
-        unsafe fn refresh(this: &mut Self, value: &O::Head) {
-            let __value = ::morphix::helper::AsDeref::<N>::as_deref(value);
+        unsafe fn refresh(this: &mut Self, head: &O::Head) {
+            let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
             unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.0, value);
+                ::morphix::observe::Observer::refresh(&mut this.0, head);
                 ::morphix::observe::Observer::refresh(&mut this.1, &__value.1);
             }
         }
@@ -323,13 +323,13 @@ const _: () = {
         fn uninit() -> Self {
             Self(::morphix::observe::Observer::uninit())
         }
-        fn observe(value: &O::Head) -> Self {
-            let __inner = ::morphix::observe::Observer::observe(value);
+        fn observe(head: &O::Head) -> Self {
+            let __inner = ::morphix::observe::Observer::observe(head);
             Self(__inner)
         }
-        unsafe fn refresh(this: &mut Self, value: &O::Head) {
+        unsafe fn refresh(this: &mut Self, head: &O::Head) {
             unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.0, value);
+                ::morphix::observe::Observer::refresh(&mut this.0, head);
             }
         }
     }

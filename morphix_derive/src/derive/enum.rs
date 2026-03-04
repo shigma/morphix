@@ -515,9 +515,9 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            fn observe(value: &#head) -> Self {
-                let __ptr = ::morphix::helper::Pointer::new(value);
-                let __value = value.as_deref();
+            fn observe(head: &#head) -> Self {
+                let __ptr = ::morphix::helper::Pointer::new(head);
+                let __value = head.as_deref();
                 Self {
                     __ptr,
                     #(#if_has_variant __mutated: false,)*
@@ -527,10 +527,10 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            unsafe fn refresh(this: &mut Self, value: &#head) {
-                ::morphix::helper::Pointer::set(this, value);
+            unsafe fn refresh(this: &mut Self, head: &#head) {
+                ::morphix::helper::Pointer::set(this, head);
                 #(#if_has_variant
-                    let __value = value.as_deref();
+                    let __value = head.as_deref();
                     unsafe { this.__variant.refresh(__value) }
                 )*
             }
