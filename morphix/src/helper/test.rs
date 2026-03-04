@@ -1,6 +1,27 @@
+//! Test helper macros for constructing [`Mutation`](crate::Mutation) values concisely.
+//!
+//! # Path Syntax
+//!
+//! - `_` — root (empty path)
+//! - `foo` — string segment
+//! - `0` — positive index
+//! - `-1` — negative index
+//! - `foo.0.-1.bar` — mixed segments separated by `.`
+//!
+//! # Macros
+//!
+//! - [`replace!(path, value)`](replace!)
+//! - [`append!(path, value)`](append!) (feature `append`)
+//! - [`truncate!(path, len)`](truncate!) (feature `truncate`)
+//! - [`delete!(path)`](delete!) (feature `delete`)
+//! - [`batch!(path, items...)`](batch!)
+
 macro_rules! __mutation_path {
     (@munch [$($segments:expr),*]) => {
         vec![$($segments),*]
+    };
+    (@munch [$($segments:expr),*] . - $n:literal $($rest:tt)*) => {
+        __mutation_path!(@munch [$($segments,)* $crate::PathSegment::Negative($n)] $($rest)*)
     };
     (@munch [$($segments:expr),*] . $name:ident $($rest:tt)*) => {
         __mutation_path!(@munch [$($segments,)* $crate::PathSegment::from(stringify!($name))] $($rest)*)
@@ -8,14 +29,17 @@ macro_rules! __mutation_path {
     (@munch [$($segments:expr),*] . $n:literal $($rest:tt)*) => {
         __mutation_path!(@munch [$($segments,)* $crate::PathSegment::Positive($n)] $($rest)*)
     };
-    (@munch [$($segments:expr),*] [- $n:literal] $($rest:tt)*) => {
-        __mutation_path!(@munch [$($segments,)* $crate::PathSegment::Negative($n)] $($rest)*)
-    };
     (_) => {
         vec![]
     };
-    (_ $($rest:tt)+) => {
-        __mutation_path!(@munch [] $($rest)+)
+    (- $n:literal $($rest:tt)*) => {
+        __mutation_path!(@munch [$crate::PathSegment::Negative($n)] $($rest)*)
+    };
+    ($name:ident $($rest:tt)*) => {
+        __mutation_path!(@munch [$crate::PathSegment::from(stringify!($name))] $($rest)*)
+    };
+    ($n:literal $($rest:tt)*) => {
+        __mutation_path!(@munch [$crate::PathSegment::Positive($n)] $($rest)*)
     };
 }
 

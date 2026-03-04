@@ -591,8 +591,8 @@ mod tests {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
-    use crate::{Mutation, MutationKind, PathSegment};
 
     #[test]
     fn index_by_usize() {
@@ -604,13 +604,7 @@ mod tests {
         **ob[2] = 42;
         assert_eq!(ob[2], 42);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec![PathSegment::Negative(1)].into(),
-                kind: MutationKind::Replace(json!(42))
-            })
-        );
+        assert_eq!(mutation, Some(replace!(-1, json!(42))));
     }
 
     #[test]
@@ -623,13 +617,7 @@ mod tests {
         ***ob.get_mut(2).unwrap() = 42;
         assert_eq!(*ob.get_mut(2).unwrap(), 42);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec![PathSegment::Negative(1)].into(),
-                kind: MutationKind::Replace(json!(42))
-            })
-        );
+        assert_eq!(mutation, Some(replace!(-1, json!(42))));
     }
 
     #[test]
@@ -641,19 +629,11 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![PathSegment::Negative(2)].into(),
-                        kind: MutationKind::Replace(json!(0)),
-                    },
-                    Mutation {
-                        path: vec![PathSegment::Negative(3)].into(),
-                        kind: MutationKind::Replace(json!(1)),
-                    },
-                ]),
-            })
+            Some(batch!(
+                _,
+                replace!(-2, json!(0)),
+                replace!(-3, json!(1)),
+            ))
         );
     }
 

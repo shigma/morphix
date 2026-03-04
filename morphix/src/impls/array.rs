@@ -357,8 +357,8 @@ mod tests {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
-    use crate::{Mutation, MutationKind};
 
     #[test]
     fn no_change_returns_none() {
@@ -378,13 +378,7 @@ mod tests {
         **ob[1] = 99;
         assert_eq!(ob[1], 99);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec![1.into()].into(),
-                kind: MutationKind::Replace(json!(99)),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(1, json!(99))));
     }
 
     #[test]
@@ -396,19 +390,7 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![0.into()].into(),
-                        kind: MutationKind::Replace(json!(10)),
-                    },
-                    Mutation {
-                        path: vec![2.into()].into(),
-                        kind: MutationKind::Replace(json!(30)),
-                    },
-                ]),
-            })
+            Some(batch!(_, replace!(0, json!(10)), replace!(2, json!(30)))),
         );
     }
 
@@ -420,7 +402,7 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         // DerefMut on array: all elements changed, so the optimization collapses into a single
         // whole-array Replace instead of a batch of per-element mutations.
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!([4, 5, 6])));
+        assert_eq!(mutation.unwrap(), replace!(_, json!([4, 5, 6])));
     }
 
     #[test]
@@ -442,19 +424,7 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![0.into()].into(),
-                        kind: MutationKind::Replace(json!(30)),
-                    },
-                    Mutation {
-                        path: vec![2.into()].into(),
-                        kind: MutationKind::Replace(json!(10)),
-                    },
-                ]),
-            })
+            Some(batch!(_, replace!(0, json!(30)), replace!(2, json!(10)))),
         );
     }
 
@@ -464,13 +434,7 @@ mod tests {
         let mut ob = arr.__observe();
         ob[0].push_str("!");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec![0.into()].into(),
-                kind: MutationKind::Append(json!("!")),
-            })
-        );
+        assert_eq!(mutation, Some(append!(0, json!("!"))));
     }
 
     #[test]

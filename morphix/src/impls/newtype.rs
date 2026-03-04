@@ -368,8 +368,8 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::MutationKind;
     use crate::adapter::Json;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -386,7 +386,7 @@ mod tests {
         let mut ob = value.__observe();
         **ob = Wrapping(String::from("world"));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("world")));
+        assert_eq!(mutation.unwrap(), replace!(_, json!("world")));
     }
 
     #[test]
@@ -403,7 +403,7 @@ mod tests {
         let mut ob = value.__observe();
         **ob = Saturating(100u32);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(100)));
+        assert_eq!(mutation.unwrap(), replace!(_, json!(100)));
     }
 
     #[test]
@@ -420,7 +420,7 @@ mod tests {
         let mut ob = value.__observe();
         **ob = Reverse(String::from("world"));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("world")));
+        assert_eq!(mutation.unwrap(), replace!(_, json!("world")));
     }
 
     #[test]
@@ -429,7 +429,7 @@ mod tests {
         let mut ob = value.__observe();
         ob.0.push_str(" world");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!(" world")));
+        assert_eq!(mutation.unwrap(), append!(_, json!(" world")));
     }
 
     #[test]
@@ -438,7 +438,7 @@ mod tests {
         let mut ob = value.__observe();
         ob.0.push_str(" world");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!(" world")));
+        assert_eq!(mutation.unwrap(), append!(_, json!(" world")));
     }
 
     #[test]
@@ -447,7 +447,7 @@ mod tests {
         let mut ob = value.__observe();
         ob += Wrapping(5u32);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(15)));
+        assert_eq!(mutation.unwrap(), replace!(_, json!(15)));
     }
 
     #[test]
@@ -456,6 +456,6 @@ mod tests {
         let mut ob = value.__observe();
         ob -= Saturating(3u32);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(7)));
+        assert_eq!(mutation.unwrap(), replace!(_, json!(7)));
     }
 }

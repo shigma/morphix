@@ -109,8 +109,8 @@ impl<T> RefObserve for [T] {
 mod test {
     use serde_json::json;
 
-    use crate::MutationKind;
     use crate::adapter::Json;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -121,7 +121,7 @@ mod test {
         let mut ob = a.__observe();
         ***ob = &B[0..12];
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("hello world ")));
+        assert_eq!(mutation.unwrap(), replace!(_, json!("hello world ")));
     }
 
     #[test]
@@ -141,7 +141,7 @@ mod test {
         let mut ob = a.__observe();
         ***ob = A;
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.unwrap().kind == MutationKind::Append(json!(" world")));
+        assert_eq!(mutation.unwrap(), append!(_, json!(" world")));
     }
 
     #[test]
@@ -151,6 +151,6 @@ mod test {
         let mut ob = a.__observe();
         ***ob = &A[0..5];
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.unwrap().kind == MutationKind::Truncate(6));
+        assert_eq!(mutation.unwrap(), truncate!(_, 6));
     }
 }

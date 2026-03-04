@@ -645,8 +645,9 @@ mod tests {
 
     use super::*;
     use crate::adapter::Json;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
-    use crate::{Mutation, MutationKind};
+    use crate::MutationKind;
 
     #[test]
     fn pointer_stability_across_inner_splits() {
@@ -695,23 +696,17 @@ mod tests {
         assert_eq!(ob.insert("a", "y".to_string()), None);
         assert_eq!(ob.observed_ref().get("a"), Some(&"y".to_string()));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!("y")),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(a, json!("y"))));
     }
 
     #[test]
     fn get_mut_refresh_across_splits() {
         let mut map = BTreeMap::new();
-        map.insert("0", "hello".to_string());
+        map.insert("a", "hello".to_string());
         let mut ob = map.__observe();
         // First get_mut: modify the value through the child observer
-        ob.get_mut("0").unwrap().push_str(" world");
-        assert_eq!(ob.observed_ref().get("0").unwrap(), "hello world");
+        ob.get_mut("a").unwrap().push_str(" world");
+        assert_eq!(ob.observed_ref().get("a").unwrap(), "hello world");
         // Insert many keys via untracked_mut to trigger node splits in the
         // observed BTreeMap without adding to diff.replaced
         for i in 1..100 {
@@ -719,16 +714,10 @@ mod tests {
                 .insert(Box::leak(i.to_string().into_boxed_str()), format!("value {i}"));
         }
         // Second get_mut: refresh updates the child observer's stale pointer
-        ob.get_mut("0").unwrap().push_str("!");
-        assert_eq!(ob.observed_ref().get("0").unwrap(), "hello world!");
+        ob.get_mut("a").unwrap().push_str("!");
+        assert_eq!(ob.observed_ref().get("a").unwrap(), "hello world!");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["0".into()].into(),
-                kind: MutationKind::Append(json!(" world!")),
-            })
-        );
+        assert_eq!(mutation, Some(append!(a, json!(" world!"))));
     }
 
     #[test]
@@ -739,13 +728,7 @@ mod tests {
         ob.get_mut("b").unwrap().push_str(" world");
         assert_eq!(ob.observed_ref().get("b"), Some(&"hello world".to_string()));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Replace(json!("hello world")),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(b, json!("hello world"))));
     }
 
     #[test]
@@ -756,13 +739,7 @@ mod tests {
         ob.insert("a", "bye".to_string());
         assert_eq!(ob.observed_ref().get("a"), Some(&"bye".to_string()));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!("bye")),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(a, json!("bye"))));
     }
 
     #[test]
@@ -772,13 +749,7 @@ mod tests {
         assert_eq!(ob.remove_entry("a"), Some(("a", "x".to_string())));
         assert_eq!(ob.observed_ref().len(), 1);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Delete,
-            })
-        );
+        assert_eq!(mutation, Some(delete!(a)));
     }
 
     #[test]
@@ -802,13 +773,7 @@ mod tests {
         ob.retain(|_, v| *v % 2 != 0);
         assert_eq!(ob.observed_ref(), &BTreeMap::from([("a", 1), ("c", 3)]));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Delete,
-            })
-        );
+        assert_eq!(mutation, Some(delete!(b)));
     }
 
     #[test]
@@ -871,13 +836,7 @@ mod tests {
         // "d" matched the predicate but was never yielded, so it must be retained.
         assert_eq!(ob.observed_ref(), &BTreeMap::from([("a", 1), ("c", 3), ("d", 4)]));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Delete,
-            })
-        );
+        assert_eq!(mutation, Some(delete!(b)));
     }
 
     #[test]
@@ -940,12 +899,6 @@ mod tests {
         // "a" was inserted then popped: net no-op
         // "b" was inserted: Inserted
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Replace(json!(2)),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(b, json!(2))));
     }
 }

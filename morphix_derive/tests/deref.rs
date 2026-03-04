@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 
 use morphix::adapter::Json;
@@ -150,6 +151,213 @@ fn deref_replace_inner() {
                     kind: MutationKind::Replace(json!(200)),
                 },
             ]),
+        })
+    );
+}
+
+#[derive(Serialize, Observe)]
+struct FlatMap {
+    #[serde(flatten)]
+    map: HashMap<String, i32>,
+    b: u32,
+}
+
+fn sorted_mutations(mutation: Option<Mutation<serde_json::Value>>) -> Vec<Mutation<serde_json::Value>> {
+    let Some(mutation) = mutation else {
+        return vec![];
+    };
+    let mut batch = match mutation.kind {
+        MutationKind::Batch(batch) => batch,
+        _ => vec![mutation],
+    };
+    batch.sort_by(|a, b| a.path.cmp(&b.path));
+    batch
+}
+
+#[test]
+fn flat_map_no_change() {
+    let mut f = FlatMap {
+        map: HashMap::from([("x".into(), 1)]),
+        b: 10,
+    };
+    let Json(mutation) = observe!(f => {}).unwrap();
+    assert!(mutation.is_none());
+}
+
+#[test]
+fn flat_map_granular_insert() {
+    let mut f = FlatMap {
+        map: HashMap::from([("x".into(), 1)]),
+        b: 10,
+    };
+    let Json(mutation) = observe!(f => {
+        f.map.insert("y".into(), 2);
+    })
+    .unwrap();
+    assert_eq!(
+        mutation,
+        Some(Mutation {
+            path: vec!["y".into()].into(),
+            kind: MutationKind::Replace(json!(2)),
+        })
+    );
+}
+
+#[test]
+fn flat_map_granular_remove() {
+    let mut f = FlatMap {
+        map: HashMap::from([("x".into(), 1), ("y".into(), 2)]),
+        b: 10,
+    };
+    let Json(mutation) = observe!(f => {
+        f.map.remove("y");
+    })
+    .unwrap();
+    assert_eq!(
+        mutation,
+        Some(Mutation {
+            path: vec!["y".into()].into(),
+            kind: MutationKind::Delete,
+        })
+    );
+}
+
+#[test]
+fn flat_map_b_only() {
+    let mut f = FlatMap {
+        map: HashMap::from([("x".into(), 1)]),
+        b: 10,
+    };
+    let Json(mutation) = observe!(f => {
+        f.b = 20;
+    })
+    .unwrap();
+    assert_eq!(
+        mutation,
+        Some(Mutation {
+            path: vec!["b".into()].into(),
+            kind: MutationKind::Replace(json!(20)),
+        })
+    );
+}
+
+#[test]
+fn flat_map_map_and_b_no_collapse() {
+    let mut f = FlatMap {
+        map: HashMap::from([("x".into(), 1)]),
+        b: 10,
+    };
+    let Json(mutation) = observe!(f => {
+        f.map.insert("x".into(), 99);
+        f.b = 20;
+    })
+    .unwrap();
+    // Map insert is granular (is_replace=false), so no collapse despite b also changing
+    let batch = sorted_mutations(mutation);
+    assert_eq!(batch.len(), 2);
+    assert_eq!(
+        batch[0],
+        Mutation {
+            path: vec!["b".into()].into(),
+            kind: MutationKind::Replace(json!(20)),
+        }
+    );
+    assert_eq!(
+        batch[1],
+        Mutation {
+            path: vec!["x".into()].into(),
+            kind: MutationKind::Replace(json!(99)),
+        }
+    );
+}
+
+#[test]
+fn flat_map_map_replace_b_unchanged() {
+    let mut f = FlatMap {
+        map: HashMap::from([("x".into(), 1)]),
+        b: 10,
+    };
+    let Json(mutation) = observe!(f => {
+        f.map.insert("x".into(), 99);
+    })
+    .unwrap();
+    // Only map reports Replace, b unchanged → per-field mutation
+    assert_eq!(
+        mutation,
+        Some(Mutation {
+            path: vec!["x".into()].into(),
+            kind: MutationKind::Replace(json!(99)),
+        })
+    );
+}
+
+#[test]
+fn flat_map_deref_mut_full_replace() {
+    let mut f = FlatMap {
+        map: HashMap::from([("x".into(), 1)]),
+        b: 10,
+    };
+    let Json(mutation) = observe!(f => {
+        f = FlatMap { map: HashMap::from([("y".into(), 2)]), b: 20 };
+    })
+    .unwrap();
+    // Full outer replace → whole-struct Replace
+    assert_eq!(
+        mutation,
+        Some(Mutation {
+            path: Default::default(),
+            kind: MutationKind::Replace(json!({"y": 2, "b": 20})),
+        })
+    );
+}
+
+#[test]
+fn flat_map_map_deref_mut_with_new_keys() {
+    let mut f = FlatMap {
+        map: HashMap::from([("x".into(), 1)]),
+        b: 10,
+    };
+    let Json(mutation) = observe!(f => {
+        *f.map = HashMap::from([("y".into(), 2)]);
+    })
+    .unwrap();
+    // Map replaced via deref_mut (is_replace=true), b unchanged → no collapse
+    // Map flatten produces: delete "x", replace "y"
+    let batch = sorted_mutations(mutation);
+    assert_eq!(batch.len(), 2);
+    assert_eq!(
+        batch[0],
+        Mutation {
+            path: vec!["x".into()].into(),
+            kind: MutationKind::Delete,
+        }
+    );
+    assert_eq!(
+        batch[1],
+        Mutation {
+            path: vec!["y".into()].into(),
+            kind: MutationKind::Replace(json!(2)),
+        }
+    );
+}
+
+#[test]
+fn flat_map_map_deref_mut_and_b_collapse() {
+    let mut f = FlatMap {
+        map: HashMap::from([("x".into(), 1)]),
+        b: 10,
+    };
+    let Json(mutation) = observe!(f => {
+        *f.map = HashMap::from([("x".into(), 99)]);
+        f.b = 20;
+    })
+    .unwrap();
+    // Both map (is_replace=true) and b report Replace → collapse
+    assert_eq!(
+        mutation,
+        Some(Mutation {
+            path: Default::default(),
+            kind: MutationKind::Replace(json!({"x": 99, "b": 20})),
         })
     );
 }

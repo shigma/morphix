@@ -451,8 +451,8 @@ mod tests {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
-    use crate::{Mutation, MutationKind};
 
     #[test]
     fn no_change_returns_none() {
@@ -470,10 +470,7 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation.unwrap(),
-            Mutation {
-                path: vec![0.into()].into(),
-                kind: MutationKind::Append(json!(" world")),
-            }
+            append!(0, json!(" world"))
         );
     }
 
@@ -487,10 +484,7 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation.unwrap(),
-            Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Replace(json!(["world"])),
-            }
+            replace!(_, json!(["world"]))
         );
 
         // Longer replacement: without `as_deref_mut_coinductive`, inner
@@ -501,10 +495,7 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation.unwrap(),
-            Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Replace(json!(["hello world"])),
-            }
+            replace!(_, json!(["hello world"]))
         );
     }
 }

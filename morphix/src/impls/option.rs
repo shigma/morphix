@@ -291,9 +291,9 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::MutationKind;
     use crate::adapter::Json;
     use crate::builtin::GeneralObserver;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -315,13 +315,13 @@ mod tests {
         let mut ob = opt.__observe();
         **ob = None;
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(null)));
+        assert_eq!(mutation.unwrap(), replace!(_, json!(null)));
 
         let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
         **ob = Some(42);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(42)));
+        assert_eq!(mutation.unwrap(), replace!(_, json!(42)));
 
         let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
@@ -348,7 +348,7 @@ mod tests {
         assert_eq!(format!("{s:?}"), r#"StringObserver("99")"#);
         *s += "9";
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("999")));
+        assert_eq!(mutation.unwrap(), replace!(_, json!("999")));
     }
 
     #[test]
@@ -357,7 +357,7 @@ mod tests {
         let mut ob = opt.__observe();
         *ob.as_mut().unwrap() += "bar";
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!("bar")));
+        assert_eq!(mutation.unwrap(), append!(_, json!("bar")));
     }
 
     #[test]
@@ -367,21 +367,21 @@ mod tests {
         let mut ob = opt.__observe();
         *ob.get_or_insert(5) = 6;
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(6)));
+        assert_eq!(mutation.unwrap(), replace!(_, json!(6)));
 
         // get_or_insert_default
         let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
         *ob.get_or_insert_default() = 77;
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(77)));
+        assert_eq!(mutation.unwrap(), replace!(_, json!(77)));
 
         // get_or_insert_with
         let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
         *ob.get_or_insert_with(|| 88) = 99;
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!(99)));
+        assert_eq!(mutation.unwrap(), replace!(_, json!(99)));
     }
 
     #[test]
@@ -414,6 +414,6 @@ mod tests {
         ob.reserve(10); // force reallocation
         assert_eq!(**ob[0], Some(1));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!([1])));
+        assert_eq!(mutation.unwrap(), replace!(_, json!([1])));
     }
 }

@@ -736,8 +736,8 @@ mod tests {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
-    use crate::{Mutation, MutationKind, PathSegment};
 
     #[test]
     fn no_change_returns_none() {
@@ -753,7 +753,7 @@ mod tests {
         let mut ob = vec.__observe();
         ob.clear();
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!([])));
+        assert_eq!(mutation.unwrap(), replace!(_, json!([])));
     }
 
     #[test]
@@ -763,7 +763,7 @@ mod tests {
         ob.push(2);
         ob.push(3);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!([2, 3])));
+        assert_eq!(mutation.unwrap(), append!(_, json!([2, 3])));
     }
 
     #[test]
@@ -773,7 +773,7 @@ mod tests {
         let mut extra = vec![4, 5];
         ob.append(&mut extra);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!([4, 5])));
+        assert_eq!(mutation.unwrap(), append!(_, json!([4, 5])));
     }
 
     #[test]
@@ -782,7 +782,7 @@ mod tests {
         let mut ob = vec.__observe();
         ob.extend_from_slice(&[6, 7]);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!([6, 7])));
+        assert_eq!(mutation.unwrap(), append!(_, json!([6, 7])));
     }
 
     #[test]
@@ -795,13 +795,7 @@ mod tests {
         ob.reserve(64); // force reallocation
         assert_eq!(ob[0], 99);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec![PathSegment::Negative(2)].into(),
-                kind: MutationKind::Replace(json!(99))
-            })
-        );
+        assert_eq!(mutation, Some(replace!(-2, json!(99))));
     }
 
     #[test]
@@ -811,13 +805,7 @@ mod tests {
         **ob[0] = 99;
         ob.reserve(64); // force reallocation
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec![PathSegment::Negative(2)].into(),
-                kind: MutationKind::Replace(json!(99))
-            })
-        );
+        assert_eq!(mutation, Some(replace!(-2, json!(99))));
     }
 
     #[test]
@@ -830,13 +818,7 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         // All existing elements (only ob[0]) report Replace, and there are appended elements.
         // The optimization collapses everything into a single whole-vec Replace.
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Replace(json!([11, 12])),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(_, json!([11, 12]))));
     }
 
     #[test]
@@ -853,19 +835,11 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![PathSegment::Negative(2)].into(),
-                        kind: MutationKind::Replace(json!(333)),
-                    },
-                    Mutation {
-                        path: vec![PathSegment::Negative(3)].into(),
-                        kind: MutationKind::Replace(json!(222)),
-                    }
-                ]),
-            })
+            Some(batch!(
+                _,
+                replace!(-2, json!(333)),
+                replace!(-3, json!(222)),
+            ))
         )
     }
 
@@ -921,7 +895,7 @@ mod tests {
         assert_eq!(extracted, vec![2, 4]);
         assert_eq!(ob, vec![1, 3]);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!([1, 3])));
+        assert_eq!(mutation.unwrap(), replace!(_, json!([1, 3])));
     }
 
     #[test]
@@ -938,19 +912,11 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Truncate(2),
-                    },
-                    Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Append(json!([3, 5])),
-                    },
-                ]),
-            })
+            Some(batch!(
+                _,
+                truncate!(_, 2),
+                append!(_, json!([3, 5])),
+            ))
         );
     }
 }

@@ -299,8 +299,8 @@ mod tests {
 
     use super::*;
     use crate::adapter::Json;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
-    use crate::{Mutation, MutationKind};
 
     #[test]
     fn no_change_returns_none() {
@@ -316,7 +316,7 @@ mod tests {
         let mut ob = cow.__observe();
         ***ob = Cow::Owned(String::from("world"));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("world")));
+        assert_eq!(mutation.unwrap(), replace!(_, json!("world")));
     }
 
     #[test]
@@ -326,7 +326,7 @@ mod tests {
         let mut ob = cow.__observe();
         ***ob = Cow::Borrowed(S);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!(" world")));
+        assert_eq!(mutation.unwrap(), append!(_, json!(" world")));
     }
 
     #[test]
@@ -336,7 +336,7 @@ mod tests {
         let mut ob = cow.__observe();
         ***ob = Cow::Borrowed(&S[..5]);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Truncate(6));
+        assert_eq!(mutation.unwrap(), truncate!(_, 6));
     }
 
     #[test]
@@ -354,7 +354,7 @@ mod tests {
         let mut ob = cow.__observe();
         ob.to_mut().push_str(" world");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!(" world")));
+        assert_eq!(mutation.unwrap(), append!(_, json!(" world")));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_none());
     }
@@ -366,7 +366,7 @@ mod tests {
         ob.to_mut().push_str(" world");
         ***ob = Cow::Borrowed("replaced");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("replaced")));
+        assert_eq!(mutation.unwrap(), replace!(_, json!("replaced")));
     }
 
     #[test]
@@ -376,7 +376,7 @@ mod tests {
         ***ob = Cow::Borrowed("replaced");
         ob.to_mut().push_str(" world");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("replaced world")));
+        assert_eq!(mutation.unwrap(), replace!(_, json!("replaced world")));
     }
 
     #[test]
@@ -393,7 +393,7 @@ mod tests {
         let mut ob = cow.__observe();
         ***ob = Cow::Owned(String::from("world"));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("world")));
+        assert_eq!(mutation.unwrap(), replace!(_, json!("world")));
     }
 
     #[test]
@@ -413,17 +413,8 @@ mod tests {
         s.push_str("!");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
-            mutation.unwrap().kind,
-            MutationKind::Batch(vec![
-                Mutation {
-                    path: Default::default(),
-                    kind: MutationKind::Truncate(6),
-                },
-                Mutation {
-                    path: Default::default(),
-                    kind: MutationKind::Append(json!("!")),
-                },
-            ])
+            mutation.unwrap(),
+            batch!(_, truncate!(_, 6), append!(_, json!("!")))
         );
     }
 
@@ -433,7 +424,7 @@ mod tests {
         let mut ob = cow.__observe();
         ob += " world";
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!(" world")));
+        assert_eq!(mutation.unwrap(), append!(_, json!(" world")));
     }
 
     #[test]
@@ -442,7 +433,7 @@ mod tests {
         let mut ob = cow.__observe();
         ob += "hello";
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("hello")));
+        assert_eq!(mutation.unwrap(), replace!(_, json!("hello")));
     }
 
     #[test]
@@ -460,7 +451,7 @@ mod tests {
         let mut ob = cow.__observe();
         ob += " world";
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!(" world")));
+        assert_eq!(mutation.unwrap(), append!(_, json!(" world")));
     }
 
     #[test]
@@ -470,6 +461,6 @@ mod tests {
         ob += "b";
         ob += "c";
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!("bc")));
+        assert_eq!(mutation.unwrap(), append!(_, json!("bc")));
     }
 }

@@ -897,8 +897,9 @@ mod tests {
 
     use super::*;
     use crate::adapter::Json;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
-    use crate::{Mutation, MutationKind};
+    use crate::MutationKind;
 
     #[test]
     fn remove_nonexistent_key() {
@@ -929,13 +930,7 @@ mod tests {
         assert_eq!(ob.insert("a", "y".to_string()), None);
         assert_eq!(ob.observed_ref().get("a"), Some(&"y".to_string()));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!("y")),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(a, json!("y"))));
     }
 
     #[test]
@@ -946,13 +941,7 @@ mod tests {
         assert_eq!(ob.swap_remove("a"), Some("x".to_string()));
         assert_eq!(ob.observed_ref().len(), 2);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Delete,
-            })
-        );
+        assert_eq!(mutation, Some(delete!(a)));
     }
 
     #[test]
@@ -962,13 +951,7 @@ mod tests {
         assert_eq!(ob.shift_remove_entry("a"), Some(("a", "x".to_string())));
         assert_eq!(ob.observed_ref().len(), 1);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Delete,
-            })
-        );
+        assert_eq!(mutation, Some(delete!(a)));
     }
 
     #[test]
@@ -978,13 +961,7 @@ mod tests {
         ob.retain(|_, v| *v % 2 != 0);
         assert_eq!(ob.observed_ref(), &IndexMap::from([("a", 1), ("c", 3)]));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Delete,
-            })
-        );
+        assert_eq!(mutation, Some(delete!(b)));
     }
 
     #[test]
@@ -1005,13 +982,7 @@ mod tests {
         ob.insert("a", "bye".to_string());
         assert_eq!(ob.observed_ref().get("a"), Some(&"bye".to_string()));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!("bye")),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(a, json!("bye"))));
     }
 
     #[test]
@@ -1022,13 +993,7 @@ mod tests {
         ob.get_mut("b").unwrap().push_str(" world");
         assert_eq!(ob.observed_ref().get("b"), Some(&"hello world".to_string()));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Replace(json!("hello world")),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(b, json!("hello world"))));
     }
 
     #[test]
@@ -1059,13 +1024,7 @@ mod tests {
         assert_eq!(ob.pop(), Some(("c", 3)));
         assert_eq!(ob.observed_ref(), &IndexMap::from([("a", 1), ("b", 2)]));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["c".into()].into(),
-                kind: MutationKind::Delete,
-            })
-        );
+        assert_eq!(mutation, Some(delete!(c)));
     }
 
     #[test]
@@ -1078,13 +1037,7 @@ mod tests {
         // "b" was inserted then popped: net no-op
         // "a" was inserted: Inserted
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!(1)),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(a, json!(1))));
     }
 
     #[test]
@@ -1252,13 +1205,7 @@ mod tests {
         assert_eq!(ob.swap_remove_full("b"), Some((1, "b", 2)));
         assert_eq!(ob.observed_ref().len(), 2);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Delete,
-            })
-        );
+        assert_eq!(mutation, Some(delete!(b)));
     }
 
     #[test]
@@ -1270,13 +1217,7 @@ mod tests {
         // Order preserved: b, c
         assert_eq!(ob.observed_ref().get_index(0), Some((&"b", &2)));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Delete,
-            })
-        );
+        assert_eq!(mutation, Some(delete!(a)));
     }
 
     #[test]
@@ -1288,13 +1229,7 @@ mod tests {
         assert_eq!(*key, "b");
         value.push_str("!");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Append(json!("!")),
-            })
-        );
+        assert_eq!(mutation, Some(append!(b, json!("!"))));
     }
 
     #[test]
@@ -1305,13 +1240,7 @@ mod tests {
         assert_eq!(*key, "a");
         value.push_str("!");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Append(json!("!")),
-            })
-        );
+        assert_eq!(mutation, Some(append!(a, json!("!"))));
     }
 
     #[test]
@@ -1322,13 +1251,7 @@ mod tests {
         assert_eq!(*key, "b");
         value.push_str("!");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Append(json!("!")),
-            })
-        );
+        assert_eq!(mutation, Some(append!(b, json!("!"))));
     }
 
     #[test]
@@ -1368,13 +1291,7 @@ mod tests {
         assert_eq!(removed, vec![("b", 2)]);
         assert_eq!(ob.observed_ref().get("b"), Some(&20));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Replace(json!(20)),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(b, json!(20))));
     }
 
     #[test]

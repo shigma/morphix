@@ -633,6 +633,7 @@ mod tests {
 
     use super::*;
     use crate::adapter::Json;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
     use crate::{Mutation, MutationKind};
 
@@ -665,13 +666,7 @@ mod tests {
         assert_eq!(ob.insert("a", "y".to_string()), None);
         assert_eq!(ob.observed_ref().get("a"), Some(&"y".to_string()));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!("y")),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(a, json!("y"))));
     }
 
     #[test]
@@ -681,13 +676,7 @@ mod tests {
         assert_eq!(ob.remove_entry("a"), Some(("a", "x".to_string())));
         assert_eq!(ob.observed_ref().len(), 1);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Delete,
-            })
-        );
+        assert_eq!(mutation, Some(delete!(a)));
     }
 
     #[test]
@@ -697,13 +686,7 @@ mod tests {
         ob.retain(|_, v| *v % 2 != 0);
         assert_eq!(ob.observed_ref(), &HashMap::from([("a", 1), ("c", 3)]));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Delete,
-            })
-        );
+        assert_eq!(mutation, Some(delete!(b)));
     }
 
     #[test]
@@ -749,13 +732,7 @@ mod tests {
         ob.insert("a", "bye".to_string());
         assert_eq!(ob.observed_ref().get("a"), Some(&"bye".to_string()));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!("bye")),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(a, json!("bye"))));
     }
 
     #[test]
@@ -766,13 +743,7 @@ mod tests {
         ob.get_mut("b").unwrap().push_str(" world");
         assert_eq!(ob.observed_ref().get("b"), Some(&"hello world".to_string()));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Replace(json!("hello world")),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(b, json!("hello world"))));
     }
 
     #[test]
@@ -845,20 +816,8 @@ mod tests {
         assert!(is_replace);
         let batch = sorted_mutations(mutation);
         assert_eq!(batch.len(), 2);
-        assert_eq!(
-            batch[0],
-            Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!(10))
-            }
-        );
-        assert_eq!(
-            batch[1],
-            Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Replace(json!(20))
-            }
-        );
+        assert_eq!(batch[0], replace!(a, json!(10)));
+        assert_eq!(batch[1], replace!(b, json!(20)));
     }
 
     // Inserted key, then deref_mut to a value without that key → no Delete for the inserted key
@@ -872,13 +831,7 @@ mod tests {
         assert!(is_replace);
         let batch = sorted_mutations(mutation);
         assert_eq!(batch.len(), 1);
-        assert_eq!(
-            batch[0],
-            Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!(10))
-            }
-        );
+        assert_eq!(batch[0], replace!(a, json!(10)));
     }
 
     // Inserted key, then deref_mut to a value with that key → Replace for the key
@@ -892,20 +845,8 @@ mod tests {
         assert!(is_replace);
         let batch = sorted_mutations(mutation);
         assert_eq!(batch.len(), 2);
-        assert_eq!(
-            batch[0],
-            Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!(10))
-            }
-        );
-        assert_eq!(
-            batch[1],
-            Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Replace(json!(20))
-            }
-        );
+        assert_eq!(batch[0], replace!(a, json!(10)));
+        assert_eq!(batch[1], replace!(b, json!(20)));
     }
 
     // Deleted key, then deref_mut to a value without that key → Delete for the key
@@ -919,20 +860,8 @@ mod tests {
         assert!(is_replace);
         let batch = sorted_mutations(mutation);
         assert_eq!(batch.len(), 2);
-        assert_eq!(
-            batch[0],
-            Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!(10))
-            }
-        );
-        assert_eq!(
-            batch[1],
-            Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Delete
-            }
-        );
+        assert_eq!(batch[0], replace!(a, json!(10)));
+        assert_eq!(batch[1], delete!(b));
     }
 
     // Deleted key, then deref_mut to a value with that key → Replace (not Delete)
@@ -946,20 +875,8 @@ mod tests {
         assert!(is_replace);
         let batch = sorted_mutations(mutation);
         assert_eq!(batch.len(), 2);
-        assert_eq!(
-            batch[0],
-            Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!(10))
-            }
-        );
-        assert_eq!(
-            batch[1],
-            Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Replace(json!(20))
-            }
-        );
+        assert_eq!(batch[0], replace!(a, json!(10)));
+        assert_eq!(batch[1], replace!(b, json!(20)));
     }
 
     // Replaced key, then deref_mut to a value without that key → Delete for the key
@@ -973,20 +890,8 @@ mod tests {
         assert!(is_replace);
         let batch = sorted_mutations(mutation);
         assert_eq!(batch.len(), 2);
-        assert_eq!(
-            batch[0],
-            Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!(10))
-            }
-        );
-        assert_eq!(
-            batch[1],
-            Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Delete
-            }
-        );
+        assert_eq!(batch[0], replace!(a, json!(10)));
+        assert_eq!(batch[1], delete!(b));
     }
 
     // Replaced key, then deref_mut to a value with that key → Replace
@@ -1000,20 +905,8 @@ mod tests {
         assert!(is_replace);
         let batch = sorted_mutations(mutation);
         assert_eq!(batch.len(), 2);
-        assert_eq!(
-            batch[0],
-            Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!(10))
-            }
-        );
-        assert_eq!(
-            batch[1],
-            Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Replace(json!(20))
-            }
-        );
+        assert_eq!(batch[0], replace!(a, json!(10)));
+        assert_eq!(batch[1], replace!(b, json!(20)));
     }
 
     // Without deref_mut, flush_flatten returns granular mutations with is_replace=false
@@ -1024,13 +917,7 @@ mod tests {
         ob.insert("a", 10);
         let (Json(mutation), is_replace) = ob.flush_flatten().unwrap();
         assert!(!is_replace);
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Replace(json!(10)),
-            })
-        );
+        assert_eq!(mutation, Some(replace!(a, json!(10))));
     }
 
     // deref_mut replaces with entirely new keys
@@ -1043,26 +930,8 @@ mod tests {
         assert!(is_replace);
         let batch = sorted_mutations(mutation);
         assert_eq!(batch.len(), 3);
-        assert_eq!(
-            batch[0],
-            Mutation {
-                path: vec!["a".into()].into(),
-                kind: MutationKind::Delete
-            }
-        );
-        assert_eq!(
-            batch[1],
-            Mutation {
-                path: vec!["b".into()].into(),
-                kind: MutationKind::Delete
-            }
-        );
-        assert_eq!(
-            batch[2],
-            Mutation {
-                path: vec!["c".into()].into(),
-                kind: MutationKind::Replace(json!(30))
-            }
-        );
+        assert_eq!(batch[0], delete!(a));
+        assert_eq!(batch[1], delete!(b));
+        assert_eq!(batch[2], replace!(c, json!(30)));
     }
 }

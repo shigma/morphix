@@ -472,9 +472,8 @@ default_impl_ref_observe! {
 mod tests {
     use serde_json::json;
 
-    use super::*;
-    use crate::Mutation;
     use crate::adapter::Json;
+    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -492,13 +491,7 @@ mod tests {
         ob.clear();
         ob.push_str("world"); // append after replace should have no effect
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Replace(json!("world"))
-            })
-        );
+        assert_eq!(mutation, Some(replace!(_, json!("world"))));
     }
 
     #[test]
@@ -508,13 +501,7 @@ mod tests {
         ob.push('b');
         ob.push('c');
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Append(json!("bc"))
-            })
-        );
+        assert_eq!(mutation, Some(append!(_, json!("bc"))));
     }
 
     #[test]
@@ -523,13 +510,7 @@ mod tests {
         let mut ob = s.__observe();
         ob.push_str("bar");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Append(json!("bar"))
-            })
-        );
+        assert_eq!(mutation, Some(append!(_, json!("bar"))));
     }
 
     #[test]
@@ -538,7 +519,7 @@ mod tests {
         let mut ob = s.__observe();
         ob += "bar";
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!("bar")));
+        assert_eq!(mutation.unwrap(), append!(_, json!("bar")));
     }
 
     #[test]
@@ -558,7 +539,7 @@ mod tests {
         ob.push_str("def");
         **ob = String::from("xyz");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("xyz")));
+        assert_eq!(mutation.unwrap(), replace!(_, json!("xyz")));
     }
 
     #[test]
@@ -567,7 +548,7 @@ mod tests {
         let mut ob = s.__observe();
         ob.truncate("你好".len());
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Truncate(4));
+        assert_eq!(mutation.unwrap(), truncate!(_, 4));
     }
 
     #[test]
@@ -577,7 +558,7 @@ mod tests {
         ob.pop();
         ob.pop();
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Truncate(2));
+        assert_eq!(mutation.unwrap(), truncate!(_, 2));
     }
 
     #[test]
@@ -587,7 +568,7 @@ mod tests {
         ob.push_str("世界！");
         ob.pop();
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Append(json!("世界")));
+        assert_eq!(mutation.unwrap(), append!(_, json!("世界")));
     }
 
     #[test]
@@ -597,19 +578,7 @@ mod tests {
         ob.pop();
         ob.push('~');
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation.unwrap().kind,
-            MutationKind::Batch(vec![
-                Mutation {
-                    path: Default::default(),
-                    kind: MutationKind::Truncate(1),
-                },
-                Mutation {
-                    path: Default::default(),
-                    kind: MutationKind::Append(json!("~")),
-                },
-            ])
-        );
+        assert_eq!(mutation.unwrap(), batch!(_, truncate!(_, 1), append!(_, json!("~"))));
     }
 
     #[test]
@@ -618,7 +587,7 @@ mod tests {
         let mut ob = s.__observe();
         assert_eq!(ob.remove("你好".len()), '，');
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Replace(json!("你好世界！")));
+        assert_eq!(mutation.unwrap(), replace!(_, json!("你好世界！")));
     }
 
     #[test]
@@ -628,6 +597,6 @@ mod tests {
         assert_eq!(ob.remove("你好，世界".len()), '！');
         assert_eq!(ob.remove("你好，世".len()), '界');
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap().kind, MutationKind::Truncate(2));
+        assert_eq!(mutation.unwrap(), truncate!(_, 2));
     }
 }
