@@ -893,13 +893,13 @@ where
 #[cfg(test)]
 mod tests {
     use indexmap::IndexMap;
+    use morphix_test_utils::*;
     use serde_json::json;
 
     use super::*;
-    use crate::adapter::Json;
-    use crate::helper::test::*;
-    use crate::observe::{ObserveExt, SerializeObserverExt};
     use crate::MutationKind;
+    use crate::adapter::Json;
+    use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
     fn remove_nonexistent_key() {

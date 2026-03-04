@@ -1,0 +1,119 @@
+//! Test helper macros for constructing [`Mutation`](::morphix::Mutation) values concisely.
+//!
+//! # Path Syntax
+//!
+//! - `_` — root (empty path)
+//! - `foo` — string segment
+//! - `0` — positive index
+//! - `-1` — negative index
+//! - `foo.0.-1.bar` — mixed segments separated by `.`
+//!
+//! # Macros
+//!
+//! - `replace!(path, value)` — [`MutationKind::Replace`](::morphix::MutationKind::Replace)
+//! - `append!(path, value)` — [`MutationKind::Append`](::morphix::MutationKind::Append) (feature `append`)
+//! - `truncate!(path, len)` — [`MutationKind::Truncate`](::morphix::MutationKind::Truncate) (feature `truncate`)
+//! - `delete!(path)` — [`MutationKind::Delete`](::morphix::MutationKind::Delete) (feature `delete`)
+//! - `batch!(path, items...)` — [`MutationKind::Batch`](::morphix::MutationKind::Batch)
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __mutation_path {
+    (@munch [$($segments:expr),*]) => {
+        vec![$($segments),*]
+    };
+    (@munch [$($segments:expr),*] . - $n:literal $($rest:tt)*) => {
+        $crate::__mutation_path!(@munch [$($segments,)* ::morphix::PathSegment::Negative($n)] $($rest)*)
+    };
+    (@munch [$($segments:expr),*] . $name:ident $($rest:tt)*) => {
+        $crate::__mutation_path!(@munch [$($segments,)* ::morphix::PathSegment::from(stringify!($name))] $($rest)*)
+    };
+    (@munch [$($segments:expr),*] . $n:literal $($rest:tt)*) => {
+        $crate::__mutation_path!(@munch [$($segments,)* ::morphix::PathSegment::Positive($n)] $($rest)*)
+    };
+    (_) => {
+        vec![]
+    };
+    (- $n:literal $($rest:tt)*) => {
+        $crate::__mutation_path!(@munch [::morphix::PathSegment::Negative($n)] $($rest)*)
+    };
+    ($name:ident $($rest:tt)*) => {
+        $crate::__mutation_path!(@munch [::morphix::PathSegment::from(stringify!($name))] $($rest)*)
+    };
+    ($n:literal $($rest:tt)*) => {
+        $crate::__mutation_path!(@munch [::morphix::PathSegment::Positive($n)] $($rest)*)
+    };
+}
+
+#[macro_export]
+macro_rules! replace {
+    (@parse [$($path:tt)*], $value:expr) => {
+        ::morphix::Mutation {
+            path: $crate::__mutation_path!($($path)*).into(),
+            kind: ::morphix::MutationKind::Replace($value),
+        }
+    };
+    (@parse [$($path:tt)*] $next:tt $($rest:tt)*) => {
+        $crate::replace!(@parse [$($path)* $next] $($rest)*)
+    };
+    ($($all:tt)*) => { $crate::replace!(@parse [] $($all)*) };
+}
+
+#[cfg(feature = "append")]
+#[macro_export]
+macro_rules! append {
+    (@parse [$($path:tt)*], $value:expr) => {
+        ::morphix::Mutation {
+            path: $crate::__mutation_path!($($path)*).into(),
+            kind: ::morphix::MutationKind::Append($value),
+        }
+    };
+    (@parse [$($path:tt)*] $next:tt $($rest:tt)*) => {
+        $crate::append!(@parse [$($path)* $next] $($rest)*)
+    };
+    ($($all:tt)*) => { $crate::append!(@parse [] $($all)*) };
+}
+
+#[cfg(feature = "truncate")]
+#[macro_export]
+macro_rules! truncate {
+    (@parse [$($path:tt)*], $value:expr) => {
+        ::morphix::Mutation {
+            path: $crate::__mutation_path!($($path)*).into(),
+            kind: ::morphix::MutationKind::Truncate($value),
+        }
+    };
+    (@parse [$($path:tt)*] $next:tt $($rest:tt)*) => {
+        $crate::truncate!(@parse [$($path)* $next] $($rest)*)
+    };
+    ($($all:tt)*) => { $crate::truncate!(@parse [] $($all)*) };
+}
+
+#[cfg(feature = "delete")]
+#[macro_export]
+macro_rules! delete {
+    (@parse [$($path:tt)*]) => {
+        ::morphix::Mutation {
+            path: $crate::__mutation_path!($($path)*).into(),
+            kind: ::morphix::MutationKind::Delete,
+        }
+    };
+    (@parse [$($path:tt)*] $next:tt $($rest:tt)*) => {
+        $crate::delete!(@parse [$($path)* $next] $($rest)*)
+    };
+    ($($all:tt)*) => { $crate::delete!(@parse [] $($all)*) };
+}
+
+#[macro_export]
+macro_rules! batch {
+    (@parse [$($path:tt)*], $($items:expr),* $(,)?) => {
+        ::morphix::Mutation {
+            path: $crate::__mutation_path!($($path)*).into(),
+            kind: ::morphix::MutationKind::Batch(vec![$($items),*]),
+        }
+    };
+    (@parse [$($path:tt)*] $next:tt $($rest:tt)*) => {
+        $crate::batch!(@parse [$($path)* $next] $($rest)*)
+    };
+    ($($all:tt)*) => { $crate::batch!(@parse [] $($all)*) };
+}

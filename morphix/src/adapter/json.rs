@@ -123,10 +123,10 @@ impl Adapter for Json {
 
 #[cfg(test)]
 mod test {
+    use morphix_test_utils::*;
     use serde_json::json;
 
     use super::*;
-    use crate::helper::test::*;
     use crate::MutationError;
 
     #[test]
@@ -151,8 +151,7 @@ mod test {
             }
         );
 
-        let error =
-            Json::mutate(&mut json!({"a": 1}), replace!(a.b, json!(3)), &mut Default::default()).unwrap_err();
+        let error = Json::mutate(&mut json!({"a": 1}), replace!(a.b, json!(3)), &mut Default::default()).unwrap_err();
         assert_eq!(
             error,
             MutationError::IndexError {
@@ -160,8 +159,7 @@ mod test {
             }
         );
 
-        let error =
-            Json::mutate(&mut json!({"a": []}), replace!(a.b, json!(3)), &mut Default::default()).unwrap_err();
+        let error = Json::mutate(&mut json!({"a": []}), replace!(a.b, json!(3)), &mut Default::default()).unwrap_err();
         assert_eq!(
             error,
             MutationError::IndexError {
@@ -212,8 +210,7 @@ mod test {
         Json::mutate(&mut value, truncate!(_, 2), &mut Default::default()).unwrap();
         assert_eq!(value, json!("我"));
 
-        let error =
-            Json::mutate(&mut json!("Hello, World!"), truncate!(_, 20), &mut Default::default()).unwrap_err();
+        let error = Json::mutate(&mut json!("Hello, World!"), truncate!(_, 20), &mut Default::default()).unwrap_err();
         assert_eq!(
             error,
             MutationError::TruncateError {

@@ -264,10 +264,10 @@ generic_impl_cmp! {
 
 #[cfg(test)]
 mod test {
+    use morphix_test_utils::*;
     use serde_json::json;
 
     use crate::adapter::Json;
-    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]

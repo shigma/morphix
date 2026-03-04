@@ -5,6 +5,9 @@
 #![warn(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+#[cfg(test)]
+extern crate self as morphix;
+
 pub mod adapter;
 mod batch;
 pub mod builtin;

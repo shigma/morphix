@@ -588,10 +588,10 @@ impl<T: Observe> Observe for [T] {
 
 #[cfg(test)]
 mod tests {
+    use morphix_test_utils::*;
     use serde_json::json;
 
     use crate::adapter::Json;
-    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -629,11 +629,7 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
-            Some(batch!(
-                _,
-                replace!(-2, json!(0)),
-                replace!(-3, json!(1)),
-            ))
+            Some(batch!(_, replace!(-2, json!(0)), replace!(-3, json!(1))))
         );
     }
 

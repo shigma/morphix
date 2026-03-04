@@ -448,10 +448,10 @@ tuple_observer!(TupleObserver12; 12; O1, P1, T1, U1, 0; O2, P2, T2, U2, 1; O3, P
 
 #[cfg(test)]
 mod tests {
+    use morphix_test_utils::*;
     use serde_json::json;
 
     use crate::adapter::Json;
-    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -468,10 +468,7 @@ mod tests {
         let mut ob = tuple.__observe();
         ob.0.push_str(" world");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation.unwrap(),
-            append!(0, json!(" world"))
-        );
+        assert_eq!(mutation.unwrap(), append!(0, json!(" world")));
     }
 
     #[test]
@@ -482,10 +479,7 @@ mod tests {
         let mut ob = tuple.__observe();
         **ob = (String::from("world"),);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation.unwrap(),
-            replace!(_, json!(["world"]))
-        );
+        assert_eq!(mutation.unwrap(), replace!(_, json!(["world"])));
 
         // Longer replacement: without `as_deref_mut_coinductive`, inner
         // StringObserver would incorrectly produce Append(" world").
@@ -493,9 +487,6 @@ mod tests {
         let mut ob = tuple.__observe();
         **ob = (String::from("hello world"),);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation.unwrap(),
-            replace!(_, json!(["hello world"]))
-        );
+        assert_eq!(mutation.unwrap(), replace!(_, json!(["hello world"])));
     }
 }

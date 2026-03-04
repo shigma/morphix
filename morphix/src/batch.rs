@@ -321,11 +321,11 @@ impl<A: Adapter> BatchTree<A> {
 
 #[cfg(test)]
 mod test {
+    use morphix_test_utils::*;
     use serde_json::json;
 
     use super::*;
     use crate::adapter::Json;
-    use crate::helper::test::*;
 
     #[test]
     fn empty_batch() {
@@ -353,10 +353,7 @@ mod test {
         let mut batch = BatchTree::<Json>::new();
         batch.load(replace!(foo.bar, json!({"qux": "1"}))).unwrap();
         batch.load(append!(foo.bar.qux, json!("2"))).unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(replace!(foo.bar, json!({"qux": "12"}))),
-        );
+        assert_eq!(batch.dump().into_inner(), Some(replace!(foo.bar, json!({"qux": "12"}))),);
     }
 
     #[test]
@@ -364,10 +361,7 @@ mod test {
         let mut batch = BatchTree::<Json>::new();
         batch.load(append!(foo.bar.qux, json!("2"))).unwrap();
         batch.load(replace!(foo.bar, json!({"qux": "1"}))).unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(replace!(foo.bar, json!({"qux": "1"}))),
-        );
+        assert_eq!(batch.dump().into_inner(), Some(replace!(foo.bar, json!({"qux": "1"}))),);
     }
 
     #[test]
@@ -435,9 +429,7 @@ mod test {
     #[test]
     fn merge_truncate() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(batch!(foo, truncate!(bar, 1), truncate!(bar, 2)))
-            .unwrap();
+        batch.load(batch!(foo, truncate!(bar, 1), truncate!(bar, 2))).unwrap();
         assert_eq!(batch.dump().into_inner(), Some(truncate!(foo.bar, 3)),);
     }
 
@@ -473,11 +465,7 @@ mod test {
         batch.load(truncate!(foo.bar.qux, 1)).unwrap();
         assert_eq!(
             batch.dump().into_inner(),
-            Some(batch!(
-                foo.bar.qux,
-                truncate!(_, 3),
-                append!(_, json!("Hello, World")),
-            )),
+            Some(batch!(foo.bar.qux, truncate!(_, 3), append!(_, json!("Hello, World")),)),
         );
     }
 

@@ -288,12 +288,12 @@ impl<T: Snapshot> Snapshot for Option<T> {
 
 #[cfg(test)]
 mod tests {
+    use morphix_test_utils::*;
     use serde_json::json;
 
     use super::*;
     use crate::adapter::Json;
     use crate::builtin::GeneralObserver;
-    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]

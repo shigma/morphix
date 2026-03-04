@@ -295,11 +295,11 @@ where
 
 #[cfg(test)]
 mod tests {
+    use morphix_test_utils::*;
     use serde_json::json;
 
     use super::*;
     use crate::adapter::Json;
-    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -412,10 +412,7 @@ mod tests {
         s.truncate(5);
         s.push_str("!");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation.unwrap(),
-            batch!(_, truncate!(_, 6), append!(_, json!("!")))
-        );
+        assert_eq!(mutation.unwrap(), batch!(_, truncate!(_, 6), append!(_, json!("!"))));
     }
 
     #[test]

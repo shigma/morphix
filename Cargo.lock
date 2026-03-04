@@ -210,8 +210,8 @@ dependencies = [
  "chrono",
  "erased-serde",
  "indexmap",
- "morphix",
  "morphix_derive",
+ "morphix_test_utils",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -225,6 +225,7 @@ dependencies = [
  "heck",
  "macro_expand",
  "morphix",
+ "morphix_test_utils",
  "pretty_assertions",
  "prettyplease",
  "proc-macro2",
@@ -235,6 +236,10 @@ dependencies = [
  "trybuild",
  "walkdir",
 ]
+
+[[package]]
+name = "morphix_test_utils"
+version = "0.0.0"
 
 [[package]]
 name = "num-traits"

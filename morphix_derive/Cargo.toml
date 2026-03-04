@@ -30,6 +30,7 @@ syn = { version = "2.0.106", features = ["full", "visit", "visit-mut"] }
 [dev-dependencies]
 macro_expand = "0.1.2"
 morphix = { path = "../morphix", features = ["full"] }
+morphix_test_utils = { path = "../morphix-test-utils" }
 pretty_assertions = "1.4.1"
 prettyplease = "0.2.37"
 serde = { workspace = true, features = ["derive"] }

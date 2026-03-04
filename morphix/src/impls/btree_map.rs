@@ -641,13 +641,13 @@ where
 mod tests {
     use std::collections::BTreeMap;
 
+    use morphix_test_utils::*;
     use serde_json::json;
 
     use super::*;
-    use crate::adapter::Json;
-    use crate::helper::test::*;
-    use crate::observe::{ObserveExt, SerializeObserverExt};
     use crate::MutationKind;
+    use crate::adapter::Json;
+    use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
     fn pointer_stability_across_inner_splits() {

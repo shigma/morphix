@@ -733,10 +733,10 @@ impl<T: Snapshot> Snapshot for Vec<T> {
 
 #[cfg(test)]
 mod tests {
+    use morphix_test_utils::*;
     use serde_json::json;
 
     use crate::adapter::Json;
-    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -835,11 +835,7 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
-            Some(batch!(
-                _,
-                replace!(-2, json!(333)),
-                replace!(-3, json!(222)),
-            ))
+            Some(batch!(_, replace!(-2, json!(333)), replace!(-3, json!(222))))
         )
     }
 
@@ -910,13 +906,6 @@ mod tests {
         assert_eq!(extracted, vec![2, 4]);
         assert_eq!(ob, vec![1, 3, 5]);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(batch!(
-                _,
-                truncate!(_, 2),
-                append!(_, json!([3, 5])),
-            ))
-        );
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 2), append!(_, json!([3, 5])),)));
     }
 }

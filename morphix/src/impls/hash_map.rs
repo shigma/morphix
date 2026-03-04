@@ -629,11 +629,11 @@ where
 mod tests {
     use std::collections::HashMap;
 
+    use morphix_test_utils::*;
     use serde_json::json;
 
     use super::*;
     use crate::adapter::Json;
-    use crate::helper::test::*;
     use crate::observe::{ObserveExt, SerializeObserverExt};
     use crate::{Mutation, MutationKind};
 
