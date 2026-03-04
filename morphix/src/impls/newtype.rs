@@ -377,7 +377,7 @@ mod tests {
         let mut value = Wrapping(String::from("hello"));
         let mut ob = value.__observe();
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -386,7 +386,7 @@ mod tests {
         let mut ob = value.__observe();
         **ob = Wrapping(String::from("world"));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!("world")));
+        assert_eq!(mutation, Some(replace!(_, json!("world"))));
     }
 
     #[test]
@@ -394,7 +394,7 @@ mod tests {
         let mut value = Saturating(42u32);
         let mut ob = value.__observe();
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -403,7 +403,7 @@ mod tests {
         let mut ob = value.__observe();
         **ob = Saturating(100u32);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!(100)));
+        assert_eq!(mutation, Some(replace!(_, json!(100))));
     }
 
     #[test]
@@ -411,7 +411,7 @@ mod tests {
         let mut value = Reverse(String::from("hello"));
         let mut ob = value.__observe();
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -420,7 +420,7 @@ mod tests {
         let mut ob = value.__observe();
         **ob = Reverse(String::from("world"));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!("world")));
+        assert_eq!(mutation, Some(replace!(_, json!("world"))));
     }
 
     #[test]
@@ -429,7 +429,7 @@ mod tests {
         let mut ob = value.__observe();
         ob.0.push_str(" world");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), append!(_, json!(" world")));
+        assert_eq!(mutation, Some(append!(_, json!(" world"))));
     }
 
     #[test]
@@ -438,7 +438,7 @@ mod tests {
         let mut ob = value.__observe();
         ob.0.push_str(" world");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), append!(_, json!(" world")));
+        assert_eq!(mutation, Some(append!(_, json!(" world"))));
     }
 
     #[test]
@@ -447,7 +447,7 @@ mod tests {
         let mut ob = value.__observe();
         ob += Wrapping(5u32);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!(15)));
+        assert_eq!(mutation, Some(replace!(_, json!(15))));
     }
 
     #[test]
@@ -456,6 +456,6 @@ mod tests {
         let mut ob = value.__observe();
         ob -= Saturating(3u32);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!(7)));
+        assert_eq!(mutation, Some(replace!(_, json!(7))));
     }
 }

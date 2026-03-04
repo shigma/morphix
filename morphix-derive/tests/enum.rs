@@ -17,7 +17,7 @@ enum Shape {
 fn unit_variant_no_change() {
     let mut s = Shape::Point;
     let Json(mutation) = observe!(s => {}).unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]
@@ -95,7 +95,7 @@ fn field_variant_no_change() {
         let _ = *radius;
     }
     let Json(mutation) = ob.flush().unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]
@@ -178,7 +178,7 @@ enum Color {
 fn all_unit_enum_no_change() {
     let mut c = Color::Red;
     let Json(mutation) = observe!(c => {}).unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]

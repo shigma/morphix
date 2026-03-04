@@ -17,7 +17,7 @@ fn no_mutation_returns_none() {
         y: "hello".into(),
     };
     let Json(mutation) = observe!(s => {}).unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]
@@ -159,7 +159,7 @@ fn morphix_skip_not_tracked() {
         w.b = 99;
     })
     .unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]
@@ -261,7 +261,7 @@ fn all_fields_skipped_noop() {
         a.b = "changed".into();
     })
     .unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]

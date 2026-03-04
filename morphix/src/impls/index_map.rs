@@ -969,7 +969,7 @@ mod tests {
         let mut ob = map.__observe();
         assert_eq!(ob.shift_remove("nonexistent"), None);
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -981,7 +981,7 @@ mod tests {
         assert_eq!(ob.observed_ref().len(), 1);
         assert_eq!(ob.observed_ref().get("a"), Some(&"x".to_string()));
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -1124,7 +1124,7 @@ mod tests {
         let extracted: IndexMap<_, _> = ob.extract_if(.., |k, _| *k == "b").collect();
         assert_eq!(extracted, IndexMap::from([("b", 2)]));
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -1206,7 +1206,7 @@ mod tests {
         let mut ob = map.__observe();
         ob.truncate(5); // len is 2, truncating to 5 is a no-op
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -1373,7 +1373,7 @@ mod tests {
         let mut map = IndexMap::from([("a", 1i32), ("b", 2)]);
         let mut ob = map.__observe();
         let Json(mutation) = ob.flat_flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]

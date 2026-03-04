@@ -459,7 +459,7 @@ mod tests {
         let mut tuple = (String::from("hello"),);
         let mut ob = tuple.__observe();
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -468,7 +468,7 @@ mod tests {
         let mut ob = tuple.__observe();
         ob.0.push_str(" world");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), append!(0, json!(" world")));
+        assert_eq!(mutation, Some(append!(0, json!(" world"))));
     }
 
     #[test]
@@ -479,7 +479,7 @@ mod tests {
         let mut ob = tuple.__observe();
         **ob = (String::from("world"),);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!(["world"])));
+        assert_eq!(mutation, Some(replace!(_, json!(["world"]))));
 
         // Longer replacement: without `as_deref_mut_coinductive`, inner
         // StringObserver would incorrectly produce Append(" world").
@@ -487,6 +487,6 @@ mod tests {
         let mut ob = tuple.__observe();
         **ob = (String::from("hello world"),);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!(["hello world"])));
+        assert_eq!(mutation, Some(replace!(_, json!(["hello world"]))));
     }
 }

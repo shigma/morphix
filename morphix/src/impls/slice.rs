@@ -600,7 +600,7 @@ mod tests {
         let mut ob = slice.__observe();
         assert_eq!(ob[2], 2);
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
         **ob[2] = 42;
         assert_eq!(ob[2], 42);
         let Json(mutation) = ob.flush().unwrap();
@@ -613,7 +613,7 @@ mod tests {
         let mut ob = slice.__observe();
         assert_eq!(*ob.get_mut(2).unwrap(), 2);
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
         ***ob.get_mut(2).unwrap() = 42;
         assert_eq!(*ob.get_mut(2).unwrap(), 42);
         let Json(mutation) = ob.flush().unwrap();

@@ -744,7 +744,7 @@ mod tests {
         let mut vec: Vec<i32> = vec![];
         let mut ob = vec.__observe();
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -753,7 +753,7 @@ mod tests {
         let mut ob = vec.__observe();
         ob.clear();
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!([])));
+        assert_eq!(mutation, Some(replace!(_, json!([]))));
     }
 
     #[test]
@@ -763,7 +763,7 @@ mod tests {
         ob.push(2);
         ob.push(3);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), append!(_, json!([2, 3])));
+        assert_eq!(mutation, Some(append!(_, json!([2, 3]))));
     }
 
     #[test]
@@ -773,7 +773,7 @@ mod tests {
         let mut extra = vec![4, 5];
         ob.append(&mut extra);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), append!(_, json!([4, 5])));
+        assert_eq!(mutation, Some(append!(_, json!([4, 5]))));
     }
 
     #[test]
@@ -782,7 +782,7 @@ mod tests {
         let mut ob = vec.__observe();
         ob.extend_from_slice(&[6, 7]);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), append!(_, json!([6, 7])));
+        assert_eq!(mutation, Some(append!(_, json!([6, 7]))));
     }
 
     #[test]
@@ -856,7 +856,7 @@ mod tests {
         // Next cycle: element 2 should have a fresh observer.
         assert_eq!(ob[2], "cd");
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -866,7 +866,7 @@ mod tests {
         let extracted: Vec<_> = ob.extract_if(.., |x| *x > 10).collect();
         assert!(extracted.is_empty());
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -879,7 +879,7 @@ mod tests {
         let extracted: Vec<_> = ob.extract_if(2.., |x| *x > 2).collect();
         assert_eq!(extracted, vec![3, 4]);
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -891,7 +891,7 @@ mod tests {
         assert_eq!(extracted, vec![2, 4]);
         assert_eq!(ob, vec![1, 3]);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!([1, 3])));
+        assert_eq!(mutation, Some(replace!(_, json!([1, 3]))));
     }
 
     #[test]

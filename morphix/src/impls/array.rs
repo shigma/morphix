@@ -365,7 +365,7 @@ mod tests {
         let mut arr = [1u32, 2, 3];
         let mut ob = arr.__observe();
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -374,7 +374,7 @@ mod tests {
         let mut ob = arr.__observe();
         assert_eq!(ob[1], 20);
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
         **ob[1] = 99;
         assert_eq!(ob[1], 99);
         let Json(mutation) = ob.flush().unwrap();
@@ -402,7 +402,7 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         // DerefMut on array: all elements changed, so the optimization collapses into a single
         // whole-array Replace instead of a batch of per-element mutations.
-        assert_eq!(mutation.unwrap(), replace!(_, json!([4, 5, 6])));
+        assert_eq!(mutation, Some(replace!(_, json!([4, 5, 6]))));
     }
 
     #[test]
@@ -412,7 +412,7 @@ mod tests {
         ***ob = [1, 2, 3];
         let Json(mutation) = ob.flush().unwrap();
         // ShallowObserver detects no change on each element.
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]

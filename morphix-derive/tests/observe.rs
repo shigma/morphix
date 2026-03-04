@@ -68,7 +68,7 @@ fn comparison_no_mutation() {
         }
     })
     .unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn wildcard_pattern() {
         let _ = 1 + 1;
     });
     let Json(mutation) = result.unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn nested_field_access() {
 fn no_mutation_returns_none() {
     let mut p = Point { x: 1, y: 2 };
     let Json(mutation) = observe!(p => {}).unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]
@@ -110,7 +110,7 @@ fn closure_no_mutation() {
     let cb = observe!(|p: &mut Point| {});
     let mut p = Point { x: 1, y: 2 };
     let Json(mutation) = cb(&mut p).unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]

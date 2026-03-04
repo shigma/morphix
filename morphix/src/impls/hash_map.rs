@@ -628,7 +628,7 @@ mod tests {
         let mut ob = map.__observe();
         assert_eq!(ob.remove("nonexistent"), None);
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -640,7 +640,7 @@ mod tests {
         assert_eq!(ob.observed_ref().len(), 1);
         assert_eq!(ob.observed_ref().get("a"), Some(&"x".to_string()));
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -706,7 +706,7 @@ mod tests {
         let extracted: HashMap<_, _> = ob.extract_if(|k, _| *k == "b").collect();
         assert_eq!(extracted, HashMap::from([("b", 2)]));
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -788,7 +788,7 @@ mod tests {
         let mut map = HashMap::from([("a", 1i32), ("b", 2)]);
         let mut ob = map.__observe();
         let Json(mutation) = ob.flat_flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]

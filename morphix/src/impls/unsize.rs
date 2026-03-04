@@ -121,7 +121,7 @@ mod test {
         let mut ob = a.__observe();
         ***ob = &B[0..12];
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!("hello world ")));
+        assert_eq!(mutation, Some(replace!(_, json!("hello world "))));
     }
 
     #[test]
@@ -131,7 +131,7 @@ mod test {
         let mut ob = a.__observe();
         ***ob = &A[0..];
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -141,7 +141,7 @@ mod test {
         let mut ob = a.__observe();
         ***ob = A;
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), append!(_, json!(" world")));
+        assert_eq!(mutation, Some(append!(_, json!(" world"))));
     }
 
     #[test]
@@ -151,6 +151,6 @@ mod test {
         let mut ob = a.__observe();
         ***ob = &A[0..5];
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), truncate!(_, 6));
+        assert_eq!(mutation, Some(truncate!(_, 6)));
     }
 }

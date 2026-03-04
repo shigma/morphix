@@ -278,7 +278,7 @@ mod test {
 
         ob.push_str("\n");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), append!(_, json!("\n")));
+        assert_eq!(mutation, Some(append!(_, json!("\n"))));
     }
 
     #[test]
@@ -289,7 +289,7 @@ mod test {
 
         ****ob = String::from("42");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!("42")));
+        assert_eq!(mutation, Some(replace!(_, json!("42"))));
     }
 
     #[test]
@@ -300,6 +300,6 @@ mod test {
 
         ****ob = String::from("42");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!("42")));
+        assert_eq!(mutation, Some(replace!(_, json!("42"))));
     }
 }

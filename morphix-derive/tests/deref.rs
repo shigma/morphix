@@ -39,7 +39,7 @@ fn deref_delegates() {
 fn deref_no_mutation() {
     let mut w = VecWrapper(vec![1, 2, 3]);
     let Json(mutation) = observe!(w => {}).unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn flat_map_no_change() {
         b: 10,
     };
     let Json(mutation) = observe!(f => {}).unwrap();
-    assert!(mutation.is_none());
+    assert_eq!(mutation, None);
 }
 
 #[test]

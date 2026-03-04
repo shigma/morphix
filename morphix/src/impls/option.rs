@@ -301,12 +301,12 @@ mod tests {
         let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
 
         let mut opt: Option<i32> = Some(1);
         let mut ob = opt.__observe();
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -315,20 +315,20 @@ mod tests {
         let mut ob = opt.__observe();
         **ob = None;
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!(null)));
+        assert_eq!(mutation, Some(replace!(_, json!(null))));
 
         let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
         **ob = Some(42);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!(42)));
+        assert_eq!(mutation, Some(replace!(_, json!(42))));
 
         let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
         **ob = Some(42);
         **ob = None;
         let Json(mutation) = ob.flush().unwrap();
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
 
         let mut opt: Option<&str> = Some("42");
         let mut ob = opt.__observe();
@@ -337,7 +337,7 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         // PointerObserver detects change by pointer comparison.
         // Round-trip to the same string literal has the same pointer, so no mutation.
-        assert!(mutation.is_none());
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -348,7 +348,7 @@ mod tests {
         assert_eq!(format!("{s:?}"), r#"StringObserver("99")"#);
         *s += "9";
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!("999")));
+        assert_eq!(mutation, Some(replace!(_, json!("999"))));
     }
 
     #[test]
@@ -357,7 +357,7 @@ mod tests {
         let mut ob = opt.__observe();
         *ob.as_mut().unwrap() += "bar";
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), append!(_, json!("bar")));
+        assert_eq!(mutation, Some(append!(_, json!("bar"))));
     }
 
     #[test]
@@ -367,21 +367,21 @@ mod tests {
         let mut ob = opt.__observe();
         *ob.get_or_insert(5) = 6;
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!(6)));
+        assert_eq!(mutation, Some(replace!(_, json!(6))));
 
         // get_or_insert_default
         let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
         *ob.get_or_insert_default() = 77;
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!(77)));
+        assert_eq!(mutation, Some(replace!(_, json!(77))));
 
         // get_or_insert_with
         let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
         *ob.get_or_insert_with(|| 88) = 99;
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!(99)));
+        assert_eq!(mutation, Some(replace!(_, json!(99))));
     }
 
     #[test]
@@ -414,6 +414,6 @@ mod tests {
         ob.reserve(10); // force reallocation
         assert_eq!(**ob[0], Some(1));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation.unwrap(), replace!(_, json!([1])));
+        assert_eq!(mutation, Some(replace!(_, json!([1]))));
     }
 }
