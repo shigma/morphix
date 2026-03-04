@@ -107,7 +107,8 @@ where
 /// internal storage.
 pub struct HashMapObserver<'ob, K, O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
-    diff: Option<HashMap<K, ValueState>>,
+    mutated: bool,
+    diff: HashMap<K, ValueState>,
     /// Boxed to ensure pointer stability: [`HashMap`] rehashing moves all entries to a new
     /// allocation, which would invalidate references to inline values. [`Box`] adds a layer
     /// of indirection so that only the pointer is moved, not the observer itself.
@@ -124,19 +125,31 @@ impl<'ob, K, O, S: ?Sized, D> Deref for HashMapObserver<'ob, K, O, S, D> {
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> DerefMut for HashMapObserver<'ob, K, O, S, D> {
+impl<'ob, K, V, O, S: ?Sized, D> DerefMut for HashMapObserver<'ob, K, O, S, D>
+where
+    K: Clone + Eq + Hash,
+    D: Unsigned,
+    S: AsDeref<D, Target = HashMap<K, V>>,
+{
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.diff = None;
+        if !self.mutated {
+            self.mutated = true;
+            let map = (*self.ptr).as_deref();
+            for key in map.keys() {
+                mark_deleted(&mut self.diff, self.inner.get_mut(), key.clone());
+            }
+        }
         self.inner.get_mut().clear();
         &mut self.ptr
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> QuasiObserver for HashMapObserver<'ob, K, O, S, D>
+impl<'ob, K, V, O, S: ?Sized, D> QuasiObserver for HashMapObserver<'ob, K, O, S, D>
 where
+    K: Clone + Eq + Hash,
     D: Unsigned,
-    S: AsDeref<D>,
+    S: AsDeref<D, Target = HashMap<K, V>>,
 {
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
@@ -148,12 +161,14 @@ where
     S: AsDeref<D, Target = HashMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
+    K: Clone + Eq + Hash,
 {
     #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
-            diff: None,
+            mutated: false,
+            diff: Default::default(),
             inner: Default::default(),
             phantom: PhantomData,
         }
@@ -168,7 +183,8 @@ where
     fn observe(head: &Self::Head) -> Self {
         Self {
             ptr: Pointer::new(head),
-            diff: Some(Default::default()),
+            mutated: false,
+            diff: Default::default(),
             inner: Default::default(),
             phantom: PhantomData,
         }
@@ -181,12 +197,16 @@ where
     S: AsDeref<D, Target = HashMap<K, O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized + 'static,
-    K: Serialize + Eq + Hash + Into<PathSegment> + 'static,
+    K: Serialize + Clone + Eq + Hash + Into<PathSegment> + 'static,
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
-        let Some(diff) = this.diff.take() else {
+        if this.mutated {
+            this.mutated = false;
+            this.diff.clear();
+            this.inner.get_mut().clear();
             return Mutations::replace((*this).observed_ref());
-        };
+        }
+        let diff = std::mem::take(&mut this.diff);
         let mut mutations = Mutations::new();
         for (key, state) in diff {
             match state {
@@ -216,6 +236,58 @@ where
         }
         mutations
     }
+
+    unsafe fn flush_flatten(this: &mut Self) -> (Mutations, bool) {
+        if !this.mutated {
+            let diff = std::mem::take(&mut this.diff);
+            let mut mutations = Mutations::new();
+            for (key, state) in diff {
+                match state {
+                    ValueState::Deleted => {
+                        #[cfg(feature = "delete")]
+                        mutations.insert(key, MutationKind::Delete);
+                        #[cfg(not(feature = "delete"))]
+                        unreachable!("delete feature is not enabled");
+                    }
+                    ValueState::Replaced | ValueState::Inserted => {
+                        this.inner.get_mut().remove(&key);
+                        let value = (*this.ptr)
+                            .as_deref()
+                            .get(&key)
+                            .expect("replaced key not found in observed map");
+                        mutations.insert(key, Mutations::replace(value));
+                    }
+                }
+            }
+            for (key, mut ob) in std::mem::take(this.inner.get_mut()) {
+                let value = (*this.ptr)
+                    .as_deref()
+                    .get(&key)
+                    .expect("observer key not found in observed map");
+                unsafe { O::refresh(&mut ob, value) }
+                mutations.insert(key, unsafe { O::flush(&mut ob) });
+            }
+            return (mutations, false);
+        }
+        this.mutated = false;
+        this.inner.get_mut().clear();
+        // After DerefMut, diff contains only Deleted entries representing original keys.
+        // Emit Replace for each current key, Delete for original keys no longer present.
+        let mut diff = std::mem::take(&mut this.diff);
+        let map = (*this.ptr).as_deref();
+        let mut mutations = Mutations::new();
+        for (key, value) in map {
+            diff.remove(key);
+            mutations.insert(key.clone(), Mutations::replace(value));
+        }
+        for (key, _) in diff {
+            #[cfg(feature = "delete")]
+            mutations.insert(key, MutationKind::Delete);
+            #[cfg(not(feature = "delete"))]
+            unreachable!("delete feature is not enabled");
+        }
+        (mutations, true)
+    }
 }
 
 impl<'ob, K, O, S: ?Sized, D, V> HashMapObserver<'ob, K, O, S, D>
@@ -223,7 +295,7 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, V>>,
     O: Observer<InnerDepth = Zero, Head = V>,
-    K: Eq + Hash,
+    K: Clone + Eq + Hash,
 {
     delegate_methods! { untracked_mut as HashMap =>
         pub fn reserve(&mut self, additional: usize);
@@ -239,12 +311,12 @@ where
     S: AsDeref<D, Target = HashMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
-    K: Clone,
+    K: Clone + Eq + Hash,
 {
     /// See [`HashMap::get`].
     pub fn get<Q>(&self, key: &Q) -> Option<&O>
     where
-        K: Borrow<Q> + Eq + Hash,
+        K: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
         let (key, value) = self.observed_ref().get_key_value(key)?;
@@ -266,12 +338,9 @@ where
     S: AsDerefMut<D, Target = HashMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
-    K: Clone,
+    K: Clone + Eq + Hash,
 {
-    fn __force_all(&mut self) -> &mut HashMap<K, Box<O>>
-    where
-        K: Eq + Hash,
-    {
+    fn __force_all(&mut self) -> &mut HashMap<K, Box<O>> {
         let map = (*self.ptr).as_deref();
         let inner = self.inner.get_mut();
         for (key, value) in map.iter() {
@@ -322,13 +391,13 @@ where
     where
         K: Eq + Hash,
     {
-        let Some(diff) = self.diff.as_mut() else {
+        if self.mutated {
             return self.observed_mut().insert(key, value);
-        };
+        }
         let key_cloned = key.clone();
         let old_value = (*self.ptr).as_deref_mut().insert(key_cloned, value);
         self.inner.get_mut().remove(&key);
-        match diff.entry(key) {
+        match self.diff.entry(key) {
             Entry::Occupied(mut e) => {
                 if matches!(e.get(), ValueState::Deleted) {
                     e.insert(ValueState::Replaced);
@@ -351,11 +420,11 @@ where
         K: Borrow<Q> + Eq + Hash,
         Q: Eq + Hash + ?Sized,
     {
-        let Some(diff) = self.diff.as_mut() else {
+        if self.mutated {
             return self.observed_mut().remove(key);
-        };
+        }
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        mark_deleted(diff, self.inner.get_mut(), key);
+        mark_deleted(&mut self.diff, self.inner.get_mut(), key);
         Some(old_value)
     }
 
@@ -365,11 +434,11 @@ where
         K: Borrow<Q> + Eq + Hash,
         Q: Eq + Hash + ?Sized,
     {
-        let Some(diff) = &mut self.diff else {
+        if self.mutated {
             return self.observed_mut().remove_entry(key);
-        };
+        }
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        mark_deleted(diff, self.inner.get_mut(), key.clone());
+        mark_deleted(&mut self.diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
@@ -390,9 +459,10 @@ where
         F: FnMut(&K, &mut O::Head) -> bool,
     {
         let inner = (*self.ptr).as_deref_mut().extract_if(pred);
-        let diff_inner = match &mut self.diff {
-            Some(diff) => Some((diff, self.inner.get_mut())),
-            None => None,
+        let diff_inner = if self.mutated {
+            None
+        } else {
+            Some((&mut self.diff, self.inner.get_mut()))
         };
         ExtractIf { inner, diff_inner }
     }
@@ -416,11 +486,12 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> Debug for HashMapObserver<'ob, K, O, S, D>
+impl<'ob, K, V, O, S: ?Sized, D> Debug for HashMapObserver<'ob, K, O, S, D>
 where
+    K: Clone + Eq + Hash,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Debug,
+    S: AsDeref<D, Target = HashMap<K, V>>,
+    HashMap<K, V>: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -428,11 +499,12 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D, V> PartialEq<HashMap<K, V>> for HashMapObserver<'ob, K, O, S, D>
+impl<'ob, K, V, O, S: ?Sized, D> PartialEq<HashMap<K, V>> for HashMapObserver<'ob, K, O, S, D>
 where
+    K: Clone + Eq + Hash,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: PartialEq<HashMap<K, V>>,
+    S: AsDeref<D, Target = HashMap<K, V>>,
+    HashMap<K, V>: PartialEq,
 {
     #[inline]
     fn eq(&self, other: &HashMap<K, V>) -> bool {
@@ -440,14 +512,16 @@ where
     }
 }
 
-impl<'ob, K1, K2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<HashMapObserver<'ob, K2, O2, S2, D2>>
+impl<'ob, K1, K2, V1, V2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<HashMapObserver<'ob, K2, O2, S2, D2>>
     for HashMapObserver<'ob, K1, O1, S1, D1>
 where
+    K1: Clone + Eq + Hash,
+    K2: Clone + Eq + Hash,
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialEq<S2::Target>,
+    S1: AsDeref<D1, Target = HashMap<K1, V1>>,
+    S2: AsDeref<D2, Target = HashMap<K2, V2>>,
+    HashMap<K1, V1>: PartialEq<HashMap<K2, V2>>,
 {
     #[inline]
     fn eq(&self, other: &HashMapObserver<'ob, K2, O2, S2, D2>) -> bool {
@@ -455,11 +529,12 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> Eq for HashMapObserver<'ob, K, O, S, D>
+impl<'ob, K, V, O, S: ?Sized, D> Eq for HashMapObserver<'ob, K, O, S, D>
 where
+    K: Clone + Eq + Hash,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Eq,
+    S: AsDeref<D, Target = HashMap<K, V>>,
+    HashMap<K, V>: Eq,
 {
 }
 
@@ -510,7 +585,7 @@ where
     }
 }
 
-impl<K, V: Observe> Observe for HashMap<K, V> {
+impl<K: Clone + Eq + Hash, V: Observe> Observe for HashMap<K, V> {
     type Observer<'ob, S, D>
         = HashMapObserver<'ob, K, V::Observer<'ob, V, Zero>, S, D>
     where
@@ -738,5 +813,256 @@ mod tests {
                 assert_eq!(m.kind, MutationKind::Append(json!("~")));
             }
         }
+    }
+
+    fn sorted_mutations(mutation: Option<Mutation<serde_json::Value>>) -> Vec<Mutation<serde_json::Value>> {
+        let Some(mutation) = mutation else {
+            return vec![];
+        };
+        let mut batch = match mutation.kind {
+            MutationKind::Batch(batch) => batch,
+            _ => vec![mutation],
+        };
+        batch.sort_by(|a, b| a.path.cmp(&b.path));
+        batch
+    }
+
+    #[test]
+    fn flush_flatten_no_change() {
+        let mut map = HashMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        let (Json(mutation), is_replace) = ob.flush_flatten().unwrap();
+        assert!(mutation.is_none());
+        assert!(!is_replace);
+    }
+
+    #[test]
+    fn flush_flatten_deref_mut_only() {
+        let mut map = HashMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        **ob = HashMap::from([("a", 10), ("b", 20)]);
+        let (Json(mutation), is_replace) = ob.flush_flatten().unwrap();
+        assert!(is_replace);
+        let batch = sorted_mutations(mutation);
+        assert_eq!(batch.len(), 2);
+        assert_eq!(
+            batch[0],
+            Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!(10))
+            }
+        );
+        assert_eq!(
+            batch[1],
+            Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Replace(json!(20))
+            }
+        );
+    }
+
+    // Inserted key, then deref_mut to a value without that key → no Delete for the inserted key
+    #[test]
+    fn flush_flatten_inserted_then_absent() {
+        let mut map = HashMap::from([("a", 1i32)]);
+        let mut ob = map.__observe();
+        ob.insert("b", 2);
+        **ob = HashMap::from([("a", 10)]);
+        let (Json(mutation), is_replace) = ob.flush_flatten().unwrap();
+        assert!(is_replace);
+        let batch = sorted_mutations(mutation);
+        assert_eq!(batch.len(), 1);
+        assert_eq!(
+            batch[0],
+            Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!(10))
+            }
+        );
+    }
+
+    // Inserted key, then deref_mut to a value with that key → Replace for the key
+    #[test]
+    fn flush_flatten_inserted_then_present() {
+        let mut map = HashMap::from([("a", 1i32)]);
+        let mut ob = map.__observe();
+        ob.insert("b", 2);
+        **ob = HashMap::from([("a", 10), ("b", 20)]);
+        let (Json(mutation), is_replace) = ob.flush_flatten().unwrap();
+        assert!(is_replace);
+        let batch = sorted_mutations(mutation);
+        assert_eq!(batch.len(), 2);
+        assert_eq!(
+            batch[0],
+            Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!(10))
+            }
+        );
+        assert_eq!(
+            batch[1],
+            Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Replace(json!(20))
+            }
+        );
+    }
+
+    // Deleted key, then deref_mut to a value without that key → Delete for the key
+    #[test]
+    fn flush_flatten_deleted_then_absent() {
+        let mut map = HashMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        ob.remove("b");
+        **ob = HashMap::from([("a", 10)]);
+        let (Json(mutation), is_replace) = ob.flush_flatten().unwrap();
+        assert!(is_replace);
+        let batch = sorted_mutations(mutation);
+        assert_eq!(batch.len(), 2);
+        assert_eq!(
+            batch[0],
+            Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!(10))
+            }
+        );
+        assert_eq!(
+            batch[1],
+            Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Delete
+            }
+        );
+    }
+
+    // Deleted key, then deref_mut to a value with that key → Replace (not Delete)
+    #[test]
+    fn flush_flatten_deleted_then_present() {
+        let mut map = HashMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        ob.remove("b");
+        **ob = HashMap::from([("a", 10), ("b", 20)]);
+        let (Json(mutation), is_replace) = ob.flush_flatten().unwrap();
+        assert!(is_replace);
+        let batch = sorted_mutations(mutation);
+        assert_eq!(batch.len(), 2);
+        assert_eq!(
+            batch[0],
+            Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!(10))
+            }
+        );
+        assert_eq!(
+            batch[1],
+            Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Replace(json!(20))
+            }
+        );
+    }
+
+    // Replaced key, then deref_mut to a value without that key → Delete for the key
+    #[test]
+    fn flush_flatten_replaced_then_absent() {
+        let mut map = HashMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        ob.insert("b", 99);
+        **ob = HashMap::from([("a", 10)]);
+        let (Json(mutation), is_replace) = ob.flush_flatten().unwrap();
+        assert!(is_replace);
+        let batch = sorted_mutations(mutation);
+        assert_eq!(batch.len(), 2);
+        assert_eq!(
+            batch[0],
+            Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!(10))
+            }
+        );
+        assert_eq!(
+            batch[1],
+            Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Delete
+            }
+        );
+    }
+
+    // Replaced key, then deref_mut to a value with that key → Replace
+    #[test]
+    fn flush_flatten_replaced_then_present() {
+        let mut map = HashMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        ob.insert("b", 99);
+        **ob = HashMap::from([("a", 10), ("b", 20)]);
+        let (Json(mutation), is_replace) = ob.flush_flatten().unwrap();
+        assert!(is_replace);
+        let batch = sorted_mutations(mutation);
+        assert_eq!(batch.len(), 2);
+        assert_eq!(
+            batch[0],
+            Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!(10))
+            }
+        );
+        assert_eq!(
+            batch[1],
+            Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Replace(json!(20))
+            }
+        );
+    }
+
+    // Without deref_mut, flush_flatten returns granular mutations with is_replace=false
+    #[test]
+    fn flush_flatten_granular() {
+        let mut map = HashMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        ob.insert("a", 10);
+        let (Json(mutation), is_replace) = ob.flush_flatten().unwrap();
+        assert!(!is_replace);
+        assert_eq!(
+            mutation,
+            Some(Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Replace(json!(10)),
+            })
+        );
+    }
+
+    // deref_mut replaces with entirely new keys
+    #[test]
+    fn flush_flatten_deref_mut_new_keys() {
+        let mut map = HashMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        **ob = HashMap::from([("c", 30)]);
+        let (Json(mutation), is_replace) = ob.flush_flatten().unwrap();
+        assert!(is_replace);
+        let batch = sorted_mutations(mutation);
+        assert_eq!(batch.len(), 3);
+        assert_eq!(
+            batch[0],
+            Mutation {
+                path: vec!["a".into()].into(),
+                kind: MutationKind::Delete
+            }
+        );
+        assert_eq!(
+            batch[1],
+            Mutation {
+                path: vec!["b".into()].into(),
+                kind: MutationKind::Delete
+            }
+        );
+        assert_eq!(
+            batch[2],
+            Mutation {
+                path: vec!["c".into()].into(),
+                kind: MutationKind::Replace(json!(30))
+            }
+        );
     }
 }

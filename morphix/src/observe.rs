@@ -434,14 +434,25 @@ pub trait SerializeObserver: Observer {
 pub trait SerializeObserverExt: SerializeObserver {
     /// Collects mutations using the specified adapter.
     ///
-    /// This is a convenience method that calls [`SerializeObserver::flush`] with a null-pointer
-    /// check.
+    /// This is a convenience method for [`SerializeObserver::flush`].
     #[inline]
     fn flush<A: Adapter>(&mut self) -> Result<A, A::Error> {
         if Pointer::is_null((*self).as_deref_coinductive()) {
             return A::from_mutations(Mutations::new());
         }
         A::from_mutations(unsafe { SerializeObserver::flush(self) })
+    }
+
+    /// Collects flattened mutations using the specified adapter.
+    ///
+    /// This is a convenience method for [`SerializeObserver::flush_flatten`].
+    #[inline]
+    fn flush_flatten<A: Adapter>(&mut self) -> Result<(A, bool), A::Error> {
+        if Pointer::is_null((*self).as_deref_coinductive()) {
+            return Ok((A::from_mutations(Mutations::new())?, false));
+        }
+        let (mutations, is_replace) = unsafe { SerializeObserver::flush_flatten(self) };
+        Ok((A::from_mutations(mutations)?, is_replace))
     }
 }
 
