@@ -93,13 +93,13 @@ const _: () = {
         O: ::morphix::observe::SerializeObserver,
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
-            let mutations_a = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.a)
+            let (mutations_a, is_replace_a) = unsafe {
+                ::morphix::observe::SerializeObserver::flush_flatten(&mut this.a)
             };
             let mutations_b = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.b)
             };
-            let is_replace = mutations_a.is_replace() && mutations_b.is_replace();
+            let is_replace = is_replace_a && mutations_b.is_replace();
             if is_replace {
                 let head = &**(*this).as_deref_coinductive();
                 let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
@@ -111,6 +111,21 @@ const _: () = {
             mutations.extend(mutations_a);
             mutations.insert("b", mutations_b);
             mutations
+        }
+        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+            let (mutations_a, is_replace_a) = unsafe {
+                ::morphix::observe::SerializeObserver::flush_flatten(&mut this.a)
+            };
+            let mutations_b = unsafe {
+                ::morphix::observe::SerializeObserver::flush(&mut this.b)
+            };
+            let is_replace = is_replace_a && mutations_b.is_replace();
+            let mut mutations = ::morphix::Mutations::with_capacity(
+                mutations_a.len() + (!mutations_b.is_empty()) as usize,
+            );
+            mutations.extend(mutations_a);
+            mutations.insert("b", mutations_b);
+            (mutations, is_replace)
         }
     }
     #[automatically_derived]
@@ -243,6 +258,21 @@ const _: () = {
             mutations.insert(1usize, mutations_1);
             mutations
         }
+        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+            let mutations_0 = unsafe {
+                ::morphix::observe::SerializeObserver::flush(&mut this.0)
+            };
+            let mutations_1 = unsafe {
+                ::morphix::observe::SerializeObserver::flush(&mut this.1)
+            };
+            let is_replace = mutations_0.is_replace() && mutations_1.is_replace();
+            let mut mutations = ::morphix::Mutations::with_capacity(
+                (!mutations_0.is_empty()) as usize + (!mutations_1.is_empty()) as usize,
+            );
+            mutations.insert(0usize, mutations_0);
+            mutations.insert(1usize, mutations_1);
+            (mutations, is_replace)
+        }
     }
     #[automatically_derived]
     impl ::morphix::Observe for Bar
@@ -342,10 +372,10 @@ const _: () = {
         O: ::morphix::observe::SerializeObserver,
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
-            let mutations_0 = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.0)
+            let (mutations_0, is_replace_0) = unsafe {
+                ::morphix::observe::SerializeObserver::flush_flatten(&mut this.0)
             };
-            let is_replace = mutations_0.is_replace();
+            let is_replace = is_replace_0;
             if is_replace {
                 let head = &**(*this).as_deref_coinductive();
                 let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
@@ -354,6 +384,15 @@ const _: () = {
             let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
             mutations.extend(mutations_0);
             mutations
+        }
+        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+            let (mutations_0, is_replace_0) = unsafe {
+                ::morphix::observe::SerializeObserver::flush_flatten(&mut this.0)
+            };
+            let is_replace = is_replace_0;
+            let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
+            mutations.extend(mutations_0);
+            (mutations, is_replace)
         }
     }
     #[automatically_derived]

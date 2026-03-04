@@ -394,14 +394,26 @@ pub trait SerializeObserver: Observer {
     /// This method assumes the observer contains a valid pointer.
     unsafe fn flush(this: &mut Self) -> Mutations;
 
-    /// Flushes mutations for a flattened field, extending into the parent's mutation set.
+    /// Flushes mutations for a `#[serde(flatten)]` or single unnamed field.
+    ///
+    /// Returns `(mutations, is_replace)` where `is_replace` indicates whether the observer's
+    /// entire content was replaced. Unlike [`flush`](Self::flush), this method does **not**
+    /// perform Replace collapse — it reports the raw `is_replace` status so the parent struct
+    /// can decide whether to collapse based on all of its fields.
+    ///
+    /// The default implementation delegates to [`flush`](Self::flush) and derives `is_replace`
+    /// from [`Mutations::is_replace`]. Observers that wrap inner observers (e.g.,
+    /// [`DerefObserver`](crate::impls::DerefObserver), [`CowObserver`](crate::impls::CowObserver))
+    /// should override this to propagate the call to their inner observer.
     ///
     /// ## Safety
     ///
     /// Same as [`flush`](Self::flush): the observer must contain a valid pointer.
     #[inline]
-    unsafe fn flush_flatten(_this: &mut Self, _mutations: &mut Mutations) {
-        panic!("flush_flatten is not supported for this observer type")
+    unsafe fn flush_flatten(this: &mut Self) -> (Mutations, bool) {
+        let mutations = unsafe { Self::flush(this) };
+        let is_replace = mutations.is_replace();
+        (mutations, is_replace)
     }
 }
 

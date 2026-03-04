@@ -105,6 +105,19 @@ where
             unsafe { B::flush(&mut this.inner) }
         }
     }
+
+    #[inline]
+    unsafe fn flush_flatten(this: &mut Self) -> (Mutations, bool) {
+        if let Some(mut owned) = this.owned.take()
+            && !this.mutated
+        {
+            let head = &**this.inner.as_deref_coinductive();
+            this.inner = B::observe(head);
+            unsafe { O::flush_flatten(&mut owned) }
+        } else {
+            unsafe { B::flush_flatten(&mut this.inner) }
+        }
+    }
 }
 
 impl<'a, B, O, T, D> CowObserver<B, O>

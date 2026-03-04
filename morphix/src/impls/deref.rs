@@ -74,6 +74,11 @@ where
     unsafe fn flush(this: &mut Self) -> Mutations {
         unsafe { O::flush(&mut this.inner) }
     }
+
+    #[inline]
+    unsafe fn flush_flatten(this: &mut Self) -> (Mutations, bool) {
+        unsafe { O::flush_flatten(&mut this.inner) }
+    }
 }
 
 macro_rules! impl_fmt {

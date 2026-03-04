@@ -169,6 +169,25 @@ const _: () = {
             mutations.insert("c", mutations_c);
             mutations
         }
+        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+            let mutations_a = unsafe {
+                ::morphix::observe::SerializeObserver::flush(&mut this.a)
+            };
+            let mut mutations_c = unsafe {
+                ::morphix::observe::SerializeObserver::flush(&mut this.c)
+            };
+            let is_replace = mutations_a.is_replace() && mutations_c.is_replace();
+            let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+            if !mutations_c.is_empty() && Option::is_none(&__inner.c) {
+                mutations_c = ::morphix::MutationKind::Delete.into();
+            }
+            let mut mutations = ::morphix::Mutations::with_capacity(
+                (!mutations_a.is_empty()) as usize + (!mutations_c.is_empty()) as usize,
+            );
+            mutations.insert("a", mutations_a);
+            mutations.insert("c", mutations_c);
+            (mutations, is_replace)
+        }
     }
     #[automatically_derived]
     impl<'a, S, T, U, const N: usize> ::morphix::Observe for Foo<'a, S, T, U, N>

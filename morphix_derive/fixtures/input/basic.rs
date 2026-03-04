@@ -1,4 +1,5 @@
 // Add leading colons to std imports to avoid rustfmt inserting newlines
+use ::std::collections::HashMap;
 use ::std::fmt::Display;
 #[allow(unused_imports)]
 use morphix_derive::Observe;
@@ -12,6 +13,8 @@ pub struct Foo {
     r#a: i32,
     #[serde(rename = "bar")]
     b: String,
+    #[serde(flatten)]
+    c: HashMap<String, i32>,
 }
 
 impl Display for Foo {

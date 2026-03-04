@@ -1,3 +1,4 @@
+use ::std::collections::HashMap;
 use ::std::fmt::Display;
 #[allow(unused_imports)]
 use morphix_derive::Observe;
@@ -9,12 +10,15 @@ pub struct Foo {
     r#a: i32,
     #[serde(rename = "bar")]
     b: String,
+    #[serde(flatten)]
+    c: HashMap<String, i32>,
 }
 #[rustfmt::skip]
 const _: () = {
     pub struct FooObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
         r#a: ::morphix::observe::DefaultObserver<'ob, i32>,
         b: ::morphix::observe::DefaultObserver<'ob, String>,
+        c: ::morphix::observe::DefaultObserver<'ob, HashMap<String, i32>>,
         __ptr: ::morphix::helper::Pointer<S>,
         __phantom: ::std::marker::PhantomData<&'ob mut N>,
     }
@@ -30,6 +34,7 @@ const _: () = {
         fn deref_mut(&mut self) -> &mut Self::Target {
             ::morphix::helper::QuasiObserver::observed_mut(&mut self.r#a);
             ::morphix::helper::QuasiObserver::observed_mut(&mut self.b);
+            ::morphix::helper::QuasiObserver::observed_mut(&mut self.c);
             &mut self.__ptr
         }
     }
@@ -52,6 +57,7 @@ const _: () = {
             Self {
                 r#a: ::morphix::observe::Observer::uninit(),
                 b: ::morphix::observe::Observer::uninit(),
+                c: ::morphix::observe::Observer::uninit(),
                 __ptr: ::morphix::helper::Pointer::uninit(),
                 __phantom: ::std::marker::PhantomData,
             }
@@ -62,6 +68,7 @@ const _: () = {
             Self {
                 r#a: ::morphix::observe::Observer::observe(&__value.r#a),
                 b: ::morphix::observe::Observer::observe(&__value.b),
+                c: ::morphix::observe::Observer::observe(&__value.c),
                 __ptr,
                 __phantom: ::std::marker::PhantomData,
             }
@@ -72,6 +79,7 @@ const _: () = {
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.r#a, &__value.r#a);
                 ::morphix::observe::Observer::refresh(&mut this.b, &__value.b);
+                ::morphix::observe::Observer::refresh(&mut this.c, &__value.c);
             }
         }
     }
@@ -89,17 +97,44 @@ const _: () = {
             let mutations_b = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.b)
             };
-            let is_replace = mutations_a.is_replace() && mutations_b.is_replace();
+            let (mutations_c, is_replace_c) = unsafe {
+                ::morphix::observe::SerializeObserver::flush_flatten(&mut this.c)
+            };
+            let is_replace = mutations_a.is_replace() && mutations_b.is_replace()
+                && is_replace_c;
             if is_replace {
                 let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
                 return ::morphix::Mutations::replace(value);
             }
             let mut mutations = ::morphix::Mutations::with_capacity(
-                (!mutations_a.is_empty()) as usize + (!mutations_b.is_empty()) as usize,
+                (!mutations_a.is_empty()) as usize + (!mutations_b.is_empty()) as usize
+                    + mutations_c.len(),
             );
             mutations.insert("A", mutations_a);
             mutations.insert("bar", mutations_b);
+            mutations.extend(mutations_c);
             mutations
+        }
+        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+            let mutations_a = unsafe {
+                ::morphix::observe::SerializeObserver::flush(&mut this.r#a)
+            };
+            let mutations_b = unsafe {
+                ::morphix::observe::SerializeObserver::flush(&mut this.b)
+            };
+            let (mutations_c, is_replace_c) = unsafe {
+                ::morphix::observe::SerializeObserver::flush_flatten(&mut this.c)
+            };
+            let is_replace = mutations_a.is_replace() && mutations_b.is_replace()
+                && is_replace_c;
+            let mut mutations = ::morphix::Mutations::with_capacity(
+                (!mutations_a.is_empty()) as usize + (!mutations_b.is_empty()) as usize
+                    + mutations_c.len(),
+            );
+            mutations.insert("A", mutations_a);
+            mutations.insert("bar", mutations_b);
+            mutations.extend(mutations_c);
+            (mutations, is_replace)
         }
     }
     #[automatically_derived]
@@ -117,6 +152,7 @@ const _: () = {
             f.debug_struct("FooObserver")
                 .field("a", &self.r#a)
                 .field("b", &self.b)
+                .field("c", &self.c)
                 .finish()
         }
     }
@@ -212,10 +248,10 @@ where
     N: ::morphix::helper::Unsigned,
 {
     unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
-        let mutations_0 = unsafe {
-            ::morphix::observe::SerializeObserver::flush(&mut this.0)
+        let (mutations_0, is_replace_0) = unsafe {
+            ::morphix::observe::SerializeObserver::flush_flatten(&mut this.0)
         };
-        let is_replace = mutations_0.is_replace();
+        let is_replace = is_replace_0;
         if is_replace {
             let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
             return ::morphix::Mutations::replace(value);
@@ -223,6 +259,15 @@ where
         let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
         mutations.extend(mutations_0);
         mutations
+    }
+    unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+        let (mutations_0, is_replace_0) = unsafe {
+            ::morphix::observe::SerializeObserver::flush_flatten(&mut this.0)
+        };
+        let is_replace = is_replace_0;
+        let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
+        mutations.extend(mutations_0);
+        (mutations, is_replace)
     }
 }
 #[rustfmt::skip]
@@ -328,6 +373,21 @@ const _: () = {
             mutations.insert(0usize, mutations_0);
             mutations.insert(1usize, mutations_1);
             mutations
+        }
+        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+            let mutations_0 = unsafe {
+                ::morphix::observe::SerializeObserver::flush(&mut this.0)
+            };
+            let mutations_1 = unsafe {
+                ::morphix::observe::SerializeObserver::flush(&mut this.1)
+            };
+            let is_replace = mutations_0.is_replace() && mutations_1.is_replace();
+            let mut mutations = ::morphix::Mutations::with_capacity(
+                (!mutations_0.is_empty()) as usize + (!mutations_1.is_empty()) as usize,
+            );
+            mutations.insert(0usize, mutations_0);
+            mutations.insert(1usize, mutations_1);
+            (mutations, is_replace)
         }
     }
     #[automatically_derived]
