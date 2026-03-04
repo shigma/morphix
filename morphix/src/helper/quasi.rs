@@ -42,15 +42,15 @@
 //! value = 42;
 //!
 //! // Macro transforms to:
-//! (&mut value).observed_assign(42);
+//! *(&mut value).observed_mut() = 42;
 //! # assert_eq!(value, 42);
 //! ```
 //!
-//! - For normal values: `&mut T` calls [`observed_assign`](QuasiObserver::observed_assign), which
-//!   delegates to [`observed_mut`](QuasiObserver::observed_mut) and assigns through the reference.
-//! - For observers: calls the same method, which traverses the dereference chain and assigns to the
-//!   underlying observed value. Deref observers with non-deref fields override this to mark those
-//!   field observers as replaced before writing.
+//! - For normal values: `&mut T` calls [`observed_mut`](QuasiObserver::observed_mut), which returns
+//!   `&mut T` via autoref (one layer added, one removed by deref), and the assignment writes
+//!   through.
+//! - For observers: calls the same method, which traverses the dereference chain and returns a
+//!   mutable reference to the underlying observed value.
 //!
 //! ### Comparison Solution
 //!
@@ -82,7 +82,7 @@ use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, Unsigne
 /// Both real observers and ordinary references (`&T`, `&mut T`) need to participate in the
 /// assignment and comparison transformations performed by the [`observe!`](crate::observe!) macro
 /// (see the [module documentation](self) for details). This trait provides a common interface for
-/// both: the macro calls [`observed_assign`](QuasiObserver::observed_assign) and
+/// both: the macro calls [`observed_mut`](QuasiObserver::observed_mut) and
 /// [`observed_ref`](QuasiObserver::observed_ref) on all values uniformly, and autoref-based method
 /// resolution selects the correct implementation.
 ///
@@ -158,29 +158,14 @@ where
     /// Returns a mutable reference to the observed value by traversing the full dereference chain.
     ///
     /// Traverses the coinductive outer chain (triggering [`DerefMut`] hooks), then the inductive
-    /// inner chain to reach the final observed value. Used internally by the default
-    /// [`observed_assign`](QuasiObserver::observed_assign) implementation and by observer methods
-    /// that need mutable access to the underlying value.
+    /// inner chain to reach the final observed value. The [`observe!`](crate::observe!) macro
+    /// transforms assignment expressions (`lhs = rhs`) into `*(&mut lhs).observed_mut() = rhs`.
     #[inline]
-    fn observed_mut(&mut self) -> &mut <<Self::Target as Deref>::Target as AsDeref<Self::InnerDepth>>::Target
-    where
-        Self::Target: DerefMut<Target: AsDerefMut<Self::InnerDepth>>,
-    {
-        self.as_deref_mut_coinductive().deref_mut().as_deref_mut()
-    }
-
-    /// Assigns a value to the observed target by traversing the full dereference chain.
-    ///
-    /// The [`observe!`](crate::observe!) macro transforms assignment expressions (`lhs = rhs`)
-    /// into calls to this method. The default implementation delegates to
-    /// [`observed_mut`](QuasiObserver::observed_mut), but deref observers with non-deref fields
-    /// override this to mark those field observers as replaced before writing.
-    #[inline]
-    fn observed_assign<T>(&mut self, value: T)
+    fn observed_mut<T: ?Sized>(&mut self) -> &mut T
     where
         Self::Target: DerefMut<Target: AsDerefMut<Self::InnerDepth, Target = T>>,
     {
-        *self.observed_mut() = value;
+        self.as_deref_mut_coinductive().deref_mut().as_deref_mut()
     }
 }
 

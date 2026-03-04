@@ -87,7 +87,7 @@ pub fn observe(mut input: ObserveInput) -> TokenStream {
     };
 
     let body = &mut input.body;
-    TransformAsNormalized.visit_expr_mut(body);
+    TransformQuasiObserver.visit_expr_mut(body);
 
     let body = quote! {
         'ob: {
@@ -107,40 +107,38 @@ pub fn observe(mut input: ObserveInput) -> TokenStream {
     }
 }
 
-struct TransformAsNormalized;
+struct TransformQuasiObserver;
 
-impl VisitMut for TransformAsNormalized {
-    fn visit_expr_mut(&mut self, expr: &mut syn::Expr) {
-        syn::visit_mut::visit_expr_mut(self, expr);
-        match expr {
-            syn::Expr::Assign(expr_assign) => {
-                let left = &expr_assign.left;
-                let right = &expr_assign.right;
+impl VisitMut for TransformQuasiObserver {
+    fn visit_expr_assign_mut(&mut self, expr_assign: &mut syn::ExprAssign) {
+        syn::visit_mut::visit_expr_assign_mut(self, expr_assign);
+        let left = &expr_assign.left;
+        let span = left.span();
+        expr_assign.left = parse_quote_spanned! { span =>
+            *(&mut #left).observed_mut()
+        };
+    }
+
+    fn visit_expr_binary_mut(&mut self, expr_binary: &mut syn::ExprBinary) {
+        syn::visit_mut::visit_expr_binary_mut(self, expr_binary);
+        match &expr_binary.op {
+            syn::BinOp::Eq(_)
+            | syn::BinOp::Ne(_)
+            | syn::BinOp::Le(_)
+            | syn::BinOp::Lt(_)
+            | syn::BinOp::Ge(_)
+            | syn::BinOp::Gt(_) => {
+                let left = &expr_binary.left;
                 let span = left.span();
-                *expr = parse_quote_spanned! { span =>
-                    (&mut #left).observed_assign(#right)
+                expr_binary.left = parse_quote_spanned! { span =>
+                    *(&#left).observed_ref()
+                };
+                let right = &expr_binary.right;
+                let span = right.span();
+                expr_binary.right = parse_quote_spanned! { span =>
+                    *(&#right).observed_ref()
                 };
             }
-            syn::Expr::Binary(expr_binary) => match &expr_binary.op {
-                syn::BinOp::Eq(_)
-                | syn::BinOp::Ne(_)
-                | syn::BinOp::Le(_)
-                | syn::BinOp::Lt(_)
-                | syn::BinOp::Ge(_)
-                | syn::BinOp::Gt(_) => {
-                    let left = &expr_binary.left;
-                    let span = left.span();
-                    expr_binary.left = parse_quote_spanned! { span =>
-                        *(&#left).observed_ref()
-                    };
-                    let right = &expr_binary.right;
-                    let span = right.span();
-                    expr_binary.right = parse_quote_spanned! { span =>
-                        *(&#right).observed_ref()
-                    };
-                }
-                _ => {}
-            },
             _ => {}
         }
     }

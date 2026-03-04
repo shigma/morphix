@@ -27,7 +27,6 @@ pub fn derive_observe_for_struct(
     let head = generics_visitor.allocate_ty(parse_quote!(S));
     let depth = generics_visitor.allocate_ty(parse_quote!(N));
     let inner = generics_visitor.allocate_ty(parse_quote!(O));
-    let target = generics_visitor.allocate_ty(parse_quote!(T));
     let ob_lt = generics_visitor.allocate_lt(parse_quote!('ob));
 
     let if_named = match is_named {
@@ -398,16 +397,6 @@ pub fn derive_observe_for_struct(
         assignable_impl = quote! {
             type OuterDepth = ::morphix::helper::Succ<#inner::OuterDepth>;
             type InnerDepth = #depth;
-
-            fn observed_assign<#target>(
-                &mut self,
-                value: #target,
-            ) where
-                Self::Target: ::std::ops::DerefMut<Target: ::morphix::helper::AsDerefMut<#depth, Target = #target>>,
-            {
-                #(let _ = &mut *self.#non_deref_members;)*
-                *::morphix::helper::AsDerefMut::<#depth>::as_deref_mut(self.as_deref_mut_coinductive().deref_mut()) = value;
-            }
         };
 
         let observer_uninit_expr = match is_named {
