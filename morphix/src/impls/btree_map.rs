@@ -111,7 +111,8 @@ where
 /// internal storage.
 pub struct BTreeMapObserver<'ob, K, O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
-    diff: Option<BTreeMap<K, ValueState>>,
+    mutated: bool,
+    diff: BTreeMap<K, ValueState>,
     /// Boxed to ensure pointer stability: [`BTreeMap`] node splits move entries between nodes
     /// via `memcpy`, which would invalidate references to inline values. [`Box`] adds a layer
     /// of indirection so that only the pointer is moved, not the observer itself.
@@ -128,19 +129,31 @@ impl<'ob, K, O, S: ?Sized, D> Deref for BTreeMapObserver<'ob, K, O, S, D> {
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> DerefMut for BTreeMapObserver<'ob, K, O, S, D> {
+impl<'ob, K, V, O, S: ?Sized, D> DerefMut for BTreeMapObserver<'ob, K, O, S, D>
+where
+    K: Clone + Ord,
+    D: Unsigned,
+    S: AsDeref<D, Target = BTreeMap<K, V>>,
+{
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.diff = None;
+        if !self.mutated {
+            self.mutated = true;
+            let map = (*self.ptr).as_deref();
+            for key in map.keys() {
+                mark_deleted(&mut self.diff, self.inner.get_mut(), key.clone());
+            }
+        }
         self.inner.get_mut().clear();
         &mut self.ptr
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> QuasiObserver for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, V, O, S: ?Sized, D> QuasiObserver for BTreeMapObserver<'ob, K, O, S, D>
 where
+    K: Clone + Ord,
     D: Unsigned,
-    S: AsDeref<D>,
+    S: AsDeref<D, Target = BTreeMap<K, V>>,
 {
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
@@ -152,12 +165,14 @@ where
     S: AsDeref<D, Target = BTreeMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
+    K: Clone + Ord,
 {
     #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
-            diff: None,
+            mutated: false,
+            diff: Default::default(),
             inner: Default::default(),
             phantom: PhantomData,
         }
@@ -172,25 +187,24 @@ where
     fn observe(head: &Self::Head) -> Self {
         Self {
             ptr: Pointer::new(head),
-            diff: Some(Default::default()),
+            mutated: false,
+            diff: Default::default(),
             inner: Default::default(),
             phantom: PhantomData,
         }
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> SerializeObserver for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, O, S: ?Sized, D> BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDeref<D, Target = BTreeMap<K, O::Head>>,
     O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized + 'static,
-    K: Serialize + Ord + Into<PathSegment> + 'static,
+    K: Serialize + Clone + Ord + Into<PathSegment> + 'static,
 {
-    unsafe fn flush(this: &mut Self) -> Mutations {
-        let Some(diff) = this.diff.take() else {
-            return Mutations::replace((*this).observed_ref());
-        };
+    unsafe fn partial_flush(&mut self) -> Mutations {
+        let diff = std::mem::take(&mut self.diff);
         let mut mutations = Mutations::new();
         for (key, state) in diff {
             match state {
@@ -201,8 +215,8 @@ where
                     unreachable!("delete feature is not enabled");
                 }
                 ValueState::Replaced | ValueState::Inserted => {
-                    this.inner.get_mut().remove(&key);
-                    let value = (*this.ptr)
+                    self.inner.get_mut().remove(&key);
+                    let value = (*self.ptr)
                         .as_deref()
                         .get(&key)
                         .expect("replaced key not found in observed map");
@@ -210,8 +224,8 @@ where
                 }
             }
         }
-        for (key, mut ob) in std::mem::take(this.inner.get_mut()) {
-            let value = (*this.ptr)
+        for (key, mut ob) in std::mem::take(self.inner.get_mut()) {
+            let value = (*self.ptr)
                 .as_deref()
                 .get(&key)
                 .expect("observer key not found in observed map");
@@ -222,18 +236,61 @@ where
     }
 }
 
+impl<'ob, K, O, S: ?Sized, D> SerializeObserver for BTreeMapObserver<'ob, K, O, S, D>
+where
+    D: Unsigned,
+    S: AsDeref<D, Target = BTreeMap<K, O::Head>>,
+    O: SerializeObserver<InnerDepth = Zero>,
+    O::Head: Serialize + Sized + 'static,
+    K: Serialize + Clone + Ord + Into<PathSegment> + 'static,
+{
+    unsafe fn flush(this: &mut Self) -> Mutations {
+        if !this.mutated {
+            return unsafe { this.partial_flush() };
+        }
+        this.mutated = false;
+        this.diff.clear();
+        this.inner.get_mut().clear();
+        Mutations::replace((*this).observed_ref())
+    }
+
+    unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
+        if !this.mutated {
+            return (unsafe { this.partial_flush() }, false);
+        }
+        this.mutated = false;
+        this.inner.get_mut().clear();
+        // After DerefMut, diff contains only Deleted entries representing original keys.
+        // Emit Replace for each current key, Delete for original keys no longer present.
+        let mut diff = std::mem::take(&mut this.diff);
+        let map = (*this.ptr).as_deref();
+        let mut mutations = Mutations::new();
+        for (key, value) in map {
+            diff.remove(key);
+            mutations.insert(key.clone(), Mutations::replace(value));
+        }
+        for (key, _) in diff {
+            #[cfg(feature = "delete")]
+            mutations.insert(key, MutationKind::Delete);
+            #[cfg(not(feature = "delete"))]
+            unreachable!("delete feature is not enabled");
+        }
+        (mutations, true)
+    }
+}
+
 impl<'ob, K, O, S: ?Sized, D> BTreeMapObserver<'ob, K, O, S, D>
 where
     D: Unsigned,
     S: AsDeref<D, Target = BTreeMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
-    K: Clone,
+    K: Clone + Ord,
 {
     /// See [`BTreeMap::get`].
     pub fn get<Q>(&self, key: &Q) -> Option<&O>
     where
-        K: Borrow<Q> + Ord,
+        K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
         let (key, value) = self.observed_ref().get_key_value(key)?;
@@ -255,12 +312,9 @@ where
     S: AsDerefMut<D, Target = BTreeMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
-    K: Clone,
+    K: Clone + Ord,
 {
-    fn __force_all(&mut self) -> &mut BTreeMap<K, Box<O>>
-    where
-        K: Ord,
-    {
+    fn __force_all(&mut self) -> &mut BTreeMap<K, Box<O>> {
         let map = (*self.ptr).as_deref();
         let inner = self.inner.get_mut();
         for (key, value) in map.iter() {
@@ -280,7 +334,7 @@ where
     /// See [`BTreeMap::get_mut`].
     pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut O>
     where
-        K: Borrow<Q> + Ord,
+        K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
         let (key, value) = (*self.ptr).as_deref().get_key_value(key)?;
@@ -307,17 +361,14 @@ where
     }
 
     /// See [`BTreeMap::insert`].
-    pub fn insert(&mut self, key: K, value: O::Head) -> Option<O::Head>
-    where
-        K: Ord,
-    {
-        let Some(diff) = self.diff.as_mut() else {
+    pub fn insert(&mut self, key: K, value: O::Head) -> Option<O::Head> {
+        if self.mutated {
             return self.observed_mut().insert(key, value);
-        };
+        }
         let key_cloned = key.clone();
         let old_value = (*self.ptr).as_deref_mut().insert(key_cloned, value);
         self.inner.get_mut().remove(&key);
-        match diff.entry(key) {
+        match self.diff.entry(key) {
             Entry::Occupied(mut e) => {
                 if matches!(e.get(), ValueState::Deleted) {
                     e.insert(ValueState::Replaced);
@@ -337,54 +388,48 @@ where
     /// See [`BTreeMap::remove`].
     pub fn remove<Q>(&mut self, key: &Q) -> Option<O::Head>
     where
-        K: Borrow<Q> + Ord,
+        K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        let Some(diff) = &mut self.diff else {
+        if self.mutated {
             return self.observed_mut().remove(key);
-        };
+        }
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        mark_deleted(diff, self.inner.get_mut(), key);
+        mark_deleted(&mut self.diff, self.inner.get_mut(), key);
         Some(old_value)
     }
 
     /// See [`BTreeMap::remove_entry`].
     pub fn remove_entry<Q>(&mut self, key: &Q) -> Option<(K, O::Head)>
     where
-        K: Borrow<Q> + Ord,
+        K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        let Some(diff) = &mut self.diff else {
+        if self.mutated {
             return self.observed_mut().remove_entry(key);
-        };
+        }
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        mark_deleted(diff, self.inner.get_mut(), key.clone());
+        mark_deleted(&mut self.diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
     /// See [`BTreeMap::pop_first`].
-    pub fn pop_first(&mut self) -> Option<(K, O::Head)>
-    where
-        K: Ord,
-    {
-        let Some(diff) = &mut self.diff else {
+    pub fn pop_first(&mut self) -> Option<(K, O::Head)> {
+        if self.mutated {
             return self.observed_mut().pop_first();
-        };
+        }
         let (key, old_value) = (*self.ptr).as_deref_mut().pop_first()?;
-        mark_deleted(diff, self.inner.get_mut(), key.clone());
+        mark_deleted(&mut self.diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
     /// See [`BTreeMap::pop_last`].
-    pub fn pop_last(&mut self) -> Option<(K, O::Head)>
-    where
-        K: Ord,
-    {
-        let Some(diff) = &mut self.diff else {
+    pub fn pop_last(&mut self) -> Option<(K, O::Head)> {
+        if self.mutated {
             return self.observed_mut().pop_last();
-        };
+        }
         let (key, old_value) = (*self.ptr).as_deref_mut().pop_last()?;
-        mark_deleted(diff, self.inner.get_mut(), key.clone());
+        mark_deleted(&mut self.diff, self.inner.get_mut(), key.clone());
         Some((key, old_value))
     }
 
@@ -392,7 +437,6 @@ where
     #[inline]
     pub fn retain<F>(&mut self, mut f: F)
     where
-        K: Ord,
         F: FnMut(&K, &mut O::Head) -> bool,
     {
         self.extract_if(.., |k, v| !f(k, v)).for_each(drop);
@@ -401,11 +445,8 @@ where
     /// See [`BTreeMap::append`].
     // TODO: this drains `other` into individual inserts, which is much slower than
     // `BTreeMap::append`. Consider a bulk-insert approach that updates `diff` in one pass.
-    pub fn append(&mut self, other: &mut BTreeMap<K, O::Head>)
-    where
-        K: Ord,
-    {
-        if self.diff.is_none() {
+    pub fn append(&mut self, other: &mut BTreeMap<K, O::Head>) {
+        if self.mutated {
             return self.observed_mut().append(other);
         }
         for (key, value) in std::mem::take(other) {
@@ -416,16 +457,16 @@ where
     /// See [`BTreeMap::split_off`].
     pub fn split_off<Q>(&mut self, key: &Q) -> BTreeMap<K, O::Head>
     where
-        K: Borrow<Q> + Ord,
+        K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        let Some(diff) = &mut self.diff else {
+        if self.mutated {
             return self.observed_mut().split_off(key);
-        };
+        }
         let split = (*self.ptr).as_deref_mut().split_off(key);
         let inner = self.inner.get_mut();
         for key in split.keys().cloned() {
-            mark_deleted(diff, inner, key);
+            mark_deleted(&mut self.diff, inner, key);
         }
         split
     }
@@ -433,42 +474,37 @@ where
     /// See [`BTreeMap::extract_if`].
     pub fn extract_if<F, R>(&mut self, range: R, pred: F) -> ExtractIf<'_, K, O::Head, O, R, F>
     where
-        K: Ord,
         R: RangeBounds<K>,
         F: FnMut(&K, &mut O::Head) -> bool,
     {
         let inner = (*self.ptr).as_deref_mut().extract_if(range, pred);
-        let diff_inner = match &mut self.diff {
-            Some(diff) => Some((diff, self.inner.get_mut())),
-            None => None,
+        let diff_inner = if self.mutated {
+            None
+        } else {
+            Some((&mut self.diff, self.inner.get_mut()))
         };
         ExtractIf { inner, diff_inner }
     }
 
     /// See [`BTreeMap::iter_mut`].
     #[inline]
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut O)> + '_
-    where
-        K: Ord,
-    {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut O)> + '_ {
         self.__force_all().iter_mut().map(|(k, v)| (k, v.as_mut()))
     }
 
     /// See [`BTreeMap::values_mut`].
     #[inline]
-    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut O> + '_
-    where
-        K: Ord,
-    {
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut O> + '_ {
         self.__force_all().values_mut().map(|v| v.as_mut())
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> Debug for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, V, O, S: ?Sized, D> Debug for BTreeMapObserver<'ob, K, O, S, D>
 where
+    K: Clone + Ord,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Debug,
+    S: AsDeref<D, Target = BTreeMap<K, V>>,
+    BTreeMap<K, V>: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -476,11 +512,12 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D, V> PartialEq<BTreeMap<K, V>> for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, V, O, S: ?Sized, D> PartialEq<BTreeMap<K, V>> for BTreeMapObserver<'ob, K, O, S, D>
 where
+    K: Clone + Ord,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: PartialEq<BTreeMap<K, V>>,
+    S: AsDeref<D, Target = BTreeMap<K, V>>,
+    BTreeMap<K, V>: PartialEq,
 {
     #[inline]
     fn eq(&self, other: &BTreeMap<K, V>) -> bool {
@@ -488,14 +525,16 @@ where
     }
 }
 
-impl<'ob, K1, K2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<BTreeMapObserver<'ob, K2, O2, S2, D2>>
+impl<'ob, K1, K2, V1, V2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<BTreeMapObserver<'ob, K2, O2, S2, D2>>
     for BTreeMapObserver<'ob, K1, O1, S1, D1>
 where
+    K1: Clone + Ord,
+    K2: Clone + Ord,
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialEq<S2::Target>,
+    S1: AsDeref<D1, Target = BTreeMap<K1, V1>>,
+    S2: AsDeref<D2, Target = BTreeMap<K2, V2>>,
+    BTreeMap<K1, V1>: PartialEq<BTreeMap<K2, V2>>,
 {
     #[inline]
     fn eq(&self, other: &BTreeMapObserver<'ob, K2, O2, S2, D2>) -> bool {
@@ -503,19 +542,21 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> Eq for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, V, O, S: ?Sized, D> Eq for BTreeMapObserver<'ob, K, O, S, D>
 where
+    K: Clone + Ord,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Eq,
+    S: AsDeref<D, Target = BTreeMap<K, V>>,
+    BTreeMap<K, V>: Eq,
 {
 }
 
-impl<'ob, K, O, S: ?Sized, D, V> PartialOrd<BTreeMap<K, V>> for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, V, O, S: ?Sized, D> PartialOrd<BTreeMap<K, V>> for BTreeMapObserver<'ob, K, O, S, D>
 where
+    K: Clone + Ord,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: PartialOrd<BTreeMap<K, V>>,
+    S: AsDeref<D, Target = BTreeMap<K, V>>,
+    BTreeMap<K, V>: PartialOrd,
 {
     #[inline]
     fn partial_cmp(&self, other: &BTreeMap<K, V>) -> Option<std::cmp::Ordering> {
@@ -523,14 +564,16 @@ where
     }
 }
 
-impl<'ob, K1, K2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<BTreeMapObserver<'ob, K2, O2, S2, D2>>
+impl<'ob, K1, K2, V1, V2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<BTreeMapObserver<'ob, K2, O2, S2, D2>>
     for BTreeMapObserver<'ob, K1, O1, S1, D1>
 where
+    K1: Clone + Ord,
+    K2: Clone + Ord,
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialOrd<S2::Target>,
+    S1: AsDeref<D1, Target = BTreeMap<K1, V1>>,
+    S2: AsDeref<D2, Target = BTreeMap<K2, V2>>,
+    BTreeMap<K1, V1>: PartialOrd<BTreeMap<K2, V2>>,
 {
     #[inline]
     fn partial_cmp(&self, other: &BTreeMapObserver<'ob, K2, O2, S2, D2>) -> Option<std::cmp::Ordering> {
@@ -538,11 +581,12 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> Ord for BTreeMapObserver<'ob, K, O, S, D>
+impl<'ob, K, V, O, S: ?Sized, D> Ord for BTreeMapObserver<'ob, K, O, S, D>
 where
+    K: Clone + Ord,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Ord,
+    S: AsDeref<D, Target = BTreeMap<K, V>>,
+    BTreeMap<K, V>: Ord,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -597,7 +641,7 @@ where
     }
 }
 
-impl<K, V: Observe> Observe for BTreeMap<K, V> {
+impl<K: Clone + Ord, V: Observe> Observe for BTreeMap<K, V> {
     type Observer<'ob, S, D>
         = BTreeMapObserver<'ob, K, V::Observer<'ob, V, Zero>, S, D>
     where
@@ -900,5 +944,123 @@ mod tests {
         // "b" was inserted: Inserted
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(b, json!(2))));
+    }
+
+    #[test]
+    fn flat_flush_no_change() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        let Json(mutation) = ob.flat_flush().unwrap();
+        assert!(mutation.is_none());
+    }
+
+    #[test]
+    fn flat_flush_deref_mut_only() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        **ob = BTreeMap::from([("a", 10), ("b", 20)]);
+        let Json(mutation) = ob.flat_flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(batch!(_, replace!(a, json!(10)), replace!(b, json!(20))))
+        );
+    }
+
+    // Inserted key, then deref_mut to a value without that key -> no Delete for the inserted key
+    #[test]
+    fn flat_flush_inserted_then_absent() {
+        let mut map = BTreeMap::from([("a", 1i32)]);
+        let mut ob = map.__observe();
+        ob.insert("b", 2);
+        **ob = BTreeMap::from([("a", 10)]);
+        let Json(mutation) = ob.flat_flush().unwrap();
+        assert_eq!(mutation, Some(replace!(a, json!(10))));
+    }
+
+    // Inserted key, then deref_mut to a value with that key -> Replace for the key
+    #[test]
+    fn flat_flush_inserted_then_present() {
+        let mut map = BTreeMap::from([("a", 1i32)]);
+        let mut ob = map.__observe();
+        ob.insert("b", 2);
+        **ob = BTreeMap::from([("a", 10), ("b", 20)]);
+        let Json(mutation) = ob.flat_flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(batch!(_, replace!(a, json!(10)), replace!(b, json!(20))))
+        );
+    }
+
+    // Deleted key, then deref_mut to a value without that key -> Delete for the key
+    #[test]
+    fn flat_flush_deleted_then_absent() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        ob.remove("b");
+        **ob = BTreeMap::from([("a", 10)]);
+        let Json(mutation) = ob.flat_flush().unwrap();
+        assert_eq!(mutation, Some(batch!(_, replace!(a, json!(10)), delete!(b))));
+    }
+
+    // Deleted key, then deref_mut to a value with that key -> Replace (not Delete)
+    #[test]
+    fn flat_flush_deleted_then_present() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        ob.remove("b");
+        **ob = BTreeMap::from([("a", 10), ("b", 20)]);
+        let Json(mutation) = ob.flat_flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(batch!(_, replace!(a, json!(10)), replace!(b, json!(20))))
+        );
+    }
+
+    // Replaced key, then deref_mut to a value without that key -> Delete for the key
+    #[test]
+    fn flat_flush_replaced_then_absent() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        ob.insert("b", 99);
+        **ob = BTreeMap::from([("a", 10)]);
+        let Json(mutation) = ob.flat_flush().unwrap();
+        assert_eq!(mutation, Some(batch!(_, replace!(a, json!(10)), delete!(b))));
+    }
+
+    // Replaced key, then deref_mut to a value with that key -> Replace
+    #[test]
+    fn flat_flush_replaced_then_present() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        ob.insert("b", 99);
+        **ob = BTreeMap::from([("a", 10), ("b", 20)]);
+        let Json(mutation) = ob.flat_flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(batch!(_, replace!(a, json!(10)), replace!(b, json!(20))))
+        );
+    }
+
+    // Without deref_mut, flat_flush returns granular mutations with is_replace=false
+    #[test]
+    fn flat_flush_granular() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        ob.insert("a", 10);
+        let Json(mutation) = ob.flat_flush().unwrap();
+        assert_eq!(mutation, Some(replace!(a, json!(10))));
+    }
+
+    // deref_mut replaces with entirely new keys
+    #[test]
+    fn flat_flush_deref_mut_new_keys() {
+        let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
+        let mut ob = map.__observe();
+        **ob = BTreeMap::from([("c", 30)]);
+        let Json(mutation) = ob.flat_flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(batch!(_, replace!(c, json!(30)), delete!(a), delete!(b)))
+        );
     }
 }
