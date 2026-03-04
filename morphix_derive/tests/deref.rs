@@ -23,7 +23,7 @@ impl DerefMut for VecWrapper {
 }
 
 #[test]
-fn deref_delegates_to_inner_observer() {
+fn deref_delegates() {
     let mut w = VecWrapper(vec![1, 2, 3]);
     let Json(mutation) = observe!(w => {
         w.push(4);

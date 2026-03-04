@@ -138,7 +138,6 @@ pub fn derive_observe_for_struct(
         let mutation_ident;
         let is_replace_ident;
         let default_segment;
-        let is_flatten = field_meta.serde.flatten || (!is_named && fields.len() == 1);
         if let Some(ident) = &field.ident {
             let mut field_name = ident.to_string();
             if field_name.starts_with("r#") {
@@ -172,7 +171,7 @@ pub fn derive_observe_for_struct(
                 }
             });
         }
-        if is_flatten {
+        if field_meta.serde.flatten {
             flush_field_stmts.extend(quote_spanned! { field_span =>
                 let (#mutation_ident, #is_replace_ident) = unsafe { ::morphix::observe::SerializeObserver::flush_flatten(&mut this.#field_member) };
             });
@@ -505,6 +504,37 @@ pub fn derive_observe_for_struct(
         },
     };
 
+    let flush_impl = if !is_named && field_count == 1 {
+        quote! {
+            unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.0) }
+        }
+    } else {
+        quote! {
+            #flush_field_stmts
+            let is_replace = #(#is_replace_checks)&&*;
+            #flush_replace
+            #flush_delete
+            let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
+            #flush_mutation_stmts
+            mutations
+        }
+    };
+
+    let flush_flatten_impl = if !is_named && field_count == 1 {
+        quote! {
+            unsafe { ::morphix::observe::SerializeObserver::flush_flatten(&mut this.0) }
+        }
+    } else {
+        quote! {
+            #flush_field_stmts
+            let is_replace = #(#is_replace_checks)&&*;
+            #flush_delete
+            let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
+            #flush_mutation_stmts
+            (mutations, is_replace)
+        }
+    };
+
     let mut output = quote! {
         #ob_item
 
@@ -572,22 +602,11 @@ pub fn derive_observe_for_struct(
             #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
         {
             unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
-                #flush_field_stmts
-                let is_replace = #(#is_replace_checks)&&*;
-                #flush_replace
-                #flush_delete
-                let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
-                #flush_mutation_stmts
-                mutations
+                #flush_impl
             }
 
             unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
-                #flush_field_stmts
-                let is_replace = #(#is_replace_checks)&&*;
-                #flush_delete
-                let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
-                #flush_mutation_stmts
-                (mutations, is_replace)
+                #flush_flatten_impl
             }
         }
 

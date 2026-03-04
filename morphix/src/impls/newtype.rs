@@ -115,6 +115,11 @@ where
     unsafe fn flush(this: &mut Self) -> Mutations {
         unsafe { SerializeObserver::flush(&mut this.0) }
     }
+
+    #[inline]
+    unsafe fn flush_flatten(this: &mut Self) -> (Mutations, bool) {
+        unsafe { SerializeObserver::flush_flatten(&mut this.0) }
+    }
 }
 
 impl<O, S: ?Sized, D> Debug for NewtypeObserver<O, S, D>

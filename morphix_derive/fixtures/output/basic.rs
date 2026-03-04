@@ -248,26 +248,10 @@ where
     N: ::morphix::helper::Unsigned,
 {
     unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
-        let (mutations_0, is_replace_0) = unsafe {
-            ::morphix::observe::SerializeObserver::flush_flatten(&mut this.0)
-        };
-        let is_replace = is_replace_0;
-        if is_replace {
-            let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
-            return ::morphix::Mutations::replace(value);
-        }
-        let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
-        mutations.extend(mutations_0);
-        mutations
+        unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.0) }
     }
     unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
-        let (mutations_0, is_replace_0) = unsafe {
-            ::morphix::observe::SerializeObserver::flush_flatten(&mut this.0)
-        };
-        let is_replace = is_replace_0;
-        let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
-        mutations.extend(mutations_0);
-        (mutations, is_replace)
+        unsafe { ::morphix::observe::SerializeObserver::flush_flatten(&mut this.0) }
     }
 }
 #[rustfmt::skip]
