@@ -15,6 +15,8 @@ pub mod deref;
 pub(crate) mod macros;
 mod pointer;
 pub mod quasi;
+#[cfg(test)]
+pub mod test;
 pub mod unsigned;
 
 pub use deref::{AsDeref, AsDerefCoinductive, AsDerefMut, AsDerefMutCoinductive};

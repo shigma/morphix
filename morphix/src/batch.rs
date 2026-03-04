@@ -325,6 +325,7 @@ mod test {
 
     use super::*;
     use crate::adapter::Json;
+    use crate::helper::test::*;
 
     #[test]
     fn empty_batch() {
@@ -335,90 +336,37 @@ mod test {
     #[test]
     fn replace() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Replace(json!(1)),
-            })
-            .unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Replace(json!(1))
-            }),
-        );
+        batch.load(replace!(_.foo.bar, json!(1))).unwrap();
+        assert_eq!(batch.dump().into_inner(), Some(replace!(_.foo.bar, json!(1))));
     }
 
     #[test]
     fn replace_after_replace() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Replace(json!(1)),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Replace(json!(2)),
-            })
-            .unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Replace(json!(2)),
-            }),
-        );
+        batch.load(replace!(_.foo.bar, json!(1))).unwrap();
+        batch.load(replace!(_.foo.bar, json!(2))).unwrap();
+        assert_eq!(batch.dump().into_inner(), Some(replace!(_.foo.bar, json!(2))));
     }
 
     #[test]
     fn append_after_replace() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Replace(json!({"qux": "1"})),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Append(json!("2")),
-            })
-            .unwrap();
+        batch.load(replace!(_.foo.bar, json!({"qux": "1"}))).unwrap();
+        batch.load(append!(_.foo.bar.qux, json!("2"))).unwrap();
         assert_eq!(
             batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Replace(json!({"qux": "12"})),
-            }),
+            Some(replace!(_.foo.bar, json!({"qux": "12"}))),
         );
     }
 
     #[test]
     fn replace_after_append() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Append(json!("2")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Replace(json!({"qux": "1"})),
-            })
-            .unwrap();
+        batch.load(append!(_.foo.bar.qux, json!("2"))).unwrap();
+        batch.load(replace!(_.foo.bar, json!({"qux": "1"}))).unwrap();
         assert_eq!(
             batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Replace(json!({"qux": "1"})),
-            }),
+            Some(replace!(_.foo.bar, json!({"qux": "1"}))),
         );
     }
 
@@ -426,188 +374,61 @@ mod test {
     fn merge_append() {
         let mut batch = BatchTree::<Json>::new();
         batch
-            .load(Mutation {
-                path: vec!["foo".into()].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec!["bar".into()].into(),
-                        kind: MutationKind::Append(json!("1")),
-                    },
-                    Mutation {
-                        path: vec!["bar".into()].into(),
-                        kind: MutationKind::Append(json!("2")),
-                    },
-                ]),
-            })
+            .load(batch!(_.foo, append!(_.bar, json!("1")), append!(_.bar, json!("2"))))
             .unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Append(json!("12")),
-            }),
-        );
+        assert_eq!(batch.dump().into_inner(), Some(append!(_.foo.bar, json!("12"))),);
     }
 
     #[test]
     fn basic_batch() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["bar".into()].into(),
-                kind: MutationKind::Append(json!("2")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["qux".into()].into(),
-                kind: MutationKind::Append(json!("1")),
-            })
-            .unwrap();
+        batch.load(append!(_.bar, json!("2"))).unwrap();
+        batch.load(append!(_.qux, json!("1"))).unwrap();
         assert_eq!(
             batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec!["bar".into()].into(),
-                        kind: MutationKind::Append(json!("2")),
-                    },
-                    Mutation {
-                        path: vec!["qux".into()].into(),
-                        kind: MutationKind::Append(json!("1")),
-                    },
-                ]),
-            }),
+            Some(batch!(_, append!(_.bar, json!("2")), append!(_.qux, json!("1")))),
         );
     }
 
     #[test]
     fn nested_batch() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Append(json!("2")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "qux".into()].into(),
-                kind: MutationKind::Append(json!("1")),
-            })
-            .unwrap();
+        batch.load(append!(_.foo.bar, json!("2"))).unwrap();
+        batch.load(append!(_.foo.qux, json!("1"))).unwrap();
         assert_eq!(
             batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into()].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec!["bar".into()].into(),
-                        kind: MutationKind::Append(json!("2")),
-                    },
-                    Mutation {
-                        path: vec!["qux".into()].into(),
-                        kind: MutationKind::Append(json!("1")),
-                    },
-                ]),
-            }),
+            Some(batch!(_.foo, append!(_.bar, json!("2")), append!(_.qux, json!("1")))),
         );
     }
 
     #[test]
     fn append_with_neg_index_1() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec![PathSegment::Negative(1)].into(),
-                kind: MutationKind::Append(json!("c")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Append(json!(["a", "b"])),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![PathSegment::Negative(1)].into(),
-                kind: MutationKind::Append(json!("d")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![PathSegment::Negative(3)].into(),
-                kind: MutationKind::Append(json!("e")),
-            })
-            .unwrap();
+        batch.load(append!(_[-1], json!("c"))).unwrap();
+        batch.load(append!(_, json!(["a", "b"]))).unwrap();
+        batch.load(append!(_[-1], json!("d"))).unwrap();
+        batch.load(append!(_[-3], json!("e"))).unwrap();
         assert_eq!(
             batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![PathSegment::Negative(1)].into(),
-                        kind: MutationKind::Append(json!("ce")),
-                    },
-                    Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Append(json!(["a", "bd"])),
-                    },
-                ]),
-            }),
+            Some(batch!(_, append!(_[-1], json!("ce")), append!(_, json!(["a", "bd"])),)),
         );
     }
 
     #[test]
     fn append_with_neg_index_2() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec![PathSegment::Negative(1)].into(),
-                kind: MutationKind::Append(json!("c")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Append(json!(["a", "b"])),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![PathSegment::Negative(2)].into(),
-                kind: MutationKind::Append(json!("d")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Append(json!(["e", "f"])),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![PathSegment::Negative(3)].into(),
-                kind: MutationKind::Append(json!("g")),
-            })
-            .unwrap();
+        batch.load(append!(_[-1], json!("c"))).unwrap();
+        batch.load(append!(_, json!(["a", "b"]))).unwrap();
+        batch.load(append!(_[-2], json!("d"))).unwrap();
+        batch.load(append!(_, json!(["e", "f"]))).unwrap();
+        batch.load(append!(_[-3], json!("g"))).unwrap();
         assert_eq!(
             batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![PathSegment::Negative(1)].into(),
-                        kind: MutationKind::Append(json!("c")),
-                    },
-                    Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Append(json!(["ad", "bg", "e", "f"])),
-                    },
-                ]),
-            }),
+            Some(batch!(
+                _,
+                append!(_[-1], json!("c")),
+                append!(_, json!(["ad", "bg", "e", "f"])),
+            )),
         );
     }
 
@@ -615,359 +436,120 @@ mod test {
     fn merge_truncate() {
         let mut batch = BatchTree::<Json>::new();
         batch
-            .load(Mutation {
-                path: vec!["foo".into()].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec!["bar".into()].into(),
-                        kind: MutationKind::Truncate(1),
-                    },
-                    Mutation {
-                        path: vec!["bar".into()].into(),
-                        kind: MutationKind::Truncate(2),
-                    },
-                ]),
-            })
+            .load(batch!(_.foo, truncate!(_.bar, 1), truncate!(_.bar, 2)))
             .unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Truncate(3),
-            }),
-        );
+        assert_eq!(batch.dump().into_inner(), Some(truncate!(_.foo.bar, 3)),);
     }
 
     #[test]
     fn truncate_after_append_1() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Append(json!("42")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Truncate(1),
-            })
-            .unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Append(json!("4")),
-            }),
-        );
+        batch.load(append!(_.foo.bar.qux, json!("42"))).unwrap();
+        batch.load(truncate!(_.foo.bar.qux, 1)).unwrap();
+        assert_eq!(batch.dump().into_inner(), Some(append!(_.foo.bar.qux, json!("4"))),);
     }
 
     #[test]
     fn truncate_after_append_2() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Append(json!("42")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Truncate(2),
-            })
-            .unwrap();
+        batch.load(append!(_.foo.bar.qux, json!("42"))).unwrap();
+        batch.load(truncate!(_.foo.bar.qux, 2)).unwrap();
         assert_eq!(batch.dump().into_inner(), None);
     }
 
     #[test]
     fn truncate_after_append_3() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Append(json!("42")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Truncate(3),
-            })
-            .unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Truncate(1),
-            }),
-        );
+        batch.load(append!(_.foo.bar.qux, json!("42"))).unwrap();
+        batch.load(truncate!(_.foo.bar.qux, 3)).unwrap();
+        assert_eq!(batch.dump().into_inner(), Some(truncate!(_.foo.bar.qux, 1)),);
     }
 
     #[test]
     fn append_after_truncate_1() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Truncate(3),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Append(json!("Hello, World!")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Truncate(1),
-            })
-            .unwrap();
+        batch.load(truncate!(_.foo.bar.qux, 3)).unwrap();
+        batch.load(append!(_.foo.bar.qux, json!("Hello, World!"))).unwrap();
+        batch.load(truncate!(_.foo.bar.qux, 1)).unwrap();
         assert_eq!(
             batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Truncate(3),
-                    },
-                    Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Append(json!("Hello, World")),
-                    },
-                ]),
-            }),
+            Some(batch!(
+                _.foo.bar.qux,
+                truncate!(_, 3),
+                append!(_, json!("Hello, World")),
+            )),
         );
     }
 
     #[test]
     fn append_after_truncate_2() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Truncate(3),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Append(json!("42")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Truncate(3),
-            })
-            .unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Truncate(4),
-            }),
-        );
+        batch.load(truncate!(_.foo.bar.qux, 3)).unwrap();
+        batch.load(append!(_.foo.bar.qux, json!("42"))).unwrap();
+        batch.load(truncate!(_.foo.bar.qux, 3)).unwrap();
+        assert_eq!(batch.dump().into_inner(), Some(truncate!(_.foo.bar.qux, 4)),);
     }
 
     #[test]
     fn truncate_with_neg_index_1() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec![PathSegment::Negative(1)].into(),
-                kind: MutationKind::Truncate(1),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Truncate(2),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![PathSegment::Negative(1)].into(),
-                kind: MutationKind::Truncate(3),
-            })
-            .unwrap();
+        batch.load(truncate!(_[-1], 1)).unwrap();
+        batch.load(truncate!(_, 2)).unwrap();
+        batch.load(truncate!(_[-1], 3)).unwrap();
         assert_eq!(
             batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![PathSegment::Negative(3)].into(),
-                        kind: MutationKind::Truncate(3),
-                    },
-                    Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Truncate(2),
-                    },
-                ]),
-            }),
+            Some(batch!(_, truncate!(_[-3], 3), truncate!(_, 2))),
         );
     }
 
     #[test]
     fn truncate_with_neg_index_2() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Truncate(2),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![PathSegment::Negative(2)].into(),
-                kind: MutationKind::Truncate(3),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Truncate(1),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![PathSegment::Negative(1)].into(),
-                kind: MutationKind::Append(json!("Hello, world!")),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Append(json!(["114", "514"])),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec![PathSegment::Negative(3)].into(),
-                kind: MutationKind::Truncate(8),
-            })
-            .unwrap();
+        batch.load(truncate!(_, 2)).unwrap();
+        batch.load(truncate!(_[-2], 3)).unwrap();
+        batch.load(truncate!(_, 1)).unwrap();
+        batch.load(append!(_[-1], json!("Hello, world!"))).unwrap();
+        batch.load(append!(_, json!(["114", "514"]))).unwrap();
+        batch.load(truncate!(_[-3], 8)).unwrap();
         assert_eq!(
             batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec![].into(),
-                kind: MutationKind::Batch(vec![
-                    Mutation {
-                        path: vec![PathSegment::Negative(4)].into(),
-                        kind: MutationKind::Batch(vec![
-                            Mutation {
-                                path: vec![].into(),
-                                kind: MutationKind::Truncate(3),
-                            },
-                            Mutation {
-                                path: vec![].into(),
-                                kind: MutationKind::Append(json!("Hello")),
-                            },
-                        ]),
-                    },
-                    Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Truncate(3),
-                    },
-                    Mutation {
-                        path: vec![].into(),
-                        kind: MutationKind::Append(json!(["114", "514"])),
-                    },
-                ]),
-            }),
+            Some(batch!(
+                _,
+                batch!(_[-4], truncate!(_, 3), append!(_, json!("Hello"))),
+                truncate!(_, 3),
+                append!(_, json!(["114", "514"])),
+            )),
         );
     }
 
     #[test]
     fn delete_after_delete() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into()].into(),
-                kind: MutationKind::Delete,
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into()].into(),
-                kind: MutationKind::Delete,
-            })
-            .unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into()].into(),
-                kind: MutationKind::Delete,
-            }),
-        );
+        batch.load(delete!(_.foo)).unwrap();
+        batch.load(delete!(_.foo)).unwrap();
+        assert_eq!(batch.dump().into_inner(), Some(delete!(_.foo)));
     }
 
     #[test]
     fn delete_after_truncate() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into(), "qux".into()].into(),
-                kind: MutationKind::Truncate(3),
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Delete,
-            })
-            .unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into(), "bar".into()].into(),
-                kind: MutationKind::Delete,
-            }),
-        );
+        batch.load(truncate!(_.foo.bar.qux, 3)).unwrap();
+        batch.load(delete!(_.foo.bar)).unwrap();
+        assert_eq!(batch.dump().into_inner(), Some(delete!(_.foo.bar)));
     }
 
     #[test]
     fn replace_after_delete() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into()].into(),
-                kind: MutationKind::Delete,
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into()].into(),
-                kind: MutationKind::Replace(json!({})),
-            })
-            .unwrap();
-        assert_eq!(
-            batch.dump().into_inner(),
-            Some(Mutation {
-                path: vec!["foo".into()].into(),
-                kind: MutationKind::Replace(json!({})),
-            }),
-        );
+        batch.load(delete!(_.foo)).unwrap();
+        batch.load(replace!(_.foo, json!({}))).unwrap();
+        assert_eq!(batch.dump().into_inner(), Some(replace!(_.foo, json!({}))));
     }
 
     #[test]
     fn append_after_delete() {
         let mut batch = BatchTree::<Json>::new();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into()].into(),
-                kind: MutationKind::Delete,
-            })
-            .unwrap();
-        batch
-            .load(Mutation {
-                path: vec!["foo".into()].into(),
-                kind: MutationKind::Append(json!("test")),
-            })
-            .unwrap_err();
+        batch.load(delete!(_.foo)).unwrap();
+        batch.load(append!(_.foo, json!("test"))).unwrap_err();
     }
 }
