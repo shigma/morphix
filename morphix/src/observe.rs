@@ -422,8 +422,8 @@ pub trait SerializeObserver: Observer {
     ///
     /// Same as [`flush`](Self::flush): the observer must contain a valid pointer.
     #[inline]
-    unsafe fn flush_flatten(_this: &mut Self) -> (Mutations, bool) {
-        panic!("flush_flatten can only be called on structs and maps")
+    unsafe fn flat_flush(_this: &mut Self) -> (Mutations, bool) {
+        panic!("flat_flush can only be called on structs and maps")
     }
 }
 
@@ -437,22 +437,15 @@ pub trait SerializeObserverExt: SerializeObserver {
     /// This is a convenience method for [`SerializeObserver::flush`].
     #[inline]
     fn flush<A: Adapter>(&mut self) -> Result<A, A::Error> {
-        if Pointer::is_null((*self).as_deref_coinductive()) {
-            return A::from_mutations(Mutations::new());
-        }
         A::from_mutations(unsafe { SerializeObserver::flush(self) })
     }
 
     /// Collects flattened mutations using the specified adapter.
     ///
-    /// This is a convenience method for [`SerializeObserver::flush_flatten`].
+    /// This is a convenience method for [`SerializeObserver::flat_flush`].
     #[inline]
-    fn flush_flatten<A: Adapter>(&mut self) -> Result<(A, bool), A::Error> {
-        if Pointer::is_null((*self).as_deref_coinductive()) {
-            return Ok((A::from_mutations(Mutations::new())?, false));
-        }
-        let (mutations, is_replace) = unsafe { SerializeObserver::flush_flatten(self) };
-        Ok((A::from_mutations(mutations)?, is_replace))
+    fn flat_flush<A: Adapter>(&mut self) -> Result<A, A::Error> {
+        A::from_mutations(unsafe { SerializeObserver::flat_flush(self) }.0)
     }
 }
 

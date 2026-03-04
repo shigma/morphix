@@ -94,7 +94,7 @@ const _: () = {
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             let (mutations_a, is_replace_a) = unsafe {
-                ::morphix::observe::SerializeObserver::flush_flatten(&mut this.a)
+                ::morphix::observe::SerializeObserver::flat_flush(&mut this.a)
             };
             let mutations_b = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.b)
@@ -112,9 +112,9 @@ const _: () = {
             mutations.insert("b", mutations_b);
             mutations
         }
-        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+        unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
             let (mutations_a, is_replace_a) = unsafe {
-                ::morphix::observe::SerializeObserver::flush_flatten(&mut this.a)
+                ::morphix::observe::SerializeObserver::flat_flush(&mut this.a)
             };
             let mutations_b = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.b)
@@ -258,7 +258,7 @@ const _: () = {
             mutations.insert(1usize, mutations_1);
             mutations
         }
-        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+        unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
             let mutations_0 = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.0)
             };
@@ -374,8 +374,8 @@ const _: () = {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.0) }
         }
-        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
-            unsafe { ::morphix::observe::SerializeObserver::flush_flatten(&mut this.0) }
+        unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
+            unsafe { ::morphix::observe::SerializeObserver::flat_flush(&mut this.0) }
         }
     }
     #[automatically_derived]

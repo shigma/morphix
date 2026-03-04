@@ -169,7 +169,7 @@ const _: () = {
             mutations.insert("c", mutations_c);
             mutations
         }
-        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+        unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
             let mutations_a = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.a)
             };

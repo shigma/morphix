@@ -76,8 +76,8 @@ where
     }
 
     #[inline]
-    unsafe fn flush_flatten(this: &mut Self) -> (Mutations, bool) {
-        unsafe { O::flush_flatten(&mut this.inner) }
+    unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
+        unsafe { O::flat_flush(&mut this.inner) }
     }
 }
 

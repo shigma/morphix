@@ -117,8 +117,8 @@ where
     }
 
     #[inline]
-    unsafe fn flush_flatten(this: &mut Self) -> (Mutations, bool) {
-        unsafe { SerializeObserver::flush_flatten(&mut this.0) }
+    unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
+        unsafe { SerializeObserver::flat_flush(&mut this.0) }
     }
 }
 

@@ -173,7 +173,7 @@ pub fn derive_observe_for_struct(
         }
         if field_meta.serde.flatten {
             flush_field_stmts.extend(quote_spanned! { field_span =>
-                let (#mutation_ident, #is_replace_ident) = unsafe { ::morphix::observe::SerializeObserver::flush_flatten(&mut this.#field_member) };
+                let (#mutation_ident, #is_replace_ident) = unsafe { ::morphix::observe::SerializeObserver::flat_flush(&mut this.#field_member) };
             });
             is_replace_checks.push(quote_spanned! { field_span =>
                 #is_replace_ident
@@ -522,7 +522,7 @@ pub fn derive_observe_for_struct(
 
     let flush_flatten_impl = if !is_named && field_count == 1 {
         quote! {
-            unsafe { ::morphix::observe::SerializeObserver::flush_flatten(&mut this.0) }
+            unsafe { ::morphix::observe::SerializeObserver::flat_flush(&mut this.0) }
         }
     } else {
         quote! {
@@ -605,7 +605,7 @@ pub fn derive_observe_for_struct(
                 #flush_impl
             }
 
-            unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+            unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
                 #flush_flatten_impl
             }
         }

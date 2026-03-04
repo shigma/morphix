@@ -98,7 +98,7 @@ const _: () = {
                 ::morphix::observe::SerializeObserver::flush(&mut this.b)
             };
             let (mutations_c, is_replace_c) = unsafe {
-                ::morphix::observe::SerializeObserver::flush_flatten(&mut this.c)
+                ::morphix::observe::SerializeObserver::flat_flush(&mut this.c)
             };
             let is_replace = mutations_a.is_replace() && mutations_b.is_replace()
                 && is_replace_c;
@@ -115,7 +115,7 @@ const _: () = {
             mutations.extend(mutations_c);
             mutations
         }
-        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+        unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
             let mutations_a = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.r#a)
             };
@@ -123,7 +123,7 @@ const _: () = {
                 ::morphix::observe::SerializeObserver::flush(&mut this.b)
             };
             let (mutations_c, is_replace_c) = unsafe {
-                ::morphix::observe::SerializeObserver::flush_flatten(&mut this.c)
+                ::morphix::observe::SerializeObserver::flat_flush(&mut this.c)
             };
             let is_replace = mutations_a.is_replace() && mutations_b.is_replace()
                 && is_replace_c;
@@ -250,8 +250,8 @@ where
     unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
         unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.0) }
     }
-    unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
-        unsafe { ::morphix::observe::SerializeObserver::flush_flatten(&mut this.0) }
+    unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
+        unsafe { ::morphix::observe::SerializeObserver::flat_flush(&mut this.0) }
     }
 }
 #[rustfmt::skip]
@@ -358,7 +358,7 @@ const _: () = {
             mutations.insert(1usize, mutations_1);
             mutations
         }
-        unsafe fn flush_flatten(this: &mut Self) -> (::morphix::Mutations, bool) {
+        unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
             let mutations_0 = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.0)
             };
