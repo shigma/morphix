@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 
 use crate::builtin::Snapshot;
-use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned};
+use crate::helper::{AsDeref, QuasiObserver, Succ, Unsigned};
 use crate::observe::{Observer, ObserverExt, RefObserve, SerializeObserver};
 use crate::{Mutations, Observe};
 
@@ -159,7 +159,7 @@ macro_rules! impl_deref_observe {
                 where
                     Self: 'ob,
                     D: Unsigned,
-                    S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+                    S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
                 type Spec = T::Spec;
             }

@@ -7,7 +7,7 @@ use serde::Serialize;
 use crate::Mutations;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe_from_ref, spec_impl_ref_observe};
-use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::mutation::SerializeRef;
 use crate::observe::{Observer, SerializeObserver};
 

@@ -183,7 +183,7 @@ const _: () = {
         where
             Self: 'ob,
             _N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<_N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDeref<_N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };
@@ -208,6 +208,6 @@ impl ::morphix::Observe for Qux {
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,
-        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+        S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
     type Spec = ::morphix::observe::SnapshotSpec;
 }

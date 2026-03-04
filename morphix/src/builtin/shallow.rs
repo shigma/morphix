@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::Observe;
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, AsDerefMut, Unsigned, Zero};
+use crate::helper::{AsDeref, Unsigned, Zero};
 use crate::observe::DefaultSpec;
 
 /// A general observer that tracks any mutation access as a change.
@@ -92,7 +92,7 @@ macro_rules! impl_shallow_observe {
                 where
                     Self: 'ob,
                     D: Unsigned,
-                    S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+                    S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
                 type Spec = DefaultSpec;
             }

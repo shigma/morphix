@@ -143,7 +143,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
     #[automatically_derived]
@@ -261,7 +261,7 @@ impl ::morphix::Observe for Bar {
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,
-        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+        S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
     type Spec = ::morphix::observe::DefaultSpec;
 }
 #[rustfmt::skip]
@@ -380,7 +380,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
     #[automatically_derived]

@@ -13,7 +13,7 @@ impl<T> ::morphix::Observe for Foo<T> {
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,
-        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+        S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
     type Spec = ::morphix::observe::DefaultSpec;
 }
 #[rustfmt::skip]
@@ -58,7 +58,7 @@ where
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,
-        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+        S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
     type Spec = ::morphix::observe::SnapshotSpec;
 }
 #[rustfmt::skip]
@@ -82,6 +82,6 @@ impl ::morphix::Observe for NoopStruct {
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,
-        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+        S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
     type Spec = ::morphix::observe::SnapshotSpec;
 }

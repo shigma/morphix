@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::builtin::{PointerObserver, Snapshot};
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Mutations, Observe};
 
@@ -412,7 +412,7 @@ macro_rules! tuple_observer {
             where
                 Self: 'ob,
                 D: Unsigned,
-                S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+                S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
             type Spec = DefaultSpec;
         }

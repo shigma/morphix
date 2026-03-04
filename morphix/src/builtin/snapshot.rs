@@ -4,7 +4,7 @@ use std::num::NonZero;
 
 use crate::Observe;
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, AsDerefMut, Unsigned, Zero};
+use crate::helper::{AsDeref, Unsigned, Zero};
 use crate::observe::RefObserve;
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
@@ -153,7 +153,7 @@ macro_rules! impl_snapshot_observe {
                 where
                     Self: 'ob,
                     D: Unsigned,
-                    S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+                    S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
                 type Spec = SnapshotSpec;
             }
@@ -214,7 +214,7 @@ macro_rules! generic_impl_snapshot_observe {
                 where
                     Self: 'ob,
                     D: Unsigned,
-                    S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+                    S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
                 type Spec = SnapshotSpec;
             }

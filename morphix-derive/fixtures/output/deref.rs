@@ -146,7 +146,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };
@@ -286,7 +286,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };
@@ -389,7 +389,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };

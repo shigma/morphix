@@ -918,7 +918,7 @@ impl<K: Clone + Eq + Hash, V: Observe> Observe for IndexMap<K, V> {
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }

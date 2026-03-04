@@ -202,7 +202,7 @@ const _: () = {
             &'a mut [S; N]: 'ob,
             Option<U>: 'ob,
             _N: ::morphix::helper::Unsigned,
-            _S: ::morphix::helper::AsDerefMut<_N, Target = Self> + ?Sized + 'ob;
+            _S: ::morphix::helper::AsDeref<_N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };

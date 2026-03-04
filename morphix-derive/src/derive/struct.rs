@@ -624,7 +624,7 @@ pub fn derive_observe_for_struct(
                 Self: #ob_lt,
                 #(#field_tys: #ob_lt,)*
                 #depth: ::morphix::helper::Unsigned,
-                #head: ::morphix::helper::AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt;
+                #head: ::morphix::helper::AsDeref<#depth, Target = Self> + ?Sized + #ob_lt;
             type Spec = ::morphix::observe::DefaultSpec;
         }
     };
