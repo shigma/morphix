@@ -28,7 +28,7 @@ features = ["full"]
 
 [dependencies]
 erased-serde = { version = "0.4.10" }
-morphix_derive = { version = "0.15.1", path = "../morphix_derive", optional = true, default-features = false }
+morphix_derive = { version = "0.15.1", path = "../morphix-derive", optional = true, default-features = false }
 serde = { version = "1" }
 serde_json = { version = "1", optional = true }
 serde_yaml_ng = { version = "0.10", optional = true }
@@ -38,6 +38,7 @@ indexmap = { version = "2", features = ["serde"], optional = true }
 
 [dev-dependencies]
 chrono = { version = "0.4.43" }
+morphix = { path = ".", features = ["chrono", "full", "indexmap", "uuid"] }
 morphix_test_utils = { path = "../morphix-test-utils" }
 serde = { version = "1.0.228", features = ["derive"] }
 uuid = { version = "1.20.0" }

@@ -2,8 +2,8 @@
 resolver = "2"
 members = [
   "morphix",
+  "morphix-derive",
   "morphix-test-utils",
-  "morphix_derive",
 ]
 
 [workspace.dependencies]
