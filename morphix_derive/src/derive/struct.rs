@@ -39,9 +39,9 @@ pub fn derive_observe_for_struct(
     let mut observe_fields = quote! {};
     let mut uninit_fields = quote! {};
     let mut refresh_stmts = quote! {};
-    let mut flush_stmts_1 = quote! {};
-    let mut flush_stmts_2 = quote! {};
-    let mut flush_stmts_3 = quote! {};
+    let mut flush_field_stmts = quote! {};
+    let mut flush_delete = quote! {};
+    let mut flush_mutation_stmts = quote! {};
     let mut flush_capacity = vec![];
     let mut is_replace_checks = vec![];
     let mut debug_chain = quote! {};
@@ -162,13 +162,13 @@ pub fn derive_observe_for_struct(
         {
             has_skip_serializing_if = true;
             mutability = quote! { mut };
-            flush_stmts_2.extend(quote_spanned! { field_span =>
+            flush_delete.extend(quote_spanned! { field_span =>
                 if !#mutation_ident.is_empty() && #path(&__inner.#field_member) {
                     #mutation_ident = ::morphix::MutationKind::Delete.into();
                 }
             });
         }
-        flush_stmts_1.extend(quote_spanned! { field_span =>
+        flush_field_stmts.extend(quote_spanned! { field_span =>
             let #mutability #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.#field_member) };
         });
         is_replace_checks.push(quote_spanned! { field_span =>
@@ -183,14 +183,14 @@ pub fn derive_observe_for_struct(
             flush_capacity.push(quote_spanned! { field_span =>
                 (!#mutation_ident.is_empty()) as usize
             });
-            flush_stmts_3.extend(quote_spanned! { field_span =>
+            flush_mutation_stmts.extend(quote_spanned! { field_span =>
                 mutations.insert(#segment, #mutation_ident);
             });
         } else {
             flush_capacity.push(quote_spanned! { field_span =>
                 #mutation_ident.len()
             });
-            flush_stmts_3.extend(quote_spanned! { field_span =>
+            flush_mutation_stmts.extend(quote_spanned! { field_span =>
                 mutations.extend(#mutation_ident);
             });
         }
@@ -200,9 +200,9 @@ pub fn derive_observe_for_struct(
     }
 
     if has_skip_serializing_if {
-        flush_stmts_2 = quote! {
+        flush_delete = quote! {
             let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
-            #flush_stmts_2
+            #flush_delete
         };
     }
 
@@ -223,7 +223,7 @@ pub fn derive_observe_for_struct(
     let deref_mut_impl;
     let assignable_impl;
     let observer_impl;
-    let serialize_observer_impl_prefix;
+    let flush_replace;
     let ob_quasi_predicates;
     let ob_observer_predicates;
     let input_observe_predicates;
@@ -322,7 +322,7 @@ pub fn derive_observe_for_struct(
             }
         };
 
-        serialize_observer_impl_prefix = quote! {
+        flush_replace = quote! {
             let is_replace = #(#is_replace_checks)&&*;
             if is_replace {
                 let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
@@ -440,7 +440,15 @@ pub fn derive_observe_for_struct(
             }
         };
 
-        serialize_observer_impl_prefix = quote! {};
+        flush_replace = quote! {
+            let is_replace = #(#is_replace_checks)&&*;
+            if is_replace {
+                // let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+                let head = &**(*this).as_deref_coinductive();
+                let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
+                return ::morphix::Mutations::replace(value);
+            }
+        };
 
         input_observe_predicates = quote! { #field_ty: ::morphix::Observe, };
 
@@ -452,11 +460,11 @@ pub fn derive_observe_for_struct(
     }
 
     let serialize_observer_impl = quote! {
-        #flush_stmts_1
-        #serialize_observer_impl_prefix
-        #flush_stmts_2
+        #flush_field_stmts
+        #flush_replace
+        #flush_delete
         let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
-        #flush_stmts_3
+        #flush_mutation_stmts
         mutations
     };
 

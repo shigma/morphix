@@ -89,8 +89,8 @@ pub fn derive_observe_for_enum(
         let mut variant_fields = quote! {};
         let mut observe_fields = quote! {};
         let mut refresh_stmts = quote! {};
-        let mut pre_flush_stmts = quote! {};
-        let mut post_flush_stmts = quote! {};
+        let mut flush_field_stmts = quote! {};
+        let mut flush_mutation_stmts = quote! {};
         let mut flush_capacity = vec![];
         let mut has_skipped = false;
 
@@ -174,7 +174,7 @@ pub fn derive_observe_for_enum(
             } else {
                 syn::Ident::new(&format!("mutations_{index}"), field_span)
             };
-            pre_flush_stmts.extend(
+            flush_field_stmts.extend(
                 if cfg!(feature = "delete")
                     && let Some(path) = field_meta.serde.skip_serializing_if
                 {
@@ -215,7 +215,7 @@ pub fn derive_observe_for_enum(
             };
             let segment_count = field_segment.iter().len() + tag_segment.iter().len();
             let segments = tag_segment.iter().chain(&field_segment);
-            post_flush_stmts.extend(match segment_count {
+            flush_mutation_stmts.extend(match segment_count {
                 0 => quote! { mutations.extend(#mutation_ident); },
                 1 => quote! { mutations.insert(#(#segments),*, #mutation_ident); },
                 2 => quote! { mutations.insert2(#(#segments),*, #mutation_ident); },
@@ -227,9 +227,9 @@ pub fn derive_observe_for_enum(
             quote! { ::morphix::Mutations::new() }
         } else {
             quote! {{
-                #pre_flush_stmts
+                #flush_field_stmts
                 let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
-                #post_flush_stmts
+                #flush_mutation_stmts
                 mutations
             }}
         };

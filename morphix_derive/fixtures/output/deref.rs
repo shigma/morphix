@@ -99,6 +99,12 @@ const _: () = {
             let mutations_b = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.b)
             };
+            let is_replace = mutations_a.is_replace() && mutations_b.is_replace();
+            if is_replace {
+                let head = &**(*this).as_deref_coinductive();
+                let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
+                return ::morphix::Mutations::replace(value);
+            }
             let mut mutations = ::morphix::Mutations::with_capacity(
                 mutations_a.len() + (!mutations_b.is_empty()) as usize,
             );
@@ -224,6 +230,12 @@ const _: () = {
             let mutations_1 = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.1)
             };
+            let is_replace = mutations_0.is_replace() && mutations_1.is_replace();
+            if is_replace {
+                let head = &**(*this).as_deref_coinductive();
+                let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
+                return ::morphix::Mutations::replace(value);
+            }
             let mut mutations = ::morphix::Mutations::with_capacity(
                 (!mutations_0.is_empty()) as usize + (!mutations_1.is_empty()) as usize,
             );
@@ -333,6 +345,12 @@ const _: () = {
             let mutations_0 = unsafe {
                 ::morphix::observe::SerializeObserver::flush(&mut this.0)
             };
+            let is_replace = mutations_0.is_replace();
+            if is_replace {
+                let head = &**(*this).as_deref_coinductive();
+                let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
+                return ::morphix::Mutations::replace(value);
+            }
             let mut mutations = ::morphix::Mutations::with_capacity(mutations_0.len());
             mutations.extend(mutations_0);
             mutations
