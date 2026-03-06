@@ -19,6 +19,7 @@ pub mod hash_map;
 pub mod index_map;
 mod newtype;
 mod option;
+mod range;
 pub mod slice;
 mod string;
 mod tuple;
