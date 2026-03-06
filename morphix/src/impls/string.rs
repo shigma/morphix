@@ -6,27 +6,43 @@ use std::ops::{AddAssign, Bound, Deref, DerefMut, Range, RangeBounds};
 use std::string::Drain;
 
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe};
 
-/// Observer implementation for [`String`].
-pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
-    ptr: Pointer<S>,
-    mutation: Option<TruncateAppend>,
-    phantom: PhantomData<&'ob mut D>,
-}
-
-struct TruncateAppend {
+struct StringObserverState {
     pub append_index: usize, // byte index
     pub truncate_len: usize, // char count
 }
 
-impl<'ob, S: ?Sized, D> StringObserver<'ob, S, D> {
+impl StringObserverState {
     #[inline]
-    fn __mark_replace(&mut self) {
-        self.mutation = None;
+    fn mark_truncate(&mut self, value: &str, new_len: usize) {
+        let count = value[new_len..].chars().count();
+        self.truncate_len += count;
+        self.append_index = new_len;
     }
+
+    #[inline]
+    fn mark_replace(&mut self, value: &str) {
+        self.mark_truncate(value, 0);
+    }
+}
+
+impl ObserverState for StringObserverState {
+    type Target = String;
+
+    #[inline]
+    fn invalidate(this: &mut Self, value: &String) {
+        this.mark_replace(value.as_str());
+    }
+}
+
+/// Observer implementation for [`String`].
+pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
+    ptr: Pointer<S>,
+    mutation: StringObserverState,
+    phantom: PhantomData<&'ob mut D>,
 }
 
 impl<'ob, S: ?Sized, D> Deref for StringObserver<'ob, S, D> {
@@ -41,7 +57,7 @@ impl<'ob, S: ?Sized, D> Deref for StringObserver<'ob, S, D> {
 impl<'ob, S: ?Sized, D> DerefMut for StringObserver<'ob, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.__mark_replace();
+        unsafe { Pointer::invalidate(&mut self.ptr) }
         &mut self.ptr
     }
 }
@@ -49,10 +65,16 @@ impl<'ob, S: ?Sized, D> DerefMut for StringObserver<'ob, S, D> {
 impl<'ob, S: ?Sized, D> QuasiObserver for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
+    S: AsDeref<D, Target = String>,
 {
+    type Head = S;
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        ObserverState::invalidate(&mut this.mutation, (*this.ptr).as_deref());
+    }
 }
 
 impl<'ob, S: ?Sized, D> Observer for StringObserver<'ob, S, D>
@@ -64,21 +86,26 @@ where
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
-            mutation: None,
+            mutation: StringObserverState {
+                append_index: 0,
+                truncate_len: 0,
+            },
             phantom: PhantomData,
         }
     }
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
-        Self {
+        let mut this = Self {
             ptr: Pointer::new(head),
-            mutation: Some(TruncateAppend {
+            mutation: StringObserverState {
                 append_index: head.as_deref().len(),
                 truncate_len: 0,
-            }),
+            },
             phantom: PhantomData,
-        }
+        };
+        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.mutation);
+        this
     }
 
     #[inline]
@@ -93,17 +120,15 @@ where
     S: AsDeref<D, Target = String>,
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
-        let len = (*this.ptr).as_deref().len();
-        let Some(truncate_append) = this.mutation.replace(TruncateAppend {
-            append_index: len,
-            truncate_len: 0,
-        }) else {
-            return Mutations::replace((*this.ptr).as_deref());
-        };
-        let TruncateAppend {
-            append_index,
-            truncate_len,
-        } = truncate_append;
+        let value = (*this.ptr).as_deref();
+        let len = value.len();
+        let append_index = std::mem::replace(&mut this.mutation.append_index, len);
+        let truncate_len = std::mem::replace(&mut this.mutation.truncate_len, 0);
+        // After invalidate (mark_replace), append_index = 0 and truncate_len > 0,
+        // meaning all tracked content was replaced.
+        if append_index == 0 && truncate_len > 0 {
+            return Mutations::replace(value);
+        }
         let mut mutations = Mutations::new();
         #[cfg(feature = "truncate")]
         if truncate_len > 0 {
@@ -111,7 +136,7 @@ where
         }
         #[cfg(feature = "append")]
         if len > append_index {
-            mutations.extend(Mutations::append(&(*this.ptr).as_deref()[append_index..]));
+            mutations.extend(Mutations::append(&value[append_index..]));
         }
         mutations
     }
@@ -140,10 +165,7 @@ where
 {
     #[inline]
     fn __append_index(&mut self) -> usize {
-        match &mut self.mutation {
-            Some(m) => m.append_index,
-            None => 0,
-        }
+        self.mutation.append_index
     }
 
     delegate_methods! { untracked_mut as String =>
@@ -183,9 +205,8 @@ where
     #[inline]
     fn __mark_truncate(&mut self, range: Range<usize>) {
         let count = (*self).observed_ref()[range.clone()].chars().count();
-        let mutation = self.mutation.as_mut().unwrap();
-        mutation.truncate_len += count;
-        mutation.append_index = range.start;
+        self.mutation.truncate_len += count;
+        self.mutation.append_index = range.start;
     }
 
     /// See [`String::clear`].
@@ -205,11 +226,11 @@ where
         if idx >= append_index {
             // no-op
         } else if cfg!(feature = "truncate") && idx + char.len_utf8() == append_index {
-            let mutation = self.mutation.as_mut().unwrap();
-            mutation.truncate_len += 1;
-            mutation.append_index = idx;
+            self.mutation.truncate_len += 1;
+            self.mutation.append_index = idx;
         } else {
-            self.__mark_replace();
+            let value = (*self.ptr).as_deref();
+            self.mutation.mark_replace(value);
         }
         char
     }
@@ -222,11 +243,11 @@ where
         if len >= append_index {
             // no-op
         } else if cfg!(feature = "truncate") && len + char.len_utf8() == append_index {
-            let mutation = self.mutation.as_mut().unwrap();
-            mutation.truncate_len += 1;
-            mutation.append_index = len;
+            self.mutation.truncate_len += 1;
+            self.mutation.append_index = len;
         } else {
-            self.__mark_replace();
+            let value = (*self.ptr).as_deref();
+            self.mutation.mark_replace(value);
         }
         Some(char)
     }
@@ -346,8 +367,7 @@ where
 impl<'ob, S: ?Sized, D> Debug for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Debug,
+    S: AsDeref<D, Target = String>,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -358,8 +378,7 @@ where
 impl<'ob, S: ?Sized, D> Display for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Display,
+    S: AsDeref<D, Target = String>,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -373,8 +392,8 @@ macro_rules! generic_impl_partial_eq {
             impl<'ob, $($($gen)*,)? S, D> PartialEq<$ty> for StringObserver<'ob, S, D>
             where
                 D: Unsigned,
-                S: AsDeref<D>,
-                S::Target: PartialEq<$ty>,
+                S: AsDeref<D, Target = String>,
+                String: PartialEq<$ty>,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
@@ -397,9 +416,8 @@ impl<'ob, S1, S2, D1, D2> PartialEq<StringObserver<'ob, S2, D2>> for StringObser
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialEq<S2::Target>,
+    S1: AsDeref<D1, Target = String>,
+    S2: AsDeref<D2, Target = String>,
 {
     #[inline]
     fn eq(&self, other: &StringObserver<'ob, S2, D2>) -> bool {
@@ -410,16 +428,14 @@ where
 impl<'ob, S, D> Eq for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Eq,
+    S: AsDeref<D, Target = String>,
 {
 }
 
 impl<'ob, S, D> PartialOrd<String> for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: PartialOrd<String>,
+    S: AsDeref<D, Target = String>,
 {
     #[inline]
     fn partial_cmp(&self, other: &String) -> Option<std::cmp::Ordering> {
@@ -431,9 +447,8 @@ impl<'ob, S1, S2, D1, D2> PartialOrd<StringObserver<'ob, S2, D2>> for StringObse
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialOrd<S2::Target>,
+    S1: AsDeref<D1, Target = String>,
+    S2: AsDeref<D2, Target = String>,
 {
     #[inline]
     fn partial_cmp(&self, other: &StringObserver<'ob, S2, D2>) -> Option<std::cmp::Ordering> {
@@ -444,8 +459,7 @@ where
 impl<'ob, S, D> Ord for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Ord,
+    S: AsDeref<D, Target = String>,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {

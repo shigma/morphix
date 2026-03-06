@@ -5,7 +5,7 @@ use std::ops::{AddAssign, Deref, DerefMut};
 use crate::builtin::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::{DerefObserver, StringObserver};
-use crate::observe::{DefaultSpec, Observer, ObserverExt, RefObserve, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Mutations, Observe};
 
 /// Observer implementation for [`Cow<'a, T>`].
@@ -37,10 +37,18 @@ impl<B, O, D> QuasiObserver for CowObserver<B, O>
 where
     D: Unsigned,
     B: QuasiObserver<InnerDepth = Succ<D>>,
-    B::Target: Deref<Target: AsDeref<D> + AsDeref<Succ<D>>>,
+    B::Head: AsDeref<D>,
 {
+    type Head = B::Head;
     type OuterDepth = Succ<B::OuterDepth>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        this.owned = None;
+        this.mutated = true;
+        B::invalidate(&mut this.inner);
+    }
 }
 
 impl<'a, B, O, D, T> Observer for CowObserver<B, O>
@@ -209,9 +217,13 @@ where
 macro_rules! generic_impl_cmp {
     ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
         $(
-            impl<$($($gen)*,)? B, O> PartialEq<$ty> for CowObserver<B, O>
+            impl<'a, $($($gen)*,)? B, O, T, D> PartialEq<$ty> for CowObserver<B, O>
             where
-                Self: ObserverExt<Target: PartialEq<$ty>>,
+                D: Unsigned,
+                B: Observer<InnerDepth = Succ<D>>,
+                B::Head: AsDerefMut<D, Target = Cow<'a, T>>,
+                T: ToOwned + ?Sized + 'a,
+                Cow<'a, T>: PartialEq<$ty>,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
@@ -219,9 +231,13 @@ macro_rules! generic_impl_cmp {
                 }
             }
 
-            impl<$($($gen)*,)? B, O> PartialOrd<$ty> for CowObserver<B, O>
+            impl<'a, $($($gen)*,)? B, O, T, D> PartialOrd<$ty> for CowObserver<B, O>
             where
-                Self: ObserverExt<Target: PartialOrd<$ty>>,
+                D: Unsigned,
+                B: Observer<InnerDepth = Succ<D>>,
+                B::Head: AsDerefMut<D, Target = Cow<'a, T>>,
+                T: ToOwned + ?Sized + 'a,
+                Cow<'a, T>: PartialOrd<$ty>,
             {
                 #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {

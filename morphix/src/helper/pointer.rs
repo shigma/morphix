@@ -1,6 +1,9 @@
 use std::cell::Cell;
+use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
+
+use crate::helper::{AsDeref, QuasiObserver, Unsigned};
 
 /// An internal pointer type for observer dereference chains.
 ///
@@ -33,13 +36,19 @@ use std::ptr::NonNull;
 /// This type is not intended for direct use outside of observer implementations. All safety
 /// invariants are maintained by the observer infrastructure when used correctly within that
 /// context.
-pub struct Pointer<S: ?Sized>(Cell<Option<NonNull<S>>>);
+pub struct Pointer<S: ?Sized> {
+    inner: Cell<Option<NonNull<S>>>,
+    states: Vec<(isize, unsafe fn(*mut u8, &S))>,
+}
 
 impl<S: ?Sized> Pointer<S> {
     /// Create an uninitialized pointer.
     #[inline]
     pub const fn uninit() -> Self {
-        Self(Cell::new(None))
+        Self {
+            inner: Cell::new(None),
+            states: Vec::new(),
+        }
     }
 
     /// Creates a new pointer from a mutable reference.
@@ -48,13 +57,16 @@ impl<S: ?Sized> Pointer<S> {
     /// which is enforced by the lifetime parameter in observer types.
     #[inline]
     pub const fn new(head: &S) -> Self {
-        Self(Cell::new(Some(NonNull::from_ref(head))))
+        Self {
+            inner: Cell::new(Some(NonNull::from_ref(head))),
+            states: Vec::new(),
+        }
     }
 
     /// Retrieves the internal raw pointer.
     #[inline]
     pub const fn get(this: &Self) -> Option<NonNull<S>> {
-        this.0.get()
+        this.inner.get()
     }
 
     /// Updates the internal pointer to a new reference.
@@ -65,7 +77,7 @@ impl<S: ?Sized> Pointer<S> {
     /// allows updating those pointers to point to the elements' new locations.
     #[inline]
     pub fn set(this: &Self, head: &S) {
-        this.0.set(Some(NonNull::from_ref(head)));
+        this.inner.set(Some(NonNull::from_ref(head)));
     }
 
     /// Checks if this pointer is null.
@@ -74,7 +86,7 @@ impl<S: ?Sized> Pointer<S> {
     /// not been properly initialized via [`refresh`](crate::observe::Observer::refresh).
     #[inline]
     pub const fn is_null(this: &Self) -> bool {
-        this.0.get().is_none()
+        this.inner.get().is_none()
     }
 
     /// Returns a reference to the pointed value.
@@ -90,7 +102,7 @@ impl<S: ?Sized> Pointer<S> {
     /// infrastructure, but must be manually verified if called directly.
     #[inline]
     pub const unsafe fn as_ref<'ob>(this: &Self) -> &'ob S {
-        let ptr = this.0.get().expect("pointer should not be null");
+        let ptr = this.inner.get().expect("pointer should not be null");
         // SAFETY: The caller guarantees the pointer is valid and properly aligned,
         // and that the lifetime 'ob does not outlive the original value.
         unsafe { ptr.as_ref() }
@@ -110,18 +122,65 @@ impl<S: ?Sized> Pointer<S> {
     /// infrastructure, but must be manually verified if called directly.
     #[inline]
     pub const unsafe fn as_mut<'ob>(this: &Self) -> &'ob mut S {
-        let mut ptr = this.0.get().expect("pointer should not be null");
+        let mut ptr = this.inner.get().expect("pointer should not be null");
         // SAFETY: The caller guarantees exclusive access to the pointed value,
         // that the pointer is valid and properly aligned, and that the lifetime
         // 'ob does not outlive the original value.
         unsafe { ptr.as_mut() }
+    }
+
+    pub fn register_state<O, D>(this: &mut Self, state: &mut O)
+    where
+        D: Unsigned,
+        S: AsDeref<D>,
+        O: ObserverState<Target = S::Target>,
+    {
+        unsafe fn invalidate<O, D, S>(ptr: *mut u8, value: &S)
+        where
+            D: Unsigned,
+            S: AsDeref<D> + ?Sized,
+            O: ObserverState<Target = S::Target>,
+        {
+            let state = unsafe { &mut *(ptr as *mut O) };
+            O::invalidate(state, value.as_deref());
+        }
+
+        let offset = state as *const _ as isize - this as *const _ as isize;
+        let invalidate: unsafe fn(*mut u8, &S) = invalidate::<O, D, S>;
+        this.states.push((offset, invalidate));
+    }
+
+    pub fn register_observer<O: QuasiObserver>(this: &mut Self, observer: &mut O) {
+        unsafe fn invalidate<O: QuasiObserver, S: ?Sized>(ptr: *mut u8, _: &S) {
+            let state = unsafe { &mut *(ptr as *mut O) };
+            O::invalidate(state);
+        }
+
+        let offset = observer as *const _ as isize - this as *const _ as isize;
+        let invalidate: unsafe fn(*mut u8, &S) = invalidate::<O, S>;
+        this.states.push((offset, invalidate));
+    }
+
+    pub unsafe fn invalidate(this: &mut Self) {
+        let base = this as *const _ as *const u8;
+        let value = unsafe { Pointer::as_ref(this) };
+        for &(offset, invalidate) in &this.states {
+            unsafe { invalidate(base.offset(offset) as *mut u8, value) }
+        }
+    }
+}
+
+impl<S: ?Sized> Debug for Pointer<S> {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Pointer").field(&self.inner.get()).finish()
     }
 }
 
 impl<S: ?Sized> PartialEq for Pointer<S> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
+        self.inner == other.inner
     }
 }
 
@@ -141,4 +200,10 @@ impl<S: ?Sized> DerefMut for Pointer<S> {
     fn deref_mut(&mut self) -> &mut S {
         unsafe { Self::as_mut(self) }
     }
+}
+
+pub trait ObserverState {
+    type Target: ?Sized;
+
+    fn invalidate(this: &mut Self, value: &Self::Target);
 }

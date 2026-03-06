@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::Observe;
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, Unsigned, Zero};
+use crate::helper::{AsDeref, ObserverState, Unsigned, Zero};
 use crate::observe::DefaultSpec;
 
 /// A general observer that tracks any mutation access as a change.
@@ -46,8 +46,15 @@ pub struct ShallowHandler<T: ?Sized> {
     phantom: PhantomData<T>,
 }
 
-impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
+impl<T: ?Sized> ObserverState for ShallowHandler<T> {
     type Target = T;
+
+    fn invalidate(this: &mut Self, _: &T) {
+        this.mutated = true;
+    }
+}
+
+impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
     type Spec = DefaultSpec;
 
     #[inline]
@@ -64,11 +71,6 @@ impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
             mutated: false,
             phantom: PhantomData,
         }
-    }
-
-    #[inline]
-    fn deref_mut(&mut self) {
-        self.mutated = true;
     }
 }
 

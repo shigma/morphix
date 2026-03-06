@@ -22,13 +22,10 @@ impl<O, S: ?Sized, D> Deref for TupleObserver<O, S, D> {
     }
 }
 
-impl<O, S: ?Sized, D> DerefMut for TupleObserver<O, S, D>
-where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
-{
+impl<O, S: ?Sized, D> DerefMut for TupleObserver<O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.as_deref_mut_coinductive();
+        unsafe { Pointer::invalidate(&mut self.1) }
         &mut self.1
     }
 }
@@ -39,8 +36,14 @@ where
     D: Unsigned,
     S: AsDeref<D>,
 {
+    type Head = S;
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        O::invalidate(&mut this.0);
+    }
 }
 
 impl<O, S: ?Sized, D> Observer for TupleObserver<O, S, D>
@@ -59,7 +62,9 @@ where
     fn observe(head: &Self::Head) -> Self {
         let ptr = Pointer::new(head);
         let tuple = head.as_deref();
-        Self(O::observe(&tuple.0), ptr, PhantomData)
+        let mut this = Self(O::observe(&tuple.0), ptr, PhantomData);
+        Pointer::register_observer(&mut this.1, &mut this.0);
+        this
     }
 
     #[inline]
@@ -235,7 +240,7 @@ macro_rules! tuple_observer {
         {
             #[inline]
             fn deref_mut(&mut self) -> &mut Self::Target {
-                $(self.$n.as_deref_mut_coinductive();)*
+                unsafe { Pointer::invalidate(&mut self.$ptr) }
                 &mut self.$ptr
             }
         }
@@ -246,8 +251,14 @@ macro_rules! tuple_observer {
             D: Unsigned,
             S: AsDeref<D>,
         {
+            type Head = S;
             type OuterDepth = Succ<Zero>;
             type InnerDepth = D;
+
+            #[inline]
+            fn invalidate(this: &mut Self) {
+                $($o::invalidate(&mut this.$n);)*
+            }
         }
 
         impl<$($o,)* S: ?Sized, D> Observer for $ty<$($o,)* S, D>
@@ -267,13 +278,14 @@ macro_rules! tuple_observer {
 
             #[inline]
             fn observe(head: &Self::Head) -> Self {
-                let ptr = Pointer::new(head);
                 let tuple = head.as_deref();
-                Self(
+                let mut this = Self(
                     $($o::observe(&tuple.$n),)*
-                    /* ptr */ ptr,
+                    /* ptr */ Pointer::new(head),
                     /* phantom */ PhantomData,
-                )
+                );
+                $(Pointer::register_observer(&mut this.$ptr, &mut this.$n);)*
+                this
             }
 
             #[inline]
@@ -452,6 +464,7 @@ mod tests {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -477,7 +490,7 @@ mod tests {
         // because it only tracks length-based changes (append/truncate).
         let mut tuple = (String::from("hello"),);
         let mut ob = tuple.__observe();
-        **ob = (String::from("world"),);
+        *ob.observed_mut() = (String::from("world"),);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!(["world"]))));
 

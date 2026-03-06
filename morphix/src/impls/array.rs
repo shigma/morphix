@@ -5,16 +5,39 @@ use std::slice::SliceIndex;
 use serde::Serialize;
 
 use crate::builtin::Snapshot;
-use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverState};
 use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
 use crate::{Mutations, Observe};
+
+impl<O, const N: usize> ObserverState for [O; N]
+where
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+{
+    type Target = [O::Head; N];
+
+    /// Unlike [`UnsafeCell<Vec<O>>`](core::cell::UnsafeCell) which clears its storage on `DerefMut`
+    /// (producing a full [`Replace`](crate::MutationKind::Replace)), the array implementation
+    /// triggers [`as_deref_mut_coinductive()`][as_deref_mut_coinductive] on each element,
+    /// preserving per-element granularity. This is appropriate because arrays have a fixed,
+    /// typically small length — the resulting batch of per-element mutations is bounded and
+    /// comparable in size to a whole-array [`Replace`](crate::MutationKind::Replace), while
+    /// unchanged elements can be filtered out by the element observer (e.g.,
+    /// [`SnapshotObserver`](crate::builtin::SnapshotObserver)).
+    ///
+    /// [as_deref_mut_coinductive]: crate::helper::AsDerefMutCoinductive::as_deref_mut_coinductive
+    #[inline]
+    fn invalidate(this: &mut Self, _: &[O::Head; N]) {
+        for ob in this.as_mut_slice() {
+            ob.as_deref_mut_coinductive();
+        }
+    }
+}
 
 impl<O, const N: usize> SliceObserverState for [O; N]
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
-    type Slice = [O::Head; N];
     type Item = O;
 
     #[inline]
@@ -33,36 +56,19 @@ where
     }
 
     #[inline]
-    fn observe(slice: &Self::Slice) -> Self {
+    fn observe(slice: &Self::Target) -> Self {
         slice.each_ref().map(O::observe)
     }
 
-    /// Unlike [`UnsafeCell<Vec<O>>`](core::cell::UnsafeCell) which clears its storage on `DerefMut`
-    /// (producing a full [`Replace`](crate::MutationKind::Replace)), the array implementation
-    /// triggers [`as_deref_mut_coinductive()`][as_deref_mut_coinductive] on each element,
-    /// preserving per-element granularity. This is appropriate because arrays have a fixed,
-    /// typically small length — the resulting batch of per-element mutations is bounded and
-    /// comparable in size to a whole-array [`Replace`](crate::MutationKind::Replace), while
-    /// unchanged elements can be filtered out by the element observer (e.g.,
-    /// [`SnapshotObserver`](crate::builtin::SnapshotObserver)).
-    ///
-    /// [as_deref_mut_coinductive]: crate::helper::AsDerefMutCoinductive::as_deref_mut_coinductive
     #[inline]
-    fn mark_replace(&mut self) {
-        for ob in self.as_mut_slice() {
-            ob.as_deref_mut_coinductive();
-        }
-    }
-
-    #[inline]
-    unsafe fn init_range(&self, _start: usize, _end: usize, _slice: &Self::Slice) {
+    unsafe fn init_range(&self, _start: usize, _end: usize, _slice: &Self::Target) {
         // No need to re-initialize fixed-size array.
     }
 
-    fn flush(&mut self, slice: &Self::Slice) -> Mutations
+    fn flush(&mut self, slice: &Self::Target) -> Mutations
     where
         Self::Item: SerializeObserver,
-        <Self::Item as crate::observe::ObserverExt>::Head: Serialize + 'static,
+        <Self::Item as QuasiObserver>::Head: Serialize + 'static,
     {
         let mut mutations = Mutations::new();
         let mut is_replace = true;
@@ -135,11 +141,18 @@ impl<const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<N, O, S, D> {
 impl<const N: usize, O, S: ?Sized, D> QuasiObserver for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
+    S: AsDeref<D, Target = [O::Head; N]>,
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
+    type Head = S;
     type OuterDepth = Succ<Succ<Zero>>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        // SliceObserver::invalidate(&mut this.inner);
+        ObserverState::invalidate(&mut this.inner.state, (*this.inner.ptr).as_deref());
+    }
 }
 
 impl<const N: usize, O, S: ?Sized, D, T> Observer for ArrayObserver<N, O, S, D>
@@ -184,8 +197,8 @@ where
 impl<const N: usize, O, S: ?Sized, D> Debug for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Debug,
+    S: AsDeref<D, Target = [O::Head; N]>,
+    O: Observer<InnerDepth = Zero, Head: Sized + Debug>,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -199,9 +212,9 @@ macro_rules! generic_impl_partial_eq {
             impl<$($($gen)*,)? const N: usize, O, S: ?Sized, D> PartialEq<$ty> for ArrayObserver<N, O, S, D>
             where
                 D: Unsigned,
-                S: AsDeref<D>,
-                S::Target: PartialEq<$ty>,
+                S: AsDeref<D, Target = [O::Head; N]>,
                 O: Observer<InnerDepth = Zero, Head: Sized>,
+                [O::Head; N]: PartialEq<$ty>,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
@@ -224,11 +237,11 @@ impl<const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<ArrayObse
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
     O1: Observer<InnerDepth = Zero, Head: Sized>,
     O2: Observer<InnerDepth = Zero, Head: Sized>,
-    S1::Target: PartialEq<S2::Target>,
+    S1: AsDeref<D1, Target = [O1::Head; N]>,
+    S2: AsDeref<D2, Target = [O2::Head; N]>,
+    [O1::Head; N]: PartialEq<[O2::Head; N]>,
 {
     #[inline]
     fn eq(&self, other: &ArrayObserver<N, O2, S2, D2>) -> bool {
@@ -239,18 +252,17 @@ where
 impl<const N: usize, O, S: ?Sized, D> Eq for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Eq,
-    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDeref<D, Target = [O::Head; N]>,
+    O: Observer<InnerDepth = Zero, Head: Sized + Eq>,
 {
 }
 
 impl<const N: usize, O, S: ?Sized, D, U> PartialOrd<[U; N]> for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: PartialOrd<[U; N]>,
+    S: AsDeref<D, Target = [O::Head; N]>,
     O: Observer<InnerDepth = Zero, Head: Sized>,
+    [O::Head; N]: PartialOrd<[U; N]>,
 {
     #[inline]
     fn partial_cmp(&self, other: &[U; N]) -> Option<std::cmp::Ordering> {
@@ -263,11 +275,11 @@ impl<const N: usize, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<ArrayObs
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
     O1: Observer<InnerDepth = Zero, Head: Sized>,
     O2: Observer<InnerDepth = Zero, Head: Sized>,
-    S1::Target: PartialOrd<S2::Target>,
+    S1: AsDeref<D1, Target = [O1::Head; N]>,
+    S2: AsDeref<D2, Target = [O2::Head; N]>,
+    [O1::Head; N]: PartialOrd<[O2::Head; N]>,
 {
     #[inline]
     fn partial_cmp(&self, other: &ArrayObserver<N, O2, S2, D2>) -> Option<std::cmp::Ordering> {
@@ -278,9 +290,8 @@ where
 impl<const N: usize, O, S: ?Sized, D> Ord for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Ord,
-    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDeref<D, Target = [O::Head; N]>,
+    O: Observer<InnerDepth = Zero, Head: Sized + Ord>,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {

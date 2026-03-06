@@ -1,7 +1,7 @@
 use std::ptr::NonNull;
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::AsDeref;
+use crate::helper::{AsDeref, ObserverState};
 use crate::observe::DefaultSpec;
 
 /// A general observer implementation for reference types.
@@ -32,8 +32,13 @@ pub struct PointerHandler<T: ?Sized> {
     ptr: Option<NonNull<T>>,
 }
 
-impl<T: ?Sized> GeneralHandler for PointerHandler<T> {
+impl<T: ?Sized> ObserverState for PointerHandler<T> {
     type Target = T;
+
+    fn invalidate(_: &mut Self, _: &T) {}
+}
+
+impl<T: ?Sized> GeneralHandler for PointerHandler<T> {
     type Spec = DefaultSpec;
 
     #[inline]
@@ -47,9 +52,6 @@ impl<T: ?Sized> GeneralHandler for PointerHandler<T> {
             ptr: Some(NonNull::from(value)),
         }
     }
-
-    #[inline]
-    fn deref_mut(&mut self) {}
 }
 
 impl<T: ?Sized> ReplaceHandler for PointerHandler<T> {

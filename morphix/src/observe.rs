@@ -21,7 +21,7 @@
 //! `Pointer<A>` → `A` → `B`. This allows tracking changes on both `A` and `B`.
 
 pub use crate::builtin::snapshot::SnapshotSpec;
-use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Unsigned, Zero};
+use crate::helper::{AsDeref, Pointer, QuasiObserver, Unsigned, Zero};
 use crate::{Adapter, Mutations};
 
 /// A trait for types that can be observed for mutations.
@@ -169,58 +169,7 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 /// [`InnerDepth`](QuasiObserver::InnerDepth) times to reach the final
 /// [`Target`](ObserverExt::Target). For example, a [`VecObserver`](crate::impls::VecObserver)
 /// has `Head = Vec<T>` and `Target = [T]`, with `InnerDepth = Succ<Zero>` (one dereference).
-pub trait ObserverExt: QuasiObserver<Target = Pointer<Self::Head>> {
-    /// The type stored inside the observer's [`Pointer`]. It can be dereferenced
-    /// [`InnerDepth`](QuasiObserver::InnerDepth) times to reach [`Target`](ObserverExt::Target).
-    type Head: AsDeref<Self::InnerDepth, Target = <Self as ObserverExt>::Target> + ?Sized;
-
-    /// The observed type after fully dereferencing [`Head`](ObserverExt::Head).
-    type Target: ?Sized;
-
-    /// Returns a mutable reference to the inner observed value **without** triggering observation.
-    ///
-    /// Unlike [`observed_mut`](QuasiObserver::observed_mut), this method bypasses the
-    /// [`DerefMut`](std::ops::DerefMut) chain, so no mutation is recorded. Use this when the
-    /// observer will emit a more specific [`MutationKind`](crate::MutationKind) (e.g., append or
-    /// truncate) for the operation.
-    ///
-    /// ## Example
-    ///
-    /// Implementing [`Vec::pop`] for a [`VecObserver`](crate::impls::VecObserver):
-    ///
-    /// ```ignore
-    /// impl VecObserver {
-    ///     pub fn pop(&mut self) -> Option<T> {
-    ///         if self.as_deref().len() > self.initial_len() {
-    ///             // If the current length exceeds the initial length, the pop operation can be
-    ///             // expressed by `MutationKind::Append`, so we do not trigger full mutation.
-    ///             self.untracked_mut().pop()
-    ///         } else {
-    ///             // Otherwise, we need to treat the pop operation as `MutationKind::Replace`.
-    ///             self.observed_mut().pop()
-    ///         }
-    ///     }
-    /// }
-    /// ```
-    #[inline]
-    fn untracked_mut(&mut self) -> &mut <Self as ObserverExt>::Target
-    where
-        Self::Head: AsDerefMut<Self::InnerDepth>,
-    {
-        let head = unsafe { Pointer::as_mut((*self).as_deref_coinductive()) };
-        AsDerefMut::<Self::InnerDepth>::as_deref_mut(head)
-    }
-}
-
-impl<O, S: ?Sized, T: ?Sized> ObserverExt for O
-where
-    O: QuasiObserver<Target = Pointer<S>>,
-    S: AsDeref<Self::InnerDepth, Target = T>,
-{
-    type Head = S;
-    type Target = T;
-}
-
+///
 /// A trait for observer types that wrap and track mutations to values.
 ///
 /// Observers provide transparent access to the underlying value while recording any mutations that
@@ -228,7 +177,7 @@ where
 ///
 /// See the [module documentation](self) for more details about how observers work with dereference
 /// chains.
-pub trait Observer: ObserverExt + Sized {
+pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head>> + Sized {
     /// Creates an uninitialized observer.
     ///
     /// The returned observer is not associated with any value and must be initialized via

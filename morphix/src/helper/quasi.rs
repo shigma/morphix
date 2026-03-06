@@ -77,6 +77,30 @@ use std::ops::{Deref, DerefMut};
 
 use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, Unsigned, Zero};
 
+pub trait DerefMutUntracked: DerefMut {
+    #[inline]
+    fn deref_mut_untracked<'a, U, D>(this: &'a mut U) -> &'a mut Self::Target
+    where
+        Self: 'a,
+        D: Unsigned,
+        U: AsDerefMutCoinductive<D, Target = Self> + ?Sized,
+    {
+        this.as_deref_mut_coinductive().deref_mut()
+    }
+}
+
+impl<S: ?Sized> DerefMutUntracked for Pointer<S> {
+    #[inline]
+    fn deref_mut_untracked<'a, U, D>(this: &'a mut U) -> &'a mut Self::Target
+    where
+        Self: 'a,
+        D: Unsigned,
+        U: AsDerefMutCoinductive<D, Target = Self> + ?Sized,
+    {
+        unsafe { Pointer::as_mut(this.as_deref_coinductive()) }
+    }
+}
+
 /// A trait that unifies observers and plain references for the [`observe!`](crate::observe!) macro.
 ///
 /// Both real observers and ordinary references (`&T`, `&mut T`) need to participate in the
@@ -123,11 +147,9 @@ use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, Unsigne
 ///    [`Deref`] types (like [`Box`], [`MutexGuard`](std::sync::MutexGuard), etc.) may cause
 ///    unexpected behavior in the [`observe!`](crate::observe!) macro, as it would interfere with
 ///    the autoref-based specialization mechanism.
-pub trait QuasiObserver
-where
-    Self: AsDerefMutCoinductive<Self::OuterDepth>,
-    Self::Target: Deref<Target: AsDeref<Self::InnerDepth>>,
-{
+pub trait QuasiObserver: AsDerefMutCoinductive<Self::OuterDepth, Target: Deref<Target = Self::Head>> {
+    type Head: AsDeref<Self::InnerDepth> + ?Sized;
+
     /// The number of coinductive dereferences from `Self` to its internal [`Pointer`].
     ///
     /// For plain references (`&T`, `&mut T`) and [`Pointer<T>`] this is [`Zero`]. For most
@@ -151,9 +173,14 @@ where
     /// operators. For plain references this is a no-op identity; for observers it dereferences
     /// through the observer chain to reach the underlying value.
     #[inline]
-    fn observed_ref(&self) -> &<<Self::Target as Deref>::Target as AsDeref<Self::InnerDepth>>::Target {
+    fn observed_ref<T: ?Sized>(&self) -> &T
+    where
+        Self::Head: AsDeref<Self::InnerDepth, Target = T>,
+    {
         self.as_deref_coinductive().deref().as_deref()
     }
+
+    fn invalidate(this: &mut Self);
 
     /// Returns a mutable reference to the observed value by traversing the full dereference chain.
     ///
@@ -163,23 +190,68 @@ where
     #[inline]
     fn observed_mut<T: ?Sized>(&mut self) -> &mut T
     where
-        Self::Target: DerefMut<Target: AsDerefMut<Self::InnerDepth, Target = T>>,
+        Self::Target: DerefMutUntracked,
+        Self::Head: AsDerefMut<Self::InnerDepth, Target = T>,
     {
-        self.as_deref_mut_coinductive().deref_mut().as_deref_mut()
+        Self::invalidate(self);
+        DerefMutUntracked::deref_mut_untracked(self).as_deref_mut()
+    }
+
+    /// Returns a mutable reference to the inner observed value **without** triggering observation.
+    ///
+    /// Unlike [`observed_mut`](QuasiObserver::observed_mut), this method bypasses the
+    /// [`DerefMut`](std::ops::DerefMut) chain, so no mutation is recorded. Use this when the
+    /// observer will emit a more specific [`MutationKind`](crate::MutationKind) (e.g., append or
+    /// truncate) for the operation.
+    ///
+    /// ## Example
+    ///
+    /// Implementing [`Vec::pop`] for a [`VecObserver`](crate::impls::VecObserver):
+    ///
+    /// ```ignore
+    /// impl VecObserver {
+    ///     pub fn pop(&mut self) -> Option<T> {
+    ///         if self.as_deref().len() > self.initial_len() {
+    ///             // If the current length exceeds the initial length, the pop operation can be
+    ///             // expressed by `MutationKind::Append`, so we do not trigger full mutation.
+    ///             self.untracked_mut().pop()
+    ///         } else {
+    ///             // Otherwise, we need to treat the pop operation as `MutationKind::Replace`.
+    ///             self.observed_mut().pop()
+    ///         }
+    ///     }
+    /// }
+    /// ```
+    #[inline]
+    fn untracked_mut<T: ?Sized>(&mut self) -> &mut T
+    where
+        Self::Target: DerefMutUntracked,
+        Self::Head: AsDerefMut<Self::InnerDepth, Target = T>,
+    {
+        DerefMutUntracked::deref_mut_untracked(self).as_deref_mut()
     }
 }
 
 impl<T: ?Sized> QuasiObserver for &T {
+    type Head = T;
     type OuterDepth = Zero;
     type InnerDepth = Zero;
+
+    fn invalidate(_: &mut Self) {}
 }
 
 impl<T: ?Sized> QuasiObserver for &mut T {
+    type Head = T;
     type OuterDepth = Zero;
     type InnerDepth = Zero;
+
+    fn invalidate(_: &mut Self) {}
 }
 
 impl<T: ?Sized> QuasiObserver for Pointer<T> {
+    type Head = T;
     type OuterDepth = Zero;
     type InnerDepth = Zero;
+
+    fn invalidate(_: &mut Self) {}
 }

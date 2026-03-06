@@ -67,8 +67,15 @@ where
     D: Unsigned,
     S: AsDeref<D>,
 {
+    type Head = S;
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        this.mutated = true;
+        this.inner = None;
+    }
 }
 
 impl<O, S: ?Sized, D> Observer for WeakObserver<O, S, D>

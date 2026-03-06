@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, Zero};
+use crate::helper::{AsDeref, ObserverState, Zero};
 use crate::observe::DefaultSpec;
 
 /// A general observer that never reports changes.
@@ -33,8 +33,13 @@ pub type NoopObserver<'ob, S, D = Zero> = GeneralObserver<'ob, NoopHandler<<S as
 
 pub struct NoopHandler<T: ?Sized>(PhantomData<T>);
 
-impl<T: ?Sized> GeneralHandler for NoopHandler<T> {
+impl<T: ?Sized> ObserverState for NoopHandler<T> {
     type Target = T;
+
+    fn invalidate(_: &mut Self, _: &T) {}
+}
+
+impl<T: ?Sized> GeneralHandler for NoopHandler<T> {
     type Spec = DefaultSpec;
 
     #[inline]
@@ -46,9 +51,6 @@ impl<T: ?Sized> GeneralHandler for NoopHandler<T> {
     fn observe(_value: &T) -> Self {
         Self(PhantomData)
     }
-
-    #[inline]
-    fn deref_mut(&mut self) {}
 }
 
 impl<T: ?Sized> ReplaceHandler for NoopHandler<T> {

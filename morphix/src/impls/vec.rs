@@ -12,9 +12,9 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverState};
-use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe, PathSegment};
 
 /// Observer state for dynamically-sized slices ([`Vec<T>`], `Box<[T]>`), tracking append and
@@ -49,11 +49,22 @@ pub struct VecObserverState<O> {
     pub inner: UnsafeCell<Vec<O>>,
 }
 
+impl<O> ObserverState for VecObserverState<O>
+where
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+{
+    type Target = [O::Head];
+
+    #[inline]
+    fn invalidate(this: &mut Self, _: &[O::Head]) {
+        this.mark_replace();
+    }
+}
+
 impl<O> SliceObserverState for VecObserverState<O>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
-    type Slice = [O::Head];
     type Item = O;
 
     #[inline]
@@ -66,18 +77,12 @@ where
     }
 
     #[inline]
-    fn observe(slice: &Self::Slice) -> Self {
+    fn observe(slice: &Self::Target) -> Self {
         Self {
             truncate_len: 0,
             append_index: slice.as_ref().len(),
             inner: UnsafeCell::new(Vec::new()),
         }
-    }
-
-    #[inline]
-    fn mark_replace(&mut self) {
-        self.inner.get_mut().clear();
-        self.mark_truncate(0);
     }
 
     #[inline]
@@ -90,7 +95,7 @@ where
         self.inner.get_mut()
     }
 
-    unsafe fn init_range(&self, start: usize, end: usize, slice: &Self::Slice) {
+    unsafe fn init_range(&self, start: usize, end: usize, slice: &Self::Target) {
         let inner = unsafe { &mut *self.inner.get() };
         inner.resize_with(slice.len(), O::uninit);
         let ob_iter = inner[start..end].iter_mut();
@@ -100,10 +105,10 @@ where
         }
     }
 
-    fn flush(&mut self, slice: &Self::Slice) -> Mutations
+    fn flush(&mut self, slice: &Self::Target) -> Mutations
     where
         Self::Item: SerializeObserver,
-        <Self::Item as ObserverExt>::Head: Serialize + 'static,
+        <Self::Item as QuasiObserver>::Head: Serialize + 'static,
     {
         let append_index = core::mem::replace(&mut self.append_index, slice.len());
         let truncate_len = core::mem::replace(&mut self.truncate_len, 0);
@@ -135,13 +140,16 @@ where
 }
 
 impl<O> VecObserverState<O> {
-    /// Marks elements from `index` onward as truncated.
-    ///
-    /// Accumulates `append_index - index` into `truncate_len` and moves `append_index` down to
-    /// `index`. When `index` is 0, this triggers Replace semantics on flush.
-    pub fn mark_truncate(&mut self, index: usize) {
-        self.truncate_len += self.append_index - index;
-        self.append_index = index;
+    #[inline]
+    fn mark_truncate(&mut self, new_len: usize) {
+        self.truncate_len += self.append_index - new_len;
+        self.append_index = new_len;
+    }
+
+    #[inline]
+    fn mark_replace(&mut self) {
+        self.inner.get_mut().clear();
+        self.mark_truncate(0);
     }
 }
 
@@ -168,11 +176,18 @@ impl<O, S: ?Sized, D> DerefMut for VecObserver<O, S, D> {
 impl<O, S: ?Sized, D> QuasiObserver for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
+    S: AsDeref<D, Target = Vec<O::Head>>,
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
+    type Head = S;
     type OuterDepth = Succ<Succ<Zero>>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        // SliceObserver::invalidate(&mut this.inner);
+        ObserverState::invalidate(&mut this.inner.state, (*this.inner.ptr).as_deref());
+    }
 }
 
 impl<O, S: ?Sized, D, T> Observer for VecObserver<O, S, D>
@@ -572,8 +587,8 @@ where
 impl<O, S: ?Sized, D> Debug for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Debug,
+    S: AsDeref<D, Target = Vec<O::Head>>,
+    O: Observer<InnerDepth = Zero, Head: Sized + Debug>,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -587,9 +602,9 @@ macro_rules! generic_impl_partial_eq {
             impl<$($($gen)*,)? O, S: ?Sized, D> PartialEq<$ty> for VecObserver<O, S, D>
             where
                 D: Unsigned,
-                S: AsDeref<D>,
-                S::Target: PartialEq<$ty>,
+                S: AsDeref<D, Target = Vec<O::Head>>,
                 O: Observer<InnerDepth = Zero, Head: Sized>,
+                Vec<O::Head>: PartialEq<$ty>,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
@@ -611,11 +626,11 @@ impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<VecObserver<O2, S2, D2>> 
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialEq<S2::Target>,
     O1: Observer<InnerDepth = Zero, Head: Sized>,
     O2: Observer<InnerDepth = Zero, Head: Sized>,
+    S1: AsDeref<D1, Target = Vec<O1::Head>>,
+    S2: AsDeref<D2, Target = Vec<O2::Head>>,
+    Vec<O1::Head>: PartialEq<Vec<O2::Head>>,
 {
     #[inline]
     fn eq(&self, other: &VecObserver<O2, S2, D2>) -> bool {
@@ -626,18 +641,17 @@ where
 impl<O, S: ?Sized, D> Eq for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Eq,
-    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDeref<D, Target = Vec<O::Head>>,
+    O: Observer<InnerDepth = Zero, Head: Sized + Eq>,
 {
 }
 
 impl<O, S: ?Sized, D, U> PartialOrd<Vec<U>> for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: PartialOrd<Vec<U>>,
+    S: AsDeref<D, Target = Vec<O::Head>>,
     O: Observer<InnerDepth = Zero, Head: Sized>,
+    Vec<O::Head>: PartialOrd<Vec<U>>,
 {
     #[inline]
     fn partial_cmp(&self, other: &Vec<U>) -> Option<std::cmp::Ordering> {
@@ -649,11 +663,11 @@ impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<VecObserver<O2, S2, D2>>
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialOrd<S2::Target>,
     O1: Observer<InnerDepth = Zero, Head: Sized>,
     O2: Observer<InnerDepth = Zero, Head: Sized>,
+    S1: AsDeref<D1, Target = Vec<O1::Head>>,
+    S2: AsDeref<D2, Target = Vec<O2::Head>>,
+    Vec<O1::Head>: PartialOrd<Vec<O2::Head>>,
 {
     #[inline]
     fn partial_cmp(&self, other: &VecObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
@@ -664,9 +678,8 @@ where
 impl<O, S: ?Sized, D> Ord for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Ord,
-    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDeref<D, Target = Vec<O::Head>>,
+    O: Observer<InnerDepth = Zero, Head: Sized + Ord>,
 {
     #[inline]
     fn cmp(&self, other: &VecObserver<O, S, D>) -> std::cmp::Ordering {

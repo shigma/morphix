@@ -2,7 +2,7 @@ use std::ops::{Index, RangeFrom};
 use std::ptr::NonNull;
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
-use crate::helper::{AsDeref, Unsigned};
+use crate::helper::{AsDeref, ObserverState, Unsigned};
 use crate::observe::{DefaultSpec, RefObserve};
 use crate::{MutationKind, Mutations};
 
@@ -28,8 +28,13 @@ pub struct UnsizeHandler<T: ?Sized> {
     ptr: Option<NonNull<T>>,
 }
 
-impl<T: ?Sized> GeneralHandler for UnsizeHandler<T> {
+impl<T: ?Sized> ObserverState for UnsizeHandler<T> {
     type Target = T;
+
+    fn invalidate(_: &mut Self, _: &T) {}
+}
+
+impl<T: ?Sized> GeneralHandler for UnsizeHandler<T> {
     type Spec = DefaultSpec;
 
     #[inline]
@@ -43,9 +48,6 @@ impl<T: ?Sized> GeneralHandler for UnsizeHandler<T> {
             ptr: Some(NonNull::from(value)),
         }
     }
-
-    #[inline]
-    fn deref_mut(&mut self) {}
 }
 
 impl<T: ?Sized> SerializeHandler for UnsizeHandler<T>

@@ -7,14 +7,32 @@ use serde::Serialize;
 use crate::Mutations;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{Observer, ObserverExt, SerializeObserver};
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::observe::{Observer, SerializeObserver};
+
+struct OptionObserverState<O> {
+    initial: bool,
+    mutated: bool,
+    inner: Option<O>,
+}
+
+impl<O> ObserverState for OptionObserverState<O>
+where
+    O: QuasiObserver<Head: Sized>,
+{
+    type Target = Option<O::Head>;
+
+    #[inline]
+    fn invalidate(this: &mut Self, _value: &Self::Target) {
+        this.mutated = true;
+        this.inner = None;
+    }
+}
 
 /// Observer implementation for [`Option<T>`].
 pub struct OptionObserver<O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
-    initial: bool,
-    inner: Option<O>,
+    state: OptionObserverState<O>,
     phantom: PhantomData<D>,
 }
 
@@ -27,27 +45,28 @@ impl<O, S: ?Sized, D> Deref for OptionObserver<O, S, D> {
     }
 }
 
-impl<O, S: ?Sized, D> DerefMut for OptionObserver<O, S, D>
-where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
-{
+impl<O, S: ?Sized, D> DerefMut for OptionObserver<O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        if let Some(inner) = &mut self.inner {
-            inner.as_deref_mut_coinductive();
-        }
+        unsafe { Pointer::invalidate(&mut self.ptr) }
         &mut self.ptr
     }
 }
 
 impl<O, S: ?Sized, D> QuasiObserver for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized>,
     D: Unsigned,
-    S: AsDeref<D>,
+    S: AsDeref<D, Target = Option<O::Head>>,
 {
+    type Head = S;
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        ObserverState::invalidate(&mut this.state, (*this.ptr).as_deref());
+    }
 }
 
 impl<O, S: ?Sized, D> Observer for OptionObserver<O, S, D>
@@ -61,8 +80,11 @@ where
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
-            initial: false,
-            inner: None,
+            state: OptionObserverState {
+                initial: false,
+                mutated: false,
+                inner: None,
+            },
             phantom: PhantomData,
         }
     }
@@ -70,21 +92,24 @@ where
     #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         Pointer::set(this, head);
-        match (&mut this.inner, head.as_deref()) {
-            (Some(inner), Some(value)) => unsafe { Observer::refresh(inner, value) },
-            (Some(_), None) => this.inner = None,
-            (None, _) => {}
+        if let (Some(inner), Some(value)) = (&mut this.state.inner, head.as_deref().as_ref()) {
+            unsafe { O::force(inner, value) }
         }
     }
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
-        Self {
+        let mut this = Self {
             ptr: Pointer::new(head),
-            initial: head.as_deref().is_some(),
-            inner: head.as_deref().as_ref().map(O::observe),
+            state: OptionObserverState {
+                initial: head.as_deref().is_some(),
+                mutated: false,
+                inner: head.as_deref().as_ref().map(O::observe),
+            },
             phantom: PhantomData,
-        }
+        };
+        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
+        this
     }
 }
 
@@ -97,14 +122,13 @@ where
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
         let option = (*this.ptr).as_deref();
-        let initial = this.initial;
-        this.initial = option.is_some();
-        if let Some(mut ob) = this.inner.take()
-            && initial
-            && option.is_some()
-        {
-            return unsafe { SerializeObserver::flush(&mut ob) };
+        let initial = std::mem::replace(&mut this.state.initial, option.is_some());
+        let mutated = std::mem::take(&mut this.state.mutated);
+        if !mutated && initial {
+            // Inner must be Some when not mutated and initial was Some.
+            return unsafe { O::flush(this.state.inner.as_mut().unwrap()) };
         }
+        this.state.inner = option.as_ref().map(O::observe);
         if initial || option.is_some() {
             Mutations::replace(option)
         } else {
@@ -120,27 +144,20 @@ where
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    #[inline]
-    fn __insert(&mut self, value: O::Head) {
-        let inserted = self.untracked_mut().insert(value);
-        self.inner = Some(O::observe(inserted));
-    }
-
     /// See [`Option::as_mut`].
     #[inline]
     pub fn as_mut(&mut self) -> Option<&mut O> {
-        if self.inner.is_none() {
-            self.inner = (*self).observed_ref().as_ref().map(O::observe);
-        }
-        self.inner.as_mut()
+        let value = (*self.ptr).as_deref().as_ref()?;
+        let inner = self.state.inner.get_or_insert_with(O::uninit);
+        unsafe { O::force(inner, value) }
+        Some(inner)
     }
 
     /// See [`Option::insert`].
     #[inline]
     pub fn insert(&mut self, value: O::Head) -> &mut O {
-        self.__insert(value);
-        // SAFETY: `__insert` ensures that `self.inner` is `Some`.
-        self.inner.as_mut().unwrap()
+        *self.observed_mut() = Some(value);
+        self.as_mut().unwrap()
     }
 
     /// See [`Option::get_or_insert`].
@@ -165,19 +182,17 @@ where
         F: FnOnce() -> O::Head,
     {
         if (*self).observed_ref().is_none() {
-            self.__insert(f());
+            *self.observed_mut() = Some(f());
         }
-        // SAFETY: We just ensured that value is `Some`.
         self.as_mut().unwrap()
     }
 }
 
 impl<O, S: ?Sized, D> Debug for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized + Debug>,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Debug,
+    S: AsDeref<D, Target = Option<O::Head>>,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -187,10 +202,10 @@ where
 
 impl<O, S: ?Sized, D, U> PartialEq<Option<U>> for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized>,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: PartialEq<Option<U>>,
+    S: AsDeref<D, Target = Option<O::Head>>,
+    Option<O::Head>: PartialEq<Option<U>>,
 {
     #[inline]
     fn eq(&self, other: &Option<U>) -> bool {
@@ -200,13 +215,13 @@ where
 
 impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<OptionObserver<O2, S2, D2>> for OptionObserver<O1, S1, D1>
 where
-    O1: QuasiObserver<Target: Deref<Target: AsDeref<O1::InnerDepth>>>,
-    O2: QuasiObserver<Target: Deref<Target: AsDeref<O2::InnerDepth>>>,
+    O1: QuasiObserver<Target: Deref<Target: AsDeref<O1::InnerDepth>>, Head: Sized>,
+    O2: QuasiObserver<Target: Deref<Target: AsDeref<O2::InnerDepth>>, Head: Sized>,
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialEq<S2::Target>,
+    S1: AsDeref<D1, Target = Option<O1::Head>>,
+    S2: AsDeref<D2, Target = Option<O2::Head>>,
+    Option<O1::Head>: PartialEq<Option<O2::Head>>,
 {
     #[inline]
     fn eq(&self, other: &OptionObserver<O2, S2, D2>) -> bool {
@@ -216,19 +231,18 @@ where
 
 impl<O, S: ?Sized, D> Eq for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized + Eq>,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Eq,
+    S: AsDeref<D, Target = Option<O::Head>>,
 {
 }
 
 impl<O, S: ?Sized, D, U> PartialOrd<Option<U>> for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized>,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: PartialOrd<Option<U>>,
+    S: AsDeref<D, Target = Option<O::Head>>,
+    Option<O::Head>: PartialOrd<Option<U>>,
 {
     #[inline]
     fn partial_cmp(&self, other: &Option<U>) -> Option<std::cmp::Ordering> {
@@ -238,13 +252,13 @@ where
 
 impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<OptionObserver<O2, S2, D2>> for OptionObserver<O1, S1, D1>
 where
-    O1: QuasiObserver<Target: Deref<Target: AsDeref<O1::InnerDepth>>>,
-    O2: QuasiObserver<Target: Deref<Target: AsDeref<O2::InnerDepth>>>,
+    O1: QuasiObserver<Target: Deref<Target: AsDeref<O1::InnerDepth>>, Head: Sized>,
+    O2: QuasiObserver<Target: Deref<Target: AsDeref<O2::InnerDepth>>, Head: Sized>,
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialOrd<S2::Target>,
+    S1: AsDeref<D1, Target = Option<O1::Head>>,
+    S2: AsDeref<D2, Target = Option<O2::Head>>,
+    Option<O1::Head>: PartialOrd<Option<O2::Head>>,
 {
     #[inline]
     fn partial_cmp(&self, other: &OptionObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
@@ -254,10 +268,9 @@ where
 
 impl<O, S: ?Sized, D> Ord for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized + Ord>,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Ord,
+    S: AsDeref<D, Target = Option<O::Head>>,
 {
     #[inline]
     fn cmp(&self, other: &OptionObserver<O, S, D>) -> std::cmp::Ordering {
@@ -335,9 +348,7 @@ mod tests {
         **ob = None;
         **ob = Some("42");
         let Json(mutation) = ob.flush().unwrap();
-        // PointerObserver detects change by pointer comparison.
-        // Round-trip to the same string literal has the same pointer, so no mutation.
-        assert_eq!(mutation, None);
+        assert_eq!(mutation, Some(replace!(_, json!("42"))));
     }
 
     #[test]

@@ -15,19 +15,18 @@ use std::slice::{
 
 use serde::Serialize;
 
-use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{
+    AsDeref, AsDerefMut, AsDerefMutCoinductive, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero,
+};
 use crate::impls::vec::VecObserverState;
-use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Mutations, Observe};
 
 /// Trait for managing the internal observer storage within a slice observer.
 ///
 /// This trait abstracts over the storage and initialization of element observers, allowing
 /// [`SliceObserver`] to lazily create observers for individual elements as they are accessed.
-pub trait SliceObserverState: Sized {
-    /// The observed slice type that this storage corresponds to.
-    type Slice: AsRef<[<Self::Item as ObserverExt>::Head]> + ?Sized;
-
+pub trait SliceObserverState: ObserverState<Target: AsRef<[<Self::Item as QuasiObserver>::Head]>> + Sized {
     /// The element observer type.
     type Item: Observer<InnerDepth = Zero, Head: Sized>;
 
@@ -35,16 +34,7 @@ pub trait SliceObserverState: Sized {
     fn uninit() -> Self;
 
     /// Creates an observer collection for the given slice.
-    fn observe(slice: &Self::Slice) -> Self;
-
-    /// Called by [`SliceObserver`]'s [`DerefMut`] implementation to notify element observers that
-    /// the underlying data may have been overwritten.
-    ///
-    /// For [`VecObserverState`], this clears the inner Vec and calls
-    /// [`mark_truncate(0)`](VecObserverState::mark_truncate). For `[O; N]`, this triggers
-    /// [`as_deref_mut_coinductive()`](AsDerefMutCoinductive::as_deref_mut_coinductive) on each
-    /// element observer.
-    fn mark_replace(&mut self);
+    fn observe(slice: &Self::Target) -> Self;
 
     /// Returns a shared slice of element observers.
     fn as_slice(&self) -> &[Self::Item];
@@ -62,17 +52,17 @@ pub trait SliceObserverState: Sized {
     /// The caller must ensure that no references obtained from [`as_slice`](Self::as_slice) are
     /// alive when this method is called, as the implementation may create mutable references to
     /// the same storage through interior mutability.
-    unsafe fn init_range(&self, start: usize, end: usize, slice: &Self::Slice);
+    unsafe fn init_range(&self, start: usize, end: usize, slice: &Self::Target);
 
     /// Consumes the accumulated mutation state, flushes inner element observers, and returns the
     /// collected [`Mutations`].
     ///
     /// This method must fully reset all internal state (diff, inner observer state) so that an
     /// immediately subsequent call with no intervening mutations returns empty.
-    fn flush(&mut self, slice: &Self::Slice) -> Mutations
+    fn flush(&mut self, slice: &Self::Target) -> Mutations
     where
         Self::Item: SerializeObserver,
-        <Self::Item as ObserverExt>::Head: Serialize + 'static;
+        <Self::Item as QuasiObserver>::Head: Serialize + 'static;
 }
 
 /// Observer implementation for slices `[T]`.
@@ -91,13 +81,10 @@ impl<V, S: ?Sized, D> Deref for SliceObserver<V, S, D> {
     }
 }
 
-impl<V, S: ?Sized, D> DerefMut for SliceObserver<V, S, D>
-where
-    V: SliceObserverState,
-{
+impl<V, S: ?Sized, D> DerefMut for SliceObserver<V, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.state.mark_replace();
+        unsafe { Pointer::invalidate(&mut self.ptr) }
         &mut self.ptr
     }
 }
@@ -106,17 +93,23 @@ impl<V, S: ?Sized, D> QuasiObserver for SliceObserver<V, S, D>
 where
     V: SliceObserverState,
     D: Unsigned,
-    S: AsDeref<D>,
+    S: AsDeref<D, Target = V::Target>,
 {
+    type Head = S;
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        ObserverState::invalidate(&mut this.state, (*this.ptr).as_deref());
+    }
 }
 
 impl<V, S: ?Sized, D, O, T> Observer for SliceObserver<V, S, D>
 where
     V: SliceObserverState<Item = O>,
     D: Unsigned,
-    S: AsDeref<D, Target = V::Slice>,
+    S: AsDeref<D, Target = V::Target>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
     #[inline]
@@ -130,12 +123,13 @@ where
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
-        let slice = head.as_deref();
-        Self {
+        let mut this = Self {
             ptr: Pointer::new(head),
-            state: V::observe(slice),
+            state: V::observe(head.as_deref()),
             phantom: PhantomData,
-        }
+        };
+        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
+        this
     }
 
     #[inline]
@@ -148,7 +142,7 @@ impl<V, S: ?Sized, D, O, T> SerializeObserver for SliceObserver<V, S, D>
 where
     V: SliceObserverState<Item = O>,
     D: Unsigned,
-    S: AsDeref<D, Target = V::Slice>,
+    S: AsDeref<D, Target = V::Target>,
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
     T: Serialize + 'static,
 {
@@ -202,7 +196,7 @@ where
     V: SliceObserverState,
     V::Item: Observer<InnerDepth = Zero, Head = T>,
     D: Unsigned,
-    S: AsDeref<D, Target = V::Slice>,
+    S: AsDeref<D, Target = V::Target>,
 {
     fn __init_index<I>(&self, index: &I) -> Option<()>
     where
@@ -258,7 +252,7 @@ where
     V: SliceObserverState,
     V::Item: Observer<InnerDepth = Zero, Head = T>,
     D: Unsigned,
-    S: AsDerefMut<D, Target = V::Slice>,
+    S: AsDerefMut<D, Target = V::Target>,
     S::Target: AsMut<[T]>,
 {
     /// See [`slice::first_mut`].
@@ -442,9 +436,10 @@ where
 
 impl<V, S: ?Sized, D> Debug for SliceObserver<V, S, D>
 where
+    V: SliceObserverState,
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Debug,
+    S: AsDeref<D, Target = V::Target>,
+    V::Target: Debug,
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -458,9 +453,9 @@ macro_rules! generic_impl_partial_eq {
             impl<$($($gen)*,)? V, S: ?Sized, D> PartialEq<$ty> for SliceObserver<V, S, D>
             where
                 D: Unsigned,
-                S: AsDeref<D>,
-                S::Target: PartialEq<$ty>,
+                S: AsDeref<D, Target = V::Target>,
                 V: SliceObserverState,
+                V::Target: PartialEq<$ty>,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
@@ -481,11 +476,11 @@ impl<V1, V2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<SliceObserver<V2, S2, D2>
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialEq<S2::Target>,
     V1: SliceObserverState,
     V2: SliceObserverState,
+    S1: AsDeref<D1, Target = V1::Target>,
+    S2: AsDeref<D2, Target = V2::Target>,
+    V1::Target: PartialEq<V2::Target>,
 {
     #[inline]
     fn eq(&self, other: &SliceObserver<V2, S2, D2>) -> bool {
@@ -496,18 +491,18 @@ where
 impl<V, S: ?Sized, D> Eq for SliceObserver<V, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Eq,
     V: SliceObserverState,
+    S: AsDeref<D, Target = V::Target>,
+    V::Target: Eq,
 {
 }
 
 impl<V, S: ?Sized, D, U> PartialOrd<[U]> for SliceObserver<V, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: PartialOrd<[U]>,
     V: SliceObserverState,
+    S: AsDeref<D, Target = V::Target>,
+    V::Target: PartialOrd<[U]>,
 {
     #[inline]
     fn partial_cmp(&self, other: &[U]) -> Option<std::cmp::Ordering> {
@@ -519,11 +514,11 @@ impl<V1, V2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<SliceObserver<V2, S2, D2
 where
     D1: Unsigned,
     D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialOrd<S2::Target>,
     V1: SliceObserverState,
     V2: SliceObserverState,
+    S1: AsDeref<D1, Target = V1::Target>,
+    S2: AsDeref<D2, Target = V2::Target>,
+    V1::Target: PartialOrd<V2::Target>,
 {
     #[inline]
     fn partial_cmp(&self, other: &SliceObserver<V2, S2, D2>) -> Option<std::cmp::Ordering> {
@@ -534,9 +529,9 @@ where
 impl<V, S: ?Sized, D> Ord for SliceObserver<V, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Ord,
     V: SliceObserverState,
+    S: AsDeref<D, Target = V::Target>,
+    V::Target: Ord,
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -548,7 +543,7 @@ impl<V, S: ?Sized, D, O, T, I> Index<I> for SliceObserver<V, S, D>
 where
     V: SliceObserverState<Item = O>,
     D: Unsigned,
-    S: AsDeref<D, Target = V::Slice>,
+    S: AsDeref<D, Target = V::Target>,
     O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
@@ -564,7 +559,7 @@ impl<V, S: ?Sized, D, O, T, I> IndexMut<I> for SliceObserver<V, S, D>
 where
     V: SliceObserverState<Item = O>,
     D: Unsigned,
-    S: AsDerefMut<D, Target = V::Slice>,
+    S: AsDerefMut<D, Target = V::Target>,
     S::Target: AsMut<[T]>,
     O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,

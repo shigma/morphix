@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::Mutations;
-use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, SerializeObserver};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
@@ -48,10 +48,7 @@ use crate::observe::{Observer, SerializeObserver};
 ///
 /// type ShallowObserver<'ob, T> = GeneralObserver<'ob, T, ShallowHandler<T>>;
 /// ```
-pub trait GeneralHandler {
-    /// The target type being observed.
-    type Target: ?Sized;
-
+pub trait GeneralHandler: ObserverState {
     /// Associated specification type for [`GeneralObserver`].
     type Spec;
 
@@ -60,9 +57,6 @@ pub trait GeneralHandler {
 
     /// Implementation for [`Observer::observe`].
     fn observe(value: &Self::Target) -> Self;
-
-    /// Called when the value is accessed through [`DerefMut`].
-    fn deref_mut(&mut self);
 }
 
 /// A handler that can serialize mutations for [`GeneralObserver`].
@@ -207,25 +201,28 @@ impl<'ob, H, S: ?Sized, D> Deref for GeneralObserver<'ob, H, S, D> {
     }
 }
 
-impl<'ob, H, S: ?Sized, D> DerefMut for GeneralObserver<'ob, H, S, D>
-where
-    H: GeneralHandler,
-{
+impl<'ob, H, S: ?Sized, D> DerefMut for GeneralObserver<'ob, H, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.handler.deref_mut();
+        unsafe { Pointer::invalidate(&mut self.ptr) }
         &mut self.ptr
     }
 }
 
-impl<'ob, H, S: ?Sized, D> QuasiObserver for GeneralObserver<'ob, H, S, D>
+impl<'ob, H, S: ?Sized, D, T: ?Sized> QuasiObserver for GeneralObserver<'ob, H, S, D>
 where
-    S: AsDeref<D>,
-    H: GeneralHandler,
+    S: AsDeref<D, Target = T>,
+    H: GeneralHandler<Target = T>,
     D: Unsigned,
 {
+    type Head = S;
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        H::invalidate(&mut this.handler, (*this.ptr).as_deref());
+    }
 }
 
 impl<'ob, H, S: ?Sized, D, T: ?Sized> Observer for GeneralObserver<'ob, H, S, D>
@@ -250,11 +247,13 @@ where
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
-        Self {
+        let mut this = Self {
             ptr: Pointer::new(head),
             handler: H::observe(head.as_deref()),
             phantom: PhantomData,
-        }
+        };
+        Pointer::register_state::<H, D>(&mut this.ptr, &mut this.handler);
+        this
     }
 }
 
@@ -275,7 +274,7 @@ macro_rules! impl_fmt {
         $(
             impl<'ob, H, S: ?Sized, D> std::fmt::$trait for GeneralObserver<'ob, H, S, D>
             where
-                H: GeneralHandler,
+                H: GeneralHandler<Target = S::Target>,
                 S: AsDeref<D>,
                 D: Unsigned,
                 S::Target: std::fmt::$trait,
@@ -315,7 +314,7 @@ where
 
 impl<'ob, H, S: ?Sized, D, I> std::ops::Index<I> for GeneralObserver<'ob, H, S, D>
 where
-    H: GeneralHandler,
+    H: GeneralHandler<Target = S::Target>,
     S: AsDeref<D>,
     D: Unsigned,
     S::Target: std::ops::Index<I>,
@@ -344,8 +343,8 @@ where
 impl<'ob, H1, H2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<GeneralObserver<'ob, H2, S2, D2>>
     for GeneralObserver<'ob, H1, S1, D1>
 where
-    H1: GeneralHandler,
-    H2: GeneralHandler,
+    H1: GeneralHandler<Target = S1::Target>,
+    H2: GeneralHandler<Target = S2::Target>,
     S1: AsDeref<D1>,
     S2: AsDeref<D2>,
     D1: Unsigned,
@@ -360,7 +359,7 @@ where
 
 impl<'ob, H, S: ?Sized, D> Eq for GeneralObserver<'ob, H, S, D>
 where
-    H: GeneralHandler,
+    H: GeneralHandler<Target = S::Target>,
     S: AsDeref<D>,
     D: Unsigned,
     S::Target: Eq,
@@ -370,8 +369,8 @@ where
 impl<'ob, H1, H2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<GeneralObserver<'ob, H2, S2, D2>>
     for GeneralObserver<'ob, H1, S1, D1>
 where
-    H1: GeneralHandler,
-    H2: GeneralHandler,
+    H1: GeneralHandler<Target = S1::Target>,
+    H2: GeneralHandler<Target = S2::Target>,
     S1: AsDeref<D1>,
     S2: AsDeref<D2>,
     D1: Unsigned,
@@ -386,7 +385,7 @@ where
 
 impl<'ob, H, S: ?Sized, D> Ord for GeneralObserver<'ob, H, S, D>
 where
-    H: GeneralHandler,
+    H: GeneralHandler<Target = S::Target>,
     S: AsDeref<D>,
     D: Unsigned,
     S::Target: Ord,
@@ -432,14 +431,14 @@ impl_ops_assign! {
 macro_rules! impl_ops_copy {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
-            impl<'ob, H, S: ?Sized, D, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, D>
+            impl<'ob, H, S: ?Sized, D, T: ?Sized, U> std::ops::$trait<U> for GeneralObserver<'ob, H, S, D>
             where
-                H: GeneralHandler,
-                S: AsDeref<D>,
+                H: GeneralHandler<Target = T>,
+                S: AsDeref<D, Target = T>,
                 D: Unsigned,
-                S::Target: std::ops::$trait<U> + Copy,
+                T: std::ops::$trait<U> + Copy,
             {
-                type Output = <S::Target as std::ops::$trait<U>>::Output;
+                type Output = <T as std::ops::$trait<U>>::Output;
 
                 #[inline]
                 fn $method(self, rhs: U) -> Self::Output {
@@ -466,14 +465,14 @@ impl_ops_copy! {
 macro_rules! impl_ops_copy_unary {
     ($($trait:ident => $method:ident),* $(,)?) => {
         $(
-            impl<'ob, H, S: ?Sized, D> std::ops::$trait for GeneralObserver<'ob, H, S, D>
+            impl<'ob, H, S: ?Sized, D, T: ?Sized> std::ops::$trait for GeneralObserver<'ob, H, S, D>
             where
-                H: GeneralHandler,
-                S: AsDeref<D>,
+                H: GeneralHandler<Target = T>,
+                S: AsDeref<D, Target = T>,
                 D: Unsigned,
-                S::Target: std::ops::$trait + Copy,
+                T: std::ops::$trait + Copy,
             {
-                type Output = <S::Target as std::ops::$trait>::Output;
+                type Output = <T as std::ops::$trait>::Output;
 
                 #[inline]
                 fn $method(self) -> Self::Output {

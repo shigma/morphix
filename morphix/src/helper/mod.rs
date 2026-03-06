@@ -18,7 +18,7 @@ pub mod quasi;
 pub mod unsigned;
 
 pub use deref::{AsDeref, AsDerefCoinductive, AsDerefMut, AsDerefMutCoinductive};
-pub use pointer::Pointer;
+pub use pointer::{ObserverState, Pointer};
 pub use quasi::QuasiObserver;
 pub use unsigned::{Succ, Unsigned, Zero};
 #[doc(hidden)]

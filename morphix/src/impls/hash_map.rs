@@ -14,8 +14,8 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, ObserverExt, SerializeObserver};
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe, PathSegment};
 
 enum ValueState {
@@ -28,21 +28,62 @@ enum ValueState {
     Deleted,
 }
 
-fn mark_deleted<K, O>(diff: &mut HashMap<K, ValueState>, inner: &mut HashMap<K, Box<O>>, key: K)
+struct HashMapObserverState<K, O> {
+    mutated: bool,
+    diff: HashMap<K, ValueState>,
+    /// Boxed to ensure pointer stability: [`HashMap`] rehashing moves all entries to a new
+    /// allocation, which would invalidate references to inline values. [`Box`] adds a layer
+    /// of indirection so that only the pointer is moved, not the observer itself.
+    inner: UnsafeCell<HashMap<K, Box<O>>>,
+}
+
+impl<K, O> Default for HashMapObserverState<K, O> {
+    #[inline]
+    fn default() -> Self {
+        Self {
+            mutated: false,
+            diff: Default::default(),
+            inner: Default::default(),
+        }
+    }
+}
+
+impl<K, O> ObserverState for HashMapObserverState<K, O>
+where
+    K: Clone + Eq + Hash,
+    O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
+{
+    type Target = HashMap<K, O::Head>;
+
+    #[inline]
+    fn invalidate(this: &mut Self, map: &Self::Target) {
+        if !this.mutated {
+            this.mutated = true;
+            for key in map.keys() {
+                this.mark_deleted(key.clone());
+            }
+        }
+        this.inner.get_mut().clear();
+    }
+}
+
+impl<K, O> HashMapObserverState<K, O>
 where
     K: Eq + Hash,
 {
-    inner.remove(&key);
-    match diff.entry(key) {
-        Entry::Occupied(mut e) => {
-            if matches!(e.get(), ValueState::Inserted) {
-                e.remove();
-            } else {
+    fn mark_deleted(&mut self, key: K) {
+        self.inner.get_mut().remove(&key);
+        match self.diff.entry(key) {
+            Entry::Occupied(mut e) => {
+                if matches!(e.get(), ValueState::Inserted) {
+                    e.remove();
+                } else {
+                    e.insert(ValueState::Deleted);
+                }
+            }
+            Entry::Vacant(e) => {
                 e.insert(ValueState::Deleted);
             }
-        }
-        Entry::Vacant(e) => {
-            e.insert(ValueState::Deleted);
         }
     }
 }
@@ -53,8 +94,7 @@ where
     F: FnMut(&K, &mut V) -> bool,
 {
     inner: std::collections::hash_map::ExtractIf<'a, K, V, F>,
-    #[expect(clippy::type_complexity)]
-    diff_inner: Option<(&'a mut HashMap<K, ValueState>, &'a mut HashMap<K, Box<O>>)>,
+    state: Option<&'a mut HashMapObserverState<K, O>>,
 }
 
 impl<K, V, O, F> Iterator for ExtractIf<'_, K, V, O, F>
@@ -66,8 +106,8 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let (key, value) = self.inner.next()?;
-        if let Some((diff, inner)) = &mut self.diff_inner {
-            mark_deleted(diff, inner, key.clone());
+        if let Some(state) = &mut self.state {
+            state.mark_deleted(key.clone());
         }
         Some((key, value))
     }
@@ -105,18 +145,13 @@ where
 /// [`get_mut`](Self::get_mut)) require `K: Clone` because the observer maintains its own
 /// [`HashMap`] of cloned keys to track per-key observers independently of the observed map's
 /// internal storage.
-pub struct HashMapObserver<'ob, K, O, S: ?Sized, D = Zero> {
+pub struct HashMapObserver<K, O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
-    mutated: bool,
-    diff: HashMap<K, ValueState>,
-    /// Boxed to ensure pointer stability: [`HashMap`] rehashing moves all entries to a new
-    /// allocation, which would invalidate references to inline values. [`Box`] adds a layer
-    /// of indirection so that only the pointer is moved, not the observer itself.
-    inner: UnsafeCell<HashMap<K, Box<O>>>,
-    phantom: PhantomData<&'ob mut D>,
+    state: HashMapObserverState<K, O>,
+    phantom: PhantomData<D>,
 }
 
-impl<'ob, K, O, S: ?Sized, D> Deref for HashMapObserver<'ob, K, O, S, D> {
+impl<K, O, S: ?Sized, D> Deref for HashMapObserver<K, O, S, D> {
     type Target = Pointer<S>;
 
     #[inline]
@@ -125,37 +160,32 @@ impl<'ob, K, O, S: ?Sized, D> Deref for HashMapObserver<'ob, K, O, S, D> {
     }
 }
 
-impl<'ob, K, V, O, S: ?Sized, D> DerefMut for HashMapObserver<'ob, K, O, S, D>
-where
-    K: Clone + Eq + Hash,
-    D: Unsigned,
-    S: AsDeref<D, Target = HashMap<K, V>>,
-{
+impl<K, O, S: ?Sized, D> DerefMut for HashMapObserver<K, O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        if !self.mutated {
-            self.mutated = true;
-            let map = (*self.ptr).as_deref();
-            for key in map.keys() {
-                mark_deleted(&mut self.diff, self.inner.get_mut(), key.clone());
-            }
-        }
-        self.inner.get_mut().clear();
+        unsafe { Pointer::invalidate(&mut self.ptr) }
         &mut self.ptr
     }
 }
 
-impl<'ob, K, V, O, S: ?Sized, D> QuasiObserver for HashMapObserver<'ob, K, O, S, D>
+impl<K, O, S: ?Sized, D> QuasiObserver for HashMapObserver<K, O, S, D>
 where
     K: Clone + Eq + Hash,
     D: Unsigned,
-    S: AsDeref<D, Target = HashMap<K, V>>,
+    S: AsDeref<D, Target = HashMap<K, O::Head>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
 {
+    type Head = S;
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        ObserverState::invalidate(&mut this.state, (*this.ptr).as_deref());
+    }
 }
 
-impl<'ob, K, O, S: ?Sized, D> Observer for HashMapObserver<'ob, K, O, S, D>
+impl<K, O, S: ?Sized, D> Observer for HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
     S: AsDeref<D, Target = HashMap<K, O::Head>>,
@@ -167,9 +197,7 @@ where
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
-            mutated: false,
-            diff: Default::default(),
-            inner: Default::default(),
+            state: Default::default(),
             phantom: PhantomData,
         }
     }
@@ -181,17 +209,17 @@ where
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
-        Self {
+        let mut this = Self {
             ptr: Pointer::new(head),
-            mutated: false,
-            diff: Default::default(),
-            inner: Default::default(),
+            state: Default::default(),
             phantom: PhantomData,
-        }
+        };
+        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
+        this
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> HashMapObserver<'ob, K, O, S, D>
+impl<K, O, S: ?Sized, D> HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
     S: AsDeref<D, Target = HashMap<K, O::Head>>,
@@ -200,10 +228,10 @@ where
     K: Serialize + Clone + Eq + Hash + Into<PathSegment> + 'static,
 {
     unsafe fn partial_flush(&mut self) -> Mutations {
-        let diff = std::mem::take(&mut self.diff);
+        let diff = std::mem::take(&mut self.state.diff);
         let mut mutations = Mutations::new();
-        for (key, state) in diff {
-            match state {
+        for (key, value_state) in diff {
+            match value_state {
                 ValueState::Deleted => {
                     #[cfg(feature = "delete")]
                     mutations.insert(key, MutationKind::Delete);
@@ -211,7 +239,7 @@ where
                     unreachable!("delete feature is not enabled");
                 }
                 ValueState::Replaced | ValueState::Inserted => {
-                    self.inner.get_mut().remove(&key);
+                    self.state.inner.get_mut().remove(&key);
                     let value = (*self.ptr)
                         .as_deref()
                         .get(&key)
@@ -220,7 +248,7 @@ where
                 }
             }
         }
-        for (key, mut ob) in std::mem::take(self.inner.get_mut()) {
+        for (key, mut ob) in std::mem::take(self.state.inner.get_mut()) {
             let value = (*self.ptr)
                 .as_deref()
                 .get(&key)
@@ -232,7 +260,7 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> SerializeObserver for HashMapObserver<'ob, K, O, S, D>
+impl<K, O, S: ?Sized, D> SerializeObserver for HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
     S: AsDeref<D, Target = HashMap<K, O::Head>>,
@@ -241,24 +269,24 @@ where
     K: Serialize + Clone + Eq + Hash + Into<PathSegment> + 'static,
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
-        if !this.mutated {
+        if !this.state.mutated {
             return unsafe { this.partial_flush() };
         }
-        this.mutated = false;
-        this.diff.clear();
-        this.inner.get_mut().clear();
+        this.state.mutated = false;
+        this.state.diff.clear();
+        this.state.inner.get_mut().clear();
         Mutations::replace((*this).observed_ref())
     }
 
     unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
-        if !this.mutated {
+        if !this.state.mutated {
             return (unsafe { this.partial_flush() }, false);
         }
-        this.mutated = false;
-        this.inner.get_mut().clear();
+        this.state.mutated = false;
+        this.state.inner.get_mut().clear();
         // After DerefMut, diff contains only Deleted entries representing original keys.
         // Emit Replace for each current key, Delete for original keys no longer present.
-        let mut diff = std::mem::take(&mut this.diff);
+        let mut diff = std::mem::take(&mut this.state.diff);
         let map = (*this.ptr).as_deref();
         let mut mutations = Mutations::new();
         for (key, value) in map {
@@ -275,7 +303,7 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D, V> HashMapObserver<'ob, K, O, S, D>
+impl<K, O, S: ?Sized, D, V> HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, V>>,
@@ -290,7 +318,7 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> HashMapObserver<'ob, K, O, S, D>
+impl<K, O, S: ?Sized, D> HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
     S: AsDeref<D, Target = HashMap<K, O::Head>>,
@@ -305,8 +333,7 @@ where
         Q: Eq + Hash + ?Sized,
     {
         let (key, value) = self.observed_ref().get_key_value(key)?;
-        let key_cloned = key.clone();
-        match unsafe { (*self.inner.get()).entry(key_cloned) } {
+        match unsafe { (*self.state.inner.get()).entry(key.clone()) } {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
                 unsafe { O::refresh(ob, value) }
@@ -317,7 +344,7 @@ where
     }
 }
 
-impl<'ob, K, O, S: ?Sized, D> HashMapObserver<'ob, K, O, S, D>
+impl<K, O, S: ?Sized, D> HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, O::Head>>,
@@ -327,7 +354,7 @@ where
 {
     fn __force_all(&mut self) -> &mut HashMap<K, Box<O>> {
         let map = (*self.ptr).as_deref();
-        let inner = self.inner.get_mut();
+        let inner = self.state.inner.get_mut();
         for (key, value) in map.iter() {
             match inner.entry(key.clone()) {
                 Entry::Occupied(occupied) => {
@@ -349,8 +376,7 @@ where
         Q: Eq + Hash + ?Sized,
     {
         let (key, value) = (*self.ptr).as_deref().get_key_value(key)?;
-        let key_cloned = key.clone();
-        match self.inner.get_mut().entry(key_cloned) {
+        match self.state.inner.get_mut().entry(key.clone()) {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
                 unsafe { O::refresh(ob, value) }
@@ -363,7 +389,7 @@ where
     /// See [`HashMap::clear`].
     #[inline]
     pub fn clear(&mut self) {
-        self.inner.get_mut().clear();
+        self.state.inner.get_mut().clear();
         if (*self).observed_ref().is_empty() {
             self.untracked_mut().clear()
         } else {
@@ -376,13 +402,13 @@ where
     where
         K: Eq + Hash,
     {
-        if self.mutated {
+        if self.state.mutated {
             return self.observed_mut().insert(key, value);
         }
         let key_cloned = key.clone();
         let old_value = (*self.ptr).as_deref_mut().insert(key_cloned, value);
-        self.inner.get_mut().remove(&key);
-        match self.diff.entry(key) {
+        self.state.inner.get_mut().remove(&key);
+        match self.state.diff.entry(key) {
             Entry::Occupied(mut e) => {
                 if matches!(e.get(), ValueState::Deleted) {
                     e.insert(ValueState::Replaced);
@@ -405,11 +431,11 @@ where
         K: Borrow<Q> + Eq + Hash,
         Q: Eq + Hash + ?Sized,
     {
-        if self.mutated {
+        if self.state.mutated {
             return self.observed_mut().remove(key);
         }
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        mark_deleted(&mut self.diff, self.inner.get_mut(), key);
+        self.state.mark_deleted(key);
         Some(old_value)
     }
 
@@ -419,11 +445,11 @@ where
         K: Borrow<Q> + Eq + Hash,
         Q: Eq + Hash + ?Sized,
     {
-        if self.mutated {
+        if self.state.mutated {
             return self.observed_mut().remove_entry(key);
         }
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
-        mark_deleted(&mut self.diff, self.inner.get_mut(), key.clone());
+        self.state.mark_deleted(key.clone());
         Some((key, old_value))
     }
 
@@ -444,12 +470,12 @@ where
         F: FnMut(&K, &mut O::Head) -> bool,
     {
         let inner = (*self.ptr).as_deref_mut().extract_if(pred);
-        let diff_inner = if self.mutated {
+        let state = if self.state.mutated {
             None
         } else {
-            Some((&mut self.diff, self.inner.get_mut()))
+            Some(&mut self.state)
         };
-        ExtractIf { inner, diff_inner }
+        ExtractIf { inner, state }
     }
 
     /// See [`HashMap::iter_mut`].
@@ -471,11 +497,12 @@ where
     }
 }
 
-impl<'ob, K, V, O, S: ?Sized, D> Debug for HashMapObserver<'ob, K, O, S, D>
+impl<K, V, O, S: ?Sized, D> Debug for HashMapObserver<K, O, S, D>
 where
     K: Clone + Eq + Hash,
     D: Unsigned,
     S: AsDeref<D, Target = HashMap<K, V>>,
+    O: Observer<InnerDepth = Zero, Head = V>,
     HashMap<K, V>: Debug,
 {
     #[inline]
@@ -484,11 +511,12 @@ where
     }
 }
 
-impl<'ob, K, V, O, S: ?Sized, D> PartialEq<HashMap<K, V>> for HashMapObserver<'ob, K, O, S, D>
+impl<K, V, O, S: ?Sized, D> PartialEq<HashMap<K, V>> for HashMapObserver<K, O, S, D>
 where
     K: Clone + Eq + Hash,
     D: Unsigned,
     S: AsDeref<D, Target = HashMap<K, V>>,
+    O: Observer<InnerDepth = Zero, Head = V>,
     HashMap<K, V>: PartialEq,
 {
     #[inline]
@@ -497,8 +525,8 @@ where
     }
 }
 
-impl<'ob, K1, K2, V1, V2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<HashMapObserver<'ob, K2, O2, S2, D2>>
-    for HashMapObserver<'ob, K1, O1, S1, D1>
+impl<K1, K2, V1, V2, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<HashMapObserver<K2, O2, S2, D2>>
+    for HashMapObserver<K1, O1, S1, D1>
 where
     K1: Clone + Eq + Hash,
     K2: Clone + Eq + Hash,
@@ -506,24 +534,27 @@ where
     D2: Unsigned,
     S1: AsDeref<D1, Target = HashMap<K1, V1>>,
     S2: AsDeref<D2, Target = HashMap<K2, V2>>,
+    O1: Observer<InnerDepth = Zero, Head = V1>,
+    O2: Observer<InnerDepth = Zero, Head = V2>,
     HashMap<K1, V1>: PartialEq<HashMap<K2, V2>>,
 {
     #[inline]
-    fn eq(&self, other: &HashMapObserver<'ob, K2, O2, S2, D2>) -> bool {
+    fn eq(&self, other: &HashMapObserver<K2, O2, S2, D2>) -> bool {
         self.observed_ref().eq(other.observed_ref())
     }
 }
 
-impl<'ob, K, V, O, S: ?Sized, D> Eq for HashMapObserver<'ob, K, O, S, D>
+impl<K, V, O, S: ?Sized, D> Eq for HashMapObserver<K, O, S, D>
 where
     K: Clone + Eq + Hash,
     D: Unsigned,
     S: AsDeref<D, Target = HashMap<K, V>>,
+    O: Observer<InnerDepth = Zero, Head = V>,
     HashMap<K, V>: Eq,
 {
 }
 
-impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> Index<&'q Q> for HashMapObserver<'ob, K, O, S, D>
+impl<'q, K, O, S: ?Sized, D, V, Q: ?Sized> Index<&'q Q> for HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
     S: AsDeref<D, Target = HashMap<K, V>>,
@@ -539,7 +570,7 @@ where
     }
 }
 
-impl<'ob, 'q, K, O, S: ?Sized, D, V, Q: ?Sized> IndexMut<&'q Q> for HashMapObserver<'ob, K, O, S, D>
+impl<'q, K, O, S: ?Sized, D, V, Q: ?Sized> IndexMut<&'q Q> for HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, V>>,
@@ -555,7 +586,7 @@ where
 
 // TODO: this inserts elements one by one, which is much slower than `HashMap::extend`.
 // Consider a bulk-insert approach that updates `diff` in one pass.
-impl<'ob, K, O, S: ?Sized, D> Extend<(K, O::Head)> for HashMapObserver<'ob, K, O, S, D>
+impl<K, O, S: ?Sized, D> Extend<(K, O::Head)> for HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashMap<K, O::Head>>,
@@ -572,7 +603,7 @@ where
 
 impl<K: Clone + Eq + Hash, V: Observe> Observe for HashMap<K, V> {
     type Observer<'ob, S, D>
-        = HashMapObserver<'ob, K, V::Observer<'ob, V, Zero>, S, D>
+        = HashMapObserver<K, V::Observer<'ob, V, Zero>, S, D>
     where
         Self: 'ob,
         D: Unsigned,

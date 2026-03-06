@@ -3,7 +3,7 @@ use std::ops::{Deref, DerefMut};
 
 use crate::builtin::Snapshot;
 use crate::helper::{AsDeref, QuasiObserver, Succ, Unsigned};
-use crate::observe::{Observer, ObserverExt, RefObserve, SerializeObserver};
+use crate::observe::{Observer, RefObserve, SerializeObserver};
 use crate::{Mutations, Observe};
 
 /// Observer implementation for pointer types such as [`Box<T>`] and `&mut T`.
@@ -34,10 +34,16 @@ impl<O, D> QuasiObserver for DerefObserver<O>
 where
     D: Unsigned,
     O: QuasiObserver<InnerDepth = Succ<D>>,
-    O::Target: Deref<Target: AsDeref<D> + AsDeref<Succ<D>>>,
+    O::Head: AsDeref<D>,
 {
+    type Head = O::Head;
     type OuterDepth = Succ<O::OuterDepth>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        O::invalidate(&mut this.inner);
+    }
 }
 
 impl<O, D> Observer for DerefObserver<O>
@@ -231,9 +237,12 @@ impl_snapshot! {
 macro_rules! generic_impl_cmp {
     ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
         $(
-            impl<$($($gen)*,)? O> PartialEq<$ty> for DerefObserver<O>
+            impl<$($($gen)*,)? O, D, T: ?Sized> PartialEq<$ty> for DerefObserver<O>
             where
-                Self: ObserverExt<Target: PartialEq<$ty>>,
+                O: QuasiObserver<InnerDepth = Succ<D>>,
+                O::Head: AsDeref<D, Target = T>,
+                T: PartialEq<$ty>,
+                D: Unsigned,
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
@@ -241,9 +250,12 @@ macro_rules! generic_impl_cmp {
                 }
             }
 
-            impl<$($($gen)*,)? O> PartialOrd<$ty> for DerefObserver<O>
+            impl<$($($gen)*,)? O, D, T: ?Sized> PartialOrd<$ty> for DerefObserver<O>
             where
-                Self: ObserverExt<Target: PartialOrd<$ty>>,
+                O: QuasiObserver<InnerDepth = Succ<D>>,
+                O::Head: AsDeref<D, Target = T>,
+                T: PartialOrd<$ty>,
+                D: Unsigned,
             {
                 #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {

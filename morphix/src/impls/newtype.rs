@@ -57,25 +57,28 @@ impl<O, S: ?Sized, D> Deref for NewtypeObserver<O, S, D> {
     }
 }
 
-impl<O, S: ?Sized, D> DerefMut for NewtypeObserver<O, S, D>
-where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
-{
+impl<O, S: ?Sized, D> DerefMut for NewtypeObserver<O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.as_deref_mut_coinductive();
+        unsafe { Pointer::invalidate(&mut self.1) }
         &mut self.1
     }
 }
 
 impl<O, S: ?Sized, D> QuasiObserver for NewtypeObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>>,
+    O: QuasiObserver,
     D: Unsigned,
     S: AsDeref<D>,
 {
+    type Head = S;
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
+
+    #[inline]
+    fn invalidate(this: &mut Self) {
+        O::invalidate(&mut this.0);
+    }
 }
 
 impl<O, S: ?Sized, D> Observer for NewtypeObserver<O, S, D>
@@ -94,7 +97,9 @@ where
     fn observe(head: &Self::Head) -> Self {
         let ptr = Pointer::new(head);
         let value = head.as_deref();
-        Self(O::observe(value.as_inner()), ptr, PhantomData)
+        let mut this = Self(O::observe(value.as_inner()), ptr, PhantomData);
+        Pointer::register_observer(&mut this.1, &mut this.0);
+        this
     }
 
     #[inline]
