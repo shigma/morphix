@@ -167,7 +167,7 @@ impl<K, O, S: ?Sized, D> Deref for BTreeMapObserver<K, O, S, D> {
 impl<K, O, S: ?Sized, D> DerefMut for BTreeMapObserver<K, O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { Pointer::invalidate(&mut self.ptr) }
+        Pointer::invalidate(&mut self.ptr);
         &mut self.ptr
     }
 }

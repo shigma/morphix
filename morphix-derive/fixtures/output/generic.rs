@@ -54,8 +54,9 @@ const _: () = {
         Option<U>: ::morphix::Observe,
     {
         fn deref_mut(&mut self) -> &mut Self::Target {
-            ::morphix::helper::QuasiObserver::observed_mut(&mut self.a);
-            ::morphix::helper::QuasiObserver::observed_mut(&mut self.c);
+            ::morphix::helper::QuasiObserver::invalidate(&mut self.__ptr);
+            ::morphix::helper::QuasiObserver::invalidate(&mut self.a);
+            ::morphix::helper::QuasiObserver::invalidate(&mut self.c);
             &mut self.__ptr
         }
     }
@@ -76,8 +77,13 @@ const _: () = {
         Option<U>: ::morphix::Observe,
         _N: ::morphix::helper::Unsigned,
     {
+        type Head = _S;
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
         type InnerDepth = _N;
+        fn invalidate(this: &mut Self) {
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.a);
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.c);
+        }
     }
     #[automatically_derived]
     impl<'ob, 'a, S, T, U, const N: usize, _S: ?Sized, _N> ::morphix::observe::Observer

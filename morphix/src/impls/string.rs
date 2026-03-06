@@ -57,7 +57,7 @@ impl<'ob, S: ?Sized, D> Deref for StringObserver<'ob, S, D> {
 impl<'ob, S: ?Sized, D> DerefMut for StringObserver<'ob, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { Pointer::invalidate(&mut self.ptr) }
+        Pointer::invalidate(&mut self.ptr);
         &mut self.ptr
     }
 }

@@ -84,7 +84,7 @@ impl<V, S: ?Sized, D> Deref for SliceObserver<V, S, D> {
 impl<V, S: ?Sized, D> DerefMut for SliceObserver<V, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { Pointer::invalidate(&mut self.ptr) }
+        Pointer::invalidate(&mut self.ptr);
         &mut self.ptr
     }
 }

@@ -491,8 +491,16 @@ pub fn derive_observe_for_enum(
             #head: ::morphix::helper::AsDeref<#depth>,
             #depth: ::morphix::helper::Unsigned,
         {
+            type Head = #head;
             type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
             type InnerDepth = #depth;
+
+            fn invalidate(this: &mut Self) {
+                #(#if_has_variant
+                    this.__mutated = true;
+                    this.__variant = #ob_variant_ident::__None;
+                )*
+            }
         }
 
         #[automatically_derived]

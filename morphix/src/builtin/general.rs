@@ -23,14 +23,21 @@ use crate::observe::{Observer, SerializeObserver};
 /// ```
 /// # use std::marker::PhantomData;
 /// # use morphix::builtin::{GeneralHandler, GeneralObserver};
+/// # use morphix::helper::ObserverState;
 /// # use morphix::observe::DefaultSpec;
 /// struct ShallowHandler<T> {
 ///     mutated: bool,
 ///     phantom: PhantomData<T>,
 /// }
 ///
-/// impl<T> GeneralHandler for ShallowHandler<T> {
+/// impl<T> ObserverState for ShallowHandler<T> {
 ///     type Target = T;
+///     fn invalidate(this: &mut Self, _value: &T) {
+///         this.mutated = true;
+///     }
+/// }
+///
+/// impl<T> GeneralHandler for ShallowHandler<T> {
 ///     type Spec = DefaultSpec;
 ///
 ///     fn uninit() -> Self {
@@ -39,10 +46,6 @@ use crate::observe::{Observer, SerializeObserver};
 ///
 ///     fn observe(_value: &T) -> Self {
 ///         Self { mutated: false, phantom: PhantomData }
-///     }
-///
-///     fn deref_mut(&mut self) {
-///         self.mutated = true;
 ///     }
 /// }
 ///
@@ -132,17 +135,21 @@ where
 /// ```
 /// # use std::marker::PhantomData;
 /// use morphix::builtin::{DebugHandler, GeneralHandler, GeneralObserver};
+/// use morphix::helper::ObserverState;
 /// use morphix::observe::Observer;
 ///
 /// pub struct MyHandler<T>(PhantomData<T>);
 ///
+/// impl<T> ObserverState for MyHandler<T> {
+///     type Target = T;
+///     fn invalidate(_: &mut Self, _: &T) {}
+/// }
+///
 /// impl<T> GeneralHandler for MyHandler<T> {
 ///     // omitted for brevity
-/// #   type Target = T;
 /// #   type Spec = morphix::observe::DefaultSpec;
 /// #   fn uninit() -> Self { Self(PhantomData) }
 /// #   fn observe(_value: &T) -> Self { Self(PhantomData) }
-/// #   fn deref_mut(&mut self) {}
 /// }
 ///
 /// impl<T> DebugHandler for MyHandler<T> {
@@ -204,7 +211,7 @@ impl<'ob, H, S: ?Sized, D> Deref for GeneralObserver<'ob, H, S, D> {
 impl<'ob, H, S: ?Sized, D> DerefMut for GeneralObserver<'ob, H, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { Pointer::invalidate(&mut self.ptr) }
+        Pointer::invalidate(&mut self.ptr);
         &mut self.ptr
     }
 }

@@ -1,5 +1,6 @@
 use morphix::adapter::Json;
-use morphix::observe::{ObserveExt, ObserverExt, SerializeObserverExt};
+use morphix::helper::QuasiObserver;
+use morphix::observe::{ObserveExt, SerializeObserverExt};
 use morphix::{Observe, observe};
 use morphix_test_utils::*;
 use serde::Serialize;

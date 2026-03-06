@@ -32,9 +32,10 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::ops::DerefMut for FooObserver<'ob, S, N> {
         fn deref_mut(&mut self) -> &mut Self::Target {
-            ::morphix::helper::QuasiObserver::observed_mut(&mut self.r#a);
-            ::morphix::helper::QuasiObserver::observed_mut(&mut self.b);
-            ::morphix::helper::QuasiObserver::observed_mut(&mut self.c);
+            ::morphix::helper::QuasiObserver::invalidate(&mut self.__ptr);
+            ::morphix::helper::QuasiObserver::invalidate(&mut self.r#a);
+            ::morphix::helper::QuasiObserver::invalidate(&mut self.b);
+            ::morphix::helper::QuasiObserver::invalidate(&mut self.c);
             &mut self.__ptr
         }
     }
@@ -44,8 +45,14 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N>,
         N: ::morphix::helper::Unsigned,
     {
+        type Head = S;
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
         type InnerDepth = N;
+        fn invalidate(this: &mut Self) {
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.r#a);
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.b);
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.c);
+        }
     }
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for FooObserver<'ob, S, N>
@@ -195,7 +202,8 @@ impl<'ob, S: ?Sized, N> ::std::ops::Deref for BarObserver<'ob, S, N> {
 #[automatically_derived]
 impl<'ob, S: ?Sized, N> ::std::ops::DerefMut for BarObserver<'ob, S, N> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        ::morphix::helper::QuasiObserver::observed_mut(&mut self.0);
+        ::morphix::helper::QuasiObserver::invalidate(&mut self.1);
+        ::morphix::helper::QuasiObserver::invalidate(&mut self.0);
         &mut self.1
     }
 }
@@ -206,8 +214,12 @@ where
     S: ::morphix::helper::AsDeref<N>,
     N: ::morphix::helper::Unsigned,
 {
+    type Head = S;
     type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
     type InnerDepth = N;
+    fn invalidate(this: &mut Self) {
+        ::morphix::helper::QuasiObserver::invalidate(&mut this.0);
+    }
 }
 #[rustfmt::skip]
 #[automatically_derived]
@@ -285,8 +297,9 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::ops::DerefMut for BazObserver<'ob, S, N> {
         fn deref_mut(&mut self) -> &mut Self::Target {
-            ::morphix::helper::QuasiObserver::observed_mut(&mut self.0);
-            ::morphix::helper::QuasiObserver::observed_mut(&mut self.1);
+            ::morphix::helper::QuasiObserver::invalidate(&mut self.2);
+            ::morphix::helper::QuasiObserver::invalidate(&mut self.0);
+            ::morphix::helper::QuasiObserver::invalidate(&mut self.1);
             &mut self.2
         }
     }
@@ -296,8 +309,13 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N>,
         N: ::morphix::helper::Unsigned,
     {
+        type Head = S;
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
         type InnerDepth = N;
+        fn invalidate(this: &mut Self) {
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.0);
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.1);
+        }
     }
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for BazObserver<'ob, S, N>

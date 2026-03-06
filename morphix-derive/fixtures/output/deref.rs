@@ -38,8 +38,13 @@ const _: () = {
         >,
         N: ::morphix::helper::Unsigned,
     {
+        type Head = O::Head;
         type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
         type InnerDepth = N;
+        fn invalidate(this: &mut Self) {
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.b);
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.a);
+        }
     }
     #[automatically_derived]
     impl<'ob, T, O, N> ::morphix::observe::Observer for FooObserver<'ob, O>
@@ -58,10 +63,15 @@ const _: () = {
         fn observe(head: &O::Head) -> Self {
             let __inner = ::morphix::observe::Observer::observe(head);
             let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
-            Self {
+            let mut this = Self {
                 a: __inner,
                 b: ::morphix::observe::Observer::observe(&__value.b),
-            }
+            };
+            let __ptr = <O as ::morphix::helper::AsDerefMutCoinductive<
+                <O as ::morphix::helper::QuasiObserver>::OuterDepth,
+            >>::as_deref_mut_coinductive(&mut this.a);
+            ::morphix::helper::Pointer::register_observer(__ptr, &mut this.b);
+            this
         }
         unsafe fn refresh(this: &mut Self, head: &O::Head) {
             let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
@@ -179,8 +189,13 @@ const _: () = {
         >,
         N: ::morphix::helper::Unsigned,
     {
+        type Head = O::Head;
         type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
         type InnerDepth = N;
+        fn invalidate(this: &mut Self) {
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.1);
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.0);
+        }
     }
     #[automatically_derived]
     impl<'ob, O, N> ::morphix::observe::Observer for BarObserver<'ob, O>
@@ -198,7 +213,15 @@ const _: () = {
         fn observe(head: &O::Head) -> Self {
             let __inner = ::morphix::observe::Observer::observe(head);
             let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
-            Self(__inner, ::morphix::observe::Observer::observe(&__value.1))
+            let mut this = Self(
+                __inner,
+                ::morphix::observe::Observer::observe(&__value.1),
+            );
+            let __ptr = <O as ::morphix::helper::AsDerefMutCoinductive<
+                <O as ::morphix::helper::QuasiObserver>::OuterDepth,
+            >>::as_deref_mut_coinductive(&mut this.0);
+            ::morphix::helper::Pointer::register_observer(__ptr, &mut this.1);
+            this
         }
         unsafe fn refresh(this: &mut Self, head: &O::Head) {
             let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
@@ -308,8 +331,12 @@ const _: () = {
         >,
         N: ::morphix::helper::Unsigned,
     {
+        type Head = O::Head;
         type OuterDepth = ::morphix::helper::Succ<O::OuterDepth>;
         type InnerDepth = N;
+        fn invalidate(this: &mut Self) {
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.0);
+        }
     }
     #[automatically_derived]
     impl<O, N> ::morphix::observe::Observer for QuxObserver<O>

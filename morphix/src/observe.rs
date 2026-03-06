@@ -254,8 +254,10 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     /// #     N: Unsigned,
     /// #     S: AsDeref<N>,
     /// # {
+    /// #     type Head = S;
     /// #     type OuterDepth = Succ<Zero>;
     /// #     type InnerDepth = N;
+    /// #     fn invalidate(_: &mut Self) {}
     /// # }
     /// #
     /// impl<'ob, O, S: ?Sized, N> Observer for OptionObserver<'ob, O, S, N>

@@ -38,7 +38,8 @@ use crate::helper::{AsDeref, QuasiObserver, Unsigned};
 /// context.
 pub struct Pointer<S: ?Sized> {
     inner: Cell<Option<NonNull<S>>>,
-    states: Vec<(isize, unsafe fn(*mut u8, &S))>,
+    #[expect(clippy::type_complexity)]
+    pub(crate) states: Vec<(isize, unsafe fn(*mut u8, &S))>,
 }
 
 impl<S: ?Sized> Pointer<S> {
@@ -159,14 +160,6 @@ impl<S: ?Sized> Pointer<S> {
         let offset = observer as *const _ as isize - this as *const _ as isize;
         let invalidate: unsafe fn(*mut u8, &S) = invalidate::<O, S>;
         this.states.push((offset, invalidate));
-    }
-
-    pub unsafe fn invalidate(this: &mut Self) {
-        let base = this as *const _ as *const u8;
-        let value = unsafe { Pointer::as_ref(this) };
-        for &(offset, invalidate) in &this.states {
-            unsafe { invalidate(base.offset(offset) as *mut u8, value) }
-        }
     }
 }
 

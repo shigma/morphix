@@ -89,6 +89,8 @@ pub trait DerefMutUntracked: DerefMut {
     }
 }
 
+impl<T: ?Sized> DerefMutUntracked for &mut T {}
+
 impl<S: ?Sized> DerefMutUntracked for Pointer<S> {
     #[inline]
     fn deref_mut_untracked<'a, U, D>(this: &'a mut U) -> &'a mut Self::Target
@@ -253,5 +255,11 @@ impl<T: ?Sized> QuasiObserver for Pointer<T> {
     type OuterDepth = Zero;
     type InnerDepth = Zero;
 
-    fn invalidate(_: &mut Self) {}
+    fn invalidate(this: &mut Self) {
+        let base = this as *const _ as *const u8;
+        let value = unsafe { Pointer::as_ref(this) };
+        for &(offset, invalidate) in &this.states {
+            unsafe { invalidate(base.offset(offset) as *mut u8, value) }
+        }
+    }
 }

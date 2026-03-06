@@ -145,8 +145,13 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N>,
         N: ::morphix::helper::Unsigned,
     {
+        type Head = S;
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
         type InnerDepth = N;
+        fn invalidate(this: &mut Self) {
+            this.__mutated = true;
+            this.__variant = FooObserverVariant::__None;
+        }
     }
     #[automatically_derived]
     impl<'ob, 'i, S: ?Sized, N> ::morphix::observe::Observer

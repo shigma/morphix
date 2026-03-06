@@ -229,6 +229,7 @@ pub fn derive_observe_for_struct(
     let deref_target;
     let deref_member;
     let deref_mut_impl;
+    let invalidate_impl;
     let assignable_impl;
     let observer_impl;
     let flush_replace;
@@ -268,10 +269,16 @@ pub fn derive_observe_for_struct(
             false => syn::Index::from(fields.len()).to_token_stream(),
         };
         deref_mut_impl = quote! {
-            #(::morphix::helper::QuasiObserver::observed_mut(&mut self.#non_deref_members);)*
+            ::morphix::helper::QuasiObserver::invalidate(&mut self.#deref_member);
+            #(::morphix::helper::QuasiObserver::invalidate(&mut self.#non_deref_members);)*
+        };
+
+        invalidate_impl = quote! {
+            #(::morphix::helper::QuasiObserver::invalidate(&mut this.#non_deref_members);)*
         };
 
         assignable_impl = quote! {
+            type Head = #head;
             type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
             type InnerDepth = #depth;
         };
@@ -394,7 +401,13 @@ pub fn derive_observe_for_struct(
         deref_member = quote! { #field_member };
         deref_mut_impl = quote! {};
 
+        invalidate_impl = quote! {
+            #(::morphix::helper::QuasiObserver::invalidate(&mut this.#non_deref_members);)*
+            ::morphix::helper::QuasiObserver::invalidate(&mut this.#field_member);
+        };
+
         assignable_impl = quote! {
+            type Head = #inner::Head;
             type OuterDepth = ::morphix::helper::Succ<#inner::OuterDepth>;
             type InnerDepth = #depth;
         };
@@ -404,7 +417,7 @@ pub fn derive_observe_for_struct(
             false => quote! { Self (#uninit_fields) },
         };
 
-        let observer_observe_expr = match is_named {
+        let mut observer_observe_expr = match is_named {
             true => quote! { Self { #observe_fields } },
             false => quote! { Self (#observe_fields) },
         };
@@ -415,6 +428,17 @@ pub fn derive_observe_for_struct(
             }
         } else {
             quote! {}
+        };
+
+        if !non_deref_members.is_empty() {
+            observer_observe_expr = quote! {
+                let mut this = #observer_observe_expr;
+                let __ptr = <#inner as ::morphix::helper::AsDerefMutCoinductive<
+                    <#inner as ::morphix::helper::QuasiObserver>::OuterDepth
+                >>::as_deref_mut_coinductive(&mut this.#field_member);
+                #(::morphix::helper::Pointer::register_observer(__ptr, &mut this.#non_deref_members);)*
+                this
+            };
         };
 
         observer_impl = quote! {
@@ -563,6 +587,10 @@ pub fn derive_observe_for_struct(
             #depth: ::morphix::helper::Unsigned,
         {
             #assignable_impl
+
+            fn invalidate(this: &mut Self) {
+                #invalidate_impl
+            }
         }
 
         #[automatically_derived]
