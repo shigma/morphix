@@ -77,7 +77,18 @@ use std::ops::{Deref, DerefMut};
 
 use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, Unsigned, Zero};
 
+/// Enables [`observed_mut`](QuasiObserver::observed_mut) to reach the [`Pointer`] without
+/// triggering [`DerefMut`] on any observer layer.
+///
+/// The default implementation uses
+/// [`as_deref_mut_coinductive`](AsDerefMutCoinductive::as_deref_mut_coinductive) followed by
+/// [`deref_mut`](DerefMut::deref_mut), which is the standard chain traversal. The key
+/// specialization is for [`Pointer<S>`](Pointer), which overrides this to use immutable coinductive
+/// traversal followed by unsafe interior-mutable access, completely bypassing all [`DerefMut`]
+/// hooks.
 pub trait DerefMutUntracked: DerefMut {
+    /// Traverses the coinductive dereference chain to reach the underlying value without triggering
+    /// any observer [`DerefMut`] hooks, if possible.
     #[inline]
     fn deref_mut_untracked<'a, U, D>(this: &'a mut U) -> &'a mut Self::Target
     where
@@ -150,6 +161,11 @@ impl<S: ?Sized> DerefMutUntracked for Pointer<S> {
 ///    unexpected behavior in the [`observe!`](crate::observe!) macro, as it would interfere with
 ///    the autoref-based specialization mechanism.
 pub trait QuasiObserver: AsDerefMutCoinductive<Self::OuterDepth, Target: Deref<Target = Self::Head>> {
+    /// The type stored inside the [`Pointer`], from which the inductive dereference chain begins.
+    ///
+    /// For plain references (`&T`, `&mut T`) and [`Pointer<T>`] this is `T`. For observers, this
+    /// is the head type parameter `S` (or `O::Head` for deref-mode structs that delegate through
+    /// an inner observer).
     type Head: AsDeref<Self::InnerDepth> + ?Sized;
 
     /// The number of coinductive dereferences from `Self` to its internal [`Pointer`].
@@ -182,6 +198,15 @@ pub trait QuasiObserver: AsDerefMutCoinductive<Self::OuterDepth, Target: Deref<T
         self.as_deref_coinductive().deref().as_deref()
     }
 
+    /// Resets all granular tracking state in this observer.
+    ///
+    /// Called by [`observed_mut`](Self::observed_mut) before traversing the dereference chain, and
+    /// by parent observers to cascade invalidation to their children. After this call, the next
+    /// flush should produce a [`Replace`](crate::MutationKind::Replace) mutation.
+    ///
+    /// For plain references (`&T`, `&mut T`) and [`Pointer<T>`], this is a no-op. For observers,
+    /// it delegates to [`ObserverState::invalidate`] on the internal tracking state and/or
+    /// recursively invalidates child observers.
     fn invalidate(this: &mut Self);
 
     /// Returns a mutable reference to the observed value by traversing the full dereference chain.
@@ -262,4 +287,27 @@ impl<T: ?Sized> QuasiObserver for Pointer<T> {
             unsafe { invalidate(base.offset(offset) as *mut u8, value) }
         }
     }
+}
+
+/// A trait for types that carry observer-internal state requiring invalidation.
+///
+/// When a tail observer's [`DerefMut`] is triggered (fallback invalidation), all registered
+/// [`ObserverState`] implementors are invalidated via this trait. The
+/// [`invalidate`](Self::invalidate) method resets tracking state so that the next flush produces a
+/// [`Replace`](crate::MutationKind::Replace) mutation.
+///
+/// The method is named `invalidate` rather than `mark_replace` to avoid coupling with
+/// [`MutationKind`](crate::MutationKind) — it invalidates the tracking mechanism, and the
+/// resulting `Replace` mutation is a consequence, not the intent.
+pub trait ObserverState {
+    /// The observed value type that this state tracks.
+    type Target: ?Sized;
+
+    /// Invalidates all granular tracking state.
+    ///
+    /// After this call, the next flush should produce a [`Replace`](crate::MutationKind::Replace)
+    /// mutation covering the entire observed value. The post-invalidation state is **not** the
+    /// "initial" state (which would be the clean state right after `observe`), but rather a state
+    /// that signals "all granular tracking is lost."
+    fn invalidate(this: &mut Self, value: &Self::Target);
 }

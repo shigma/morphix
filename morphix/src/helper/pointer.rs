@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
+use crate::helper::quasi::ObserverState;
 use crate::helper::{AsDeref, QuasiObserver, Unsigned};
 
 /// An internal pointer type for observer dereference chains.
@@ -130,6 +131,15 @@ impl<S: ?Sized> Pointer<S> {
         unsafe { ptr.as_mut() }
     }
 
+    /// Registers an [`ObserverState`] implementor for fallback invalidation.
+    ///
+    /// When [`DerefMut`] is triggered on a tail observer, it calls the invalidation function on the
+    /// [`Pointer`], which iterates all registered entries and calls their invalidation functions.
+    /// For states registered via this method, the erased function calls
+    /// [`ObserverState::invalidate`] with a reference to the observed value.
+    ///
+    /// The `state` must be an inline field relative to this [`Pointer`] (fixed byte offset,
+    /// invariant under moves). This is guaranteed by the inline-field invariant.
     pub fn register_state<O, D>(this: &mut Self, state: &mut O)
     where
         D: Unsigned,
@@ -151,6 +161,13 @@ impl<S: ?Sized> Pointer<S> {
         this.states.push((offset, invalidate));
     }
 
+    /// Registers a [`QuasiObserver`] implementor for fallback invalidation.
+    ///
+    /// Similar to [`register_state`](Self::register_state), but for observer types. The erased
+    /// function calls [`QuasiObserver::invalidate`] (which does not need the observed value).
+    ///
+    /// The `observer` must be an inline field relative to this [`Pointer`] (fixed byte offset,
+    /// invariant under moves). This is guaranteed by the inline-field invariant.
     pub fn register_observer<O: QuasiObserver>(this: &mut Self, observer: &mut O) {
         unsafe fn invalidate<O: QuasiObserver, S: ?Sized>(ptr: *mut u8, _: &S) {
             let state = unsafe { &mut *(ptr as *mut O) };
@@ -193,10 +210,4 @@ impl<S: ?Sized> DerefMut for Pointer<S> {
     fn deref_mut(&mut self) -> &mut S {
         unsafe { Self::as_mut(self) }
     }
-}
-
-pub trait ObserverState {
-    type Target: ?Sized;
-
-    fn invalidate(this: &mut Self, value: &Self::Target);
 }

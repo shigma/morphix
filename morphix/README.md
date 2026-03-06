@@ -16,7 +16,7 @@ morphix = { version = "0.15", features = ["json"] }
 
 ## Basic Usage
 
-```rust
+```rs
 use serde::Serialize;
 use serde_json::json;
 use morphix::adapter::Json;
@@ -121,6 +121,199 @@ foo.value = None;           // Delete at .value
 ### Batch
 
 Multiple mutations combined into a single operation.
+
+## Observer Mechanism
+
+This section describes the internal mechanism of morphix's observer system. It is intended for contributors and advanced users who want to understand how mutation tracking works under the hood.
+
+### How Observers Work
+
+An observer is a wrapper type that implements `Deref` and `DerefMut` to the type it observes. This lets the observer intercept all `&mut self` method calls through Rust's auto-deref mechanism. For example, a `StringObserver` dereferences to `String`, so calling `.push_str("hello")` on the observer transparently reaches the underlying `String` while the observer tracks the mutation.
+
+For specific methods like `String::push_str` and `Vec::push`, observers provide specialized implementations that record precise mutations (e.g., `Append`). For any `&mut self` method that does *not* have a specialized implementation, the call falls through to `DerefMut`, which triggers a conservative `Replace` mutation covering the entire value. This means observers are always correct — they never miss a mutation — but unimplemented methods produce coarser-grained output.
+
+### The Dereference Chain
+
+For simple types like `String` or `i32`, an observer can deref directly to the target. But for types that already implement `Deref` — such as `Vec<T>`, which dereferences to `[T]` — a straightforward approach breaks down. If type `A` dereferences to `B`, and we have corresponding observers `A'` and `B'`, where should `A'` deref to?
+
+- If `A'` → `A` → `B`: mutations on `B` cannot be precisely tracked (no `B'` in the chain).
+- If `A'` → `B'` → `B`: properties and methods on `A` become inaccessible (no `A` in the chain).
+
+The solution is to introduce a `Pointer<A>` to break the chain:
+
+```text
+A' → B' → Pointer<A> → A → B
+```
+
+This allows tracking mutations on both `A` and `B`. The chain is split into two segments:
+
+```text
+Self ──[OuterDepth]──> Pointer<Head> ───> Head ──[InnerDepth]──> Target
+        coinductive                               inductive
+```
+
+- **OuterDepth**: The number of *coinductive* dereferences from the observer to its internal `Pointer`. For most observers (e.g., `StringObserver`, `HashMapObserver`), this is 1. For composite observers like `VecObserver`, which wraps `SliceObserver`, it is 2. For `Pointer<T>` itself, it is 0.
+- **InnerDepth**: The number of *inductive* dereferences from the `Head` (the type stored in the `Pointer`) to the final observed `Target`. For example, a `VecObserver` has `Head = Vec<T>` and `Target = [T]`, so `InnerDepth = 1` (one `Deref` step).
+
+These depths are tracked at the type level using `Zero` and `Succ<N>`, enabling the compiler to verify the chain is well-formed.
+
+#### Tail and Non-Tail Observers
+
+Observers are classified by their `Deref` target:
+
+- **Tail observers** deref directly to `Pointer<S>` (e.g., `StringObserver`, `SliceObserver`, `HashMapObserver`). They are the innermost observer layer in the chain, sitting right next to the `Pointer`.
+- **Non-tail observers** deref to another observer (e.g., `VecObserver` derefs to `SliceObserver`). They form outer layers in the chain.
+
+This distinction matters for mutation tracking, as described in the next section.
+
+### Primitives of Mutation Tracking
+
+When a mutable method is called on an observer, one of three things can happen, depending on how the method is implemented:
+
+#### Fully tracked operations (`untracked_mut`)
+
+Methods like `Vec::push` or `String::push_str` have explicit observer implementations that know exactly what mutation occurred. These methods use `untracked_mut()` to access the underlying value *without* triggering any invalidation, then update the observer's diff state manually (e.g., incrementing an `append_index`).
+
+No invalidation is needed because the observer already knows the precise mutation.
+
+```rs
+// Simplified implementation of Vec::push on VecObserver
+fn push(&mut self, value: T) {
+    self.untracked_mut().push(value);
+    // The append_index tracking handles the rest —
+    // flush will emit an Append mutation.
+}
+```
+
+#### Coarse-grained operations (`observed_mut`)
+
+Methods like `Vec::retain` or `String::insert` modify the value in ways the observer cannot express with a granular mutation kind. These methods use `observed_mut()`, which:
+
+1. Calls `invalidate` on the current observer, resetting its diff state.
+2. Propagates invalidation to all sibling observers that sit between this observer and the `Pointer` (i.e., observers in the "outer" direction).
+3. Returns a mutable reference to the value via `DerefMutUntracked`, bypassing all `DerefMut` hooks.
+
+After invalidation, the next `flush` will produce a `Replace` mutation for the affected value.
+
+```rs
+// Simplified implementation of Vec::retain on VecObserver
+fn retain<F: FnMut(&T) -> bool>(&mut self, f: F) {
+    self.observed_mut().retain(f);
+    // The observer's state is now invalidated —
+    // flush will emit a Replace mutation.
+}
+```
+
+#### Unimplemented methods (fallback invalidation)
+
+For any `&mut self` method that has no explicit observer implementation, the call falls through to Rust's `DerefMut`. On a **tail observer**, `DerefMut` triggers **fallback invalidation**: it calls `Pointer::invalidate`, which iterates all registered observer states and invalidates them. This ensures that *every* observer in the chain is aware that an uncontrolled mutation may have occurred.
+
+On a **non-tail observer**, `DerefMut` is a no-op pass-through to the inner observer. The inner observer's `DerefMut` (or the tail observer's fallback invalidation) handles the actual invalidation.
+
+Fallback invalidation is maximally conservative: it invalidates the entire chain, causing a full `Replace` on the next flush. This guarantees correctness — no mutation is ever lost — at the cost of granularity for unimplemented methods.
+
+### The QuasiObserver Trait
+
+The `QuasiObserver` trait formalizes the dereference chain and provides the three primitives above as methods:
+
+```rs
+trait QuasiObserver {
+    type Head: ?Sized;
+    type OuterDepth: Unsigned;
+    type InnerDepth: Unsigned;
+
+    fn observed_ref(&self) -> &Target;
+    fn observed_mut(&mut self) -> &mut Target;
+    fn untracked_mut(&mut self) -> &mut Target;
+    fn invalidate(this: &mut Self);
+}
+```
+
+Each method traverses the chain differently:
+
+- **`observed_ref()`** performs a read-only traversal: coinductive deref to the `Pointer`, then `Deref` (no side effects), then inductive deref to the `Target`. Since reads do not mutate, no invalidation is needed.
+- **`observed_mut()`** first calls `invalidate` on `self`, then reaches the `Target` via `DerefMutUntracked` — a special trait that bypasses all `DerefMut` hooks by using `Pointer`'s interior mutability to obtain `&mut` access through an immutable coinductive traversal. Only the observer on which `observed_mut()` is called (and observers between it and the `Pointer`) are invalidated; outer observers are unaffected.
+- **`untracked_mut()`** uses the same `DerefMutUntracked` path as `observed_mut()`, but skips the `invalidate` call entirely. The caller is responsible for updating the diff state.
+
+#### Autoref-Based Specialization
+
+The `observe!` macro needs to transform assignment and comparison expressions to work uniformly with both observers and plain values. This creates two problems:
+
+- **Assignment**: Writing `observer.field = value` would replace the observer itself rather than assigning to the observed field. The macro transforms this to `*(&mut observer.field).observed_mut() = value`.
+- **Comparison**: Implementing both `Observer<T>: PartialEq<U>` and `Observer<T>: PartialEq<Observer<U>>` would conflict. The macro transforms `lhs == rhs` to `*(&lhs).observed_ref() == *(&rhs).observed_ref()`.
+
+For these transformations to work, `observed_mut` and `observed_ref` must be callable on both observers and plain references. This is achieved through autoref-based specialization: `QuasiObserver` is implemented for `&T` and `&mut T` (where all methods reduce to identity), and Rust's method resolution naturally selects the observer implementation when called on an observer, or the reference implementation when called on a plain value. The name "quasi-observer" reflects this dual nature — plain references are not real observers, but they participate in the same interface.
+
+### The Pointer Type
+
+`Pointer<S>` is the core type that enables the dereference chain and fallback invalidation:
+
+```rs
+pub struct Pointer<S: ?Sized> {
+    inner: Cell<Option<NonNull<S>>>,
+    states: Vec<(isize, unsafe fn(*mut u8, &S))>,
+}
+```
+
+The `inner` field is the raw pointer to the observed value. It uses `Cell` for interior mutability, allowing `Pointer::set` to update the address through a shared reference (needed when container reallocation moves elements).
+
+The `states` field stores the fallback invalidation registrations: a list of `(offset, invalidate_fn)` pairs. Each entry records the byte offset from the `Pointer` to an observer state or sibling observer, plus a type-erased function that calls `ObserverState::invalidate` or `QuasiObserver::invalidate` on it. When `Pointer::invalidate` is called, it iterates these entries and invokes each function.
+
+For simple observers like `StringObserver` or `HashMapObserver` — observers that have no siblings in the chain — `states` remains an empty `Vec` (zero heap allocation). Registration only occurs in composite observers that have sibling state needing fallback invalidation propagation (e.g., `SliceObserver` registering its state, or derived structs with multiple field observers).
+
+This mechanism relies on the **inline-field invariant**: every observer's deref target must be an inline field with a fixed byte offset relative to the `Pointer`. No `Box`, `Arc`, or other heap indirection is allowed in the deref chain. This ensures offset-based addressing remains valid.
+
+### Observer Lifecycle
+
+The `Observer` trait defines the lifecycle of an observer:
+
+```rs
+trait Observer: QuasiObserver<Target = Pointer<Head>> {
+    fn uninit() -> Self;
+    fn observe(head: &Self::Head) -> Self;
+    unsafe fn refresh(this: &mut Self, head: &Self::Head);
+    unsafe fn force(this: &mut Self, head: &Self::Head);
+}
+```
+
+- **`uninit()`** creates an uninitialized observer with a null pointer. Used for pre-allocating storage in containers before values are known.
+- **`observe(head)`** fully initializes the observer for a value. Sets up the internal pointer, initializes diff state, and registers any fallback invalidation entries.
+- **`refresh(this, head)`** updates the internal pointer after the observed value has moved in memory (e.g., due to `Vec` reallocation). The observer keeps its diff state intact.
+- **`force(this, head)`** is a convenience method: if uninit, calls `observe`; if the address changed, calls `refresh`; if unchanged, does nothing. Used by container observers for lazy initialization of element observers.
+
+`SerializeObserver` extends `Observer` with the ability to flush recorded mutations:
+
+```rs
+trait SerializeObserver: Observer {
+    unsafe fn flush(this: &mut Self) -> Mutations;
+    unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool);
+}
+```
+
+- **`flush`** extracts all recorded mutations and fully resets the observer's internal state. An immediately subsequent `flush` with no intervening mutations returns empty. If all inner fields/elements report `Replace`, the observer collapses them into a single whole-value `Replace`.
+- **`flat_flush`** is used for `#[serde(flatten)]` fields. It returns individual field mutations even when the whole value was replaced, along with an `is_replace` flag so the parent can decide whether to collapse.
+
+### The Observe Trait and Spec System
+
+The `Observe` trait connects a type to its default observer:
+
+```rs
+trait Observe {
+    type Observer<'ob, S, D>: Observer<Head = S, InnerDepth = D>;
+    type Spec;
+}
+```
+
+When you `#[derive(Observe)]` on a struct, the macro requires each field type to implement `Observe`, using its `Observer` associated type to determine which observer to instantiate.
+
+`RefObserve` is the counterpart for reference types: a type `T` implements `RefObserve` if `&T` can be observed. This is analogous to the relationship between `UnwindSafe` and `RefUnwindSafe`.
+
+The `Spec` associated type enables specialization for wrapper types. For example, `Option<T>` uses different observer strategies depending on `T::Spec`:
+
+- `DefaultSpec`: `Option<T>` is observed using `OptionObserver`, which tracks variant changes and delegates to `T`'s inner observer for the `Some` payload.
+- `SnapshotSpec`: `Option<T>` is observed using `SnapshotObserver`, which compares full snapshots for simpler change detection.
+
+This allows wrapper types to automatically select the most appropriate observer strategy based on their element type's capabilities.
 
 ## Features
 
