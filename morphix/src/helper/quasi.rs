@@ -1,9 +1,19 @@
-//! [`QuasiObserver`] trait and autoref-based specialization for the [`observe!`](crate::observe!)
-//! macro.
+//! [`QuasiObserver`] trait, [`ObserverState`] trait, and autoref-based specialization for the
+//! [`observe!`](crate::observe!) macro.
+//!
+//! The [`observe!`](crate::observe!) macro transforms assignments (`lhs = rhs`) and comparisons
+//! (`lhs == rhs`) into calls to [`tracked_mut`](QuasiObserver::tracked_mut) and
+//! [`untracked_ref`](QuasiObserver::untracked_ref). These methods are implemented for both
+//! observer types and plain references (`&T`, `&mut T`), so Rust's autoref-based method resolution
+//! selects the correct implementation depending on whether the operand is an observer or a plain
+//! value.
+//!
+//! [`ObserverState`] is the companion trait for types that carry internal tracking state (diff
+//! trackers, inner observer containers). It provides a single [`invalidate`](ObserverState::invalidate)
+//! entry point used by the fallback invalidation mechanism in [`Pointer`].
 //!
 //! See the [Observer Mechanism](https://github.com/shigma/morphix#observer-mechanism) section in
-//! the README for an overview of the dereference chain, mutation tracking primitives, and
-//! autoref-based specialization.
+//! the README for a detailed overview.
 
 use std::ops::{Deref, DerefMut};
 
@@ -50,7 +60,8 @@ impl<S: ?Sized> DerefMutUntracked for Pointer<S> {
 ///
 /// Also implemented for `&T`, `&mut T`, and [`Pointer<T>`] (where all methods reduce to identity),
 /// enabling the [`observe!`](crate::observe!) macro to work uniformly with both observers and plain
-/// references via autoref-based specialization.
+/// references via autoref-based specialization. The name "quasi-observer" reflects this dual
+/// nature — plain references are not real observers, but they participate in the same interface.
 ///
 /// ## Primitives of Mutation Tracking
 ///

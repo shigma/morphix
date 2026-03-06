@@ -112,7 +112,28 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 /// Observers provide transparent access to the underlying value while recording any mutations that
 /// occur. They form a dereference chain that allows multiple levels of observation.
 ///
-/// See the [Observer Mechanism](https://github.com/shigma/morphix#observer-mechanism) for an overview.
+/// ## Lifecycle
+///
+/// - [`uninit()`](Self::uninit) creates an uninitialized observer (null pointer). Used for
+///   pre-allocating storage in containers before values are known.
+/// - [`observe(head)`](Self::observe) fully initializes the observer: sets up the internal
+///   pointer, initializes diff state, and registers any fallback invalidation entries.
+/// - [`refresh(this, head)`](Self::refresh) updates the internal pointer after the observed
+///   value has moved in memory (e.g., due to [`Vec`] reallocation), keeping diff state intact.
+/// - [`force(this, head)`](Self::force) is a convenience: initializes if null, refreshes if
+///   moved, no-ops if unchanged. Used by container observers for lazy initialization.
+///
+/// ## Inline-Field Invariant
+///
+/// Every [`Observer`]'s [`Deref`](std::ops::Deref) target must be an inline field (or nested
+/// inline field) — no [`Box`], [`Arc`](std::sync::Arc), or other heap indirection in the deref
+/// chain. This ensures that every field within the observer hierarchy has a **fixed byte offset**
+/// relative to the [`Pointer<Head>`](Pointer), invariant under moves. This property is required
+/// by [`Pointer`]'s [fallback invalidation](Pointer#fallback-invalidation) mechanism, which uses
+/// offset-based addressing to reach sibling observers and states.
+///
+/// See the [Observer Mechanism](https://github.com/shigma/morphix#observer-mechanism) for a
+/// detailed overview of the dereference chain and mutation tracking primitives.
 pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head>> + Sized {
     /// Creates an uninitialized observer with a null pointer.
     ///
@@ -209,6 +230,10 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
 /// [`Adapter`] converts them.
 pub trait SerializeObserver: Observer {
     /// Extracts all recorded mutations and fully resets internal state.
+    ///
+    /// After calling `flush`, the observer's state is fully reset: an immediately subsequent
+    /// `flush` with no intervening mutations must return empty. This invariant applies
+    /// recursively to all nested observers and handler types.
     ///
     /// **Replace collapse**: If all inner fields or elements of a composite observer report
     /// [`Replace`](crate::MutationKind::Replace), the observer should collapse them into a

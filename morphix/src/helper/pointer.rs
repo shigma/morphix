@@ -32,6 +32,32 @@ use crate::helper::{AsDeref, QuasiObserver, Unsigned};
 /// 3. **Single ownership**: Each [`Pointer`] assumes exclusive access to its referenced value
 ///    during the observer's lifetime
 ///
+/// ## Interior Mutability
+///
+/// The `inner` field uses [`Cell`] for interior mutability, allowing [`Pointer::set`] to update
+/// the address through a shared reference. This is needed when container reallocation moves
+/// elements — [`Observer::refresh`](crate::observe::Observer::refresh) calls `Pointer::set`
+/// through `&self` rather than `&mut self`.
+///
+/// ## Fallback Invalidation
+///
+/// The `states` field stores `(offset, invalidate_fn)` pairs for the fallback invalidation
+/// mechanism. When [`DerefMut`] is triggered on a tail observer, it iterates all registered
+/// entries and calls their invalidation functions. Each entry records the byte offset from this
+/// [`Pointer`] to a sibling observer or state, plus a type-erased function that calls
+/// [`ObserverState::invalidate`] or [`QuasiObserver::invalidate`] on it.
+///
+/// For simple observers like [`StringObserver`](crate::impls::StringObserver) or
+/// [`HashMapObserver`](crate::impls::HashMapObserver) — which have no siblings in the chain —
+/// `states` remains an empty [`Vec`] (zero heap allocation). Registration only occurs in
+/// composite observers that have sibling state needing fallback invalidation propagation (e.g.,
+/// [`SliceObserver`](crate::impls::SliceObserver) registering its state, or derived structs
+/// with multiple field observers).
+///
+/// This mechanism relies on the **inline-field invariant**: every observer's deref target must
+/// be an inline field with a fixed byte offset relative to the [`Pointer`]. No [`Box`],
+/// [`Arc`](std::sync::Arc), or other heap indirection is allowed in the deref chain.
+///
 /// ## Internal Use Only
 ///
 /// This type is not intended for direct use outside of observer implementations. All safety

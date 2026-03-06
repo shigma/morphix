@@ -11,7 +11,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-morphix = { version = "0.15", features = ["json"] }
+morphix = { version = "0.16", features = ["json"] }
 ```
 
 ## Basic Usage
@@ -222,10 +222,10 @@ trait QuasiObserver {
     type OuterDepth: Unsigned;
     type InnerDepth: Unsigned;
 
+    fn invalidate(this: &mut Self) { .. }
     fn untracked_ref(&self) -> &Target;
     fn tracked_mut(&mut self) -> &mut Target;
     fn untracked_mut(&mut self) -> &mut Target;
-    fn invalidate(this: &mut Self);
 }
 ```
 
@@ -243,77 +243,6 @@ The `observe!` macro needs to transform assignment and comparison expressions to
 - **Comparison**: Implementing both `Observer<T>: PartialEq<U>` and `Observer<T>: PartialEq<Observer<U>>` would conflict. The macro transforms `lhs == rhs` to `*(&lhs).untracked_ref() == *(&rhs).untracked_ref()`.
 
 For these transformations to work, `tracked_mut` and `untracked_ref` must be callable on both observers and plain references. This is achieved through autoref-based specialization: `QuasiObserver` is implemented for `&T` and `&mut T` (where all methods reduce to identity), and Rust's method resolution naturally selects the observer implementation when called on an observer, or the reference implementation when called on a plain value. The name "quasi-observer" reflects this dual nature — plain references are not real observers, but they participate in the same interface.
-
-### The Pointer Type
-
-`Pointer<S>` is the core type that enables the dereference chain and fallback invalidation:
-
-```rs
-pub struct Pointer<S: ?Sized> {
-    inner: Cell<Option<NonNull<S>>>,
-    states: Vec<(isize, unsafe fn(*mut u8, &S))>,
-}
-```
-
-The `inner` field is the raw pointer to the observed value. It uses `Cell` for interior mutability, allowing `Pointer::set` to update the address through a shared reference (needed when container reallocation moves elements).
-
-The `states` field stores the fallback invalidation registrations: a list of `(offset, invalidate_fn)` pairs. Each entry records the byte offset from the `Pointer` to an observer state or sibling observer, plus a type-erased function that calls `ObserverState::invalidate` or `QuasiObserver::invalidate` on it. When `Pointer::invalidate` is called, it iterates these entries and invokes each function.
-
-For simple observers like `StringObserver` or `HashMapObserver` — observers that have no siblings in the chain — `states` remains an empty `Vec` (zero heap allocation). Registration only occurs in composite observers that have sibling state needing fallback invalidation propagation (e.g., `SliceObserver` registering its state, or derived structs with multiple field observers).
-
-This mechanism relies on the **inline-field invariant**: every observer's deref target must be an inline field with a fixed byte offset relative to the `Pointer`. No `Box`, `Arc`, or other heap indirection is allowed in the deref chain. This ensures offset-based addressing remains valid.
-
-### Observer Lifecycle
-
-The `Observer` trait defines the lifecycle of an observer:
-
-```rs
-trait Observer: QuasiObserver<Target = Pointer<Head>> {
-    fn uninit() -> Self;
-    fn observe(head: &Self::Head) -> Self;
-    unsafe fn refresh(this: &mut Self, head: &Self::Head);
-    unsafe fn force(this: &mut Self, head: &Self::Head);
-}
-```
-
-- **`uninit()`** creates an uninitialized observer with a null pointer. Used for pre-allocating storage in containers before values are known.
-- **`observe(head)`** fully initializes the observer for a value. Sets up the internal pointer, initializes diff state, and registers any fallback invalidation entries.
-- **`refresh(this, head)`** updates the internal pointer after the observed value has moved in memory (e.g., due to `Vec` reallocation). The observer keeps its diff state intact.
-- **`force(this, head)`** is a convenience method: if uninit, calls `observe`; if the address changed, calls `refresh`; if unchanged, does nothing. Used by container observers for lazy initialization of element observers.
-
-`SerializeObserver` extends `Observer` with the ability to flush recorded mutations:
-
-```rs
-trait SerializeObserver: Observer {
-    unsafe fn flush(this: &mut Self) -> Mutations;
-    unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool);
-}
-```
-
-- **`flush`** extracts all recorded mutations and fully resets the observer's internal state. An immediately subsequent `flush` with no intervening mutations returns empty. If all inner fields/elements report `Replace`, the observer collapses them into a single whole-value `Replace`.
-- **`flat_flush`** is used for `#[serde(flatten)]` fields. It returns individual field mutations even when the whole value was replaced, along with an `is_replace` flag so the parent can decide whether to collapse.
-
-### The Observe Trait and Spec System
-
-The `Observe` trait connects a type to its default observer:
-
-```rs
-trait Observe {
-    type Observer<'ob, S, D>: Observer<Head = S, InnerDepth = D>;
-    type Spec;
-}
-```
-
-When you `#[derive(Observe)]` on a struct, the macro requires each field type to implement `Observe`, using its `Observer` associated type to determine which observer to instantiate.
-
-`RefObserve` is the counterpart for reference types: a type `T` implements `RefObserve` if `&T` can be observed. This is analogous to the relationship between `UnwindSafe` and `RefUnwindSafe`.
-
-The `Spec` associated type enables specialization for wrapper types. For example, `Option<T>` uses different observer strategies depending on `T::Spec`:
-
-- `DefaultSpec`: `Option<T>` is observed using `OptionObserver`, which tracks variant changes and delegates to `T`'s inner observer for the `Some` payload.
-- `SnapshotSpec`: `Option<T>` is observed using `SnapshotObserver`, which compares full snapshots for simpler change detection.
-
-This allows wrapper types to automatically select the most appropriate observer strategy based on their element type's capabilities.
 
 ## Features
 

@@ -1,3 +1,5 @@
+#![allow(rustdoc::broken_intra_doc_links)]
+
 //! Test helper macros for constructing [`Mutation`](::morphix::Mutation) values concisely.
 //!
 //! # Path Syntax

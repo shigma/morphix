@@ -259,7 +259,7 @@ where
             handler: H::observe(head.as_deref()),
             phantom: PhantomData,
         };
-        Pointer::register_state::<H, D>(&mut this.ptr, &mut this.handler);
+        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.handler);
         this
     }
 }
