@@ -209,7 +209,7 @@ pub fn derive_observe_for_struct(
 
     if has_skip_serializing_if {
         flush_delete = quote! {
-            let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+            let __inner = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
             #flush_delete
         };
     }
@@ -339,7 +339,7 @@ pub fn derive_observe_for_struct(
 
         flush_replace = quote! {
             if is_replace {
-                let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+                let value = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
                 return ::morphix::Mutations::replace(value);
             }
         };
@@ -463,7 +463,7 @@ pub fn derive_observe_for_struct(
 
         flush_replace = quote! {
             if is_replace {
-                // let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+                // let value = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
                 let head = &**(*this).as_deref_coinductive();
                 let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
                 return ::morphix::Mutations::replace(value);
@@ -662,7 +662,7 @@ pub fn derive_observe_for_struct(
                 {
                     #[inline]
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let inner = ::morphix::helper::QuasiObserver::observed_ref(self);
+                        let inner = ::morphix::helper::QuasiObserver::untracked_ref(self);
                         ::std::fmt::Display::fmt(inner, f)
                     }
                 }

@@ -274,7 +274,7 @@ where
         this.state.mutated = false;
         this.state.diff.clear();
         this.state.inner.get_mut().clear();
-        Mutations::replace((*this).observed_ref())
+        Mutations::replace((*this).untracked_ref())
     }
 
     unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
@@ -318,7 +318,7 @@ where
         pub fn shrink_to(&mut self, min_capacity: usize);
     }
 
-    delegate_methods! { observed_mut as IndexMap =>
+    delegate_methods! { tracked_mut as IndexMap =>
         pub fn sort_keys(&mut self) where { K: Ord };
         pub fn sort_by<F>(&mut self, cmp: F) where { F: FnMut(&K, &V, &K, &V) -> Ordering };
         pub fn sort_by_key<T, F>(&mut self, sort_key: F) where { T: Ord, F: FnMut(&K, &V) -> T };
@@ -339,7 +339,7 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     K: Clone + Eq + Hash,
 {
-    delegate_methods! { observed_mut as IndexMap =>
+    delegate_methods! { tracked_mut as IndexMap =>
         pub fn insert_sorted(&mut self, key: K, value: O::Head) -> (usize, Option<O::Head>)
         where { K: Ord };
         pub fn insert_sorted_by<F>(&mut self, key: K, value: O::Head, cmp: F) -> (usize, Option<O::Head>)
@@ -365,7 +365,7 @@ where
     where
         Q: ?Sized + Hash + Equivalent<K>,
     {
-        let (key, value) = self.observed_ref().get_key_value(key)?;
+        let (key, value) = self.untracked_ref().get_key_value(key)?;
         let key_cloned = key.clone();
         match unsafe { (*self.state.inner.get()).entry(key_cloned) } {
             Entry::Occupied(occupied) => {
@@ -379,7 +379,7 @@ where
 
     /// See [`IndexMap::get_index`].
     pub fn get_index(&self, index: usize) -> Option<(&K, &O)> {
-        let (key, value) = self.observed_ref().get_index(index)?;
+        let (key, value) = self.untracked_ref().get_index(index)?;
         let key_cloned = key.clone();
         match unsafe { (*self.state.inner.get()).entry(key_cloned) } {
             Entry::Occupied(occupied) => {
@@ -402,10 +402,10 @@ where
 {
     fn replacing_mut(&mut self) -> &mut IndexMap<K, O::Head> {
         self.state.inner.get_mut().clear();
-        if (*self).observed_ref().is_empty() {
+        if (*self).untracked_ref().is_empty() {
             self.untracked_mut()
         } else {
-            self.observed_mut()
+            self.tracked_mut()
         }
     }
 
@@ -515,7 +515,7 @@ where
     /// See [`IndexMap::split_off`].
     pub fn split_off(&mut self, at: usize) -> IndexMap<K, O::Head> {
         if self.state.mutated {
-            return self.observed_mut().split_off(at);
+            return self.tracked_mut().split_off(at);
         }
         let split = (*self.ptr).as_deref_mut().split_off(at);
         for key in split.keys().cloned() {
@@ -533,7 +533,7 @@ where
     /// See [`IndexMap::insert_full`].
     pub fn insert_full(&mut self, key: K, value: O::Head) -> (usize, Option<O::Head>) {
         if self.state.mutated {
-            return self.observed_mut().insert_full(key, value);
+            return self.tracked_mut().insert_full(key, value);
         }
         let key_cloned = key.clone();
         let (index, old_value) = (*self.ptr).as_deref_mut().insert_full(key_cloned, value);
@@ -564,7 +564,7 @@ where
     {
         if self.state.mutated {
             return self
-                .observed_mut()
+                .tracked_mut()
                 .splice(range, replace_with)
                 .collect::<Vec<_>>()
                 .into_iter();
@@ -672,7 +672,7 @@ where
         Q: ?Sized + Hash + Equivalent<K>,
     {
         if self.state.mutated {
-            return self.observed_mut().swap_remove_full(key);
+            return self.tracked_mut().swap_remove_full(key);
         }
         let (index, key, old_value) = (*self.ptr).as_deref_mut().swap_remove_full(key)?;
         self.state.mark_deleted(key.clone());
@@ -703,7 +703,7 @@ where
         Q: ?Sized + Hash + Equivalent<K>,
     {
         if self.state.mutated {
-            return self.observed_mut().shift_remove_full(key);
+            return self.tracked_mut().shift_remove_full(key);
         }
         let (index, key, old_value) = (*self.ptr).as_deref_mut().shift_remove_full(key)?;
         self.state.mark_deleted(key.clone());
@@ -713,7 +713,7 @@ where
     /// See [`IndexMap::pop`].
     pub fn pop(&mut self) -> Option<(K, O::Head)> {
         if self.state.mutated {
-            return self.observed_mut().pop();
+            return self.tracked_mut().pop();
         }
         let (key, old_value) = (*self.ptr).as_deref_mut().pop()?;
         self.state.mark_deleted(key.clone());
@@ -769,7 +769,7 @@ where
     /// See [`IndexMap::swap_remove_index`].
     pub fn swap_remove_index(&mut self, index: usize) -> Option<(K, O::Head)> {
         if self.state.mutated {
-            return self.observed_mut().swap_remove_index(index);
+            return self.tracked_mut().swap_remove_index(index);
         }
         let (key, old_value) = (*self.ptr).as_deref_mut().swap_remove_index(index)?;
         self.state.mark_deleted(key.clone());
@@ -779,7 +779,7 @@ where
     /// See [`IndexMap::shift_remove_index`].
     pub fn shift_remove_index(&mut self, index: usize) -> Option<(K, O::Head)> {
         if self.state.mutated {
-            return self.observed_mut().shift_remove_index(index);
+            return self.tracked_mut().shift_remove_index(index);
         }
         let (key, old_value) = (*self.ptr).as_deref_mut().shift_remove_index(index)?;
         self.state.mark_deleted(key.clone());
@@ -797,7 +797,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("IndexMapObserver").field(&self.observed_ref()).finish()
+        f.debug_tuple("IndexMapObserver").field(&self.untracked_ref()).finish()
     }
 }
 
@@ -811,7 +811,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &IndexMap<K, V>) -> bool {
-        self.observed_ref().eq(other)
+        self.untracked_ref().eq(other)
     }
 }
 
@@ -830,7 +830,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &IndexMapObserver<K2, O2, S2, D2>) -> bool {
-        self.observed_ref().eq(other.observed_ref())
+        self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
@@ -916,7 +916,7 @@ where
 {
     fn extend<I: IntoIterator<Item = (K, O::Head)>>(&mut self, iter: I) {
         let iter = iter.into_iter();
-        let additional = if (*self).observed_ref().is_empty() {
+        let additional = if (*self).untracked_ref().is_empty() {
             iter.size_hint().0
         } else {
             iter.size_hint().0.div_ceil(2)
@@ -1007,8 +1007,8 @@ mod tests {
         let mut ob = map.__observe();
         assert_eq!(ob.insert("b", "y".to_string()), None);
         assert_eq!(ob.shift_remove("b"), Some("y".to_string()));
-        assert_eq!(ob.observed_ref().len(), 1);
-        assert_eq!(ob.observed_ref().get("a"), Some(&"x".to_string()));
+        assert_eq!(ob.untracked_ref().len(), 1);
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"x".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, None);
     }
@@ -1019,7 +1019,7 @@ mod tests {
         let mut ob = map.__observe();
         assert_eq!(ob.shift_remove("a"), Some("x".to_string()));
         assert_eq!(ob.insert("a", "y".to_string()), None);
-        assert_eq!(ob.observed_ref().get("a"), Some(&"y".to_string()));
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"y".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(a, json!("y"))));
     }
@@ -1030,7 +1030,7 @@ mod tests {
         let mut ob = map.__observe();
         // swap_remove "a" swaps it with the last element "c"
         assert_eq!(ob.swap_remove("a"), Some("x".to_string()));
-        assert_eq!(ob.observed_ref().len(), 2);
+        assert_eq!(ob.untracked_ref().len(), 2);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(delete!(a)));
     }
@@ -1040,7 +1040,7 @@ mod tests {
         let mut map = IndexMap::from([("a", "x".to_string()), ("b", "y".to_string())]);
         let mut ob = map.__observe();
         assert_eq!(ob.shift_remove_entry("a"), Some(("a", "x".to_string())));
-        assert_eq!(ob.observed_ref().len(), 1);
+        assert_eq!(ob.untracked_ref().len(), 1);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(delete!(a)));
     }
@@ -1050,7 +1050,7 @@ mod tests {
         let mut map = IndexMap::from([("a", 1i32), ("b", 2), ("c", 3)]);
         let mut ob = map.__observe();
         ob.retain(|_, v| *v % 2 != 0);
-        assert_eq!(ob.observed_ref(), &IndexMap::from([("a", 1), ("c", 3)]));
+        assert_eq!(ob.untracked_ref(), &IndexMap::from([("a", 1), ("c", 3)]));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(delete!(b)));
     }
@@ -1060,7 +1060,7 @@ mod tests {
         let mut map = IndexMap::from([("a", "x".to_string())]);
         let mut ob = map.__observe();
         ob.extend([("b", "y".to_string()), ("c", "z".to_string())]);
-        assert_eq!(ob.observed_ref().len(), 3);
+        assert_eq!(ob.untracked_ref().len(), 3);
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
     }
@@ -1071,7 +1071,7 @@ mod tests {
         let mut ob = map.__observe();
         ob.get_mut("a").unwrap().push_str(" world");
         ob.insert("a", "bye".to_string());
-        assert_eq!(ob.observed_ref().get("a"), Some(&"bye".to_string()));
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"bye".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(a, json!("bye"))));
     }
@@ -1082,7 +1082,7 @@ mod tests {
         let mut ob = map.__observe();
         ob.insert("b", "hello".to_string());
         ob.get_mut("b").unwrap().push_str(" world");
-        assert_eq!(ob.observed_ref().get("b"), Some(&"hello world".to_string()));
+        assert_eq!(ob.untracked_ref().get("b"), Some(&"hello world".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(b, json!("hello world"))));
     }
@@ -1094,8 +1094,8 @@ mod tests {
         for (_, v) in ob.iter_mut() {
             v.push_str("!");
         }
-        assert_eq!(ob.observed_ref().get("a"), Some(&"x!".to_string()));
-        assert_eq!(ob.observed_ref().get("b"), Some(&"y!".to_string()));
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"x!".to_string()));
+        assert_eq!(ob.untracked_ref().get("b"), Some(&"y!".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -1113,7 +1113,7 @@ mod tests {
         let mut map = IndexMap::from([("a", 1i32), ("b", 2), ("c", 3)]);
         let mut ob = map.__observe();
         assert_eq!(ob.pop(), Some(("c", 3)));
-        assert_eq!(ob.observed_ref(), &IndexMap::from([("a", 1), ("b", 2)]));
+        assert_eq!(ob.untracked_ref(), &IndexMap::from([("a", 1), ("b", 2)]));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(delete!(c)));
     }
@@ -1137,7 +1137,7 @@ mod tests {
         let mut ob = map.__observe();
         let extracted: IndexMap<_, _> = ob.extract_if(.., |_, v| *v % 2 == 0).collect();
         assert_eq!(extracted, IndexMap::from([("b", 2), ("d", 4)]));
-        assert_eq!(ob.observed_ref(), &IndexMap::from([("a", 1), ("c", 3)]));
+        assert_eq!(ob.untracked_ref(), &IndexMap::from([("a", 1), ("c", 3)]));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -1163,7 +1163,7 @@ mod tests {
         // Only extract from indices 1..3 ("b" and "c")
         let extracted: IndexMap<_, _> = ob.extract_if(1..3, |_, _| true).collect();
         assert_eq!(extracted, IndexMap::from([("b", 2), ("c", 3)]));
-        assert_eq!(ob.observed_ref(), &IndexMap::from([("a", 1), ("d", 4)]));
+        assert_eq!(ob.untracked_ref(), &IndexMap::from([("a", 1), ("d", 4)]));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
     }
@@ -1172,8 +1172,8 @@ mod tests {
     fn index_by_usize() {
         let mut map = IndexMap::from([("a", "x".to_string()), ("b", "y".to_string())]);
         let ob = map.__observe();
-        assert_eq!(ob[0].observed_ref(), "x");
-        assert_eq!(ob[1].observed_ref(), "y");
+        assert_eq!(ob[0].untracked_ref(), "x");
+        assert_eq!(ob[1].untracked_ref(), "y");
     }
 
     #[test]
@@ -1182,8 +1182,8 @@ mod tests {
         let mut ob = map.__observe();
         ob[0].push_str("!");
         ob[1].push_str("?");
-        assert_eq!(ob.observed_ref().get("a"), Some(&"x!".to_string()));
-        assert_eq!(ob.observed_ref().get("b"), Some(&"y?".to_string()));
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"x!".to_string()));
+        assert_eq!(ob.untracked_ref().get("b"), Some(&"y?".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -1219,7 +1219,7 @@ mod tests {
         let mut map = IndexMap::from([("a", 1i32), ("b", 2), ("c", 3), ("d", 4)]);
         let mut ob = map.__observe();
         ob.truncate(2);
-        assert_eq!(ob.observed_ref(), &IndexMap::from([("a", 1), ("b", 2)]));
+        assert_eq!(ob.untracked_ref(), &IndexMap::from([("a", 1), ("b", 2)]));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -1244,7 +1244,7 @@ mod tests {
         let mut ob = map.__observe();
         let drained: IndexMap<_, _> = ob.drain(1..3).collect();
         assert_eq!(drained, IndexMap::from([("b", 2), ("c", 3)]));
-        assert_eq!(ob.observed_ref(), &IndexMap::from([("a", 1), ("d", 4)]));
+        assert_eq!(ob.untracked_ref(), &IndexMap::from([("a", 1), ("d", 4)]));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -1257,7 +1257,7 @@ mod tests {
         let mut ob = map.__observe();
         let drained: Vec<_> = ob.drain(..).collect();
         assert_eq!(drained, vec![("a", 1), ("b", 2)]);
-        assert!(ob.observed_ref().is_empty());
+        assert!(ob.untracked_ref().is_empty());
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
     }
@@ -1269,7 +1269,7 @@ mod tests {
         let mut other = IndexMap::from([("b", "y".to_string()), ("c", "z".to_string())]);
         ob.append(&mut other);
         assert!(other.is_empty());
-        assert_eq!(ob.observed_ref().len(), 3);
+        assert_eq!(ob.untracked_ref().len(), 3);
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -1282,7 +1282,7 @@ mod tests {
         let mut ob = map.__observe();
         let split = ob.split_off(1);
         assert_eq!(split, IndexMap::from([("b", 2), ("c", 3)]));
-        assert_eq!(ob.observed_ref(), &IndexMap::from([("a", 1)]));
+        assert_eq!(ob.untracked_ref(), &IndexMap::from([("a", 1)]));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -1294,7 +1294,7 @@ mod tests {
         let mut map = IndexMap::from([("a", 1i32), ("b", 2), ("c", 3)]);
         let mut ob = map.__observe();
         assert_eq!(ob.swap_remove_full("b"), Some((1, "b", 2)));
-        assert_eq!(ob.observed_ref().len(), 2);
+        assert_eq!(ob.untracked_ref().len(), 2);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(delete!(b)));
     }
@@ -1304,9 +1304,9 @@ mod tests {
         let mut map = IndexMap::from([("a", 1i32), ("b", 2), ("c", 3)]);
         let mut ob = map.__observe();
         assert_eq!(ob.shift_remove_full("a"), Some((0, "a", 1)));
-        assert_eq!(ob.observed_ref().len(), 2);
+        assert_eq!(ob.untracked_ref().len(), 2);
         // Order preserved: b, c
-        assert_eq!(ob.observed_ref().get_index(0), Some((&"b", &2)));
+        assert_eq!(ob.untracked_ref().get_index(0), Some((&"b", &2)));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(delete!(a)));
     }
@@ -1359,10 +1359,10 @@ mod tests {
         let removed: Vec<_> = ob.splice(1..3, [("x", 10), ("y", 20)]).collect();
         assert_eq!(removed, vec![("b", 2), ("c", 3)]);
         // Final order: a, x, y, d
-        assert_eq!(ob.observed_ref().get("a"), Some(&1));
-        assert_eq!(ob.observed_ref().get("x"), Some(&10));
-        assert_eq!(ob.observed_ref().get("y"), Some(&20));
-        assert_eq!(ob.observed_ref().get("d"), Some(&4));
+        assert_eq!(ob.untracked_ref().get("a"), Some(&1));
+        assert_eq!(ob.untracked_ref().get("x"), Some(&10));
+        assert_eq!(ob.untracked_ref().get("y"), Some(&20));
+        assert_eq!(ob.untracked_ref().get("d"), Some(&4));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -1380,7 +1380,7 @@ mod tests {
         // Remove "b" and re-insert "b" with a new value
         let removed: Vec<_> = ob.splice(1..2, [("b", 20)]).collect();
         assert_eq!(removed, vec![("b", 2)]);
-        assert_eq!(ob.observed_ref().get("b"), Some(&20));
+        assert_eq!(ob.untracked_ref().get("b"), Some(&20));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(b, json!(20))));
     }
@@ -1390,7 +1390,7 @@ mod tests {
         let mut map = IndexMap::from([("a", 1i32)]);
         let mut ob = map.__observe();
         ob.extend([(&"b", &2), (&"c", &3)]);
-        assert_eq!(ob.observed_ref().len(), 3);
+        assert_eq!(ob.untracked_ref().len(), 3);
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();

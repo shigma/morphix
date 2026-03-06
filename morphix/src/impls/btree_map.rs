@@ -279,7 +279,7 @@ where
         this.state.mutated = false;
         this.state.diff.clear();
         this.state.inner.get_mut().clear();
-        Mutations::replace((*this).observed_ref())
+        Mutations::replace((*this).untracked_ref())
     }
 
     unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
@@ -321,7 +321,7 @@ where
         K: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        let (key, value) = self.observed_ref().get_key_value(key)?;
+        let (key, value) = self.untracked_ref().get_key_value(key)?;
         match unsafe { (*self.state.inner.get()).entry(key.clone()) } {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
@@ -379,17 +379,17 @@ where
     #[inline]
     pub fn clear(&mut self) {
         self.state.inner.get_mut().clear();
-        if (*self).observed_ref().is_empty() {
+        if (*self).untracked_ref().is_empty() {
             self.untracked_mut().clear()
         } else {
-            self.observed_mut().clear()
+            self.tracked_mut().clear()
         }
     }
 
     /// See [`BTreeMap::insert`].
     pub fn insert(&mut self, key: K, value: O::Head) -> Option<O::Head> {
         if self.state.mutated {
-            return self.observed_mut().insert(key, value);
+            return self.tracked_mut().insert(key, value);
         }
         let key_cloned = key.clone();
         let old_value = (*self.ptr).as_deref_mut().insert(key_cloned, value);
@@ -418,7 +418,7 @@ where
         Q: Ord + ?Sized,
     {
         if self.state.mutated {
-            return self.observed_mut().remove(key);
+            return self.tracked_mut().remove(key);
         }
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
         self.state.mark_deleted(key);
@@ -432,7 +432,7 @@ where
         Q: Ord + ?Sized,
     {
         if self.state.mutated {
-            return self.observed_mut().remove_entry(key);
+            return self.tracked_mut().remove_entry(key);
         }
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
         self.state.mark_deleted(key.clone());
@@ -442,7 +442,7 @@ where
     /// See [`BTreeMap::pop_first`].
     pub fn pop_first(&mut self) -> Option<(K, O::Head)> {
         if self.state.mutated {
-            return self.observed_mut().pop_first();
+            return self.tracked_mut().pop_first();
         }
         let (key, old_value) = (*self.ptr).as_deref_mut().pop_first()?;
         self.state.mark_deleted(key.clone());
@@ -452,7 +452,7 @@ where
     /// See [`BTreeMap::pop_last`].
     pub fn pop_last(&mut self) -> Option<(K, O::Head)> {
         if self.state.mutated {
-            return self.observed_mut().pop_last();
+            return self.tracked_mut().pop_last();
         }
         let (key, old_value) = (*self.ptr).as_deref_mut().pop_last()?;
         self.state.mark_deleted(key.clone());
@@ -473,7 +473,7 @@ where
     // `BTreeMap::append`. Consider a bulk-insert approach that updates `diff` in one pass.
     pub fn append(&mut self, other: &mut BTreeMap<K, O::Head>) {
         if self.state.mutated {
-            return self.observed_mut().append(other);
+            return self.tracked_mut().append(other);
         }
         for (key, value) in std::mem::take(other) {
             self.insert(key, value);
@@ -487,7 +487,7 @@ where
         Q: Ord + ?Sized,
     {
         if self.state.mutated {
-            return self.observed_mut().split_off(key);
+            return self.tracked_mut().split_off(key);
         }
         let split = (*self.ptr).as_deref_mut().split_off(key);
         for key in split.keys().cloned() {
@@ -534,7 +534,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("BTreeMapObserver").field(&self.observed_ref()).finish()
+        f.debug_tuple("BTreeMapObserver").field(&self.untracked_ref()).finish()
     }
 }
 
@@ -548,7 +548,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &BTreeMap<K, V>) -> bool {
-        self.observed_ref().eq(other)
+        self.untracked_ref().eq(other)
     }
 }
 
@@ -567,7 +567,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &BTreeMapObserver<K2, O2, S2, D2>) -> bool {
-        self.observed_ref().eq(other.observed_ref())
+        self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
@@ -591,7 +591,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &BTreeMap<K, V>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other)
+        self.untracked_ref().partial_cmp(other)
     }
 }
 
@@ -610,7 +610,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &BTreeMapObserver<K2, O2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other.observed_ref())
+        self.untracked_ref().partial_cmp(other.untracked_ref())
     }
 }
 
@@ -624,7 +624,7 @@ where
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.observed_ref().cmp(other.observed_ref())
+        self.untracked_ref().cmp(other.untracked_ref())
     }
 }
 
@@ -735,14 +735,14 @@ mod tests {
         }
         let ob = map.__observe();
         // Create observer for key 0
-        assert_eq!(ob.get(&0).unwrap().observed_ref(), "value 0");
+        assert_eq!(ob.get(&0).unwrap().untracked_ref(), "value 0");
         // Create many more observers, triggering node splits
         // Box<O> ensures previously created observers remain valid.
         for i in 1..100 {
-            assert_eq!(ob.get(&i).unwrap().observed_ref(), &format!("value {i}"));
+            assert_eq!(ob.get(&i).unwrap().untracked_ref(), &format!("value {i}"));
         }
         // Key 0's observer is still valid thanks to Box pointer stability
-        assert_eq!(ob.get(&0).unwrap().observed_ref(), "value 0");
+        assert_eq!(ob.get(&0).unwrap().untracked_ref(), "value 0");
     }
 
     #[test]
@@ -760,8 +760,8 @@ mod tests {
         let mut ob = map.__observe();
         assert_eq!(ob.insert("b", "y".to_string()), None);
         assert_eq!(ob.remove("b"), Some("y".to_string()));
-        assert_eq!(ob.observed_ref().len(), 1);
-        assert_eq!(ob.observed_ref().get("a"), Some(&"x".to_string()));
+        assert_eq!(ob.untracked_ref().len(), 1);
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"x".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, None);
     }
@@ -772,7 +772,7 @@ mod tests {
         let mut ob = map.__observe();
         assert_eq!(ob.remove("a"), Some("x".to_string()));
         assert_eq!(ob.insert("a", "y".to_string()), None);
-        assert_eq!(ob.observed_ref().get("a"), Some(&"y".to_string()));
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"y".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(a, json!("y"))));
     }
@@ -784,7 +784,7 @@ mod tests {
         let mut ob = map.__observe();
         // First get_mut: modify the value through the child observer
         ob.get_mut("a").unwrap().push_str(" world");
-        assert_eq!(ob.observed_ref().get("a").unwrap(), "hello world");
+        assert_eq!(ob.untracked_ref().get("a").unwrap(), "hello world");
         // Insert many keys via untracked_mut to trigger node splits in the
         // observed BTreeMap without adding to diff.replaced
         for i in 1..100 {
@@ -793,7 +793,7 @@ mod tests {
         }
         // Second get_mut: refresh updates the child observer's stale pointer
         ob.get_mut("a").unwrap().push_str("!");
-        assert_eq!(ob.observed_ref().get("a").unwrap(), "hello world!");
+        assert_eq!(ob.untracked_ref().get("a").unwrap(), "hello world!");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(append!(a, json!(" world!"))));
     }
@@ -804,7 +804,7 @@ mod tests {
         let mut ob = map.__observe();
         ob.insert("b", "hello".to_string());
         ob.get_mut("b").unwrap().push_str(" world");
-        assert_eq!(ob.observed_ref().get("b"), Some(&"hello world".to_string()));
+        assert_eq!(ob.untracked_ref().get("b"), Some(&"hello world".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(b, json!("hello world"))));
     }
@@ -815,7 +815,7 @@ mod tests {
         let mut ob = map.__observe();
         ob.get_mut("a").unwrap().push_str(" world");
         ob.insert("a", "bye".to_string());
-        assert_eq!(ob.observed_ref().get("a"), Some(&"bye".to_string()));
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"bye".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(a, json!("bye"))));
     }
@@ -825,7 +825,7 @@ mod tests {
         let mut map = BTreeMap::from([("a", "x".to_string()), ("b", "y".to_string())]);
         let mut ob = map.__observe();
         assert_eq!(ob.remove_entry("a"), Some(("a", "x".to_string())));
-        assert_eq!(ob.observed_ref().len(), 1);
+        assert_eq!(ob.untracked_ref().len(), 1);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(delete!(a)));
     }
@@ -836,7 +836,7 @@ mod tests {
         let mut ob = map.__observe();
         assert_eq!(ob.pop_first(), Some(("a", 1)));
         assert_eq!(ob.pop_last(), Some(("c", 3)));
-        assert_eq!(ob.observed_ref(), &BTreeMap::from([("b", 2)]));
+        assert_eq!(ob.untracked_ref(), &BTreeMap::from([("b", 2)]));
         let Json(mutation) = ob.flush().unwrap();
         // Two deletions: "a" and "c"
         assert!(mutation.is_some());
@@ -849,7 +849,7 @@ mod tests {
         let mut map = BTreeMap::from([("a", 1i32), ("b", 2), ("c", 3)]);
         let mut ob = map.__observe();
         ob.retain(|_, v| *v % 2 != 0);
-        assert_eq!(ob.observed_ref(), &BTreeMap::from([("a", 1), ("c", 3)]));
+        assert_eq!(ob.untracked_ref(), &BTreeMap::from([("a", 1), ("c", 3)]));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(delete!(b)));
     }
@@ -861,7 +861,7 @@ mod tests {
         let mut other = BTreeMap::from([("b", "y".to_string()), ("c", "z".to_string())]);
         ob.append(&mut other);
         assert!(other.is_empty());
-        assert_eq!(ob.observed_ref().len(), 3);
+        assert_eq!(ob.untracked_ref().len(), 3);
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -874,7 +874,7 @@ mod tests {
         let mut ob = map.__observe();
         let split = ob.split_off("b");
         assert_eq!(split, BTreeMap::from([("b", 2), ("c", 3)]));
-        assert_eq!(ob.observed_ref(), &BTreeMap::from([("a", 1)]));
+        assert_eq!(ob.untracked_ref(), &BTreeMap::from([("a", 1)]));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -886,7 +886,7 @@ mod tests {
         let mut map = BTreeMap::from([("a", "x".to_string())]);
         let mut ob = map.__observe();
         ob.extend([("b", "y".to_string()), ("c", "z".to_string())]);
-        assert_eq!(ob.observed_ref().len(), 3);
+        assert_eq!(ob.untracked_ref().len(), 3);
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
     }
@@ -897,7 +897,7 @@ mod tests {
         let mut ob = map.__observe();
         let extracted: BTreeMap<_, _> = ob.extract_if(.., |_, v| *v % 2 == 0).collect();
         assert_eq!(extracted, BTreeMap::from([("b", 2), ("d", 4)]));
-        assert_eq!(ob.observed_ref(), &BTreeMap::from([("a", 1), ("c", 3)]));
+        assert_eq!(ob.untracked_ref(), &BTreeMap::from([("a", 1), ("c", 3)]));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -912,7 +912,7 @@ mod tests {
         let first = ob.extract_if(.., |_, v| *v % 2 == 0).next();
         assert_eq!(first, Some(("b", 2)));
         // "d" matched the predicate but was never yielded, so it must be retained.
-        assert_eq!(ob.observed_ref(), &BTreeMap::from([("a", 1), ("c", 3), ("d", 4)]));
+        assert_eq!(ob.untracked_ref(), &BTreeMap::from([("a", 1), ("c", 3), ("d", 4)]));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(delete!(b)));
     }
@@ -936,8 +936,8 @@ mod tests {
         for (_, v) in ob.iter_mut() {
             v.push_str("!");
         }
-        assert_eq!(ob.observed_ref().get("a"), Some(&"x!".to_string()));
-        assert_eq!(ob.observed_ref().get("b"), Some(&"y!".to_string()));
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"x!".to_string()));
+        assert_eq!(ob.untracked_ref().get("b"), Some(&"y!".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();

@@ -110,7 +110,7 @@ const _: () = {
             let is_replace = mutations_a.is_replace() && mutations_b.is_replace()
                 && is_replace_c;
             if is_replace {
-                let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+                let value = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
                 return ::morphix::Mutations::replace(value);
             }
             let mut mutations = ::morphix::Mutations::with_capacity(
@@ -171,7 +171,7 @@ const _: () = {
     {
         #[inline]
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            let inner = ::morphix::helper::QuasiObserver::observed_ref(self);
+            let inner = ::morphix::helper::QuasiObserver::untracked_ref(self);
             ::std::fmt::Display::fmt(inner, f)
         }
     }
@@ -366,7 +366,7 @@ const _: () = {
             };
             let is_replace = mutations_0.is_replace() && mutations_1.is_replace();
             if is_replace {
-                let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+                let value = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
                 return ::morphix::Mutations::replace(value);
             }
             let mut mutations = ::morphix::Mutations::with_capacity(

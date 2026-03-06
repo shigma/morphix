@@ -1,24 +1,8 @@
 //! Types and traits for observing mutations to data structures.
 //!
-//! ## How Observers Work
-//!
-//! Observers are types that implement [`DerefMut`](std::ops::DerefMut) to the target type being
-//! observed. When any method requiring `&mut self` is called, it triggers the
-//! [`DerefMut`](std::ops::DerefMut) hook where change tracking occurs. Additionally, for specific
-//! methods like [`String::push_str`] and [`Vec::push`], observers provide specialized
-//! implementations for more precise tracking.
-//!
-//! For types that already implement [`Deref`](std::ops::Deref) (like [`Box<T>`]), implementing
-//! observers is more challenging. If type `A` dereferences to `B`, and we have corresponding
-//! observers `A'` and `B'`, where should `A'` deref to?
-//!
-//! - If `A'` → `A` → `B`: Changes on B cannot be precisely tracked (because no `B'` in the
-//!   dereference chain)
-//! - If `A'` → `B'` → `B`: Properties and methods on A become inaccessible (because no `A` in the
-//!   dereference chain)
-//!
-//! To solve this, we use a [`Pointer`] type to create the dereference chain: `A'` → `B'` →
-//! `Pointer<A>` → `A` → `B`. This allows tracking changes on both `A` and `B`.
+//! See the [Observer Mechanism](https://github.com/shigma/morphix#observer-mechanism) section in
+//! the README for a detailed overview of the observer architecture, dereference chains, and
+//! mutation tracking primitives.
 
 pub use crate::builtin::snapshot::SnapshotSpec;
 use crate::helper::{AsDeref, Pointer, QuasiObserver, Unsigned, Zero};
@@ -31,7 +15,7 @@ use crate::{Adapter, Mutations};
 ///
 /// A single type `T` may have many possible [`Observer<'ob, Target = T>`] implementations in
 /// theory, each with different change-tracking strategies. The [`Observe`] trait selects one
-/// of these as the default observer to be used by `#[derive(Observe)]` and other generic code
+/// of these as the *default* observer to be used by `#[derive(Observe)]` and other generic code
 /// that needs an observer for `T`.
 ///
 /// When you `#[derive(Observe)]` on a struct, the macro requires that each field type
@@ -53,70 +37,47 @@ use crate::{Adapter, Mutations};
 ///
 /// let mut data = MyStruct { field: "value".to_string() };
 /// let Json(mutation) = observe!(data => {
-///     // Mutations through observer are tracked
 ///     data.field.push_str(" modified");
 /// }).unwrap();
 /// ```
 pub trait Observe {
-    /// Associated observer type.
-    ///
-    /// This associated type specifies the *default* observer implementation for the type, when used
-    /// in contexts where an [`Observe`] implementation is required.
+    /// The default observer implementation for this type.
     type Observer<'ob, S, D>: Observer<Head = S, InnerDepth = D>
     where
         Self: 'ob,
         D: Unsigned,
         S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
-    /// Associated specification type for this observable.
+    /// Marker type for selecting specialized observer implementations in wrapper types.
     ///
-    /// The [`Spec`](Observe::Spec) associated type is used as a marker to select specialized
-    /// implementations of observers in certain contexts. For most types, this will be
-    /// [`DefaultSpec`], but types can specify alternative specs to enable specialized
-    /// observation strategies.
-    ///
-    /// ## Usage
-    ///
-    /// One important use of [`Spec`](Observe::Spec) is to select the appropriate observer
-    /// implementation for wrapper types like [`Option<T>`]:
-    ///
-    /// - [`DefaultSpec`] → use [`OptionObserver`](crate::impls::OptionObserver) wrapping `T`'s
-    ///   observer
-    /// - [`SnapshotSpec`] → use [`SnapshotObserver<Option<T>>`](crate::builtin::SnapshotObserver)
-    ///   for snapshot-based change detection
-    ///
-    /// This allows [`Option<T>`] to automatically inherit more accurate or efficient change
-    /// detection strategies based on its element type, without requiring manual implementation.
+    /// For most types, this will be [`DefaultSpec`]. Types can specify [`SnapshotSpec`] to enable
+    /// snapshot-based observation strategies. For example, [`Option<T>`] uses
+    /// [`OptionObserver`](crate::impls::OptionObserver) when `T::Spec = DefaultSpec`, but
+    /// [`SnapshotObserver`](crate::builtin::SnapshotObserver) when `T::Spec = SnapshotSpec`.
     type Spec;
 }
 
-/// A trait for types whose references can be observed for mutations.
+/// Counterpart to [`Observe`] for reference types.
 ///
-/// [`RefObserve`] provides observation capability for reference types. A type `T` implements
-/// [`RefObserve`] if and only if `&T` implements [`Observe`]. This is analogous to the relationship
-/// between [`UnwindSafe`](std::panic::UnwindSafe) and [`RefUnwindSafe`](std::panic::RefUnwindSafe).
-///
-/// A single type `T` may have many possible [`Observer<'ob, Target = &T>`] implementations in
-/// theory, each with different change-tracking strategies. The [`RefObserve`] trait selects one
-/// of these as the default observer to be used by `#[derive(Observe)]` and other generic code
-/// that needs an observer for `&T`.
+/// A type `T` implements [`RefObserve`] if `&T` can be observed. Analogous to the relationship
+/// between [`UnwindSafe`](std::panic::UnwindSafe) and
+/// [`RefUnwindSafe`](std::panic::RefUnwindSafe).
 ///
 /// See also: [`Observe`].
 pub trait RefObserve {
-    /// The observer type for `&'a Self`.
-    ///
-    /// This associated type specifies the *default* observer implementation for the type, when used
-    /// in contexts where an [`Observe`] implementation is required.
+    /// The default observer implementation for `&Self`.
     type Observer<'ob, S, D>: Observer<Head = S, InnerDepth = D>
     where
         Self: 'ob,
         D: Unsigned,
         S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
-    /// Specification type controlling nested reference observation behavior.
+    /// Marker type for selecting specialized observer implementations in wrapper types.
     ///
-    /// This determines how `&&T`, `&&&T`, etc. are observed. See the [trait
-    /// documentation](RefObserve) for available specs.
+    /// For most types, this will be [`DefaultSpec`]. Types can specify [`SnapshotSpec`] to enable
+    /// snapshot-based observation strategies. For example, [`Option<T>`] uses
+    /// [`OptionObserver`](crate::impls::OptionObserver) when `T::Spec = DefaultSpec`, but
+    /// [`SnapshotObserver`](crate::builtin::SnapshotObserver) when `T::Spec = SnapshotSpec`.
     type Spec;
 }
 
@@ -146,39 +107,14 @@ pub trait ObserveExt: Observe {
 
 impl<T: Observe + ?Sized> ObserveExt for T {}
 
-/// Extension trait providing untracked mutable access to the inner observed value.
-///
-/// This trait is automatically implemented for all types that implement [`QuasiObserver`] with a
-/// [`Pointer`]-based target. It complements the methods on [`QuasiObserver`]:
-///
-/// | Method                                        | Receiver    | Triggers tracking |
-/// | --------------------------------------------- | ----------- | ----------------- |
-/// | [`observed_ref`](QuasiObserver::observed_ref) | `&self`     | No                |
-/// | [`observed_mut`](QuasiObserver::observed_mut) | `&mut self` | Yes               |
-/// | [`untracked_mut`](ObserverExt::untracked_mut) | `&mut self` | No                |
-///
-/// [`observed_ref`](QuasiObserver::observed_ref) and [`observed_mut`](QuasiObserver::observed_mut)
-/// live on [`QuasiObserver`] because the [`observe!`](crate::observe!) macro needs to call them on
-/// both observers and plain references. [`untracked_mut`](ObserverExt::untracked_mut) is
-/// observer-specific and lives here.
-///
-/// ## Dereference Chain
-///
-/// An observer stores a [`Pointer<Head>`] internally. The [`Head`](ObserverExt::Head) type may
-/// itself implement [`Deref`](std::ops::Deref), forming a chain that is traversed
-/// [`InnerDepth`](QuasiObserver::InnerDepth) times to reach the final
-/// [`Target`](ObserverExt::Target). For example, a [`VecObserver`](crate::impls::VecObserver)
-/// has `Head = Vec<T>` and `Target = [T]`, with `InnerDepth = Succ<Zero>` (one dereference).
-///
 /// A trait for observer types that wrap and track mutations to values.
 ///
 /// Observers provide transparent access to the underlying value while recording any mutations that
 /// occur. They form a dereference chain that allows multiple levels of observation.
 ///
-/// See the [module documentation](self) for more details about how observers work with dereference
-/// chains.
+/// See the [Observer Mechanism](https://github.com/shigma/morphix#observer-mechanism) for an overview.
 pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head>> + Sized {
-    /// Creates an uninitialized observer.
+    /// Creates an uninitialized observer with a null pointer.
     ///
     /// The returned observer is not associated with any value and must be initialized via
     /// [`observe`](Observer::observe) or [`force`](Observer::force) before use. Attempting to
@@ -221,70 +157,7 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     /// 2. `head` refers to the same logical value with which the observer was initialized, just
     ///    potentially at a new memory location
     ///
-    /// ## Example
-    ///
-    /// Implementing [`Observer`] for [`Option<T>`]:
-    ///
-    /// ```
-    /// # use morphix::helper::{AsDeref, AsDerefMut, QuasiObserver, Pointer, Succ, Unsigned, Zero};
-    /// # use morphix::observe::{Observer};
-    /// # use std::marker::PhantomData;
-    /// #
-    /// pub struct OptionObserver<'ob, O, S: ?Sized, N = Zero> {
-    ///     ptr: Pointer<S>,
-    ///     inner: Option<O>,
-    ///     phantom: PhantomData<&'ob mut N>,
-    /// }
-    ///
-    /// # impl<'ob, O, S: ?Sized, N> Default for OptionObserver<'ob, O, S, N> {
-    /// #    fn default() -> Self { todo!() }
-    /// # }
-    /// #
-    /// # impl<'ob, O, S: ?Sized, N> std::ops::Deref for OptionObserver<'ob, O, S, N> {
-    /// #     type Target = Pointer<S>;
-    /// #     fn deref(&self) -> &Self::Target { &self.ptr }
-    /// # }
-    /// #
-    /// # impl<'ob, O, S: ?Sized, N> std::ops::DerefMut for OptionObserver<'ob, O, S, N> {
-    /// #     fn deref_mut(&mut self) -> &mut Self::Target { &mut self.ptr }
-    /// # }
-    /// #
-    /// # impl<'ob, O, S: ?Sized, N> QuasiObserver for OptionObserver<'ob, O, S, N>
-    /// # where
-    /// #     N: Unsigned,
-    /// #     S: AsDeref<N>,
-    /// # {
-    /// #     type Head = S;
-    /// #     type OuterDepth = Succ<Zero>;
-    /// #     type InnerDepth = N;
-    /// #     fn invalidate(_: &mut Self) {}
-    /// # }
-    /// #
-    /// impl<'ob, O, S: ?Sized, N> Observer for OptionObserver<'ob, O, S, N>
-    /// where
-    ///     N: Unsigned,
-    ///     S: AsDerefMut<N, Target = Option<O::Head>>,
-    ///     O: Observer<InnerDepth = Zero>,
-    ///     O::Head: Sized,
-    /// {
-    ///     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
-    ///         // Refresh the outer pointer
-    ///         Pointer::set(this, head);
-    ///
-    ///         // Refresh nested observer if present
-    ///         match (&mut this.inner, head.as_deref()) {
-    ///             (Some(inner), Some(head)) => unsafe { Observer::refresh(inner, head) },
-    ///             (None, None) => {}
-    ///             _ => unreachable!("inconsistent observer state"),
-    ///         }
-    ///     }
-    ///     #
-    ///     # fn uninit() -> Self { todo!() }
-    ///     # fn observe(head: &Self::Head) -> Self { todo!() }
-    /// }
-    /// ```
-    ///
-    /// ## When to Call
+    /// ## Use Cases
     ///
     /// This method should be called after any operation that may relocate the observed
     /// value in memory while the observer is still in use.
@@ -329,15 +202,13 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     }
 }
 
-/// Trait for observers that can serialize their recorded mutations.
+/// Extends [`Observer`] with the ability to flush recorded mutations as serializable values.
 ///
-/// This trait extends [`Observer`] with the ability to collect and serialize mutations using a
-/// specific [`Adapter`].
+/// This trait uses type-erased serialization: mutation values are stored as
+/// [`Box<dyn erased_serde::Serialize>`](erased_serde::Serialize) and only serialized when an
+/// [`Adapter`] converts them.
 pub trait SerializeObserver: Observer {
-    /// Flushes all recorded mutations.
-    ///
-    /// This method extracts all recorded mutations and resets the observer's internal state so that
-    /// an immediate subsequent call with no intervening mutations returns empty.
+    /// Extracts all recorded mutations and fully resets internal state.
     ///
     /// **Replace collapse**: If all inner fields or elements of a composite observer report
     /// [`Replace`](crate::MutationKind::Replace), the observer should collapse them into a
@@ -346,7 +217,7 @@ pub trait SerializeObserver: Observer {
     ///
     /// ## Safety
     ///
-    /// This method assumes the observer contains a valid pointer.
+    /// The observer must contain a valid pointer.
     unsafe fn flush(this: &mut Self) -> Mutations;
 
     /// Flushes mutations for a `#[serde(flatten)]` field.
@@ -371,7 +242,7 @@ pub trait SerializeObserver: Observer {
     ///
     /// ## Safety
     ///
-    /// Same as [`flush`](Self::flush): the observer must contain a valid pointer.
+    /// Same as [`flush`](Self::flush).
     #[inline]
     unsafe fn flat_flush(_this: &mut Self) -> (Mutations, bool) {
         panic!("flat_flush can only be called on structs and maps")

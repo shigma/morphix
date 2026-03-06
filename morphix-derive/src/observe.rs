@@ -115,7 +115,7 @@ impl VisitMut for TransformQuasiObserver {
         let left = &expr_assign.left;
         let span = left.span();
         expr_assign.left = parse_quote_spanned! { span =>
-            *(&mut #left).observed_mut()
+            *(&mut #left).tracked_mut()
         };
     }
 
@@ -131,12 +131,12 @@ impl VisitMut for TransformQuasiObserver {
                 let left = &expr_binary.left;
                 let span = left.span();
                 expr_binary.left = parse_quote_spanned! { span =>
-                    *(&#left).observed_ref()
+                    *(&#left).untracked_ref()
                 };
                 let right = &expr_binary.right;
                 let span = right.span();
                 expr_binary.right = parse_quote_spanned! { span =>
-                    *(&#right).observed_ref()
+                    *(&#right).untracked_ref()
                 };
             }
             _ => {}

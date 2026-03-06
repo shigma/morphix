@@ -136,7 +136,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("NewtypeObserver").field(&self.observed_ref()).finish()
+        f.debug_tuple("NewtypeObserver").field(&self.untracked_ref()).finish()
     }
 }
 
@@ -152,7 +152,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &NewtypeObserver<O2, S2, D2>) -> bool {
-        self.observed_ref().eq(other.observed_ref())
+        self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
@@ -177,7 +177,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &NewtypeObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other.observed_ref())
+        self.untracked_ref().partial_cmp(other.untracked_ref())
     }
 }
 
@@ -190,7 +190,7 @@ where
 {
     #[inline]
     fn cmp(&self, other: &NewtypeObserver<O, S, D>) -> std::cmp::Ordering {
-        self.observed_ref().cmp(other.observed_ref())
+        self.untracked_ref().cmp(other.untracked_ref())
     }
 }
 
@@ -206,7 +206,7 @@ macro_rules! impl_fmt {
             {
                 #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    std::fmt::$trait::fmt(self.observed_ref(), f)
+                    std::fmt::$trait::fmt(self.untracked_ref(), f)
                 }
             }
         )*
@@ -235,7 +235,7 @@ macro_rules! impl_ops_assign {
             {
                 #[inline]
                 fn $method(&mut self, rhs: U) {
-                    self.observed_mut().$method(rhs);
+                    self.tracked_mut().$method(rhs);
                 }
             }
         )*
@@ -269,7 +269,7 @@ macro_rules! impl_ops_copy {
 
                 #[inline]
                 fn $method(self, rhs: U) -> Self::Output {
-                    self.observed_ref().$method(rhs)
+                    self.untracked_ref().$method(rhs)
                 }
             }
         )*
@@ -303,7 +303,7 @@ macro_rules! impl_ops_copy_unary {
 
                 #[inline]
                 fn $method(self) -> Self::Output {
-                    (*self.observed_ref()).$method()
+                    (*self.untracked_ref()).$method()
                 }
             }
         )*
@@ -343,7 +343,7 @@ macro_rules! impl_newtype {
         {
             #[inline]
             fn eq(&self, other: &$wrapper<U>) -> bool {
-                self.observed_ref().eq(other)
+                self.untracked_ref().eq(other)
             }
         }
 
@@ -356,7 +356,7 @@ macro_rules! impl_newtype {
         {
             #[inline]
             fn partial_cmp(&self, other: &$wrapper<U>) -> Option<std::cmp::Ordering> {
-                self.observed_ref().partial_cmp(other)
+                self.untracked_ref().partial_cmp(other)
             }
         }
     };

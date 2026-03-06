@@ -275,7 +275,7 @@ where
         if index >= self.state.append_index {
             self.untracked_mut().insert(index, element)
         } else {
-            self.observed_mut().insert(index, element)
+            self.tracked_mut().insert(index, element)
         }
     }
 }
@@ -293,7 +293,7 @@ where
         if self.state.append_index == 0 {
             self.untracked_mut().clear()
         } else {
-            self.observed_mut().clear()
+            self.tracked_mut().clear()
         }
     }
 
@@ -326,7 +326,7 @@ where
     /// See [`Vec::pop`].
     pub fn pop(&mut self) -> Option<T> {
         let value = self.untracked_mut().pop()?;
-        let len = (*self).observed_ref().len();
+        let len = (*self).untracked_ref().len();
         if len >= self.state.append_index {
             // no-op
         } else if cfg!(feature = "truncate") && len + 1 == self.state.append_index {
@@ -399,18 +399,18 @@ where
             return self.untracked_mut().drain(range);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.observed_mut().drain(range);
+            return self.tracked_mut().drain(range);
         }
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
             Bound::Excluded(&n) => n,
-            Bound::Unbounded => (*self).observed_ref().len(),
+            Bound::Unbounded => (*self).untracked_ref().len(),
         };
         if end_index < self.state.append_index {
-            return self.observed_mut().drain(range);
+            return self.tracked_mut().drain(range);
         }
         self.state.mark_truncate(start_index);
-        self.observed_mut().drain(range)
+        self.tracked_mut().drain(range)
     }
 
     /// See [`Vec::splice`].
@@ -428,15 +428,15 @@ where
             return self.untracked_mut().splice(range, replace_with);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.observed_mut().splice(range, replace_with);
+            return self.tracked_mut().splice(range, replace_with);
         }
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
             Bound::Excluded(&n) => n,
-            Bound::Unbounded => (*self).observed_ref().len(),
+            Bound::Unbounded => (*self).untracked_ref().len(),
         };
         if end_index < self.state.append_index {
-            return self.observed_mut().splice(range, replace_with);
+            return self.tracked_mut().splice(range, replace_with);
         }
         self.state.mark_truncate(start_index);
         self.untracked_mut().splice(range, replace_with)
@@ -592,7 +592,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("VecObserver").field(&self.observed_ref()).finish()
+        f.debug_tuple("VecObserver").field(&self.untracked_ref()).finish()
     }
 }
 
@@ -608,7 +608,7 @@ macro_rules! generic_impl_partial_eq {
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    self.observed_ref().eq(other)
+                    self.untracked_ref().eq(other)
                 }
             }
         )*
@@ -634,7 +634,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &VecObserver<O2, S2, D2>) -> bool {
-        self.observed_ref().eq(other.observed_ref())
+        self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
@@ -655,7 +655,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &Vec<U>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other)
+        self.untracked_ref().partial_cmp(other)
     }
 }
 
@@ -671,7 +671,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &VecObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other.observed_ref())
+        self.untracked_ref().partial_cmp(other.untracked_ref())
     }
 }
 
@@ -683,7 +683,7 @@ where
 {
     #[inline]
     fn cmp(&self, other: &VecObserver<O, S, D>) -> std::cmp::Ordering {
-        self.observed_ref().cmp(other.observed_ref())
+        self.untracked_ref().cmp(other.untracked_ref())
     }
 }
 

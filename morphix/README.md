@@ -185,9 +185,9 @@ fn push(&mut self, value: T) {
 }
 ```
 
-#### Coarse-grained operations (`observed_mut`)
+#### Coarse-grained operations (`tracked_mut`)
 
-Methods like `Vec::retain` or `String::insert` modify the value in ways the observer cannot express with a granular mutation kind. These methods use `observed_mut()`, which:
+Methods like `Vec::retain` or `String::insert` modify the value in ways the observer cannot express with a granular mutation kind. These methods use `tracked_mut()`, which:
 
 1. Calls `invalidate` on the current observer, resetting its diff state.
 2. Propagates invalidation to all sibling observers that sit between this observer and the `Pointer` (i.e., observers in the "outer" direction).
@@ -198,7 +198,7 @@ After invalidation, the next `flush` will produce a `Replace` mutation for the a
 ```rs
 // Simplified implementation of Vec::retain on VecObserver
 fn retain<F: FnMut(&T) -> bool>(&mut self, f: F) {
-    self.observed_mut().retain(f);
+    self.tracked_mut().retain(f);
     // The observer's state is now invalidated —
     // flush will emit a Replace mutation.
 }
@@ -222,8 +222,8 @@ trait QuasiObserver {
     type OuterDepth: Unsigned;
     type InnerDepth: Unsigned;
 
-    fn observed_ref(&self) -> &Target;
-    fn observed_mut(&mut self) -> &mut Target;
+    fn untracked_ref(&self) -> &Target;
+    fn tracked_mut(&mut self) -> &mut Target;
     fn untracked_mut(&mut self) -> &mut Target;
     fn invalidate(this: &mut Self);
 }
@@ -231,18 +231,18 @@ trait QuasiObserver {
 
 Each method traverses the chain differently:
 
-- **`observed_ref()`** performs a read-only traversal: coinductive deref to the `Pointer`, then `Deref` (no side effects), then inductive deref to the `Target`. Since reads do not mutate, no invalidation is needed.
-- **`observed_mut()`** first calls `invalidate` on `self`, then reaches the `Target` via `DerefMutUntracked` — a special trait that bypasses all `DerefMut` hooks by using `Pointer`'s interior mutability to obtain `&mut` access through an immutable coinductive traversal. Only the observer on which `observed_mut()` is called (and observers between it and the `Pointer`) are invalidated; outer observers are unaffected.
-- **`untracked_mut()`** uses the same `DerefMutUntracked` path as `observed_mut()`, but skips the `invalidate` call entirely. The caller is responsible for updating the diff state.
+- **`untracked_ref()`** performs a read-only traversal: coinductive deref to the `Pointer`, then `Deref` (no side effects), then inductive deref to the `Target`. Since reads do not mutate, no invalidation is needed.
+- **`tracked_mut()`** first calls `invalidate` on `self`, then reaches the `Target` via `DerefMutUntracked` — a special trait that bypasses all `DerefMut` hooks by using `Pointer`'s interior mutability to obtain `&mut` access through an immutable coinductive traversal. Only the observer on which `tracked_mut()` is called (and observers between it and the `Pointer`) are invalidated; outer observers are unaffected.
+- **`untracked_mut()`** uses the same `DerefMutUntracked` path as `tracked_mut()`, but skips the `invalidate` call entirely. The caller is responsible for updating the diff state.
 
 #### Autoref-Based Specialization
 
 The `observe!` macro needs to transform assignment and comparison expressions to work uniformly with both observers and plain values. This creates two problems:
 
-- **Assignment**: Writing `observer.field = value` would replace the observer itself rather than assigning to the observed field. The macro transforms this to `*(&mut observer.field).observed_mut() = value`.
-- **Comparison**: Implementing both `Observer<T>: PartialEq<U>` and `Observer<T>: PartialEq<Observer<U>>` would conflict. The macro transforms `lhs == rhs` to `*(&lhs).observed_ref() == *(&rhs).observed_ref()`.
+- **Assignment**: Writing `observer.field = value` would replace the observer itself rather than assigning to the observed field. The macro transforms this to `*(&mut observer.field).tracked_mut() = value`.
+- **Comparison**: Implementing both `Observer<T>: PartialEq<U>` and `Observer<T>: PartialEq<Observer<U>>` would conflict. The macro transforms `lhs == rhs` to `*(&lhs).untracked_ref() == *(&rhs).untracked_ref()`.
 
-For these transformations to work, `observed_mut` and `observed_ref` must be callable on both observers and plain references. This is achieved through autoref-based specialization: `QuasiObserver` is implemented for `&T` and `&mut T` (where all methods reduce to identity), and Rust's method resolution naturally selects the observer implementation when called on an observer, or the reference implementation when called on a plain value. The name "quasi-observer" reflects this dual nature — plain references are not real observers, but they participate in the same interface.
+For these transformations to work, `tracked_mut` and `untracked_ref` must be callable on both observers and plain references. This is achieved through autoref-based specialization: `QuasiObserver` is implemented for `&T` and `&mut T` (where all methods reduce to identity), and Rust's method resolution naturally selects the observer implementation when called on an observer, or the reference implementation when called on a plain value. The name "quasi-observer" reflects this dual nature — plain references are not real observers, but they participate in the same interface.
 
 ### The Pointer Type
 
@@ -330,4 +330,5 @@ This allows wrapper types to automatically select the most appropriate observer 
 
 - Third party integrations:
   - `chrono`
+  - `indexmap`
   - `uuid`

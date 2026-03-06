@@ -202,13 +202,13 @@ where
     where
         I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
     {
-        let len = self.observed_ref().as_ref().len();
+        let len = self.untracked_ref().as_ref().len();
         let start = index.start_inclusive();
         let end = index.end_exclusive(len);
         if end > len {
             return None;
         }
-        let slice = self.observed_ref();
+        let slice = self.untracked_ref();
         unsafe { self.state.init_range(start, end, slice) };
         Some(())
     }
@@ -233,14 +233,14 @@ where
 
     #[inline]
     pub(crate) fn __force_ref(&self) -> &[V::Item] {
-        let slice = self.observed_ref();
+        let slice = self.untracked_ref();
         unsafe { self.state.init_range(0, slice.as_ref().len(), slice) };
         self.state.as_slice()
     }
 
     #[inline]
     pub(crate) fn __force_mut(&mut self) -> &mut [V::Item] {
-        let slice = (*self).observed_ref();
+        let slice = (*self).untracked_ref();
         unsafe { self.state.init_range(0, slice.as_ref().len(), slice) };
         self.state.as_mut_slice()
     }
@@ -282,7 +282,7 @@ where
     /// See [`slice::first_chunk_mut`].
     #[inline]
     pub fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [V::Item; N]> {
-        let len = (*self).observed_ref().as_ref().len();
+        let len = (*self).untracked_ref().as_ref().len();
         if len < N {
             return None;
         }
@@ -304,7 +304,7 @@ where
     /// See [`slice::last_chunk_mut`].
     #[inline]
     pub fn last_chunk_mut<const N: usize>(&mut self) -> Option<&mut [V::Item; N]> {
-        let len = (*self).observed_ref().as_ref().len();
+        let len = (*self).untracked_ref().as_ref().len();
         if len < N {
             return None;
         }
@@ -443,7 +443,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("SliceObserver").field(&self.observed_ref()).finish()
+        f.debug_tuple("SliceObserver").field(&self.untracked_ref()).finish()
     }
 }
 
@@ -459,7 +459,7 @@ macro_rules! generic_impl_partial_eq {
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    self.observed_ref().eq(other)
+                    self.untracked_ref().eq(other)
                 }
             }
         )*
@@ -484,7 +484,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &SliceObserver<V2, S2, D2>) -> bool {
-        self.observed_ref().eq(other.observed_ref())
+        self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
@@ -506,7 +506,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &[U]) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other)
+        self.untracked_ref().partial_cmp(other)
     }
 }
 
@@ -522,7 +522,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &SliceObserver<V2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other.observed_ref())
+        self.untracked_ref().partial_cmp(other.untracked_ref())
     }
 }
 
@@ -535,7 +535,7 @@ where
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.observed_ref().cmp(other.observed_ref())
+        self.untracked_ref().cmp(other.untracked_ref())
     }
 }
 

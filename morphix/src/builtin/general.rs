@@ -288,7 +288,7 @@ macro_rules! impl_fmt {
             {
                 #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    std::fmt::$trait::fmt(self.observed_ref(), f)
+                    std::fmt::$trait::fmt(self.untracked_ref(), f)
                 }
             }
         )*
@@ -315,7 +315,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple(H::NAME).field(&self.observed_ref()).finish()
+        f.debug_tuple(H::NAME).field(&self.untracked_ref()).finish()
     }
 }
 
@@ -330,7 +330,7 @@ where
 
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
-        self.observed_ref().index(index)
+        self.untracked_ref().index(index)
     }
 }
 
@@ -343,7 +343,7 @@ where
 {
     #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        self.observed_mut().index_mut(index)
+        self.tracked_mut().index_mut(index)
     }
 }
 
@@ -360,7 +360,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> bool {
-        self.observed_ref().eq(other.observed_ref())
+        self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
@@ -386,7 +386,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other.observed_ref())
+        self.untracked_ref().partial_cmp(other.untracked_ref())
     }
 }
 
@@ -399,7 +399,7 @@ where
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.observed_ref().cmp(other.observed_ref())
+        self.untracked_ref().cmp(other.untracked_ref())
     }
 }
 
@@ -415,7 +415,7 @@ macro_rules! impl_ops_assign {
             {
                 #[inline]
                 fn $method(&mut self, rhs: U) {
-                    self.observed_mut().$method(rhs);
+                    self.tracked_mut().$method(rhs);
                 }
             }
         )*
@@ -449,7 +449,7 @@ macro_rules! impl_ops_copy {
 
                 #[inline]
                 fn $method(self, rhs: U) -> Self::Output {
-                    self.observed_ref().$method(rhs)
+                    self.untracked_ref().$method(rhs)
                 }
             }
         )*
@@ -483,7 +483,7 @@ macro_rules! impl_ops_copy_unary {
 
                 #[inline]
                 fn $method(self) -> Self::Output {
-                    (*self.observed_ref()).$method()
+                    (*self.untracked_ref()).$method()
                 }
             }
         )*

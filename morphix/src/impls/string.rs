@@ -181,7 +181,7 @@ where
         if idx >= self.__append_index() {
             self.untracked_mut().insert(idx, ch)
         } else {
-            self.observed_mut().insert(idx, ch)
+            self.tracked_mut().insert(idx, ch)
         }
     }
 
@@ -191,7 +191,7 @@ where
         if idx >= self.__append_index() {
             self.untracked_mut().insert_str(idx, string)
         } else {
-            self.observed_mut().insert_str(idx, string)
+            self.tracked_mut().insert_str(idx, string)
         }
     }
 }
@@ -204,7 +204,7 @@ where
 {
     #[inline]
     fn __mark_truncate(&mut self, range: Range<usize>) {
-        let count = (*self).observed_ref()[range.clone()].chars().count();
+        let count = (*self).untracked_ref()[range.clone()].chars().count();
         self.mutation.truncate_len += count;
         self.mutation.append_index = range.start;
     }
@@ -215,7 +215,7 @@ where
         if self.__append_index() == 0 {
             self.untracked_mut().clear()
         } else {
-            self.observed_mut().clear()
+            self.tracked_mut().clear()
         }
     }
 
@@ -239,7 +239,7 @@ where
     pub fn pop(&mut self) -> Option<char> {
         let char = self.untracked_mut().pop()?;
         let append_index = self.__append_index();
-        let len = (*self).observed_ref().len();
+        let len = (*self).untracked_ref().len();
         if len >= append_index {
             // no-op
         } else if cfg!(feature = "truncate") && len + char.len_utf8() == append_index {
@@ -259,7 +259,7 @@ where
             return self.untracked_mut().truncate(len);
         }
         if cfg!(not(feature = "truncate")) || len == 0 {
-            return self.observed_mut().truncate(len);
+            return self.tracked_mut().truncate(len);
         }
         self.__mark_truncate(len..append_index);
         self.untracked_mut().truncate(len)
@@ -272,7 +272,7 @@ where
             return self.untracked_mut().split_off(at);
         }
         if cfg!(not(feature = "truncate")) || at == 0 {
-            return self.observed_mut().split_off(at);
+            return self.tracked_mut().split_off(at);
         }
         self.__mark_truncate(at..append_index);
         self.untracked_mut().split_off(at)
@@ -293,18 +293,18 @@ where
             return self.untracked_mut().drain(range);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.observed_mut().drain(range);
+            return self.tracked_mut().drain(range);
         }
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
             Bound::Excluded(&n) => n,
-            Bound::Unbounded => (*self).observed_ref().len(),
+            Bound::Unbounded => (*self).untracked_ref().len(),
         };
         if end_index < append_index {
-            return self.observed_mut().drain(range);
+            return self.tracked_mut().drain(range);
         }
         self.__mark_truncate(start_index..append_index);
-        self.observed_mut().drain(range)
+        self.tracked_mut().drain(range)
     }
 
     /// See [`String::replace_range`].
@@ -322,15 +322,15 @@ where
             return self.untracked_mut().replace_range(range, replace_with);
         }
         if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.observed_mut().replace_range(range, replace_with);
+            return self.tracked_mut().replace_range(range, replace_with);
         }
         let end_index = match range.end_bound() {
             Bound::Included(&n) => n + 1,
             Bound::Excluded(&n) => n,
-            Bound::Unbounded => (*self).observed_ref().len(),
+            Bound::Unbounded => (*self).untracked_ref().len(),
         };
         if end_index < append_index {
-            return self.observed_mut().replace_range(range, replace_with);
+            return self.tracked_mut().replace_range(range, replace_with);
         }
         self.__mark_truncate(start_index..append_index);
         self.untracked_mut().replace_range(range, replace_with);
@@ -347,7 +347,7 @@ where
         #[cfg(feature = "append")]
         self.push_str(rhs);
         #[cfg(not(feature = "append"))]
-        self.observed_mut().add_assign(rhs);
+        self.tracked_mut().add_assign(rhs);
     }
 }
 
@@ -371,7 +371,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("StringObserver").field(&self.observed_ref()).finish()
+        f.debug_tuple("StringObserver").field(&self.untracked_ref()).finish()
     }
 }
 
@@ -382,7 +382,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        Display::fmt(self.observed_ref(), f)
+        Display::fmt(self.untracked_ref(), f)
     }
 }
 
@@ -397,7 +397,7 @@ macro_rules! generic_impl_partial_eq {
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    self.observed_ref().eq(other)
+                    self.untracked_ref().eq(other)
                 }
             }
         )*
@@ -421,7 +421,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &StringObserver<'ob, S2, D2>) -> bool {
-        self.observed_ref().eq(other.observed_ref())
+        self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
@@ -439,7 +439,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &String) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other)
+        self.untracked_ref().partial_cmp(other)
     }
 }
 
@@ -452,7 +452,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &StringObserver<'ob, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other.observed_ref())
+        self.untracked_ref().partial_cmp(other.untracked_ref())
     }
 }
 
@@ -463,7 +463,7 @@ where
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.observed_ref().cmp(other.observed_ref())
+        self.untracked_ref().cmp(other.untracked_ref())
     }
 }
 

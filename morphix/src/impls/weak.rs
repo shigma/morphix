@@ -154,7 +154,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("WeakObserver").field(&self.observed_ref()).finish()
+        f.debug_tuple("WeakObserver").field(&self.untracked_ref()).finish()
     }
 }
 

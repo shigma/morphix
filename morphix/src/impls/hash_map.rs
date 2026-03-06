@@ -275,7 +275,7 @@ where
         this.state.mutated = false;
         this.state.diff.clear();
         this.state.inner.get_mut().clear();
-        Mutations::replace((*this).observed_ref())
+        Mutations::replace((*this).untracked_ref())
     }
 
     unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
@@ -332,7 +332,7 @@ where
         K: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
-        let (key, value) = self.observed_ref().get_key_value(key)?;
+        let (key, value) = self.untracked_ref().get_key_value(key)?;
         match unsafe { (*self.state.inner.get()).entry(key.clone()) } {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
@@ -390,10 +390,10 @@ where
     #[inline]
     pub fn clear(&mut self) {
         self.state.inner.get_mut().clear();
-        if (*self).observed_ref().is_empty() {
+        if (*self).untracked_ref().is_empty() {
             self.untracked_mut().clear()
         } else {
-            self.observed_mut().clear()
+            self.tracked_mut().clear()
         }
     }
 
@@ -403,7 +403,7 @@ where
         K: Eq + Hash,
     {
         if self.state.mutated {
-            return self.observed_mut().insert(key, value);
+            return self.tracked_mut().insert(key, value);
         }
         let key_cloned = key.clone();
         let old_value = (*self.ptr).as_deref_mut().insert(key_cloned, value);
@@ -432,7 +432,7 @@ where
         Q: Eq + Hash + ?Sized,
     {
         if self.state.mutated {
-            return self.observed_mut().remove(key);
+            return self.tracked_mut().remove(key);
         }
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
         self.state.mark_deleted(key);
@@ -446,7 +446,7 @@ where
         Q: Eq + Hash + ?Sized,
     {
         if self.state.mutated {
-            return self.observed_mut().remove_entry(key);
+            return self.tracked_mut().remove_entry(key);
         }
         let (key, old_value) = (*self.ptr).as_deref_mut().remove_entry(key)?;
         self.state.mark_deleted(key.clone());
@@ -507,7 +507,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("HashMapObserver").field(&self.observed_ref()).finish()
+        f.debug_tuple("HashMapObserver").field(&self.untracked_ref()).finish()
     }
 }
 
@@ -521,7 +521,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &HashMap<K, V>) -> bool {
-        self.observed_ref().eq(other)
+        self.untracked_ref().eq(other)
     }
 }
 
@@ -540,7 +540,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &HashMapObserver<K2, O2, S2, D2>) -> bool {
-        self.observed_ref().eq(other.observed_ref())
+        self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
@@ -668,8 +668,8 @@ mod tests {
         let mut ob = map.__observe();
         assert_eq!(ob.insert("b", "y".to_string()), None);
         assert_eq!(ob.remove("b"), Some("y".to_string()));
-        assert_eq!(ob.observed_ref().len(), 1);
-        assert_eq!(ob.observed_ref().get("a"), Some(&"x".to_string()));
+        assert_eq!(ob.untracked_ref().len(), 1);
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"x".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, None);
     }
@@ -680,7 +680,7 @@ mod tests {
         let mut ob = map.__observe();
         assert_eq!(ob.remove("a"), Some("x".to_string()));
         assert_eq!(ob.insert("a", "y".to_string()), None);
-        assert_eq!(ob.observed_ref().get("a"), Some(&"y".to_string()));
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"y".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(a, json!("y"))));
     }
@@ -690,7 +690,7 @@ mod tests {
         let mut map = HashMap::from([("a", "x".to_string()), ("b", "y".to_string())]);
         let mut ob = map.__observe();
         assert_eq!(ob.remove_entry("a"), Some(("a", "x".to_string())));
-        assert_eq!(ob.observed_ref().len(), 1);
+        assert_eq!(ob.untracked_ref().len(), 1);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(delete!(a)));
     }
@@ -700,7 +700,7 @@ mod tests {
         let mut map = HashMap::from([("a", 1i32), ("b", 2), ("c", 3)]);
         let mut ob = map.__observe();
         ob.retain(|_, v| *v % 2 != 0);
-        assert_eq!(ob.observed_ref(), &HashMap::from([("a", 1), ("c", 3)]));
+        assert_eq!(ob.untracked_ref(), &HashMap::from([("a", 1), ("c", 3)]));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(delete!(b)));
     }
@@ -710,7 +710,7 @@ mod tests {
         let mut map = HashMap::from([("a", "x".to_string())]);
         let mut ob = map.__observe();
         ob.extend([("b", "y".to_string()), ("c", "z".to_string())]);
-        assert_eq!(ob.observed_ref().len(), 3);
+        assert_eq!(ob.untracked_ref().len(), 3);
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
     }
@@ -721,7 +721,7 @@ mod tests {
         let mut ob = map.__observe();
         let extracted: HashMap<_, _> = ob.extract_if(|_, v| *v % 2 == 0).collect();
         assert_eq!(extracted, HashMap::from([("b", 2), ("d", 4)]));
-        assert_eq!(ob.observed_ref(), &HashMap::from([("a", 1), ("c", 3)]));
+        assert_eq!(ob.untracked_ref(), &HashMap::from([("a", 1), ("c", 3)]));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();
@@ -746,7 +746,7 @@ mod tests {
         let mut ob = map.__observe();
         ob.get_mut("a").unwrap().push_str(" world");
         ob.insert("a", "bye".to_string());
-        assert_eq!(ob.observed_ref().get("a"), Some(&"bye".to_string()));
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"bye".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(a, json!("bye"))));
     }
@@ -757,7 +757,7 @@ mod tests {
         let mut ob = map.__observe();
         ob.insert("b", "hello".to_string());
         ob.get_mut("b").unwrap().push_str(" world");
-        assert_eq!(ob.observed_ref().get("b"), Some(&"hello world".to_string()));
+        assert_eq!(ob.untracked_ref().get("b"), Some(&"hello world".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(b, json!("hello world"))));
     }
@@ -769,8 +769,8 @@ mod tests {
         for (_, v) in ob.iter_mut() {
             v.push_str("!");
         }
-        assert_eq!(ob.observed_ref().get("a"), Some(&"x!".to_string()));
-        assert_eq!(ob.observed_ref().get("b"), Some(&"y!".to_string()));
+        assert_eq!(ob.untracked_ref().get("a"), Some(&"x!".to_string()));
+        assert_eq!(ob.untracked_ref().get("b"), Some(&"y!".to_string()));
         let Json(mutation) = ob.flush().unwrap();
         assert!(mutation.is_some());
         let mutation = mutation.unwrap();

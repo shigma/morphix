@@ -202,7 +202,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("ArrayObserver").field(&self.observed_ref()).finish()
+        f.debug_tuple("ArrayObserver").field(&self.untracked_ref()).finish()
     }
 }
 
@@ -218,7 +218,7 @@ macro_rules! generic_impl_partial_eq {
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    self.observed_ref().eq(other)
+                    self.untracked_ref().eq(other)
                 }
             }
         )*
@@ -245,7 +245,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &ArrayObserver<N, O2, S2, D2>) -> bool {
-        self.observed_ref().eq(other.observed_ref())
+        self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
@@ -266,7 +266,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &[U; N]) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other)
+        self.untracked_ref().partial_cmp(other)
     }
 }
 
@@ -283,7 +283,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &ArrayObserver<N, O2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other.observed_ref())
+        self.untracked_ref().partial_cmp(other.untracked_ref())
     }
 }
 
@@ -295,7 +295,7 @@ where
 {
     #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.observed_ref().cmp(other.observed_ref())
+        self.untracked_ref().cmp(other.untracked_ref())
     }
 }
 

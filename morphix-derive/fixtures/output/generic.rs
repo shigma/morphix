@@ -161,10 +161,10 @@ const _: () = {
             };
             let is_replace = mutations_a.is_replace() && mutations_c.is_replace();
             if is_replace {
-                let value = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+                let value = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
                 return ::morphix::Mutations::replace(value);
             }
-            let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+            let __inner = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
             if !mutations_c.is_empty() && Option::is_none(&__inner.c) {
                 mutations_c = ::morphix::MutationKind::Delete.into();
             }
@@ -183,7 +183,7 @@ const _: () = {
                 ::morphix::observe::SerializeObserver::flush(&mut this.c)
             };
             let is_replace = mutations_a.is_replace() && mutations_c.is_replace();
-            let __inner = ::morphix::helper::QuasiObserver::observed_ref(&*this);
+            let __inner = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
             if !mutations_c.is_empty() && Option::is_none(&__inner.c) {
                 mutations_c = ::morphix::MutationKind::Delete.into();
             }

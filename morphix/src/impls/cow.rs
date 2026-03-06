@@ -227,7 +227,7 @@ macro_rules! generic_impl_cmp {
             {
                 #[inline]
                 fn eq(&self, other: &$ty) -> bool {
-                    self.observed_ref().eq(other)
+                    self.untracked_ref().eq(other)
                 }
             }
 
@@ -241,7 +241,7 @@ macro_rules! generic_impl_cmp {
             {
                 #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
-                    self.observed_ref().partial_cmp(other)
+                    self.untracked_ref().partial_cmp(other)
                 }
             }
         )*

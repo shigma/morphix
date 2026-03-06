@@ -156,7 +156,7 @@ where
     /// See [`Option::insert`].
     #[inline]
     pub fn insert(&mut self, value: O::Head) -> &mut O {
-        *self.observed_mut() = Some(value);
+        *self.tracked_mut() = Some(value);
         self.as_mut().unwrap()
     }
 
@@ -181,8 +181,8 @@ where
     where
         F: FnOnce() -> O::Head,
     {
-        if (*self).observed_ref().is_none() {
-            *self.observed_mut() = Some(f());
+        if (*self).untracked_ref().is_none() {
+            *self.tracked_mut() = Some(f());
         }
         self.as_mut().unwrap()
     }
@@ -196,7 +196,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("OptionObserver").field(&self.observed_ref()).finish()
+        f.debug_tuple("OptionObserver").field(&self.untracked_ref()).finish()
     }
 }
 
@@ -209,7 +209,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &Option<U>) -> bool {
-        self.observed_ref().eq(other)
+        self.untracked_ref().eq(other)
     }
 }
 
@@ -225,7 +225,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &OptionObserver<O2, S2, D2>) -> bool {
-        self.observed_ref().eq(other.observed_ref())
+        self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
@@ -246,7 +246,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &Option<U>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other)
+        self.untracked_ref().partial_cmp(other)
     }
 }
 
@@ -262,7 +262,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &OptionObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other.observed_ref())
+        self.untracked_ref().partial_cmp(other.untracked_ref())
     }
 }
 
@@ -274,7 +274,7 @@ where
 {
     #[inline]
     fn cmp(&self, other: &OptionObserver<O, S, D>) -> std::cmp::Ordering {
-        self.observed_ref().cmp(other.observed_ref())
+        self.untracked_ref().cmp(other.untracked_ref())
     }
 }
 

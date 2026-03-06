@@ -80,7 +80,7 @@ const _: () = {
                     };
                     if !mutations_bar.is_empty()
                         && String::is_empty(
-                            ::morphix::helper::QuasiObserver::observed_ref(bar),
+                            ::morphix::helper::QuasiObserver::untracked_ref(bar),
                         )
                     {
                         mutations_bar = ::morphix::MutationKind::Delete.into();

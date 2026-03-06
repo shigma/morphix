@@ -86,7 +86,7 @@ where
     unsafe fn flush(this: &mut Self) -> Mutations {
         let mutations_0 = unsafe { SerializeObserver::flush(&mut this.0) };
         if mutations_0.is_replace() {
-            Mutations::replace((*this).observed_ref())
+            Mutations::replace((*this).untracked_ref())
         } else {
             let mut mutations = Mutations::new();
             mutations.insert(0, mutations_0);
@@ -104,7 +104,7 @@ where
 {
     #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("TupleObserver").field(&self.observed_ref()).finish()
+        f.debug_tuple("TupleObserver").field(&self.untracked_ref()).finish()
     }
 }
 
@@ -117,7 +117,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &(U,)) -> bool {
-        self.observed_ref().eq(other)
+        self.untracked_ref().eq(other)
     }
 }
 
@@ -133,7 +133,7 @@ where
 {
     #[inline]
     fn eq(&self, other: &TupleObserver<O2, S2, D2>) -> bool {
-        self.observed_ref().eq(other.observed_ref())
+        self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
@@ -155,7 +155,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &(U,)) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other)
+        self.untracked_ref().partial_cmp(other)
     }
 }
 
@@ -171,7 +171,7 @@ where
 {
     #[inline]
     fn partial_cmp(&self, other: &TupleObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.observed_ref().partial_cmp(other.observed_ref())
+        self.untracked_ref().partial_cmp(other.untracked_ref())
     }
 }
 
@@ -184,7 +184,7 @@ where
 {
     #[inline]
     fn cmp(&self, other: &TupleObserver<O, S, D>) -> std::cmp::Ordering {
-        self.observed_ref().cmp(other.observed_ref())
+        self.untracked_ref().cmp(other.untracked_ref())
     }
 }
 
@@ -309,7 +309,7 @@ macro_rules! tuple_observer {
                 let mutations_tuple = ($(unsafe { SerializeObserver::flush(&mut this.$n) },)*);
                 let capacity = 0 $(+ mutations_tuple.$n.is_replace() as usize)*;
                 if capacity == $ptr {
-                    return Mutations::replace((*this).observed_ref());
+                    return Mutations::replace((*this).untracked_ref());
                 }
                 let mut mutations = Mutations::with_capacity(capacity);
                 $(
@@ -328,7 +328,7 @@ macro_rules! tuple_observer {
         {
             #[inline]
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                f.debug_tuple(stringify!($ty)).field(&self.observed_ref()).finish()
+                f.debug_tuple(stringify!($ty)).field(&self.untracked_ref()).finish()
             }
         }
 
@@ -341,7 +341,7 @@ macro_rules! tuple_observer {
         {
             #[inline]
             fn eq(&self, other: &(U,)) -> bool {
-                self.observed_ref().eq(other)
+                self.untracked_ref().eq(other)
             }
         }
 
@@ -358,7 +358,7 @@ macro_rules! tuple_observer {
         {
             #[inline]
             fn eq(&self, other: &$ty<$($p,)* S2, D2>) -> bool {
-                self.observed_ref().eq(other.observed_ref())
+                self.untracked_ref().eq(other.untracked_ref())
             }
         }
 
@@ -380,7 +380,7 @@ macro_rules! tuple_observer {
         {
             #[inline]
             fn partial_cmp(&self, other: &(U,)) -> Option<std::cmp::Ordering> {
-                self.observed_ref().partial_cmp(other)
+                self.untracked_ref().partial_cmp(other)
             }
         }
 
@@ -397,7 +397,7 @@ macro_rules! tuple_observer {
         {
             #[inline]
             fn partial_cmp(&self, other: &$ty<$($p,)* S2, D2>) -> Option<std::cmp::Ordering> {
-                self.observed_ref().partial_cmp(other.observed_ref())
+                self.untracked_ref().partial_cmp(other.untracked_ref())
             }
         }
 
@@ -410,7 +410,7 @@ macro_rules! tuple_observer {
         {
             #[inline]
             fn cmp(&self, other: &$ty<$($o,)* S, D>) -> std::cmp::Ordering {
-                self.observed_ref().cmp(other.observed_ref())
+                self.untracked_ref().cmp(other.untracked_ref())
             }
         }
 
@@ -490,7 +490,7 @@ mod tests {
         // because it only tracks length-based changes (append/truncate).
         let mut tuple = (String::from("hello"),);
         let mut ob = tuple.__observe();
-        *ob.observed_mut() = (String::from("world"),);
+        *ob.tracked_mut() = (String::from("world"),);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!(["world"]))));
 

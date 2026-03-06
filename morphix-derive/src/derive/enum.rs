@@ -180,7 +180,7 @@ pub fn derive_observe_for_enum(
                 {
                     quote_spanned! { field_span =>
                         let mut #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(#flush_ident) };
-                        if !#mutation_ident.is_empty() && #path(::morphix::helper::QuasiObserver::observed_ref(#flush_ident)) {
+                        if !#mutation_ident.is_empty() && #path(::morphix::helper::QuasiObserver::untracked_ref(#flush_ident)) {
                             #mutation_ident = ::morphix::MutationKind::Delete.into();
                         }
                     }
