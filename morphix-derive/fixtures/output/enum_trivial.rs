@@ -2,7 +2,7 @@
 use morphix_derive::Observe;
 use serde::Serialize;
 #[rustfmt::skip]
-#[derive(Serialize)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub enum Foo {
     A,
     B(),
@@ -10,6 +10,7 @@ pub enum Foo {
 }
 #[rustfmt::skip]
 const _: () = {
+    #[::std::prelude::v1::derive()]
     pub struct FooObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
         __ptr: ::morphix::helper::Pointer<S>,
         __initial: FooObserverInitial,
@@ -108,6 +109,48 @@ const _: () = {
             N: ::morphix::helper::Unsigned,
             S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
+    }
+    #[automatically_derived]
+    impl<'ob, S: ?Sized, N> ::std::cmp::PartialEq for FooObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDeref<N, Target = Foo>,
+        N: ::morphix::helper::Unsigned,
+    {
+        #[inline]
+        fn eq(&self, other: &Self) -> bool {
+            self.as_deref().eq(other.as_deref())
+        }
+    }
+    #[automatically_derived]
+    impl<'ob, S: ?Sized, N> ::std::cmp::Eq for FooObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDeref<N, Target = Foo>,
+        N: ::morphix::helper::Unsigned,
+    {}
+    #[automatically_derived]
+    impl<'ob, S: ?Sized, N> ::std::cmp::PartialOrd for FooObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDeref<N, Target = Foo>,
+        N: ::morphix::helper::Unsigned,
+    {
+        #[inline]
+        fn partial_cmp(
+            &self,
+            other: &Self,
+        ) -> ::std::option::Option<::std::cmp::Ordering> {
+            self.as_deref().partial_cmp(other.as_deref())
+        }
+    }
+    #[automatically_derived]
+    impl<'ob, S: ?Sized, N> ::std::cmp::Ord for FooObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDeref<N, Target = Foo>,
+        N: ::morphix::helper::Unsigned,
+    {
+        #[inline]
+        fn cmp(&self, other: &Self) -> ::std::cmp::Ordering {
+            self.as_deref().cmp(other.as_deref())
+        }
     }
 };
 #[rustfmt::skip]

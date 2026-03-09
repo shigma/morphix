@@ -606,6 +606,69 @@ pub fn derive_observe_for_enum(
                     }
                 }
             });
+        } else if path.is_ident("PartialEq") {
+            output.extend(quote! {
+                #[automatically_derived]
+                impl #ob_impl_generics ::std::cmp::PartialEq
+                for #ob_ident #ob_type_generics
+                where
+                    #(#input_predicates,)*
+                    #(#field_tys: ::morphix::Observe,)*
+                    #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
+                    #depth: ::morphix::helper::Unsigned,
+                {
+                    #[inline]
+                    fn eq(&self, other: &Self) -> bool {
+                        self.as_deref().eq(other.as_deref())
+                    }
+                }
+            });
+        } else if path.is_ident("Eq") {
+            output.extend(quote! {
+                #[automatically_derived]
+                impl #ob_impl_generics ::std::cmp::Eq
+                for #ob_ident #ob_type_generics
+                where
+                    #(#input_predicates,)*
+                    #(#field_tys: ::morphix::Observe,)*
+                    #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
+                    #depth: ::morphix::helper::Unsigned,
+                {}
+            });
+        } else if path.is_ident("PartialOrd") {
+            output.extend(quote! {
+                #[automatically_derived]
+                impl #ob_impl_generics ::std::cmp::PartialOrd
+                for #ob_ident #ob_type_generics
+                where
+                    #(#input_predicates,)*
+                    #(#field_tys: ::morphix::Observe,)*
+                    #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
+                    #depth: ::morphix::helper::Unsigned,
+                {
+                    #[inline]
+                    fn partial_cmp(&self, other: &Self) -> ::std::option::Option<::std::cmp::Ordering> {
+                        self.as_deref().partial_cmp(other.as_deref())
+                    }
+                }
+            });
+        } else if path.is_ident("Ord") {
+            output.extend(quote! {
+                #[automatically_derived]
+                impl #ob_impl_generics ::std::cmp::Ord
+                for #ob_ident #ob_type_generics
+                where
+                    #(#input_predicates,)*
+                    #(#field_tys: ::morphix::Observe,)*
+                    #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
+                    #depth: ::morphix::helper::Unsigned,
+                {
+                    #[inline]
+                    fn cmp(&self, other: &Self) -> ::std::cmp::Ordering {
+                        self.as_deref().cmp(other.as_deref())
+                    }
+                }
+            });
         }
     }
 

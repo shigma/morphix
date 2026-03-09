@@ -9,8 +9,9 @@
 //! value.
 //!
 //! [`ObserverState`] is the companion trait for types that carry internal tracking state (diff
-//! trackers, inner observer containers). It provides a single [`invalidate`](ObserverState::invalidate)
-//! entry point used by the fallback invalidation mechanism in [`Pointer`].
+//! trackers, inner observer containers). It provides a single
+//! [`invalidate`](ObserverState::invalidate) entry point used by the fallback invalidation
+//! mechanism in [`Pointer`].
 //!
 //! See the [Observer Mechanism](https://github.com/shigma/morphix#observer-mechanism) section in
 //! the README for a detailed overview.

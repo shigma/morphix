@@ -29,6 +29,6 @@ impl Display for Foo {
 pub struct Bar(i32);
 
 #[rustfmt::skip]
-#[derive(Serialize, Observe)]
-#[morphix(derive(Debug))]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Serialize, Observe)]
+#[morphix(derive(Debug, PartialEq, Eq, PartialOrd, Ord))]
 pub struct Baz(i32, String);

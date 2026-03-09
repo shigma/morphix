@@ -387,7 +387,7 @@ pub fn derive_observe_for_struct(
         ob_quasi_generics.params.push(parse_quote! { #depth });
         ob_quasi_predicates = quote! {
             #inner: ::morphix::helper::QuasiObserver<InnerDepth = ::morphix::helper::Succ<#depth>>,
-            #inner::Target: ::std::ops::Deref<Target: ::morphix::helper::AsDeref<#depth> + ::morphix::helper::AsDeref<::morphix::helper::Succ<#depth>>>,
+            #inner::Head: ::morphix::helper::AsDeref<#depth>,
         };
         ob_observer_generics.params.push(parse_quote! { #inner });
         ob_observer_generics.params.push(parse_quote! { #depth });
@@ -663,7 +663,7 @@ pub fn derive_observe_for_struct(
                     #[inline]
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                         let inner = ::morphix::helper::QuasiObserver::untracked_ref(self);
-                        ::std::fmt::Display::fmt(inner, f)
+                        ::std::fmt::#path::fmt(inner, f)
                     }
                 }
             });
@@ -683,6 +683,79 @@ pub fn derive_observe_for_struct(
                 {
                     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
                         f.#method(#ob_name) #debug_chain .finish()
+                    }
+                }
+            });
+        } else if path.is_ident("PartialEq") {
+            output.extend(quote! {
+                #[automatically_derived]
+                impl #ob_observer_impl_generics ::std::cmp::PartialEq
+                for #ob_ident #ob_type_generics
+                where
+                    #(#input_predicates,)*
+                    #(#skipped_tys: #ob_lt,)*
+                    #(#field_tys: ::morphix::Observe,)*
+                    #ob_observer_predicates
+                    #depth: ::morphix::helper::Unsigned,
+                {
+                    #[inline]
+                    fn eq(&self, other: &Self) -> bool {
+                        let lhs = ::morphix::helper::QuasiObserver::untracked_ref(self);
+                        let rhs = ::morphix::helper::QuasiObserver::untracked_ref(other);
+                        lhs.eq(rhs)
+                    }
+                }
+            });
+        } else if path.is_ident("Eq") {
+            output.extend(quote! {
+                #[automatically_derived]
+                impl #ob_observer_impl_generics ::std::cmp::Eq
+                for #ob_ident #ob_type_generics
+                where
+                    #(#input_predicates,)*
+                    #(#skipped_tys: #ob_lt,)*
+                    #(#field_tys: ::morphix::Observe,)*
+                    #ob_observer_predicates
+                    #depth: ::morphix::helper::Unsigned,
+                {}
+            });
+        } else if path.is_ident("PartialOrd") {
+            output.extend(quote! {
+                #[automatically_derived]
+                impl #ob_observer_impl_generics ::std::cmp::PartialOrd
+                for #ob_ident #ob_type_generics
+                where
+                    #(#input_predicates,)*
+                    #(#skipped_tys: #ob_lt,)*
+                    #(#field_tys: ::morphix::Observe,)*
+                    #ob_observer_predicates
+                    #depth: ::morphix::helper::Unsigned,
+                {
+                    #[inline]
+                    fn partial_cmp(&self, other: &Self) -> ::std::option::Option<::std::cmp::Ordering> {
+                        let lhs = ::morphix::helper::QuasiObserver::untracked_ref(self);
+                        let rhs = ::morphix::helper::QuasiObserver::untracked_ref(other);
+                        lhs.partial_cmp(rhs)
+                    }
+                }
+            });
+        } else if path.is_ident("Ord") {
+            output.extend(quote! {
+                #[automatically_derived]
+                impl #ob_observer_impl_generics ::std::cmp::Ord
+                for #ob_ident #ob_type_generics
+                where
+                    #(#input_predicates,)*
+                    #(#skipped_tys: #ob_lt,)*
+                    #(#field_tys: ::morphix::Observe,)*
+                    #ob_observer_predicates
+                    #depth: ::morphix::helper::Unsigned,
+                {
+                    #[inline]
+                    fn cmp(&self, other: &Self) -> ::std::cmp::Ordering {
+                        let lhs = ::morphix::helper::QuasiObserver::untracked_ref(self);
+                        let rhs = ::morphix::helper::QuasiObserver::untracked_ref(other);
+                        lhs.cmp(rhs)
                     }
                 }
             });

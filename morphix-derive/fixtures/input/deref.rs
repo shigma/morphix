@@ -6,6 +6,7 @@ use serde::Serialize;
 
 #[rustfmt::skip]
 #[derive(Serialize, Observe)]
+// FIXME: #[morphix(derive(PartialEq))]
 pub struct Foo<T> {
     #[serde(flatten)]
     #[morphix(deref)]

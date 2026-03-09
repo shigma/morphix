@@ -3,7 +3,8 @@ use morphix_derive::Observe;
 use serde::Serialize;
 
 #[rustfmt::skip]
-#[derive(Serialize, Observe)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Serialize, Observe)]
+#[morphix(derive(PartialEq, Eq, PartialOrd, Ord))]
 pub enum Foo {
     A,
     B(),

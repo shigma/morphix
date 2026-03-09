@@ -32,10 +32,7 @@ const _: () = {
     impl<'ob, O, N> ::morphix::helper::QuasiObserver for FooObserver<'ob, O>
     where
         O: ::morphix::helper::QuasiObserver<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Target: ::std::ops::Deref<
-            Target: ::morphix::helper::AsDeref<N>
-                + ::morphix::helper::AsDeref<::morphix::helper::Succ<N>>,
-        >,
+        O::Head: ::morphix::helper::AsDeref<N>,
         N: ::morphix::helper::Unsigned,
     {
         type Head = O::Head;
@@ -183,10 +180,7 @@ const _: () = {
     impl<'ob, O, N> ::morphix::helper::QuasiObserver for BarObserver<'ob, O>
     where
         O: ::morphix::helper::QuasiObserver<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Target: ::std::ops::Deref<
-            Target: ::morphix::helper::AsDeref<N>
-                + ::morphix::helper::AsDeref<::morphix::helper::Succ<N>>,
-        >,
+        O::Head: ::morphix::helper::AsDeref<N>,
         N: ::morphix::helper::Unsigned,
     {
         type Head = O::Head;
@@ -325,10 +319,7 @@ const _: () = {
     impl<O, N> ::morphix::helper::QuasiObserver for QuxObserver<O>
     where
         O: ::morphix::helper::QuasiObserver<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Target: ::std::ops::Deref<
-            Target: ::morphix::helper::AsDeref<N>
-                + ::morphix::helper::AsDeref<::morphix::helper::Succ<N>>,
-        >,
+        O::Head: ::morphix::helper::AsDeref<N>,
         N: ::morphix::helper::Unsigned,
     {
         type Head = O::Head;

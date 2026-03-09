@@ -277,7 +277,7 @@ impl ::morphix::Observe for Bar {
     type Spec = ::morphix::observe::DefaultSpec;
 }
 #[rustfmt::skip]
-#[derive(Serialize)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Serialize)]
 pub struct Baz(i32, String);
 #[rustfmt::skip]
 const _: () = {
@@ -405,6 +405,54 @@ const _: () = {
     impl<'ob, S: ?Sized, N> ::std::fmt::Debug for BazObserver<'ob, S, N> {
         fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
             f.debug_tuple("BazObserver").field(&self.0).field(&self.1).finish()
+        }
+    }
+    #[automatically_derived]
+    impl<'ob, S: ?Sized, N> ::std::cmp::PartialEq for BazObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDeref<N, Target = Baz>,
+        N: ::morphix::helper::Unsigned,
+    {
+        #[inline]
+        fn eq(&self, other: &Self) -> bool {
+            let lhs = ::morphix::helper::QuasiObserver::untracked_ref(self);
+            let rhs = ::morphix::helper::QuasiObserver::untracked_ref(other);
+            lhs.eq(rhs)
+        }
+    }
+    #[automatically_derived]
+    impl<'ob, S: ?Sized, N> ::std::cmp::Eq for BazObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDeref<N, Target = Baz>,
+        N: ::morphix::helper::Unsigned,
+    {}
+    #[automatically_derived]
+    impl<'ob, S: ?Sized, N> ::std::cmp::PartialOrd for BazObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDeref<N, Target = Baz>,
+        N: ::morphix::helper::Unsigned,
+    {
+        #[inline]
+        fn partial_cmp(
+            &self,
+            other: &Self,
+        ) -> ::std::option::Option<::std::cmp::Ordering> {
+            let lhs = ::morphix::helper::QuasiObserver::untracked_ref(self);
+            let rhs = ::morphix::helper::QuasiObserver::untracked_ref(other);
+            lhs.partial_cmp(rhs)
+        }
+    }
+    #[automatically_derived]
+    impl<'ob, S: ?Sized, N> ::std::cmp::Ord for BazObserver<'ob, S, N>
+    where
+        S: ::morphix::helper::AsDeref<N, Target = Baz>,
+        N: ::morphix::helper::Unsigned,
+    {
+        #[inline]
+        fn cmp(&self, other: &Self) -> ::std::cmp::Ordering {
+            let lhs = ::morphix::helper::QuasiObserver::untracked_ref(self);
+            let rhs = ::morphix::helper::QuasiObserver::untracked_ref(other);
+            lhs.cmp(rhs)
         }
     }
 };
