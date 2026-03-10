@@ -8,13 +8,14 @@ use crate::Mutations;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{Observer, SerializeObserver};
+use crate::observe::{Observer, RefObserver, SerializeObserver};
 
 /// Helper trait to access the inner field of a transparent newtype wrapper.
 pub trait Newtype {
     type Inner;
 
     fn as_inner(&self) -> &Self::Inner;
+    fn as_inner_mut(&mut self) -> &mut Self::Inner;
 }
 
 impl<T> Newtype for Wrapping<T> {
@@ -23,6 +24,11 @@ impl<T> Newtype for Wrapping<T> {
     #[inline]
     fn as_inner(&self) -> &T {
         &self.0
+    }
+
+    #[inline]
+    fn as_inner_mut(&mut self) -> &mut T {
+        &mut self.0
     }
 }
 
@@ -33,6 +39,11 @@ impl<T> Newtype for Saturating<T> {
     fn as_inner(&self) -> &T {
         &self.0
     }
+
+    #[inline]
+    fn as_inner_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
 }
 
 impl<T> Newtype for Reverse<T> {
@@ -41,6 +52,11 @@ impl<T> Newtype for Reverse<T> {
     #[inline]
     fn as_inner(&self) -> &T {
         &self.0
+    }
+
+    #[inline]
+    fn as_inner_mut(&mut self) -> &mut T {
+        &mut self.0
     }
 }
 
@@ -84,7 +100,7 @@ where
 impl<O, S: ?Sized, D> Observer for NewtypeObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target: Newtype<Inner = O::Head>>,
+    S: AsDerefMut<D, Target: Newtype<Inner = O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
@@ -94,10 +110,38 @@ where
     }
 
     #[inline]
+    fn observe(head: &mut Self::Head) -> Self {
+        let value = head.as_deref_mut();
+        let ob = O::observe(value.as_inner_mut());
+        let mut this = Self(ob, Pointer::from(head), PhantomData);
+        Pointer::register_observer(&mut this.1, &mut this.0);
+        this
+    }
+
+    #[inline]
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+        Pointer::set(&this.1, &mut *head);
+        let value = head.as_deref_mut();
+        unsafe { O::refresh(&mut this.0, value.as_inner_mut()) }
+    }
+}
+
+impl<O, S: ?Sized, D> RefObserver for NewtypeObserver<O, S, D>
+where
+    D: Unsigned,
+    S: AsDeref<D, Target: Newtype<Inner = O::Head>>,
+    O: RefObserver<InnerDepth = Zero>,
+    O::Head: Sized,
+{
+    #[inline]
+    fn uninit() -> Self {
+        Self(O::uninit(), Pointer::uninit(), PhantomData)
+    }
+
+    #[inline]
     fn observe(head: &Self::Head) -> Self {
-        let ptr = Pointer::new(head);
         let value = head.as_deref();
-        let mut this = Self(O::observe(value.as_inner()), ptr, PhantomData);
+        let mut this = Self(O::observe(value.as_inner()), Pointer::from(head), PhantomData);
         Pointer::register_observer(&mut this.1, &mut this.0);
         this
     }

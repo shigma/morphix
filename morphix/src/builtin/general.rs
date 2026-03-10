@@ -7,7 +7,7 @@ use serde::Serialize;
 
 use crate::Mutations;
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{Observer, SerializeObserver};
+use crate::observe::{Observer, RefObserver, SerializeObserver};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
 ///
@@ -248,6 +248,38 @@ where
     }
 
     #[inline]
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+        Pointer::set(this, head);
+    }
+
+    #[inline]
+    fn observe(head: &mut Self::Head) -> Self {
+        let mut this = Self {
+            handler: H::observe((*head).as_deref()),
+            ptr: Pointer::from(head),
+            phantom: PhantomData,
+        };
+        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.handler);
+        this
+    }
+}
+
+impl<'ob, H, S: ?Sized, D, T: ?Sized> RefObserver for GeneralObserver<'ob, H, S, D>
+where
+    S: AsDeref<D, Target = T>,
+    H: GeneralHandler<Target = T>,
+    D: Unsigned,
+{
+    #[inline]
+    fn uninit() -> Self {
+        Self {
+            ptr: Pointer::uninit(),
+            handler: H::uninit(),
+            phantom: PhantomData,
+        }
+    }
+
+    #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         Pointer::set(this, head);
     }
@@ -255,7 +287,7 @@ where
     #[inline]
     fn observe(head: &Self::Head) -> Self {
         let mut this = Self {
-            ptr: Pointer::new(head),
+            ptr: Pointer::from(head),
             handler: H::observe(head.as_deref()),
             phantom: PhantomData,
         };

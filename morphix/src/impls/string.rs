@@ -80,7 +80,7 @@ where
 impl<'ob, S: ?Sized, D> Observer for StringObserver<'ob, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = String>,
+    S: AsDerefMut<D, Target = String>,
 {
     #[inline]
     fn uninit() -> Self {
@@ -95,13 +95,13 @@ where
     }
 
     #[inline]
-    fn observe(head: &Self::Head) -> Self {
+    fn observe(head: &mut Self::Head) -> Self {
         let mut this = Self {
-            ptr: Pointer::new(head),
             mutation: StringObserverState {
-                append_index: head.as_deref().len(),
+                append_index: head.as_deref_mut().len(),
                 truncate_len: 0,
             },
+            ptr: Pointer::from(head),
             phantom: PhantomData,
         };
         Pointer::register_state::<_, D>(&mut this.ptr, &mut this.mutation);
@@ -109,7 +109,7 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
 }
@@ -473,7 +473,7 @@ impl Observe for String {
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }

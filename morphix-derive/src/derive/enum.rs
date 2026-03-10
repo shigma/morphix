@@ -131,7 +131,7 @@ pub fn derive_observe_for_enum(
                     #(#if_named #field_ident:)* ::morphix::helper::Pointer<#field_ty>,
                 });
                 observe_fields.extend(quote_spanned! { field_span =>
-                    #(#if_named #field_ident:)* ::morphix::helper::Pointer::new(#observe_ident),
+                    #(#if_named #field_ident:)* ::morphix::helper::Pointer::from(#observe_ident),
                 });
                 refresh_stmts.extend(quote_spanned! { field_span =>
                     ::morphix::helper::Pointer::set(#ob_ident, #value_ident);
@@ -409,13 +409,13 @@ pub fn derive_observe_for_enum(
             #(#input_predicates,)*
             #(#field_tys: ::morphix::Observe),*
         {
-            fn observe(value: &#input_ident #input_type_generics) -> Self {
+            fn observe(value: &mut #input_ident #input_type_generics) -> Self {
                 match value {
                     #variant_observe_arms
                 }
             }
 
-            unsafe fn refresh(&mut self, value: &#input_ident #input_type_generics) {
+            unsafe fn refresh(&mut self, value: &mut #input_ident #input_type_generics) {
                 unsafe {
                     match (self, value) {
                         #variant_refresh_arms
@@ -510,7 +510,7 @@ pub fn derive_observe_for_enum(
             #(#input_predicates,)*
             #(#skipped_tys: #ob_lt,)*
             #(#field_tys: ::morphix::Observe,)*
-            #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
+            #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics>,
             #depth: ::morphix::helper::Unsigned,
         {
             fn uninit() -> Self {
@@ -523,22 +523,21 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            fn observe(head: &#head) -> Self {
-                let __ptr = ::morphix::helper::Pointer::new(head);
-                let __value = head.as_deref();
+            fn observe(head: &mut #head) -> Self {
+                let __value = head.as_deref_mut();
                 Self {
-                    __ptr,
                     #(#if_has_variant __mutated: false,)*
-                    __phantom: ::std::marker::PhantomData,
                     #(#if_has_initial __initial: #ob_initial_ident::new(__value),)*
                     #(#if_has_variant __variant: #ob_variant_ident::observe(__value),)*
+                    __ptr: ::morphix::helper::Pointer::from(head),
+                    __phantom: ::std::marker::PhantomData,
                 }
             }
 
-            unsafe fn refresh(this: &mut Self, head: &#head) {
-                ::morphix::helper::Pointer::set(this, head);
+            unsafe fn refresh(this: &mut Self, head: &mut #head) {
+                ::morphix::helper::Pointer::set(this, &mut *head);
                 #(#if_has_variant
-                    let __value = head.as_deref();
+                    let __value = head.as_deref_mut();
                     unsafe { this.__variant.refresh(__value) }
                 )*
             }
@@ -582,7 +581,7 @@ pub fn derive_observe_for_enum(
                 Self: #ob_lt,
                 #(#field_tys: #ob_lt,)*
                 #depth: ::morphix::helper::Unsigned,
-                #head: ::morphix::helper::AsDeref<#depth, Target = Self> + ?Sized + #ob_lt;
+                #head: ::morphix::helper::AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt;
             type Spec = ::morphix::observe::DefaultSpec;
         }
     };

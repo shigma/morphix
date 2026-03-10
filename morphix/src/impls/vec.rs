@@ -12,13 +12,13 @@ use serde::Serialize;
 
 use crate::builtin::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, QuasiObserver, Succ, Unsigned, Zero};
-use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverState};
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverState, SliceSerializeObserverState};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe, PathSegment};
 
-/// Observer state for dynamically-sized slices ([`Vec<T>`], `Box<[T]>`), tracking append and
-/// truncate boundaries.
+/// Observer state for dynamically-sized slices ([`Vec<T>`], [`Box<[T]>`](Box)), tracking
+/// [`Append`](MutationKind::Append) and [`Truncate`](MutationKind::Truncate) boundaries.
 ///
 /// The `append_index` divides the observed slice into two regions: elements before it are
 /// "existing" (may have individual observer state), and elements from `append_index` onward are
@@ -26,16 +26,16 @@ use crate::{MutationKind, Mutations, Observe, PathSegment};
 ///
 /// ## Replace Semantics
 ///
-/// During [`flush`](SliceObserverState::flush), if all existing elements' inner observers report
-/// [`Replace`](MutationKind::Replace) and there was at least some tracked content
+/// During [`flush`](SliceSerializeObserverState::flush), if all existing elements' inner observers
+/// report [`Replace`](MutationKind::Replace) and there was at least some tracked content
 /// (`append_index > 0` or `truncate_len > 0`), the granular mutations are collapsed into a single
 /// whole-slice [`Replace`](MutationKind::Replace).
 pub struct VecObserverState<O> {
     /// Number of elements truncated from the end since the last flush.
-    pub truncate_len: usize,
+    truncate_len: usize,
     /// Starting index of appended elements. Elements before this index are "existing" and have
     /// their inner observers flushed individually.
-    pub append_index: usize,
+    append_index: usize,
     /// Lazily-initialized element observer storage.
     ///
     /// Unlike map observers which use [`Box<O>`] for pointer stability across rehashing /
@@ -46,7 +46,21 @@ pub struct VecObserverState<O> {
     /// `init_range` call sizes the Vec to its final length, and subsequent calls within the
     /// same `&self` borrow lifetime never trigger reallocation, keeping all previously returned
     /// references valid.
-    pub inner: UnsafeCell<Vec<O>>,
+    inner: UnsafeCell<Vec<O>>,
+}
+
+impl<O> VecObserverState<O> {
+    #[inline]
+    fn mark_truncate(&mut self, new_len: usize) {
+        self.truncate_len += self.append_index - new_len;
+        self.append_index = new_len;
+    }
+
+    #[inline]
+    fn mark_replace(&mut self) {
+        self.inner.get_mut().clear();
+        self.mark_truncate(0);
+    }
 }
 
 impl<O> ObserverState for VecObserverState<O>
@@ -77,7 +91,7 @@ where
     }
 
     #[inline]
-    fn observe(slice: &Self::Target) -> Self {
+    fn observe(slice: &mut Self::Target) -> Self {
         Self {
             truncate_len: 0,
             append_index: slice.as_ref().len(),
@@ -95,21 +109,26 @@ where
         self.inner.get_mut()
     }
 
-    unsafe fn init_range(&self, start: usize, end: usize, slice: &Self::Target) {
+    unsafe fn init_range(&self, start: usize, end: usize, slice: &mut Self::Target) {
         let inner = unsafe { &mut *self.inner.get() };
         inner.resize_with(slice.len(), O::uninit);
         let ob_iter = inner[start..end].iter_mut();
-        let value_iter = slice[start..end].iter();
+        let value_iter = slice[start..end].iter_mut();
         for (ob, value) in ob_iter.zip(value_iter) {
             unsafe { Observer::force(ob, value) }
         }
     }
+}
 
-    fn flush(&mut self, slice: &Self::Target) -> Mutations
-    where
-        Self::Item: SerializeObserver,
-        <Self::Item as QuasiObserver>::Head: Serialize + 'static,
-    {
+impl<O, S, D> SliceSerializeObserverState<S, D> for VecObserverState<O>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = [O::Head]> + ?Sized,
+    O: Observer<InnerDepth = Zero> + SerializeObserver,
+    O::Head: Serialize + Sized + 'static,
+{
+    fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations {
+        let slice = (**ptr).as_deref_mut();
         let append_index = core::mem::replace(&mut self.append_index, slice.len());
         let truncate_len = core::mem::replace(&mut self.truncate_len, 0);
         let mut mutations = Mutations::new();
@@ -139,20 +158,6 @@ where
     }
 }
 
-impl<O> VecObserverState<O> {
-    #[inline]
-    fn mark_truncate(&mut self, new_len: usize) {
-        self.truncate_len += self.append_index - new_len;
-        self.append_index = new_len;
-    }
-
-    #[inline]
-    fn mark_replace(&mut self) {
-        self.inner.get_mut().clear();
-        self.mark_truncate(0);
-    }
-}
-
 /// Observer implementation for [`Vec<T>`].
 pub struct VecObserver<O, S: ?Sized, D = Zero> {
     inner: SliceObserver<VecObserverState<O>, S, Succ<D>>,
@@ -160,6 +165,7 @@ pub struct VecObserver<O, S: ?Sized, D = Zero> {
 
 impl<O, S: ?Sized, D> Deref for VecObserver<O, S, D> {
     type Target = SliceObserver<VecObserverState<O>, S, Succ<D>>;
+
     #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -193,34 +199,34 @@ where
 impl<O, S: ?Sized, D, T> Observer for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = Vec<T>>,
+    S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
     #[inline]
     fn uninit() -> Self {
         Self {
-            inner: SliceObserver::uninit(),
+            inner: Observer::uninit(),
         }
     }
 
     #[inline]
-    fn observe(head: &Self::Head) -> Self {
+    fn observe(head: &mut Self::Head) -> Self {
         Self {
-            inner: SliceObserver::<VecObserverState<O>, S, Succ<D>>::observe(head),
+            inner: Observer::observe(head),
         }
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
-        unsafe { SliceObserver::refresh(&mut this.inner, head) }
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+        unsafe { Observer::refresh(&mut this.inner, head) }
     }
 }
 
 impl<O, S: ?Sized, D, T> SerializeObserver for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = Vec<T>>,
-    O: SerializeObserver<InnerDepth = Zero, Head = T>,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<InnerDepth = Zero, Head = T> + SerializeObserver,
     T: Serialize + 'static,
 {
     #[inline]
@@ -690,7 +696,7 @@ where
 impl<O, S: ?Sized, D, T, I> Index<I> for VecObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = Vec<T>>,
+    S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
@@ -721,7 +727,7 @@ impl<T: Observe> Observe for Vec<T> {
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }

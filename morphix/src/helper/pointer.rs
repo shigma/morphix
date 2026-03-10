@@ -69,6 +69,13 @@ pub struct Pointer<S: ?Sized> {
     pub(crate) states: Vec<(isize, unsafe fn(*mut u8, &S))>,
 }
 
+impl<S: ?Sized, T: Into<NonNull<S>>> From<T> for Pointer<S> {
+    #[inline]
+    fn from(value: T) -> Self {
+        Self::new(value.into())
+    }
+}
+
 impl<S: ?Sized> Pointer<S> {
     /// Create an uninitialized pointer.
     #[inline]
@@ -84,9 +91,9 @@ impl<S: ?Sized> Pointer<S> {
     /// The returned pointer will remain valid as long as the original reference remains valid,
     /// which is enforced by the lifetime parameter in observer types.
     #[inline]
-    pub const fn new(head: &S) -> Self {
+    pub const fn new(ptr: NonNull<S>) -> Self {
         Self {
-            inner: Cell::new(Some(NonNull::from_ref(head))),
+            inner: Cell::new(Some(ptr)),
             states: Vec::new(),
         }
     }
@@ -104,8 +111,8 @@ impl<S: ?Sized> Pointer<S> {
     /// any existing [`Pointer`] instances pointing to those elements become invalid. This method
     /// allows updating those pointers to point to the elements' new locations.
     #[inline]
-    pub fn set(this: &Self, head: &S) {
-        this.inner.set(Some(NonNull::from_ref(head)));
+    pub fn set(this: &Self, head: impl Into<NonNull<S>>) {
+        this.inner.set(Some(head.into()));
     }
 
     /// Checks if this pointer is null.

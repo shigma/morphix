@@ -5,14 +5,16 @@ use std::slice::SliceIndex;
 use serde::Serialize;
 
 use crate::builtin::Snapshot;
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, QuasiObserver, Succ, Unsigned, Zero};
-use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverState};
-use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::impls::slice::{
+    SliceIndexImpl, SliceObserver, SliceObserverState, SliceRefObserverState, SliceSerializeObserverState,
+};
+use crate::observe::{DefaultSpec, Observer, RefObserve, RefObserver, SerializeObserver};
 use crate::{Mutations, Observe};
 
 impl<O, const N: usize> ObserverState for [O; N]
 where
-    O: Observer<InnerDepth = Zero, Head: Sized>,
+    O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
 {
     type Target = [O::Head; N];
 
@@ -29,7 +31,7 @@ where
     #[inline]
     fn invalidate(this: &mut Self, _: &[O::Head; N]) {
         for ob in this.as_mut_slice() {
-            ob.as_deref_mut_coinductive();
+            O::invalidate(ob);
         }
     }
 }
@@ -56,20 +58,42 @@ where
     }
 
     #[inline]
-    fn observe(slice: &Self::Target) -> Self {
-        slice.each_ref().map(O::observe)
+    fn observe(slice: &mut Self::Target) -> Self {
+        slice.each_mut().map(O::observe)
     }
 
     #[inline]
-    unsafe fn init_range(&self, _start: usize, _end: usize, _slice: &Self::Target) {
+    unsafe fn init_range(&self, _start: usize, _end: usize, _slice: &mut Self::Target) {
         // No need to re-initialize fixed-size array.
     }
+}
 
-    fn flush(&mut self, slice: &Self::Target) -> Mutations
-    where
-        Self::Item: SerializeObserver,
-        <Self::Item as QuasiObserver>::Head: Serialize + 'static,
-    {
+impl<O, const N: usize> SliceRefObserverState for [O; N]
+where
+    O: RefObserver<InnerDepth = Zero, Head: Sized>,
+{
+    type Item = O;
+
+    #[inline]
+    fn uninit() -> Self {
+        std::array::from_fn(|_| O::uninit())
+    }
+
+    #[inline]
+    fn observe(slice: &Self::Target) -> Self {
+        slice.each_ref().map(O::observe)
+    }
+}
+
+impl<O, const N: usize, S, D> SliceSerializeObserverState<S, D> for [O; N]
+where
+    D: Unsigned,
+    S: AsDeref<D, Target = [O::Head; N]> + ?Sized,
+    O: SerializeObserver<InnerDepth = Zero>,
+    O::Head: Serialize + Sized + 'static,
+{
+    fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations {
+        let slice = (**ptr).as_deref();
         let mut mutations = Mutations::new();
         let mut is_replace = true;
         for (index, ob) in self.iter_mut().enumerate() {
@@ -142,7 +166,7 @@ impl<const N: usize, O, S: ?Sized, D> QuasiObserver for ArrayObserver<N, O, S, D
 where
     D: Unsigned,
     S: AsDeref<D, Target = [O::Head; N]>,
-    O: Observer<InnerDepth = Zero, Head: Sized>,
+    O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
 {
     type Head = S;
     type OuterDepth = Succ<Succ<Zero>>;
@@ -150,34 +174,59 @@ where
 
     #[inline]
     fn invalidate(this: &mut Self) {
-        // SliceObserver::invalidate(&mut this.inner);
-        ObserverState::invalidate(&mut this.inner.state, (*this.inner.ptr).as_deref());
+        SliceObserver::invalidate(&mut this.inner);
     }
 }
 
 impl<const N: usize, O, S: ?Sized, D, T> Observer for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = [T; N]>,
+    S: AsDerefMut<D, Target = [T; N]>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
     #[inline]
     fn uninit() -> Self {
         Self {
-            inner: SliceObserver::uninit(),
+            inner: Observer::uninit(),
+        }
+    }
+
+    #[inline]
+    fn observe(head: &mut Self::Head) -> Self {
+        Self {
+            inner: Observer::observe(head),
+        }
+    }
+
+    #[inline]
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+        unsafe { Observer::refresh(&mut this.inner, head) }
+    }
+}
+
+impl<const N: usize, O, S: ?Sized, D, T> RefObserver for ArrayObserver<N, O, S, D>
+where
+    D: Unsigned,
+    S: AsDeref<D, Target = [T; N]>,
+    O: RefObserver<InnerDepth = Zero, Head = T>,
+{
+    #[inline]
+    fn uninit() -> Self {
+        Self {
+            inner: RefObserver::uninit(),
         }
     }
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
         Self {
-            inner: SliceObserver::<[O; N], S, D>::observe(head),
+            inner: RefObserver::observe(head),
         }
     }
 
     #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
-        unsafe { SliceObserver::refresh(&mut this.inner, head) }
+        unsafe { RefObserver::refresh(&mut this.inner, head) }
     }
 }
 
@@ -302,7 +351,7 @@ where
 impl<const N: usize, O, S: ?Sized, D, T, I> Index<I> for ArrayObserver<N, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = [T; N]>,
+    S: AsDerefMut<D, Target = [T; N]>,
     O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
@@ -333,12 +382,12 @@ impl<T: Observe, const N: usize> Observe for [T; N] {
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }
 
-impl<T: Observe, const N: usize> RefObserve for [T; N] {
+impl<T: RefObserve, const N: usize> RefObserve for [T; N] {
     type Observer<'ob, S, D>
         = ArrayObserver<N, T::Observer<'ob, T, Zero>, S, D>
     where

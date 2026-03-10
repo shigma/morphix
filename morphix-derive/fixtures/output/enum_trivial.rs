@@ -59,7 +59,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for FooObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDeref<N, Target = Foo>,
+        S: ::morphix::helper::AsDerefMut<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -69,17 +69,16 @@ const _: () = {
                 __initial: FooObserverInitial::__None,
             }
         }
-        fn observe(head: &S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(head);
-            let __value = head.as_deref();
+        fn observe(head: &mut S) -> Self {
+            let __value = head.as_deref_mut();
             Self {
-                __ptr,
-                __phantom: ::std::marker::PhantomData,
                 __initial: FooObserverInitial::new(__value),
+                __ptr: ::morphix::helper::Pointer::from(head),
+                __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, head: &S) {
-            ::morphix::helper::Pointer::set(this, head);
+        unsafe fn refresh(this: &mut Self, head: &mut S) {
+            ::morphix::helper::Pointer::set(this, &mut *head);
         }
     }
     #[automatically_derived]
@@ -107,7 +106,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
     #[automatically_derived]
@@ -200,6 +199,6 @@ where
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,
-        S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
+        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
     type Spec = ::morphix::observe::SnapshotSpec;
 }

@@ -4,10 +4,10 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::builtin::{PointerObserver, Snapshot};
+use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDeref, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::observe::{DefaultSpec, Observer, RefObserve, RefObserver, SerializeObserver};
 use crate::{Mutations, Observe};
 
 /// Observer implementation for tuple `(T,)`.
@@ -49,7 +49,7 @@ where
 impl<O, S: ?Sized, D> Observer for TupleObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = (O::Head,)>,
+    S: AsDerefMut<D, Target = (O::Head,)>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
@@ -59,10 +59,38 @@ where
     }
 
     #[inline]
+    fn observe(head: &mut Self::Head) -> Self {
+        let tuple = head.as_deref_mut();
+        let ob = O::observe(&mut tuple.0);
+        let mut this = Self(ob, Pointer::from(head), PhantomData);
+        Pointer::register_observer(&mut this.1, &mut this.0);
+        this
+    }
+
+    #[inline]
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+        Pointer::set(&this.1, &mut *head);
+        let tuple = head.as_deref_mut();
+        unsafe { O::refresh(&mut this.0, &mut tuple.0) }
+    }
+}
+
+impl<O, S: ?Sized, D> RefObserver for TupleObserver<O, S, D>
+where
+    D: Unsigned,
+    S: AsDeref<D, Target = (O::Head,)>,
+    O: RefObserver<InnerDepth = Zero>,
+    O::Head: Sized,
+{
+    #[inline]
+    fn uninit() -> Self {
+        Self(O::uninit(), Pointer::uninit(), PhantomData)
+    }
+
+    #[inline]
     fn observe(head: &Self::Head) -> Self {
-        let ptr = Pointer::new(head);
         let tuple = head.as_deref();
-        let mut this = Self(O::observe(&tuple.0), ptr, PhantomData);
+        let mut this = Self(O::observe(&tuple.0), Pointer::from(head), PhantomData);
         Pointer::register_observer(&mut this.1, &mut this.0);
         this
     }
@@ -264,8 +292,45 @@ macro_rules! tuple_observer {
         impl<$($o,)* S: ?Sized, D> Observer for $ty<$($o,)* S, D>
         where
             D: Unsigned,
-            S: AsDeref<D, Target = ($($o::Head,)*)>,
+            S: AsDerefMut<D, Target = ($($o::Head,)*)>,
             $($o: Observer<InnerDepth = Zero, Head: Sized>,)*
+        {
+            #[inline]
+            fn uninit() -> Self {
+                Self(
+                    $($o::uninit(),)*
+                    /* ptr */ Pointer::uninit(),
+                    /* phantom */ PhantomData,
+                )
+            }
+
+            #[inline]
+            fn observe(head: &mut Self::Head) -> Self {
+                let tuple = head.as_deref_mut();
+                let mut this = Self(
+                    $($o::observe(&mut tuple.$n),)*
+                    /* ptr */ Pointer::from(head),
+                    /* phantom */ PhantomData,
+                );
+                $(Pointer::register_observer(&mut this.$ptr, &mut this.$n);)*
+                this
+            }
+
+            #[inline]
+            unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+                Pointer::set(&this.$ptr, &mut *head);
+                let tuple = head.as_deref_mut();
+                unsafe {
+                    $($o::refresh(&mut this.$n, &mut tuple.$n);)*
+                }
+            }
+        }
+
+        impl<$($o,)* S: ?Sized, D> RefObserver for $ty<$($o,)* S, D>
+        where
+            D: Unsigned,
+            S: AsDeref<D, Target = ($($o::Head,)*)>,
+            $($o: RefObserver<InnerDepth = Zero, Head: Sized>,)*
         {
             #[inline]
             fn uninit() -> Self {
@@ -281,7 +346,7 @@ macro_rules! tuple_observer {
                 let tuple = head.as_deref();
                 let mut this = Self(
                     $($o::observe(&tuple.$n),)*
-                    /* ptr */ Pointer::new(head),
+                    /* ptr */ Pointer::from(head),
                     /* phantom */ PhantomData,
                 );
                 $(Pointer::register_observer(&mut this.$ptr, &mut this.$n);)*
@@ -424,7 +489,7 @@ macro_rules! tuple_observer {
             where
                 Self: 'ob,
                 D: Unsigned,
-                S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+                S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
             type Spec = DefaultSpec;
         }
@@ -435,13 +500,27 @@ macro_rules! tuple_observer {
             $($t: RefObserve,)*
         {
             type Observer<'ob, S, D>
-                = PointerObserver<'ob, S, D>
+                = $ty<$($t::Observer<'ob, $t, Zero>,)* S, D>
             where
                 Self: 'ob,
                 D: Unsigned,
                 S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
             type Spec = DefaultSpec;
+        }
+
+        impl<$($t: Snapshot,)*> Snapshot for ($($t,)*) {
+            type Snapshot = ($($t::Snapshot,)*);
+
+            #[inline]
+            fn to_snapshot(&self) -> Self::Snapshot {
+                ($(self.$n.to_snapshot(),)*)
+            }
+
+            #[inline]
+            fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
+                $(self.$n.eq_snapshot(&snapshot.$n))&&+
+            }
         }
     };
 }

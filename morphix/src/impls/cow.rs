@@ -5,7 +5,7 @@ use std::ops::{AddAssign, Deref, DerefMut};
 use crate::builtin::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::{DerefObserver, StringObserver};
-use crate::observe::{DefaultSpec, Observer, RefObserve, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, RefObserve, RefObserver, SerializeObserver};
 use crate::{Mutations, Observe};
 
 /// Observer implementation for [`Cow<'a, T>`].
@@ -53,8 +53,8 @@ where
 
 impl<'a, B, O, D, T> Observer for CowObserver<B, O>
 where
-    B: Observer<InnerDepth = Succ<D>>,
-    B::Head: AsDeref<D, Target = Cow<'a, T>>,
+    B: RefObserver<InnerDepth = Succ<D>>,
+    B::Head: AsDerefMut<D, Target = Cow<'a, T>>,
     O: Observer<InnerDepth = Zero, Head = T::Owned>,
     D: Unsigned,
     T: ToOwned + ?Sized + 'a,
@@ -69,9 +69,9 @@ where
     }
 
     #[inline]
-    fn observe(head: &Self::Head) -> Self {
+    fn observe(head: &mut Self::Head) -> Self {
         let inner = B::observe(head);
-        let owned = match AsDeref::<D>::as_deref(head) {
+        let owned = match AsDerefMut::<D>::as_deref_mut(head) {
             Cow::Borrowed(_) => None,
             Cow::Owned(value) => Some(O::observe(value)),
         };
@@ -83,10 +83,10 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         unsafe { B::refresh(&mut this.inner, head) }
         if let Some(owned) = &mut this.owned {
-            match AsDeref::<D>::as_deref(head) {
+            match AsDerefMut::<D>::as_deref_mut(head) {
                 Cow::Borrowed(_) => panic!("inconsistent state for CowObserver"),
                 Cow::Owned(value) => unsafe { O::refresh(owned, value) },
             }
@@ -103,26 +103,28 @@ where
     T: ToOwned + ?Sized + 'a,
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
-        if let Some(mut owned) = this.owned.take()
+        if let Some(owned) = this.owned.as_mut()
             && !this.mutated
         {
-            let head = &**this.inner.as_deref_coinductive();
-            this.inner = B::observe(head);
-            unsafe { O::flush(&mut owned) }
+            unsafe { B::flush(&mut this.inner) };
+            unsafe { O::flush(owned) }
         } else {
+            this.owned = None;
+            this.mutated = false;
             unsafe { B::flush(&mut this.inner) }
         }
     }
 
     #[inline]
     unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
-        if let Some(mut owned) = this.owned.take()
+        if let Some(owned) = this.owned.as_mut()
             && !this.mutated
         {
-            let head = &**this.inner.as_deref_coinductive();
-            this.inner = B::observe(head);
-            unsafe { O::flat_flush(&mut owned) }
+            unsafe { B::flat_flush(&mut this.inner) };
+            unsafe { O::flat_flush(owned) }
         } else {
+            this.owned = None;
+            this.mutated = false;
             unsafe { B::flat_flush(&mut this.inner) }
         }
     }
@@ -273,7 +275,7 @@ where
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }

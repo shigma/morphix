@@ -5,7 +5,7 @@
 //! mutation tracking primitives.
 
 pub use crate::builtin::snapshot::SnapshotSpec;
-use crate::helper::{AsDeref, Pointer, QuasiObserver, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Unsigned, Zero};
 use crate::{Adapter, Mutations};
 
 /// A trait for types that can be observed for mutations.
@@ -46,7 +46,7 @@ pub trait Observe {
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     /// Marker type for selecting specialized observer implementations in wrapper types.
     ///
@@ -66,7 +66,7 @@ pub trait Observe {
 /// See also: [`Observe`].
 pub trait RefObserve {
     /// The default observer implementation for `&Self`.
-    type Observer<'ob, S, D>: Observer<Head = S, InnerDepth = D>
+    type Observer<'ob, S, D>: RefObserver<Head = S, InnerDepth = D>
     where
         Self: 'ob,
         D: Unsigned,
@@ -116,12 +116,12 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 ///
 /// - [`uninit()`](Self::uninit) creates an uninitialized observer (null pointer). Used for
 ///   pre-allocating storage in containers before values are known.
-/// - [`observe(head)`](Self::observe) fully initializes the observer: sets up the internal
-///   pointer, initializes diff state, and registers any fallback invalidation entries.
-/// - [`refresh(this, head)`](Self::refresh) updates the internal pointer after the observed
-///   value has moved in memory (e.g., due to [`Vec`] reallocation), keeping diff state intact.
-/// - [`force(this, head)`](Self::force) is a convenience: initializes if null, refreshes if
-///   moved, no-ops if unchanged. Used by container observers for lazy initialization.
+/// - [`observe(head)`](Self::observe) fully initializes the observer: sets up the internal pointer,
+///   initializes diff state, and registers any fallback invalidation entries.
+/// - [`refresh(this, head)`](Self::refresh) updates the internal pointer after the observed value
+///   has moved in memory (e.g., due to [`Vec`] reallocation), keeping diff state intact.
+/// - [`force(this, head)`](Self::force) is a convenience: initializes if null, refreshes if moved,
+///   no-ops if unchanged. Used by container observers for lazy initialization.
 ///
 /// ## Inline-Field Invariant
 ///
@@ -162,7 +162,7 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     /// let mut value = 42;
     /// let observer = ShallowObserver::<i32>::observe(&mut value);
     /// ```
-    fn observe(head: &Self::Head) -> Self;
+    fn observe(head: &mut Self::Head) -> Self;
 
     /// Refreshes the observer's internal pointer after the observed value has moved.
     ///
@@ -182,7 +182,7 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     ///
     /// This method should be called after any operation that may relocate the observed
     /// value in memory while the observer is still in use.
-    unsafe fn refresh(this: &mut Self, head: &Self::Head);
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head);
 
     /// Forces the observer into a valid state for the given value.
     ///
@@ -209,6 +209,56 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     /// [`VecObserver`](crate::impls::VecObserver)) where element observers may need to be:
     /// - Lazily initialized on first access, and
     /// - Refreshed after container reallocation moves elements in memory.
+    unsafe fn force(this: &mut Self, head: &mut Self::Head) {
+        match Pointer::get((*this).as_deref_coinductive()) {
+            None => *this = Self::observe(head),
+            Some(ptr) => {
+                if !std::ptr::addr_eq(ptr.as_ptr(), head) {
+                    // SAFETY: The observer was previously initialized via `observe`, and the caller
+                    // guarantees that `head` refers to the same logical value.
+                    unsafe { Self::refresh(this, head) }
+                }
+            }
+        }
+    }
+}
+
+/// Shared-reference counterpart to [`Observer`].
+///
+/// While [`Observer`] takes `&mut Self::Head` (write provenance), `RefObserver` takes
+/// `&Self::Head` (shared provenance). This is used for types that only provide shared access
+/// to their inner data (e.g., [`Rc<T>`](std::rc::Rc), [`Arc<T>`](std::sync::Arc), `&T`).
+///
+/// See [`Observer`] for documentation on the lifecycle methods and safety requirements.
+pub trait RefObserver: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head>> + Sized {
+    /// Creates an uninitialized observer with a null pointer.
+    ///
+    /// See [`Observer::uninit`] for details.
+    fn uninit() -> Self;
+
+    /// Creates a new observer for the given value via shared reference.
+    ///
+    /// Unlike [`Observer::observe`], this accepts `&Self::Head` instead of `&mut Self::Head`,
+    /// storing a shared-provenance pointer internally.
+    fn observe(head: &Self::Head) -> Self;
+
+    /// Refreshes the observer's internal pointer after the observed value has moved.
+    ///
+    /// See [`Observer::refresh`] for details. The only difference is that `head` is a shared
+    /// reference, maintaining shared provenance.
+    ///
+    /// # Safety
+    ///
+    /// Same requirements as [`Observer::refresh`].
+    unsafe fn refresh(this: &mut Self, head: &Self::Head);
+
+    /// Forces the observer into a valid state for the given value.
+    ///
+    /// See [`Observer::force`] for details.
+    ///
+    /// # Safety
+    ///
+    /// Same requirements as [`Observer::force`].
     unsafe fn force(this: &mut Self, head: &Self::Head) {
         match Pointer::get((*this).as_deref_coinductive()) {
             None => *this = Self::observe(head),
@@ -228,7 +278,7 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
 /// This trait uses type-erased serialization: mutation values are stored as
 /// [`Box<dyn erased_serde::Serialize>`](erased_serde::Serialize) and only serialized when an
 /// [`Adapter`] converts them.
-pub trait SerializeObserver: Observer {
+pub trait SerializeObserver: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head>> + Sized {
     /// Extracts all recorded mutations and fully resets internal state.
     ///
     /// After calling `flush`, the observer's state is fully reset: an immediately subsequent

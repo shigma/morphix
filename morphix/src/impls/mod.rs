@@ -30,7 +30,7 @@ mod weak;
 pub use array::ArrayObserver;
 pub use btree_map::BTreeMapObserver;
 pub use cow::CowObserver;
-pub use deref::DerefObserver;
+pub use deref::{DerefMutObserver, DerefObserver};
 pub use hash_map::HashMapObserver;
 #[cfg(feature = "indexmap")]
 pub use index_map::IndexMapObserver;

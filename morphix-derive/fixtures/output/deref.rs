@@ -48,7 +48,7 @@ const _: () = {
     where
         Vec<T>: 'ob,
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDeref<N, Target = Foo<T>>,
+        O::Head: ::morphix::helper::AsDerefMut<N, Target = Foo<T>>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -57,12 +57,12 @@ const _: () = {
                 b: ::morphix::observe::Observer::uninit(),
             }
         }
-        fn observe(head: &O::Head) -> Self {
+        fn observe(head: &mut O::Head) -> Self {
             let __inner = ::morphix::observe::Observer::observe(head);
-            let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
+            let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(head);
             let mut this = Self {
                 a: __inner,
-                b: ::morphix::observe::Observer::observe(&__value.b),
+                b: ::morphix::observe::Observer::observe(&mut __value.b),
             };
             let __ptr = <O as ::morphix::helper::AsDerefMutCoinductive<
                 <O as ::morphix::helper::QuasiObserver>::OuterDepth,
@@ -70,11 +70,11 @@ const _: () = {
             ::morphix::helper::Pointer::register_observer(__ptr, &mut this.b);
             this
         }
-        unsafe fn refresh(this: &mut Self, head: &O::Head) {
-            let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
+        unsafe fn refresh(this: &mut Self, head: &mut O::Head) {
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.a, head);
-                ::morphix::observe::Observer::refresh(&mut this.b, &__value.b);
+                let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(head);
+                ::morphix::observe::Observer::refresh(&mut this.b, &mut __value.b);
             }
         }
     }
@@ -84,7 +84,7 @@ const _: () = {
         Foo<T>: ::morphix::helper::serde::Serialize + 'static,
         Vec<T>: 'ob,
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDeref<N, Target = Foo<T>>,
+        O::Head: ::morphix::helper::AsDerefMut<N, Target = Foo<T>>,
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {
@@ -142,7 +142,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };
@@ -195,7 +195,7 @@ const _: () = {
     impl<'ob, O, N> ::morphix::observe::Observer for BarObserver<'ob, O>
     where
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDeref<N, Target = Bar>,
+        O::Head: ::morphix::helper::AsDerefMut<N, Target = Bar>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -204,12 +204,12 @@ const _: () = {
                 ::morphix::observe::Observer::uninit(),
             )
         }
-        fn observe(head: &O::Head) -> Self {
+        fn observe(head: &mut O::Head) -> Self {
             let __inner = ::morphix::observe::Observer::observe(head);
-            let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
+            let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(head);
             let mut this = Self(
                 __inner,
-                ::morphix::observe::Observer::observe(&__value.1),
+                ::morphix::observe::Observer::observe(&mut __value.1),
             );
             let __ptr = <O as ::morphix::helper::AsDerefMutCoinductive<
                 <O as ::morphix::helper::QuasiObserver>::OuterDepth,
@@ -217,11 +217,11 @@ const _: () = {
             ::morphix::helper::Pointer::register_observer(__ptr, &mut this.1);
             this
         }
-        unsafe fn refresh(this: &mut Self, head: &O::Head) {
-            let __value = ::morphix::helper::AsDeref::<N>::as_deref(head);
+        unsafe fn refresh(this: &mut Self, head: &mut O::Head) {
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.0, head);
-                ::morphix::observe::Observer::refresh(&mut this.1, &__value.1);
+                let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(head);
+                ::morphix::observe::Observer::refresh(&mut this.1, &mut __value.1);
             }
         }
     }
@@ -229,7 +229,7 @@ const _: () = {
     impl<'ob, O, N> ::morphix::observe::SerializeObserver for BarObserver<'ob, O>
     where
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDeref<N, Target = Bar>,
+        O::Head: ::morphix::helper::AsDerefMut<N, Target = Bar>,
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {
@@ -281,7 +281,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };
@@ -333,17 +333,17 @@ const _: () = {
     impl<O, N> ::morphix::observe::Observer for QuxObserver<O>
     where
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDeref<N, Target = Qux>,
+        O::Head: ::morphix::helper::AsDerefMut<N, Target = Qux>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
             Self(::morphix::observe::Observer::uninit())
         }
-        fn observe(head: &O::Head) -> Self {
+        fn observe(head: &mut O::Head) -> Self {
             let __inner = ::morphix::observe::Observer::observe(head);
             Self(__inner)
         }
-        unsafe fn refresh(this: &mut Self, head: &O::Head) {
+        unsafe fn refresh(this: &mut Self, head: &mut O::Head) {
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.0, head);
             }
@@ -353,7 +353,7 @@ const _: () = {
     impl<O, N> ::morphix::observe::SerializeObserver for QuxObserver<O>
     where
         O: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<N>>,
-        O::Head: ::morphix::helper::AsDeref<N, Target = Qux>,
+        O::Head: ::morphix::helper::AsDerefMut<N, Target = Qux>,
         N: ::morphix::helper::Unsigned,
         O: ::morphix::observe::SerializeObserver,
     {
@@ -375,7 +375,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };

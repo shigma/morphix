@@ -71,9 +71,9 @@ const _: () = {
         T: Clone,
         U: ::morphix::Observe,
     {
-        fn observe(value: &Foo<S, T, U>) -> Self {
+        fn observe(value: &mut Foo<S, T, U>) -> Self {
             match value {
-                Foo::A(v0) => Self::A(::morphix::helper::Pointer::new(v0)),
+                Foo::A(v0) => Self::A(::morphix::helper::Pointer::from(v0)),
                 Foo::B(v0, v1) => {
                     Self::B(
                         ::morphix::observe::Observer::observe(v0),
@@ -82,14 +82,14 @@ const _: () = {
                 }
                 Foo::C { bar, qux } => {
                     Self::C {
-                        bar: ::morphix::helper::Pointer::new(bar),
+                        bar: ::morphix::helper::Pointer::from(bar),
                         qux: ::morphix::observe::Observer::observe(qux),
                     }
                 }
                 _ => Self::__None,
             }
         }
-        unsafe fn refresh(&mut self, value: &Foo<S, T, U>) {
+        unsafe fn refresh(&mut self, value: &mut Foo<S, T, U>) {
             unsafe {
                 match (self, value) {
                     (Self::A(u0), Foo::A(v0)) => {
@@ -195,7 +195,7 @@ const _: () = {
         S: 'ob,
         Option<T>: 'ob,
         U: ::morphix::Observe,
-        _S: ::morphix::helper::AsDeref<N, Target = Foo<S, T, U>>,
+        _S: ::morphix::helper::AsDerefMut<N, Target = Foo<S, T, U>>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -207,20 +207,19 @@ const _: () = {
                 __variant: FooObserverVariant::__None,
             }
         }
-        fn observe(head: &_S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(head);
-            let __value = head.as_deref();
+        fn observe(head: &mut _S) -> Self {
+            let __value = head.as_deref_mut();
             Self {
-                __ptr,
                 __mutated: false,
-                __phantom: ::std::marker::PhantomData,
                 __initial: FooObserverInitial::new(__value),
                 __variant: FooObserverVariant::observe(__value),
+                __ptr: ::morphix::helper::Pointer::from(head),
+                __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, head: &_S) {
-            ::morphix::helper::Pointer::set(this, head);
-            let __value = head.as_deref();
+        unsafe fn refresh(this: &mut Self, head: &mut _S) {
+            ::morphix::helper::Pointer::set(this, &mut *head);
+            let __value = head.as_deref_mut();
             unsafe { this.__variant.refresh(__value) }
         }
     }
@@ -269,7 +268,7 @@ const _: () = {
             Self: 'ob,
             U: 'ob,
             N: ::morphix::helper::Unsigned,
-            _S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
+            _S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };
@@ -294,6 +293,6 @@ impl ::morphix::Observe for Qux {
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,
-        S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
+        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
     type Spec = ::morphix::observe::SnapshotSpec;
 }

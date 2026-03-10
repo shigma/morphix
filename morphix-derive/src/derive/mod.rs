@@ -85,7 +85,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
                 where
                     Self: #ob_lt,
                     #depth: ::morphix::helper::Unsigned,
-                    #head: ::morphix::helper::AsDeref<#depth, Target = Self> + ?Sized + #ob_lt;
+                    #head: ::morphix::helper::AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt;
 
                 type Spec = ::morphix::observe::#spec_ident;
             }

@@ -92,7 +92,7 @@ const _: () = {
         Option<T>: 'ob,
         &'a mut [S; N]: ::morphix::Observe,
         Option<U>: ::morphix::Observe,
-        _S: ::morphix::helper::AsDeref<_N, Target = Foo<'a, S, T, U, N>>,
+        _S: ::morphix::helper::AsDerefMut<_N, Target = Foo<'a, S, T, U, N>>,
         _N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -104,24 +104,23 @@ const _: () = {
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        fn observe(head: &_S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(head);
-            let __value = head.as_deref();
+        fn observe(head: &mut _S) -> Self {
+            let __value = head.as_deref_mut();
             Self {
-                a: ::morphix::observe::Observer::observe(&__value.a),
-                b: ::morphix::helper::Pointer::new(&__value.b),
-                c: ::morphix::observe::Observer::observe(&__value.c),
-                __ptr,
+                a: ::morphix::observe::Observer::observe(&mut __value.a),
+                b: ::morphix::helper::Pointer::from(&mut __value.b),
+                c: ::morphix::observe::Observer::observe(&mut __value.c),
+                __ptr: ::morphix::helper::Pointer::from(head),
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, head: &_S) {
-            ::morphix::helper::Pointer::set(this, head);
-            let __value = head.as_deref();
+        unsafe fn refresh(this: &mut Self, head: &mut _S) {
+            ::morphix::helper::Pointer::set(this, &mut *head);
+            let __value = head.as_deref_mut();
             unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.a, &__value.a);
-                ::morphix::helper::Pointer::set(&this.b, &__value.b);
-                ::morphix::observe::Observer::refresh(&mut this.c, &__value.c);
+                ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
+                ::morphix::helper::Pointer::set(&this.b, &mut __value.b);
+                ::morphix::observe::Observer::refresh(&mut this.c, &mut __value.c);
             }
         }
     }
@@ -141,7 +140,7 @@ const _: () = {
         Option<T>: 'ob,
         &'a mut [S; N]: ::morphix::Observe,
         Option<U>: ::morphix::Observe,
-        _S: ::morphix::helper::AsDeref<_N, Target = Foo<'a, S, T, U, N>>,
+        _S: ::morphix::helper::AsDerefMut<_N, Target = Foo<'a, S, T, U, N>>,
         _N: ::morphix::helper::Unsigned,
         ::morphix::observe::DefaultObserver<
             'ob,
@@ -208,7 +207,7 @@ const _: () = {
             &'a mut [S; N]: 'ob,
             Option<U>: 'ob,
             _N: ::morphix::helper::Unsigned,
-            _S: ::morphix::helper::AsDeref<_N, Target = Self> + ?Sized + 'ob;
+            _S: ::morphix::helper::AsDerefMut<_N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
 };

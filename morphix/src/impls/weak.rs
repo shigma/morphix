@@ -7,9 +7,9 @@ use serde::Serialize;
 use crate::Mutations;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe_from_ref, spec_impl_ref_observe};
-use crate::helper::{AsDeref, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::mutation::SerializeRef;
-use crate::observe::{Observer, SerializeObserver};
+use crate::observe::{Observer, RefObserver, SerializeObserver};
 
 trait Weak<T: ?Sized> {
     type Ptr: Deref<Target = T>;
@@ -82,7 +82,46 @@ impl<O, S: ?Sized, D> Observer for WeakObserver<O, S, D>
 where
     D: Unsigned,
     S: AsDeref<D, Target: Weak<O::Head>>,
-    O: Observer<InnerDepth = Zero>,
+    O: RefObserver<InnerDepth = Zero>,
+{
+    #[inline]
+    fn uninit() -> Self {
+        Self {
+            ptr: Pointer::uninit(),
+            mutated: false,
+            initial: false,
+            inner: None,
+            phantom: PhantomData,
+        }
+    }
+
+    #[inline]
+    fn observe(head: &mut Self::Head) -> Self {
+        let rc = (*head).as_deref().upgrade();
+        Self {
+            ptr: Pointer::from(head),
+            mutated: false,
+            initial: rc.is_some(),
+            inner: rc.map(|ptr| O::observe(&*ptr)),
+            phantom: PhantomData,
+        }
+    }
+
+    #[inline]
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+        if let Some(inner) = &mut this.inner
+            && let Some(ptr) = (*head).as_deref().upgrade()
+        {
+            unsafe { O::refresh(inner, &*ptr) }
+        }
+    }
+}
+
+impl<O, S: ?Sized, D> RefObserver for WeakObserver<O, S, D>
+where
+    D: Unsigned,
+    S: AsDeref<D, Target: Weak<O::Head>>,
+    O: RefObserver<InnerDepth = Zero>,
 {
     #[inline]
     fn uninit() -> Self {
@@ -97,10 +136,9 @@ where
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
-        let ptr = Pointer::new(head);
         let rc = head.as_deref().upgrade();
         Self {
-            ptr,
+            ptr: Pointer::from(head),
             mutated: false,
             initial: rc.is_some(),
             inner: rc.map(|ptr| O::observe(&*ptr)),

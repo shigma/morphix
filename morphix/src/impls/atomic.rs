@@ -1,7 +1,7 @@
 use std::sync::atomic::Ordering;
 
 use crate::builtin::{Snapshot, SnapshotObserver};
-use crate::helper::{AsDeref, Unsigned};
+use crate::helper::{AsDeref, AsDerefMut, Unsigned};
 use crate::observe::{DefaultSpec, Observe, RefObserve};
 
 macro_rules! impl_atomic {
@@ -26,7 +26,7 @@ macro_rules! impl_atomic {
                 where
                     Self: 'ob,
                     D: Unsigned,
-                    S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+                    S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
                 type Spec = DefaultSpec;
             }

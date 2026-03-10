@@ -50,7 +50,7 @@ const _: () = {
         __None,
     }
     impl<'ob> FooObserverVariant<'ob> {
-        fn observe(value: &Foo) -> Self {
+        fn observe(value: &mut Foo) -> Self {
             match value {
                 Foo::A(v0) => Self::A(::morphix::observe::Observer::observe(v0)),
                 Foo::B(v0, v1) => {
@@ -67,7 +67,7 @@ const _: () = {
                 _ => Self::__None,
             }
         }
-        unsafe fn refresh(&mut self, value: &Foo) {
+        unsafe fn refresh(&mut self, value: &mut Foo) {
             unsafe {
                 match (self, value) {
                     (Self::A(u0), Foo::A(v0)) => {
@@ -157,7 +157,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for FooObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDeref<N, Target = Foo>,
+        S: ::morphix::helper::AsDerefMut<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -169,20 +169,19 @@ const _: () = {
                 __variant: FooObserverVariant::__None,
             }
         }
-        fn observe(head: &S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(head);
-            let __value = head.as_deref();
+        fn observe(head: &mut S) -> Self {
+            let __value = head.as_deref_mut();
             Self {
-                __ptr,
                 __mutated: false,
-                __phantom: ::std::marker::PhantomData,
                 __initial: FooObserverInitial::new(__value),
                 __variant: FooObserverVariant::observe(__value),
+                __ptr: ::morphix::helper::Pointer::from(head),
+                __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, head: &S) {
-            ::morphix::helper::Pointer::set(this, head);
-            let __value = head.as_deref();
+        unsafe fn refresh(this: &mut Self, head: &mut S) {
+            ::morphix::helper::Pointer::set(this, &mut *head);
+            let __value = head.as_deref_mut();
             unsafe { this.__variant.refresh(__value) }
         }
     }
@@ -216,7 +215,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
     #[automatically_derived]

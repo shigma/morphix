@@ -75,13 +75,13 @@ pub fn derive_observe_for_struct(
                 #field_vis #(#if_named #field_ident:)* ::morphix::helper::Pointer<#field_ty>,
             });
             observe_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* ::morphix::helper::Pointer::new(&__value.#field_member),
+                #(#if_named #field_ident:)* ::morphix::helper::Pointer::from(&mut __value.#field_member),
             });
             uninit_fields.extend(quote_spanned! { field_span =>
                 #(#if_named #field_ident:)* ::morphix::helper::Pointer::uninit(),
             });
             refresh_stmts.extend(quote_spanned! { field_span =>
-                ::morphix::helper::Pointer::set(&this.#field_member, &__value.#field_member);
+                ::morphix::helper::Pointer::set(&this.#field_member, &mut __value.#field_member);
             });
             continue;
         }
@@ -121,13 +121,13 @@ pub fn derive_observe_for_struct(
             }
             non_deref_members.push(field_member.clone());
             refresh_stmts.extend(quote_spanned! { field_span =>
-                ::morphix::observe::Observer::refresh(&mut this.#field_member, &__value.#field_member);
+                ::morphix::observe::Observer::refresh(&mut this.#field_member, &mut __value.#field_member);
             });
             ob_fields.extend(quote_spanned! { field_span =>
                 #field_vis #(#if_named #field_ident:)* #ob_field_ty,
             });
             observe_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* ::morphix::observe::Observer::observe(&__value.#field_member),
+                #(#if_named #field_ident:)* ::morphix::observe::Observer::observe(&mut __value.#field_member),
             });
         };
         uninit_fields.extend(quote_spanned! { field_span =>
@@ -254,7 +254,7 @@ pub fn derive_observe_for_struct(
             .params
             .push(parse_quote! { #depth = ::morphix::helper::Zero });
         ob_observer_predicates = quote! {
-            #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
+            #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics>,
         };
 
         ob_fields.extend(quote! {
@@ -304,14 +304,14 @@ pub fn derive_observe_for_struct(
             true => quote! {
                 Self {
                     #observe_fields
-                    __ptr,
+                    __ptr: ::morphix::helper::Pointer::from(head),
                     __phantom: ::std::marker::PhantomData,
                 }
             },
             false => quote! {
                 Self (
                     #observe_fields
-                    __ptr,
+                    ::morphix::helper::Pointer::from(head),
                     ::std::marker::PhantomData,
                 )
             },
@@ -322,15 +322,14 @@ pub fn derive_observe_for_struct(
                 #observer_uninit_expr
             }
 
-            fn observe(head: &#head) -> Self {
-                let __ptr = ::morphix::helper::Pointer::new(head);
-                let __value = head.as_deref();
+            fn observe(head: &mut #head) -> Self {
+                let __value = head.as_deref_mut();
                 #observer_observe_expr
             }
 
-            unsafe fn refresh(this: &mut Self, head: &#head) {
-                ::morphix::helper::Pointer::set(this, head);
-                let __value = head.as_deref();
+            unsafe fn refresh(this: &mut Self, head: &mut #head) {
+                ::morphix::helper::Pointer::set(this, &mut *head);
+                let __value = head.as_deref_mut();
                 unsafe {
                     #refresh_stmts
                 }
@@ -393,7 +392,7 @@ pub fn derive_observe_for_struct(
         ob_observer_generics.params.push(parse_quote! { #depth });
         ob_observer_predicates = quote! {
             #inner: ::morphix::observe::Observer<InnerDepth = ::morphix::helper::Succ<#depth>>,
-            #inner::Head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
+            #inner::Head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics>,
         };
 
         deref_ident = syn::Ident::new("Deref", meta_deref_ident.span());
@@ -424,7 +423,7 @@ pub fn derive_observe_for_struct(
 
         let prepare_value = if field_count > 1 {
             quote! {
-                let __value = ::morphix::helper::AsDeref::<#depth>::as_deref(head);
+                let __value = ::morphix::helper::AsDerefMut::<#depth>::as_deref_mut(head);
             }
         } else {
             quote! {}
@@ -446,16 +445,16 @@ pub fn derive_observe_for_struct(
                 #observer_uninit_expr
             }
 
-            fn observe(head: &#inner::Head) -> Self {
+            fn observe(head: &mut #inner::Head) -> Self {
                 let __inner = ::morphix::observe::Observer::observe(head);
                 #prepare_value
                 #observer_observe_expr
             }
 
-            unsafe fn refresh(this: &mut Self, head: &#inner::Head) {
-                #prepare_value
+            unsafe fn refresh(this: &mut Self, head: &mut #inner::Head) {
                 unsafe {
                     ::morphix::observe::Observer::refresh(&mut this.#field_member, head);
+                    #prepare_value
                     #refresh_stmts
                 }
             }
@@ -641,7 +640,7 @@ pub fn derive_observe_for_struct(
                 Self: #ob_lt,
                 #(#field_tys: #ob_lt,)*
                 #depth: ::morphix::helper::Unsigned,
-                #head: ::morphix::helper::AsDeref<#depth, Target = Self> + ?Sized + #ob_lt;
+                #head: ::morphix::helper::AsDerefMut<#depth, Target = Self> + ?Sized + #ob_lt;
             type Spec = ::morphix::observe::DefaultSpec;
         }
     };

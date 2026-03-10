@@ -57,7 +57,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for FooObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDeref<N, Target = Foo>,
+        S: ::morphix::helper::AsDerefMut<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -69,24 +69,23 @@ const _: () = {
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        fn observe(head: &S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(head);
-            let __value = head.as_deref();
+        fn observe(head: &mut S) -> Self {
+            let __value = head.as_deref_mut();
             Self {
-                r#a: ::morphix::observe::Observer::observe(&__value.r#a),
-                b: ::morphix::observe::Observer::observe(&__value.b),
-                c: ::morphix::observe::Observer::observe(&__value.c),
-                __ptr,
+                r#a: ::morphix::observe::Observer::observe(&mut __value.r#a),
+                b: ::morphix::observe::Observer::observe(&mut __value.b),
+                c: ::morphix::observe::Observer::observe(&mut __value.c),
+                __ptr: ::morphix::helper::Pointer::from(head),
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, head: &S) {
-            ::morphix::helper::Pointer::set(this, head);
-            let __value = head.as_deref();
+        unsafe fn refresh(this: &mut Self, head: &mut S) {
+            ::morphix::helper::Pointer::set(this, &mut *head);
+            let __value = head.as_deref_mut();
             unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.r#a, &__value.r#a);
-                ::morphix::observe::Observer::refresh(&mut this.b, &__value.b);
-                ::morphix::observe::Observer::refresh(&mut this.c, &__value.c);
+                ::morphix::observe::Observer::refresh(&mut this.r#a, &mut __value.r#a);
+                ::morphix::observe::Observer::refresh(&mut this.b, &mut __value.b);
+                ::morphix::observe::Observer::refresh(&mut this.c, &mut __value.c);
             }
         }
     }
@@ -94,7 +93,7 @@ const _: () = {
     impl<'ob, S: ?Sized, N> ::morphix::observe::SerializeObserver
     for FooObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDeref<N, Target = Foo>,
+        S: ::morphix::helper::AsDerefMut<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
@@ -150,7 +149,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
     #[automatically_derived]
@@ -166,7 +165,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::fmt::Display for FooObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDeref<N, Target = Foo>,
+        S: ::morphix::helper::AsDerefMut<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
         #[inline]
@@ -225,7 +224,7 @@ where
 #[automatically_derived]
 impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for BarObserver<'ob, S, N>
 where
-    S: ::morphix::helper::AsDeref<N, Target = Bar>,
+    S: ::morphix::helper::AsDerefMut<N, Target = Bar>,
     N: ::morphix::helper::Unsigned,
 {
     fn uninit() -> Self {
@@ -235,20 +234,19 @@ where
             ::std::marker::PhantomData,
         )
     }
-    fn observe(head: &S) -> Self {
-        let __ptr = ::morphix::helper::Pointer::new(head);
-        let __value = head.as_deref();
+    fn observe(head: &mut S) -> Self {
+        let __value = head.as_deref_mut();
         Self(
-            ::morphix::observe::Observer::observe(&__value.0),
-            __ptr,
+            ::morphix::observe::Observer::observe(&mut __value.0),
+            ::morphix::helper::Pointer::from(head),
             ::std::marker::PhantomData,
         )
     }
-    unsafe fn refresh(this: &mut Self, head: &S) {
-        ::morphix::helper::Pointer::set(this, head);
-        let __value = head.as_deref();
+    unsafe fn refresh(this: &mut Self, head: &mut S) {
+        ::morphix::helper::Pointer::set(this, &mut *head);
+        let __value = head.as_deref_mut();
         unsafe {
-            ::morphix::observe::Observer::refresh(&mut this.0, &__value.0);
+            ::morphix::observe::Observer::refresh(&mut this.0, &mut __value.0);
         }
     }
 }
@@ -256,7 +254,7 @@ where
 #[automatically_derived]
 impl<'ob, S: ?Sized, N> ::morphix::observe::SerializeObserver for BarObserver<'ob, S, N>
 where
-    S: ::morphix::helper::AsDeref<N, Target = Bar>,
+    S: ::morphix::helper::AsDerefMut<N, Target = Bar>,
     N: ::morphix::helper::Unsigned,
 {
     unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
@@ -273,7 +271,7 @@ impl ::morphix::Observe for Bar {
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,
-        S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
+        S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
     type Spec = ::morphix::observe::DefaultSpec;
 }
 #[rustfmt::skip]
@@ -320,7 +318,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::morphix::observe::Observer for BazObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDeref<N, Target = Baz>,
+        S: ::morphix::helper::AsDerefMut<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
         fn uninit() -> Self {
@@ -331,22 +329,21 @@ const _: () = {
                 ::std::marker::PhantomData,
             )
         }
-        fn observe(head: &S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(head);
-            let __value = head.as_deref();
+        fn observe(head: &mut S) -> Self {
+            let __value = head.as_deref_mut();
             Self(
-                ::morphix::observe::Observer::observe(&__value.0),
-                ::morphix::observe::Observer::observe(&__value.1),
-                __ptr,
+                ::morphix::observe::Observer::observe(&mut __value.0),
+                ::morphix::observe::Observer::observe(&mut __value.1),
+                ::morphix::helper::Pointer::from(head),
                 ::std::marker::PhantomData,
             )
         }
-        unsafe fn refresh(this: &mut Self, head: &S) {
-            ::morphix::helper::Pointer::set(this, head);
-            let __value = head.as_deref();
+        unsafe fn refresh(this: &mut Self, head: &mut S) {
+            ::morphix::helper::Pointer::set(this, &mut *head);
+            let __value = head.as_deref_mut();
             unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.0, &__value.0);
-                ::morphix::observe::Observer::refresh(&mut this.1, &__value.1);
+                ::morphix::observe::Observer::refresh(&mut this.0, &mut __value.0);
+                ::morphix::observe::Observer::refresh(&mut this.1, &mut __value.1);
             }
         }
     }
@@ -354,7 +351,7 @@ const _: () = {
     impl<'ob, S: ?Sized, N> ::morphix::observe::SerializeObserver
     for BazObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDeref<N, Target = Baz>,
+        S: ::morphix::helper::AsDerefMut<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
@@ -398,7 +395,7 @@ const _: () = {
         where
             Self: 'ob,
             N: ::morphix::helper::Unsigned,
-            S: ::morphix::helper::AsDeref<N, Target = Self> + ?Sized + 'ob;
+            S: ::morphix::helper::AsDerefMut<N, Target = Self> + ?Sized + 'ob;
         type Spec = ::morphix::observe::DefaultSpec;
     }
     #[automatically_derived]
@@ -410,7 +407,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::cmp::PartialEq for BazObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDeref<N, Target = Baz>,
+        S: ::morphix::helper::AsDerefMut<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
         #[inline]
@@ -423,13 +420,13 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::cmp::Eq for BazObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDeref<N, Target = Baz>,
+        S: ::morphix::helper::AsDerefMut<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {}
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::cmp::PartialOrd for BazObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDeref<N, Target = Baz>,
+        S: ::morphix::helper::AsDerefMut<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
         #[inline]
@@ -445,7 +442,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::cmp::Ord for BazObserver<'ob, S, N>
     where
-        S: ::morphix::helper::AsDeref<N, Target = Baz>,
+        S: ::morphix::helper::AsDerefMut<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
         #[inline]

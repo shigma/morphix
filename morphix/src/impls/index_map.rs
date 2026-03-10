@@ -202,14 +202,14 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
 
     #[inline]
-    fn observe(head: &Self::Head) -> Self {
+    fn observe(head: &mut Self::Head) -> Self {
         let mut this = Self {
-            ptr: Pointer::new(head),
+            ptr: Pointer::from(head),
             state: Default::default(),
             phantom: PhantomData,
         };
@@ -221,8 +221,8 @@ where
 impl<K, O, S: ?Sized, D> IndexMapObserver<K, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = IndexMap<K, O::Head>>,
-    O: SerializeObserver<InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = IndexMap<K, O::Head>>,
+    O: Observer<InnerDepth = Zero> + SerializeObserver,
     O::Head: Serialize + Sized + 'static,
     K: Serialize + Clone + Eq + Hash + Into<PathSegment> + 'static,
 {
@@ -249,8 +249,8 @@ where
         }
         for (key, mut ob) in std::mem::take(self.state.inner.get_mut()) {
             let value = (*self.ptr)
-                .as_deref()
-                .get(&key)
+                .as_deref_mut()
+                .get_mut(&key)
                 .expect("observer key not found in observed map");
             unsafe { O::refresh(&mut ob, value) }
             mutations.insert(key, unsafe { O::flush(&mut ob) });
@@ -262,8 +262,8 @@ where
 impl<K, O, S: ?Sized, D> SerializeObserver for IndexMapObserver<K, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = IndexMap<K, O::Head>>,
-    O: SerializeObserver<InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = IndexMap<K, O::Head>>,
+    O: Observer<InnerDepth = Zero> + SerializeObserver,
     O::Head: Serialize + Sized + 'static,
     K: Serialize + Clone + Eq + Hash + Into<PathSegment> + 'static,
 {
@@ -355,7 +355,7 @@ where
 impl<K, O, S: ?Sized, D> IndexMapObserver<K, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = IndexMap<K, O::Head>>,
+    S: AsDerefMut<D, Target = IndexMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
     K: Clone + Eq + Hash,
@@ -365,8 +365,8 @@ where
     where
         Q: ?Sized + Hash + Equivalent<K>,
     {
-        let (key, value) = self.untracked_ref().get_key_value(key)?;
-        let key_cloned = key.clone();
+        let key_cloned = (*self.ptr).as_deref().get_key_value(key)?.0.clone();
+        let value = unsafe { Pointer::as_mut(&self.ptr) }.as_deref_mut().get_mut(key)?;
         match unsafe { (*self.state.inner.get()).entry(key_cloned) } {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
@@ -379,8 +379,10 @@ where
 
     /// See [`IndexMap::get_index`].
     pub fn get_index(&self, index: usize) -> Option<(&K, &O)> {
-        let (key, value) = self.untracked_ref().get_index(index)?;
-        let key_cloned = key.clone();
+        let key_cloned = (*self.ptr).as_deref().get_index(index)?.0.clone();
+        let (key, value) = unsafe { Pointer::as_mut(&self.ptr) }
+            .as_deref_mut()
+            .get_index_mut(index)?;
         match unsafe { (*self.state.inner.get()).entry(key_cloned) } {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
@@ -396,7 +398,7 @@ impl<K, O, S: ?Sized, D> IndexMapObserver<K, O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = IndexMap<K, O::Head>>,
-    O: Observer<InnerDepth = Zero>,
+    O: Observer<InnerDepth = Zero> + SerializeObserver,
     O::Head: Sized,
     K: Clone + Eq + Hash,
 {
@@ -423,9 +425,9 @@ where
     K: Clone + Eq + Hash,
 {
     fn __force_all(&mut self) -> &mut IndexMap<K, Box<O>> {
-        let map = (*self.ptr).as_deref();
+        let map = (*self.ptr).as_deref_mut();
         let inner = self.state.inner.get_mut();
-        for (key, value) in map.iter() {
+        for (key, value) in map.iter_mut() {
             match inner.entry(key.clone()) {
                 Entry::Occupied(occupied) => {
                     let observer = occupied.into_mut().as_mut();
@@ -634,8 +636,8 @@ where
     where
         Q: Equivalent<K> + Hash + ?Sized,
     {
-        let (index, key, value) = (*self.ptr).as_deref().get_full(key)?;
-        let key_cloned = key.clone();
+        let key_cloned = (*self.ptr).as_deref().get_full(key)?.1.clone();
+        let (index, key, value) = (*self.ptr).as_deref_mut().get_full_mut(key)?;
         match self.state.inner.get_mut().entry(key_cloned) {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
@@ -733,8 +735,8 @@ where
 
     /// See [`IndexMap::get_index_mut`].
     pub fn get_index_mut(&mut self, index: usize) -> Option<(&K, &mut O)> {
-        let (key, value) = (*self.ptr).as_deref().get_index(index)?;
-        let key_cloned = key.clone();
+        let key_cloned = (*self.ptr).as_deref().get_index(index)?.0.clone();
+        let (key, value) = (*self.ptr).as_deref_mut().get_index_mut(index)?;
         match self.state.inner.get_mut().entry(key_cloned) {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
@@ -847,7 +849,7 @@ where
 impl<'q, K, O, S: ?Sized, D, V, Q: ?Sized> Index<&'q Q> for IndexMapObserver<K, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = IndexMap<K, V>>,
+    S: AsDerefMut<D, Target = IndexMap<K, V>>,
     O: Observer<InnerDepth = Zero, Head = V>,
     K: Clone + Eq + Hash,
     Q: Hash + Equivalent<K>,
@@ -877,7 +879,7 @@ where
 impl<K, O, S: ?Sized, D> Index<usize> for IndexMapObserver<K, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = IndexMap<K, O::Head>>,
+    S: AsDerefMut<D, Target = IndexMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
     K: Clone + Eq + Hash,
@@ -947,7 +949,7 @@ impl<K: Clone + Eq + Hash, V: Observe> Observe for IndexMap<K, V> {
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }

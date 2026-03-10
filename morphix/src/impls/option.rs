@@ -8,7 +8,7 @@ use crate::Mutations;
 use crate::builtin::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{Observer, SerializeObserver};
+use crate::observe::{Observer, RefObserver, SerializeObserver};
 
 struct OptionObserverState<O> {
     initial: bool,
@@ -72,8 +72,52 @@ where
 impl<O, S: ?Sized, D> Observer for OptionObserver<O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = Option<O::Head>>,
+    S: AsDerefMut<D, Target = Option<O::Head>>,
     O: Observer<InnerDepth = Zero>,
+    O::Head: Sized,
+{
+    #[inline]
+    fn uninit() -> Self {
+        Self {
+            ptr: Pointer::uninit(),
+            state: OptionObserverState {
+                initial: false,
+                mutated: false,
+                inner: None,
+            },
+            phantom: PhantomData,
+        }
+    }
+
+    #[inline]
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+        Pointer::set(this, &mut *head);
+        if let (Some(inner), Some(value)) = (&mut this.state.inner, head.as_deref_mut().as_mut()) {
+            unsafe { O::force(inner, value) }
+        }
+    }
+
+    #[inline]
+    fn observe(head: &mut Self::Head) -> Self {
+        let mut this = Self {
+            state: OptionObserverState {
+                initial: head.as_deref_mut().is_some(),
+                mutated: false,
+                inner: head.as_deref_mut().as_mut().map(O::observe),
+            },
+            ptr: Pointer::from(head),
+            phantom: PhantomData,
+        };
+        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
+        this
+    }
+}
+
+impl<O, S: ?Sized, D> RefObserver for OptionObserver<O, S, D>
+where
+    D: Unsigned,
+    S: AsDeref<D, Target = Option<O::Head>>,
+    O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
     #[inline]
@@ -100,12 +144,12 @@ where
     #[inline]
     fn observe(head: &Self::Head) -> Self {
         let mut this = Self {
-            ptr: Pointer::new(head),
             state: OptionObserverState {
                 initial: head.as_deref().is_some(),
                 mutated: false,
                 inner: head.as_deref().as_ref().map(O::observe),
             },
+            ptr: Pointer::from(head),
             phantom: PhantomData,
         };
         Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
@@ -128,7 +172,7 @@ where
             // Inner must be Some when not mutated and initial was Some.
             return unsafe { O::flush(this.state.inner.as_mut().unwrap()) };
         }
-        this.state.inner = option.as_ref().map(O::observe);
+        this.state.inner = None;
         if initial || option.is_some() {
             Mutations::replace(option)
         } else {
@@ -147,7 +191,7 @@ where
     /// See [`Option::as_mut`].
     #[inline]
     pub fn as_mut(&mut self) -> Option<&mut O> {
-        let value = (*self.ptr).as_deref().as_ref()?;
+        let value = (*self.ptr).as_deref_mut().as_mut()?;
         let inner = self.state.inner.get_or_insert_with(O::uninit);
         unsafe { O::force(inner, value) }
         Some(inner)

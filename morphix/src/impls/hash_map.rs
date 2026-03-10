@@ -203,14 +203,14 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
 
     #[inline]
-    fn observe(head: &Self::Head) -> Self {
+    fn observe(head: &mut Self::Head) -> Self {
         let mut this = Self {
-            ptr: Pointer::new(head),
+            ptr: Pointer::from(head),
             state: Default::default(),
             phantom: PhantomData,
         };
@@ -222,8 +222,8 @@ where
 impl<K, O, S: ?Sized, D> HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = HashMap<K, O::Head>>,
-    O: SerializeObserver<InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = HashMap<K, O::Head>>,
+    O: Observer<InnerDepth = Zero> + SerializeObserver,
     O::Head: Serialize + Sized + 'static,
     K: Serialize + Clone + Eq + Hash + Into<PathSegment> + 'static,
 {
@@ -250,8 +250,8 @@ where
         }
         for (key, mut ob) in std::mem::take(self.state.inner.get_mut()) {
             let value = (*self.ptr)
-                .as_deref()
-                .get(&key)
+                .as_deref_mut()
+                .get_mut(&key)
                 .expect("observer key not found in observed map");
             unsafe { O::refresh(&mut ob, value) }
             mutations.insert(key, unsafe { O::flush(&mut ob) });
@@ -263,8 +263,8 @@ where
 impl<K, O, S: ?Sized, D> SerializeObserver for HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = HashMap<K, O::Head>>,
-    O: SerializeObserver<InnerDepth = Zero>,
+    S: AsDerefMut<D, Target = HashMap<K, O::Head>>,
+    O: Observer<InnerDepth = Zero> + SerializeObserver,
     O::Head: Serialize + Sized + 'static,
     K: Serialize + Clone + Eq + Hash + Into<PathSegment> + 'static,
 {
@@ -321,7 +321,7 @@ where
 impl<K, O, S: ?Sized, D> HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = HashMap<K, O::Head>>,
+    S: AsDerefMut<D, Target = HashMap<K, O::Head>>,
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
     K: Clone + Eq + Hash,
@@ -332,8 +332,9 @@ where
         K: Borrow<Q>,
         Q: Eq + Hash + ?Sized,
     {
-        let (key, value) = self.untracked_ref().get_key_value(key)?;
-        match unsafe { (*self.state.inner.get()).entry(key.clone()) } {
+        let key_cloned = (*self.ptr).as_deref().get_key_value(key)?.0.clone();
+        let value = unsafe { Pointer::as_mut(&self.ptr) }.as_deref_mut().get_mut(key)?;
+        match unsafe { (*self.state.inner.get()).entry(key_cloned) } {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
                 unsafe { O::refresh(ob, value) }
@@ -353,9 +354,9 @@ where
     K: Clone + Eq + Hash,
 {
     fn __force_all(&mut self) -> &mut HashMap<K, Box<O>> {
-        let map = (*self.ptr).as_deref();
+        let map = (*self.ptr).as_deref_mut();
         let inner = self.state.inner.get_mut();
-        for (key, value) in map.iter() {
+        for (key, value) in map.iter_mut() {
             match inner.entry(key.clone()) {
                 Entry::Occupied(occupied) => {
                     let observer = occupied.into_mut().as_mut();
@@ -375,8 +376,9 @@ where
         K: Borrow<Q> + Eq + Hash,
         Q: Eq + Hash + ?Sized,
     {
-        let (key, value) = (*self.ptr).as_deref().get_key_value(key)?;
-        match self.state.inner.get_mut().entry(key.clone()) {
+        let key_cloned = (*self.ptr).as_deref().get_key_value(key)?.0.clone();
+        let value = (*self.ptr).as_deref_mut().get_mut(key)?;
+        match self.state.inner.get_mut().entry(key_cloned) {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
                 unsafe { O::refresh(ob, value) }
@@ -557,7 +559,7 @@ where
 impl<'q, K, O, S: ?Sized, D, V, Q: ?Sized> Index<&'q Q> for HashMapObserver<K, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = HashMap<K, V>>,
+    S: AsDerefMut<D, Target = HashMap<K, V>>,
     O: Observer<InnerDepth = Zero, Head = V>,
     K: Borrow<Q> + Clone + Eq + Hash,
     Q: Eq + Hash,
@@ -607,7 +609,7 @@ impl<K: Clone + Eq + Hash, V: Observe> Observe for HashMap<K, V> {
     where
         Self: 'ob,
         D: Unsigned,
-        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }
