@@ -96,10 +96,11 @@ where
     }
 
     #[inline]
-    fn observe(head: &mut Self::Head) -> Self {
+    fn observe(mut head: &mut Self::Head) -> Self {
+        let ptr = Pointer::new(&mut head);
         let rc = (*head).as_deref().upgrade();
         Self {
-            ptr: Pointer::from(head),
+            ptr,
             mutated: false,
             initial: rc.is_some(),
             inner: rc.map(|ptr| O::observe(&*ptr)),
@@ -108,7 +109,8 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+    unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
+        Pointer::set(&this.ptr, &mut head);
         if let Some(inner) = &mut this.inner
             && let Some(ptr) = (*head).as_deref().upgrade()
         {
@@ -138,7 +140,7 @@ where
     fn observe(head: &Self::Head) -> Self {
         let rc = head.as_deref().upgrade();
         Self {
-            ptr: Pointer::from(head),
+            ptr: Pointer::new(head),
             mutated: false,
             initial: rc.is_some(),
             inner: rc.map(|ptr| O::observe(&*ptr)),

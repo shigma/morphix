@@ -33,6 +33,8 @@
         "prettyplease",
         "qself",
         "rchunks",
+        "retag",
+        "retags",
         "rsplit",
         "rsplitn",
         "serde",

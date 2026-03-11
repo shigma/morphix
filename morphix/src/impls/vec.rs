@@ -136,11 +136,14 @@ where
         if truncate_len > 0 {
             mutations.extend(MutationKind::Truncate(truncate_len));
         }
+        // init_range must precede Mutations::append: init_range takes `&mut slice` (Unique function-entry
+        // retag over the full slice), which would invalidate a SerializeRef's SRO tag if the append
+        // mutation were created first.
+        unsafe { self.init_range(0, append_index, slice) }
         #[cfg(feature = "append")]
         if slice.len() > append_index {
             mutations.extend(Mutations::append(&slice[append_index..]));
         }
-        unsafe { self.init_range(0, append_index, slice) }
         let (existing, stale) = self.inner.get_mut().split_at_mut(append_index);
         let mut is_replace = true;
         for (index, ob) in existing.iter_mut().enumerate().rev() {

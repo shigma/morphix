@@ -60,17 +60,18 @@ where
     }
 
     #[inline]
-    fn observe(head: &mut Self::Head) -> Self {
+    fn observe(mut head: &mut Self::Head) -> Self {
+        let ptr = Pointer::new(&mut head);
         let tuple = head.as_deref_mut();
         let ob = O::observe(&mut tuple.0);
-        let mut this = Self(ob, Pointer::from(head), PhantomData);
+        let mut this = Self(ob, ptr, PhantomData);
         Pointer::register_observer(&mut this.1, &mut this.0);
         this
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-        Pointer::set(&this.1, &mut *head);
+    unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
+        Pointer::set(&this.1, &mut head);
         let tuple = head.as_deref_mut();
         unsafe { O::refresh(&mut this.0, &mut tuple.0) }
     }
@@ -91,7 +92,7 @@ where
     #[inline]
     fn observe(head: &Self::Head) -> Self {
         let tuple = head.as_deref();
-        let mut this = Self(O::observe(&tuple.0), Pointer::from(head), PhantomData);
+        let mut this = Self(O::observe(&tuple.0), Pointer::new(head), PhantomData);
         Pointer::register_observer(&mut this.1, &mut this.0);
         this
     }
@@ -307,11 +308,12 @@ macro_rules! tuple_observer {
             }
 
             #[inline]
-            fn observe(head: &mut Self::Head) -> Self {
+            fn observe(mut head: &mut Self::Head) -> Self {
+                let ptr = Pointer::new(&mut head);
                 let tuple = head.as_deref_mut();
                 let mut this = Self(
                     $($o::observe(&mut tuple.$n),)*
-                    /* ptr */ Pointer::from(head),
+                    /* ptr */ ptr,
                     /* phantom */ PhantomData,
                 );
                 $(Pointer::register_observer(&mut this.$ptr, &mut this.$n);)*
@@ -319,8 +321,8 @@ macro_rules! tuple_observer {
             }
 
             #[inline]
-            unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-                Pointer::set(&this.$ptr, &mut *head);
+            unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
+                Pointer::set(&this.$ptr, &mut head);
                 let tuple = head.as_deref_mut();
                 unsafe {
                     $($o::refresh(&mut this.$n, &mut tuple.$n);)*
@@ -348,7 +350,7 @@ macro_rules! tuple_observer {
                 let tuple = head.as_deref();
                 let mut this = Self(
                     $($o::observe(&tuple.$n),)*
-                    /* ptr */ Pointer::from(head),
+                    /* ptr */ Pointer::new(head),
                     /* phantom */ PhantomData,
                 );
                 $(Pointer::register_observer(&mut this.$ptr, &mut this.$n);)*

@@ -6,6 +6,55 @@ use std::ptr::NonNull;
 use crate::helper::quasi::ObserverState;
 use crate::helper::{AsDeref, QuasiObserver, Unsigned};
 
+/// A reference that can serve as the source for creating or updating a [`Pointer`].
+///
+/// This trait abstracts over shared (`&S`) and mutable (`&mut &mut S`) references, handling the
+/// provenance derivation required by the Stacked Borrows model:
+///
+/// - **Shared references** (`&S`): Simply store the pointer. Shared refs don't cause Unique retags,
+///   so no rebinding is needed.
+/// - **Mutable references** (`&mut &mut S`): Store the pointer and rebind the caller's reference to
+///   one derived from the [`Pointer`]'s stored tag. This ensures that all subsequent inner observer
+///   tags sit above the [`Pointer`]'s SRW tag on the borrow stack, preventing invalidation by
+///   parent Unique retags.
+pub trait PointerSource<S: ?Sized> {
+    fn new_pointer(self) -> Pointer<S>;
+    fn set_pointer(self, ptr: &Pointer<S>);
+}
+
+impl<S: ?Sized> PointerSource<S> for &S {
+    #[inline]
+    fn new_pointer(self) -> Pointer<S> {
+        Pointer {
+            inner: Cell::new(Some(self.into())),
+            states: Vec::new(),
+        }
+    }
+
+    #[inline]
+    fn set_pointer(self, ptr: &Pointer<S>) {
+        ptr.inner.set(Some(self.into()))
+    }
+}
+
+impl<S: ?Sized> PointerSource<S> for &mut &mut S {
+    #[inline]
+    fn new_pointer(self) -> Pointer<S> {
+        let ptr = Pointer {
+            inner: Cell::new(Some((*self).into())),
+            states: Vec::new(),
+        };
+        *self = unsafe { Pointer::as_mut(&ptr) };
+        ptr
+    }
+
+    #[inline]
+    fn set_pointer(self, ptr: &Pointer<S>) {
+        ptr.inner.set(Some((*self).into()));
+        *self = unsafe { Pointer::as_mut(ptr) };
+    }
+}
+
 /// An internal pointer type for observer dereference chains.
 ///
 /// [`Pointer`] is a specialized pointer type used exclusively within observer implementations to
@@ -62,13 +111,6 @@ pub struct Pointer<S: ?Sized> {
     pub(crate) states: Vec<(isize, unsafe fn(*mut u8, &S))>,
 }
 
-impl<S: ?Sized, T: Into<NonNull<S>>> From<T> for Pointer<S> {
-    #[inline]
-    fn from(value: T) -> Self {
-        Self::new(value.into())
-    }
-}
-
 impl<S: ?Sized> Pointer<S> {
     /// Create an uninitialized pointer.
     #[inline]
@@ -79,16 +121,13 @@ impl<S: ?Sized> Pointer<S> {
         }
     }
 
-    /// Creates a new pointer from a mutable reference.
+    /// Creates a new pointer from a [`PointerSource`].
     ///
     /// The returned pointer will remain valid as long as the original reference remains valid,
     /// which is enforced by the lifetime parameter in observer types.
     #[inline]
-    pub const fn new(ptr: NonNull<S>) -> Self {
-        Self {
-            inner: Cell::new(Some(ptr)),
-            states: Vec::new(),
-        }
+    pub fn new(head: impl PointerSource<S>) -> Self {
+        head.new_pointer()
     }
 
     /// Retrieves the internal raw pointer.
@@ -97,15 +136,15 @@ impl<S: ?Sized> Pointer<S> {
         this.inner.get()
     }
 
-    /// Updates the internal pointer to a new reference.
+    /// Updates the internal pointer from a [`PointerSource`].
     ///
     /// This method is primarily used when observed collections (like [`Vec`]) reallocate their
     /// internal storage. When a vector grows and moves its elements to a new memory location,
     /// any existing [`Pointer`] instances pointing to those elements become invalid. This method
     /// allows updating those pointers to point to the elements' new locations.
     #[inline]
-    pub fn set(this: &Self, head: impl Into<NonNull<S>>) {
-        this.inner.set(Some(head.into()));
+    pub fn set(this: &Self, head: impl PointerSource<S>) {
+        head.set_pointer(this);
     }
 
     /// Checks if this pointer is null.

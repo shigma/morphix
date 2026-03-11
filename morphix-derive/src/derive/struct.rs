@@ -75,13 +75,13 @@ pub fn derive_observe_for_struct(
                 #field_vis #(#if_named #field_ident:)* ::morphix::helper::Pointer<#field_ty>,
             });
             observe_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* ::morphix::helper::Pointer::from(&mut __value.#field_member),
+                #(#if_named #field_ident:)* ::morphix::helper::Pointer::new(&mut &mut __value.#field_member),
             });
             uninit_fields.extend(quote_spanned! { field_span =>
                 #(#if_named #field_ident:)* ::morphix::helper::Pointer::uninit(),
             });
             refresh_stmts.extend(quote_spanned! { field_span =>
-                ::morphix::helper::Pointer::set(&this.#field_member, &mut __value.#field_member);
+                ::morphix::helper::Pointer::set(&this.#field_member, &mut &mut __value.#field_member);
             });
             continue;
         }
@@ -304,14 +304,14 @@ pub fn derive_observe_for_struct(
             true => quote! {
                 Self {
                     #observe_fields
-                    __ptr: ::morphix::helper::Pointer::from(head),
+                    __ptr,
                     __phantom: ::std::marker::PhantomData,
                 }
             },
             false => quote! {
                 Self (
                     #observe_fields
-                    ::morphix::helper::Pointer::from(head),
+                    __ptr,
                     ::std::marker::PhantomData,
                 )
             },
@@ -322,13 +322,14 @@ pub fn derive_observe_for_struct(
                 #observer_uninit_expr
             }
 
-            fn observe(head: &mut #head) -> Self {
+            fn observe(mut head: &mut #head) -> Self {
+                let __ptr = ::morphix::helper::Pointer::new(&mut head);
                 let __value = head.as_deref_mut();
                 #observer_observe_expr
             }
 
-            unsafe fn refresh(this: &mut Self, head: &mut #head) {
-                ::morphix::helper::Pointer::set(this, &mut *head);
+            unsafe fn refresh(this: &mut Self, mut head: &mut #head) {
+                ::morphix::helper::Pointer::set(this, &mut head);
                 let __value = head.as_deref_mut();
                 unsafe {
                     #refresh_stmts

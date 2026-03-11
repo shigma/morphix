@@ -204,14 +204,14 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-        Pointer::set(this, head);
+    unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
+        Pointer::set(this, &mut head);
     }
 
     #[inline]
-    fn observe(head: &mut Self::Head) -> Self {
+    fn observe(mut head: &mut Self::Head) -> Self {
         let mut this = Self {
-            ptr: Pointer::from(head),
+            ptr: Pointer::new(&mut head),
             state: Default::default(),
             phantom: PhantomData,
         };

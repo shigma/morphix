@@ -68,18 +68,19 @@ macro_rules! impl_range {
                 #[inline]
                 fn uninit() -> Self {
                     Self {
-                        $($field: O::uninit(),)*
                         ptr: Pointer::uninit(),
+                        $($field: O::uninit(),)*
                         phantom: PhantomData,
                     }
                 }
 
                 #[inline]
-                fn observe(head: &mut Self::Head) -> Self {
+                fn observe(mut head: &mut Self::Head) -> Self {
+                    let ptr = Pointer::new(&mut head);
                     let value = head.as_deref_mut();
                     let mut this = Self {
+                        ptr,
                         $($field: O::observe(&mut value.$field),)*
-                        ptr: Pointer::from(head),
                         phantom: PhantomData,
                     };
                     $(Pointer::register_observer(&mut this.ptr, &mut this.$field);)*
@@ -87,8 +88,8 @@ macro_rules! impl_range {
                 }
 
                 #[inline]
-                unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-                    Pointer::set(this, &mut *head);
+                unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
+                    Pointer::set(this, &mut head);
                     let value = head.as_deref_mut();
                     unsafe {
                         $(O::refresh(&mut this.$field, &mut value.$field);)*
@@ -117,7 +118,7 @@ macro_rules! impl_range {
                     let value = head.as_deref();
                     let mut this = Self {
                         $($field: O::observe(&value.$field),)*
-                        ptr: Pointer::from(head),
+                        ptr: Pointer::new(head),
                         phantom: PhantomData,
                     };
                     $(Pointer::register_observer(&mut this.ptr, &mut this.$field);)*
@@ -305,12 +306,13 @@ where
     }
 
     #[inline]
-    fn observe(head: &mut Self::Head) -> Self {
+    fn observe(mut head: &mut Self::Head) -> Self {
+        let ptr = Pointer::new(&mut head);
         let value = (*head).as_deref();
         let mut this = Self {
+            ptr,
             start: O::observe(value.start()),
             end: O::observe(value.end()),
-            ptr: Pointer::from(head),
             phantom: PhantomData,
         };
         Pointer::register_observer(&mut this.ptr, &mut this.start);
@@ -319,8 +321,8 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-        Pointer::set(this, &mut *head);
+    unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
+        Pointer::set(this, &mut head);
         let value = (*head).as_deref();
         unsafe {
             O::refresh(&mut this.start, value.start());
@@ -350,9 +352,9 @@ where
     fn observe(head: &Self::Head) -> Self {
         let value = head.as_deref();
         let mut this = Self {
+            ptr: Pointer::new(head),
             start: O::observe(value.start()),
             end: O::observe(value.end()),
-            ptr: Pointer::from(head),
             phantom: PhantomData,
         };
         Pointer::register_observer(&mut this.ptr, &mut this.start);

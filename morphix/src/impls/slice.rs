@@ -138,10 +138,10 @@ where
     }
 
     #[inline]
-    fn observe(head: &mut Self::Head) -> Self {
+    fn observe(mut head: &mut Self::Head) -> Self {
         let mut this = Self {
+            ptr: Pointer::new(&mut head),
             state: V::observe(head.as_deref_mut()),
-            ptr: Pointer::from(head),
             phantom: PhantomData,
         };
         Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
@@ -149,8 +149,8 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-        Pointer::set(this, head);
+    unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
+        Pointer::set(this, &mut head);
     }
 }
 
@@ -173,8 +173,8 @@ where
     #[inline]
     fn observe(head: &Self::Head) -> Self {
         let mut this = Self {
+            ptr: Pointer::new(head),
             state: V::observe(head.as_deref()),
-            ptr: Pointer::from(head),
             phantom: PhantomData,
         };
         Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
