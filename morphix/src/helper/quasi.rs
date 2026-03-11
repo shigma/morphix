@@ -212,11 +212,22 @@ impl<T: ?Sized> QuasiObserver for Pointer<T> {
     type OuterDepth = Zero;
     type InnerDepth = Zero;
 
+    /// Iterates all registered `(offset, invalidate_fn)` entries to invalidate sibling fields.
+    ///
+    /// Since [`&mut Pointer<S>`](Pointer) only has provenance over the [`Pointer`] itself,
+    /// computing `base + offset` directly would produce a pointer whose provenance doesn't cover
+    /// the sibling field (UB under Stacked/Tree Borrows). To solve this, every observer that
+    /// registers siblings calls [`expose_provenance`](pointer::expose_provenance) on `&mut self`
+    /// in its [`DerefMut`] impl, depositing the parent struct's provenance into the global pool.
+    /// This method then uses [`with_exposed_provenance_mut`](std::ptr::with_exposed_provenance_mut)
+    /// to reconstruct a pointer at each computed address, picking up the previously exposed
+    /// provenance that covers both the [`Pointer`] and the sibling field.
     fn invalidate(this: &mut Self) {
-        let base = this as *const _ as *const u8;
-        let value = unsafe { Pointer::as_ref(this) };
+        let base_addr = std::ptr::from_mut(this).addr();
+        let value = unsafe { Self::as_ref(this) };
         for &(offset, invalidate) in &this.states {
-            unsafe { invalidate(base.offset(offset) as *mut u8, value) }
+            let target = std::ptr::with_exposed_provenance_mut::<u8>(base_addr.wrapping_add_signed(offset));
+            unsafe { invalidate(target, value) }
         }
     }
 }

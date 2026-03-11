@@ -25,6 +25,7 @@ impl<O, S: ?Sized, D> Deref for TupleObserver<O, S, D> {
 impl<O, S: ?Sized, D> DerefMut for TupleObserver<O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
+        std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.1);
         &mut self.1
     }
@@ -268,6 +269,7 @@ macro_rules! tuple_observer {
         {
             #[inline]
             fn deref_mut(&mut self) -> &mut Self::Target {
+                std::ptr::from_mut(self).expose_provenance();
                 Pointer::invalidate(&mut self.$ptr);
                 &mut self.$ptr
             }

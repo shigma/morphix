@@ -123,14 +123,41 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 /// - [`force(this, head)`](Self::force) is a convenience: initializes if null, refreshes if moved,
 ///   no-ops if unchanged. Used by container observers for lazy initialization.
 ///
-/// ## Inline-Field Invariant
+/// ## Invariants
+///
+/// ### Inline-Field Invariant
 ///
 /// Every [`Observer`]'s [`Deref`](std::ops::Deref) target must be an inline field (or nested
 /// inline field) — no [`Box`], [`Arc`](std::sync::Arc), or other heap indirection in the deref
 /// chain. This ensures that every field within the observer hierarchy has a **fixed byte offset**
-/// relative to the [`Pointer<Head>`](Pointer), invariant under moves. This property is required
-/// by [`Pointer`]'s [fallback invalidation](Pointer#fallback-invalidation) mechanism, which uses
-/// offset-based addressing to reach sibling observers and states.
+/// relative to the [`Pointer<Head>`](Pointer), invariant under moves.
+///
+/// This property is required by [`Pointer`]'s fallback invalidation mechanism: any observer in
+/// the deref chain can register sibling fields with the [`Pointer`] via [`Pointer::register_state`]
+/// or [`Pointer::register_observer`] during [`observe`](Observer::observe). The [`Pointer`]
+/// accumulates entries from all levels. When [`DerefMut`](std::ops::DerefMut) propagates down to
+/// the tail observer, the tail calls [`Pointer::invalidate`](QuasiObserver::invalidate), which
+/// iterates all registered `(offset, invalidate_fn)` entries to reach those siblings via
+/// offset-based addressing — invalidating siblings across the entire chain in a single pass.
+///
+/// Since [`&mut Pointer<S>`](Pointer) only has provenance over the [`Pointer`] itself, the
+/// offset-based addressing uses the [exposed-provenance](std::ptr#exposed-provenance) API. Every
+/// observer that registers siblings must also call
+/// [`expose_provenance`](pointer::expose_provenance) on `&mut self` in its
+/// [`DerefMut`](std::ops::DerefMut) impl, depositing the parent struct's provenance into the
+/// global pool.
+///
+/// ### Valid-State Invariant
+///
+/// [`QuasiObserver::invalidate`] must fully reset all granular tracking state and clear inner
+/// observer storage (dropping or resetting inner observers). This ensures that subsequent
+/// [`flush`](SerializeObserver::flush) calls cannot produce incorrect mutations from stale
+/// tracking state, and that later accesses cannot obtain inner observers carrying stale state.
+///
+/// In contrast, a stale pointer (e.g., an inner observer pointing to a previous address after
+/// container reallocation) is tolerable — it will be repaired by [`refresh`](Observer::refresh) or
+/// [`force`](Observer::force) before the next access. Stale state, however, cannot be repaired
+/// after the fact, which is why [`QuasiObserver::invalidate`] must eagerly clear it.
 ///
 /// See the [Observer Mechanism](https://github.com/shigma/morphix#observer-mechanism) for a
 /// detailed overview of the dereference chain and mutation tracking primitives.

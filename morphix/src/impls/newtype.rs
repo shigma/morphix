@@ -76,6 +76,7 @@ impl<O, S: ?Sized, D> Deref for NewtypeObserver<O, S, D> {
 impl<O, S: ?Sized, D> DerefMut for NewtypeObserver<O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
+        std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.1);
         &mut self.1
     }

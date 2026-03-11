@@ -48,6 +48,7 @@ impl<O, S: ?Sized, D> Deref for OptionObserver<O, S, D> {
 impl<O, S: ?Sized, D> DerefMut for OptionObserver<O, S, D> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
+        std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.ptr);
         &mut self.ptr
     }

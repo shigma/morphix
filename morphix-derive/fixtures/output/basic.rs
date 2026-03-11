@@ -32,6 +32,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::ops::DerefMut for FooObserver<'ob, S, N> {
         fn deref_mut(&mut self) -> &mut Self::Target {
+            ::std::ptr::from_mut(self).expose_provenance();
             ::morphix::helper::QuasiObserver::invalidate(&mut self.__ptr);
             ::morphix::helper::QuasiObserver::invalidate(&mut self.r#a);
             ::morphix::helper::QuasiObserver::invalidate(&mut self.b);
@@ -201,6 +202,7 @@ impl<'ob, S: ?Sized, N> ::std::ops::Deref for BarObserver<'ob, S, N> {
 #[automatically_derived]
 impl<'ob, S: ?Sized, N> ::std::ops::DerefMut for BarObserver<'ob, S, N> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        ::std::ptr::from_mut(self).expose_provenance();
         ::morphix::helper::QuasiObserver::invalidate(&mut self.1);
         ::morphix::helper::QuasiObserver::invalidate(&mut self.0);
         &mut self.1
@@ -295,6 +297,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::ops::DerefMut for BazObserver<'ob, S, N> {
         fn deref_mut(&mut self) -> &mut Self::Target {
+            ::std::ptr::from_mut(self).expose_provenance();
             ::morphix::helper::QuasiObserver::invalidate(&mut self.2);
             ::morphix::helper::QuasiObserver::invalidate(&mut self.0);
             ::morphix::helper::QuasiObserver::invalidate(&mut self.1);

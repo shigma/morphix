@@ -25,6 +25,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, O> ::std::ops::DerefMut for FooObserver<'ob, O> {
         fn deref_mut(&mut self) -> &mut Self::Target {
+            ::std::ptr::from_mut(self).expose_provenance();
             &mut self.a
         }
     }
@@ -173,6 +174,7 @@ const _: () = {
     #[automatically_derived]
     impl<'ob, O> ::std::ops::DerefMut for BarObserver<'ob, O> {
         fn deref_mut(&mut self) -> &mut Self::Target {
+            ::std::ptr::from_mut(self).expose_provenance();
             &mut self.0
         }
     }
@@ -312,6 +314,7 @@ const _: () = {
     #[automatically_derived]
     impl<O> ::std::ops::DerefMut for QuxObserver<O> {
         fn deref_mut(&mut self) -> &mut Self::Target {
+            ::std::ptr::from_mut(self).expose_provenance();
             &mut self.0
         }
     }

@@ -571,6 +571,7 @@ pub fn derive_observe_for_struct(
             #(#field_tys: ::morphix::Observe,)*
         {
             fn deref_mut(&mut self) -> &mut Self::Target {
+                ::std::ptr::from_mut(self).expose_provenance();
                 #deref_mut_impl
                 &mut self.#deref_member
             }

@@ -54,6 +54,7 @@ const _: () = {
         Option<U>: ::morphix::Observe,
     {
         fn deref_mut(&mut self) -> &mut Self::Target {
+            ::std::ptr::from_mut(self).expose_provenance();
             ::morphix::helper::QuasiObserver::invalidate(&mut self.__ptr);
             ::morphix::helper::QuasiObserver::invalidate(&mut self.a);
             ::morphix::helper::QuasiObserver::invalidate(&mut self.c);

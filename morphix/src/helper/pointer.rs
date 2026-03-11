@@ -47,16 +47,9 @@ use crate::helper::{AsDeref, QuasiObserver, Unsigned};
 /// [`Pointer`] to a sibling observer or state, plus a type-erased function that calls
 /// [`ObserverState::invalidate`] or [`QuasiObserver::invalidate`] on it.
 ///
-/// For simple observers like [`StringObserver`](crate::impls::StringObserver) or
-/// [`HashMapObserver`](crate::impls::HashMapObserver) — which have no siblings in the chain —
-/// `states` remains an empty [`Vec`] (zero heap allocation). Registration only occurs in
-/// composite observers that have sibling state needing fallback invalidation propagation (e.g.,
-/// [`SliceObserver`](crate::impls::SliceObserver) registering its state, or derived structs
-/// with multiple field observers).
-///
-/// This mechanism relies on the **inline-field invariant**: every observer's deref target must
-/// be an inline field with a fixed byte offset relative to the [`Pointer`]. No [`Box`],
-/// [`Arc`](std::sync::Arc), or other heap indirection is allowed in the deref chain.
+/// See the [Inline-Field Invariant](crate::observe::Observer#inline-field-invariant) section on
+/// [`Observer`](crate::observe::Observer) for the provenance requirements and registration rules
+/// that govern this mechanism.
 ///
 /// ## Internal Use Only
 ///
