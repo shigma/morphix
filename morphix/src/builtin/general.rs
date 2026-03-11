@@ -255,12 +255,12 @@ where
 
     #[inline]
     fn observe(head: &mut Self::Head) -> Self {
-        let mut this = Self {
+        let this = Self {
             handler: H::observe((*head).as_deref()),
             ptr: Pointer::new(head),
             phantom: PhantomData,
         };
-        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.handler);
+        Pointer::register_state::<_, D>(&this.ptr, &this.handler);
         this
     }
 }
@@ -287,12 +287,12 @@ where
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
-        let mut this = Self {
+        let this = Self {
             ptr: Pointer::new(head),
             handler: H::observe(head.as_deref()),
             phantom: PhantomData,
         };
-        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.handler);
+        Pointer::register_state::<_, D>(&this.ptr, &this.handler);
         this
     }
 }

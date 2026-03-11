@@ -223,9 +223,13 @@ impl<T: ?Sized> QuasiObserver for Pointer<T> {
     /// to reconstruct a pointer at each computed address, picking up the previously exposed
     /// provenance that covers both the [`Pointer`] and the sibling field.
     fn invalidate(this: &mut Self) {
+        // Compute base_addr BEFORE creating a shared reference to states.
+        // `from_mut(this)` creates a Unique retag that would invalidate any prior SharedReadOnly
+        // tag on `states`, so the ordering matters for Stacked Borrows correctness.
         let base_addr = std::ptr::from_mut(this).addr();
+        let states = unsafe { &*this.states.get() };
         let value = unsafe { Self::as_ref(this) };
-        for &(offset, invalidate) in &this.states {
+        for &(offset, invalidate) in states {
             let target = std::ptr::with_exposed_provenance_mut::<u8>(base_addr.wrapping_add_signed(offset));
             unsafe { invalidate(target, value) }
         }

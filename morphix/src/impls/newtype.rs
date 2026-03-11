@@ -115,8 +115,8 @@ where
         let value = head.as_deref_mut();
         let ob = O::observe(value.as_inner_mut());
         let ptr = Pointer::new(head);
-        let mut this = Self(ob, ptr, PhantomData);
-        Pointer::register_observer(&mut this.1, &mut this.0);
+        let this = Self(ob, ptr, PhantomData);
+        Pointer::register_observer(&this.1, &this.0);
         this
     }
 
@@ -143,8 +143,8 @@ where
     #[inline]
     fn observe(head: &Self::Head) -> Self {
         let value = head.as_deref();
-        let mut this = Self(O::observe(value.as_inner()), Pointer::new(head), PhantomData);
-        Pointer::register_observer(&mut this.1, &mut this.0);
+        let this = Self(O::observe(value.as_inner()), Pointer::new(head), PhantomData);
+        Pointer::register_observer(&this.1, &this.0);
         this
     }
 

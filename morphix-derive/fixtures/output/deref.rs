@@ -61,14 +61,14 @@ const _: () = {
         fn observe(head: &mut O::Head) -> Self {
             let __inner = ::morphix::observe::Observer::observe(head);
             let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(head);
-            let mut this = Self {
+            let this = Self {
                 a: __inner,
                 b: ::morphix::observe::Observer::observe(&mut __value.b),
             };
-            let __ptr = <O as ::morphix::helper::AsDerefMutCoinductive<
+            let __ptr = <O as ::morphix::helper::AsDerefCoinductive<
                 <O as ::morphix::helper::QuasiObserver>::OuterDepth,
-            >>::as_deref_mut_coinductive(&mut this.a);
-            ::morphix::helper::Pointer::register_observer(__ptr, &mut this.b);
+            >>::as_deref_coinductive(&this.a);
+            ::morphix::helper::Pointer::register_observer(__ptr, &this.b);
             this
         }
         unsafe fn refresh(this: &mut Self, head: &mut O::Head) {
@@ -209,14 +209,14 @@ const _: () = {
         fn observe(head: &mut O::Head) -> Self {
             let __inner = ::morphix::observe::Observer::observe(head);
             let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(head);
-            let mut this = Self(
+            let this = Self(
                 __inner,
                 ::morphix::observe::Observer::observe(&mut __value.1),
             );
-            let __ptr = <O as ::morphix::helper::AsDerefMutCoinductive<
+            let __ptr = <O as ::morphix::helper::AsDerefCoinductive<
                 <O as ::morphix::helper::QuasiObserver>::OuterDepth,
-            >>::as_deref_mut_coinductive(&mut this.0);
-            ::morphix::helper::Pointer::register_observer(__ptr, &mut this.1);
+            >>::as_deref_coinductive(&this.0);
+            ::morphix::helper::Pointer::register_observer(__ptr, &this.1);
             this
         }
         unsafe fn refresh(this: &mut Self, head: &mut O::Head) {

@@ -431,11 +431,11 @@ pub fn derive_observe_for_struct(
 
         if !non_deref_members.is_empty() {
             observer_observe_expr = quote! {
-                let mut this = #observer_observe_expr;
-                let __ptr = <#inner as ::morphix::helper::AsDerefMutCoinductive<
+                let this = #observer_observe_expr;
+                let __ptr = <#inner as ::morphix::helper::AsDerefCoinductive<
                     <#inner as ::morphix::helper::QuasiObserver>::OuterDepth
-                >>::as_deref_mut_coinductive(&mut this.#field_member);
-                #(::morphix::helper::Pointer::register_observer(__ptr, &mut this.#non_deref_members);)*
+                >>::as_deref_coinductive(&this.#field_member);
+                #(::morphix::helper::Pointer::register_observer(__ptr, &this.#non_deref_members);)*
                 this
             };
         };

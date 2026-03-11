@@ -139,12 +139,12 @@ where
 
     #[inline]
     fn observe(head: &mut Self::Head) -> Self {
-        let mut this = Self {
+        let this = Self {
             state: V::observe(head.as_deref_mut()),
             ptr: Pointer::new(head),
             phantom: PhantomData,
         };
-        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
+        Pointer::register_state::<_, D>(&this.ptr, &this.state);
         this
     }
 
@@ -172,12 +172,12 @@ where
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
-        let mut this = Self {
+        let this = Self {
             ptr: Pointer::new(head),
             state: V::observe(head.as_deref()),
             phantom: PhantomData,
         };
-        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
+        Pointer::register_state::<_, D>(&this.ptr, &this.state);
         this
     }
 

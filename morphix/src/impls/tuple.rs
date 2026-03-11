@@ -64,8 +64,8 @@ where
         let tuple = head.as_deref_mut();
         let ob = O::observe(&mut tuple.0);
         let ptr = Pointer::new(head);
-        let mut this = Self(ob, ptr, PhantomData);
-        Pointer::register_observer(&mut this.1, &mut this.0);
+        let this = Self(ob, ptr, PhantomData);
+        Pointer::register_observer(&this.1, &this.0);
         this
     }
 
@@ -92,8 +92,8 @@ where
     #[inline]
     fn observe(head: &Self::Head) -> Self {
         let tuple = head.as_deref();
-        let mut this = Self(O::observe(&tuple.0), Pointer::new(head), PhantomData);
-        Pointer::register_observer(&mut this.1, &mut this.0);
+        let this = Self(O::observe(&tuple.0), Pointer::new(head), PhantomData);
+        Pointer::register_observer(&this.1, &this.0);
         this
     }
 
@@ -310,12 +310,12 @@ macro_rules! tuple_observer {
             #[inline]
             fn observe(head: &mut Self::Head) -> Self {
                 let tuple = head.as_deref_mut();
-                let mut this = Self(
+                let this = Self(
                     $($o::observe(&mut tuple.$n),)*
                     /* ptr */ Pointer::new(head),
                     /* phantom */ PhantomData,
                 );
-                $(Pointer::register_observer(&mut this.$ptr, &mut this.$n);)*
+                $(Pointer::register_observer(&this.$ptr, &this.$n);)*
                 this
             }
 
@@ -347,12 +347,12 @@ macro_rules! tuple_observer {
             #[inline]
             fn observe(head: &Self::Head) -> Self {
                 let tuple = head.as_deref();
-                let mut this = Self(
+                let this = Self(
                     $($o::observe(&tuple.$n),)*
                     /* ptr */ Pointer::new(head),
                     /* phantom */ PhantomData,
                 );
-                $(Pointer::register_observer(&mut this.$ptr, &mut this.$n);)*
+                $(Pointer::register_observer(&this.$ptr, &this.$n);)*
                 this
             }
 

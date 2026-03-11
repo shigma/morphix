@@ -100,7 +100,7 @@ where
 
     #[inline]
     fn observe(head: &mut Self::Head) -> Self {
-        let mut this = Self {
+        let this = Self {
             state: OptionObserverState {
                 initial: head.as_deref_mut().is_some(),
                 mutated: false,
@@ -109,7 +109,7 @@ where
             ptr: Pointer::new(head),
             phantom: PhantomData,
         };
-        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
+        Pointer::register_state::<_, D>(&this.ptr, &this.state);
         this
     }
 }
@@ -144,7 +144,7 @@ where
 
     #[inline]
     fn observe(head: &Self::Head) -> Self {
-        let mut this = Self {
+        let this = Self {
             ptr: Pointer::new(head),
             state: OptionObserverState {
                 initial: head.as_deref().is_some(),
@@ -153,7 +153,7 @@ where
             },
             phantom: PhantomData,
         };
-        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
+        Pointer::register_state::<_, D>(&this.ptr, &this.state);
         this
     }
 }

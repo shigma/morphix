@@ -97,7 +97,7 @@ where
 
     #[inline]
     fn observe(head: &mut Self::Head) -> Self {
-        let mut this = Self {
+        let this = Self {
             mutation: StringObserverState {
                 append_index: head.as_deref_mut().len(),
                 truncate_len: 0,
@@ -105,7 +105,7 @@ where
             ptr: Pointer::new(head),
             phantom: PhantomData,
         };
-        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.mutation);
+        Pointer::register_state::<_, D>(&this.ptr, &this.mutation);
         this
     }
 

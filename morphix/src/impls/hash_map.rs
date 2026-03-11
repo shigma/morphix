@@ -210,12 +210,12 @@ where
 
     #[inline]
     fn observe(head: &mut Self::Head) -> Self {
-        let mut this = Self {
+        let this = Self {
             ptr: Pointer::new(head),
             state: Default::default(),
             phantom: PhantomData,
         };
-        Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);
+        Pointer::register_state::<_, D>(&this.ptr, &this.state);
         this
     }
 }

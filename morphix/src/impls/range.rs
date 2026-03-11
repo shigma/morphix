@@ -77,12 +77,12 @@ macro_rules! impl_range {
                 #[inline]
                 fn observe(head: &mut Self::Head) -> Self {
                     let value = head.as_deref_mut();
-                    let mut this = Self {
+                    let this = Self {
                         $($field: O::observe(&mut value.$field),)*
                         ptr: Pointer::new(head),
                         phantom: PhantomData,
                     };
-                    $(Pointer::register_observer(&mut this.ptr, &mut this.$field);)*
+                    $(Pointer::register_observer(&this.ptr, &this.$field);)*
                     this
                 }
 
@@ -115,12 +115,12 @@ macro_rules! impl_range {
                 #[inline]
                 fn observe(head: &Self::Head) -> Self {
                     let value = head.as_deref();
-                    let mut this = Self {
+                    let this = Self {
                         $($field: O::observe(&value.$field),)*
                         ptr: Pointer::new(head),
                         phantom: PhantomData,
                     };
-                    $(Pointer::register_observer(&mut this.ptr, &mut this.$field);)*
+                    $(Pointer::register_observer(&this.ptr, &this.$field);)*
                     this
                 }
 
@@ -307,14 +307,14 @@ where
     #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let value = (*head).as_deref();
-        let mut this = Self {
+        let this = Self {
             start: O::observe(value.start()),
             end: O::observe(value.end()),
             ptr: Pointer::new(head),
             phantom: PhantomData,
         };
-        Pointer::register_observer(&mut this.ptr, &mut this.start);
-        Pointer::register_observer(&mut this.ptr, &mut this.end);
+        Pointer::register_observer(&this.ptr, &this.start);
+        Pointer::register_observer(&this.ptr, &this.end);
         this
     }
 
@@ -349,14 +349,14 @@ where
     #[inline]
     fn observe(head: &Self::Head) -> Self {
         let value = head.as_deref();
-        let mut this = Self {
+        let this = Self {
             ptr: Pointer::new(head),
             start: O::observe(value.start()),
             end: O::observe(value.end()),
             phantom: PhantomData,
         };
-        Pointer::register_observer(&mut this.ptr, &mut this.start);
-        Pointer::register_observer(&mut this.ptr, &mut this.end);
+        Pointer::register_observer(&this.ptr, &this.start);
+        Pointer::register_observer(&this.ptr, &this.end);
         this
     }
 

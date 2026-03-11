@@ -1,4 +1,4 @@
-use std::cell::Cell;
+use std::cell::{Cell, UnsafeCell};
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
@@ -101,7 +101,7 @@ fn recover_provenance_mut<S: ?Sized>(raw: *mut S) -> *mut S {
 pub struct Pointer<S: ?Sized> {
     inner: Cell<Option<NonNull<S>>>,
     #[expect(clippy::type_complexity)]
-    pub(crate) states: Vec<(isize, unsafe fn(*mut u8, &S))>,
+    pub(crate) states: UnsafeCell<Vec<(isize, unsafe fn(*mut u8, &S))>>,
 }
 
 impl<S: ?Sized> Pointer<S> {
@@ -110,7 +110,7 @@ impl<S: ?Sized> Pointer<S> {
     pub const fn uninit() -> Self {
         Self {
             inner: Cell::new(None),
-            states: Vec::new(),
+            states: UnsafeCell::new(Vec::new()),
         }
     }
 
@@ -124,7 +124,7 @@ impl<S: ?Sized> Pointer<S> {
         ptr.cast::<u8>().expose_provenance();
         Pointer {
             inner: Cell::new(Some(ptr)),
-            states: Vec::new(),
+            states: UnsafeCell::new(Vec::new()),
         }
     }
 
@@ -214,7 +214,7 @@ impl<S: ?Sized> Pointer<S> {
     ///
     /// The `state` must be an inline field relative to this [`Pointer`] (fixed byte offset,
     /// invariant under moves). This is guaranteed by the inline-field invariant.
-    pub fn register_state<O, D>(this: &mut Self, state: &mut O)
+    pub fn register_state<O, D>(this: &Self, state: &O)
     where
         D: Unsigned,
         S: AsDeref<D>,
@@ -232,7 +232,7 @@ impl<S: ?Sized> Pointer<S> {
 
         let offset = state as *const _ as isize - this as *const _ as isize;
         let invalidate: unsafe fn(*mut u8, &S) = invalidate::<O, D, S>;
-        this.states.push((offset, invalidate));
+        unsafe { &mut *this.states.get() }.push((offset, invalidate));
     }
 
     /// Registers a [`QuasiObserver`] implementor for fallback invalidation.
@@ -242,7 +242,7 @@ impl<S: ?Sized> Pointer<S> {
     ///
     /// The `observer` must be an inline field relative to this [`Pointer`] (fixed byte offset,
     /// invariant under moves). This is guaranteed by the inline-field invariant.
-    pub fn register_observer<O: QuasiObserver>(this: &mut Self, observer: &mut O) {
+    pub fn register_observer<O: QuasiObserver>(this: &Self, observer: &O) {
         unsafe fn invalidate<O: QuasiObserver, S: ?Sized>(ptr: *mut u8, _: &S) {
             let state = unsafe { &mut *(ptr as *mut O) };
             O::invalidate(state);
@@ -250,7 +250,7 @@ impl<S: ?Sized> Pointer<S> {
 
         let offset = observer as *const _ as isize - this as *const _ as isize;
         let invalidate: unsafe fn(*mut u8, &S) = invalidate::<O, S>;
-        this.states.push((offset, invalidate));
+        unsafe { &mut *this.states.get() }.push((offset, invalidate));
     }
 }
 
