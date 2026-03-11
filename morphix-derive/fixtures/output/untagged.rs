@@ -162,28 +162,27 @@ const _: () = {
     {
         fn uninit() -> Self {
             Self {
-                __ptr: ::morphix::helper::Pointer::uninit(),
                 __mutated: false,
-                __phantom: ::std::marker::PhantomData,
                 __initial: FooObserverInitial::__None,
                 __variant: FooObserverVariant::__None,
+                __ptr: ::morphix::helper::Pointer::uninit(),
+                __phantom: ::std::marker::PhantomData,
             }
         }
-        fn observe(mut head: &mut S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(&mut head);
+        fn observe(head: &mut S) -> Self {
             let __value = head.as_deref_mut();
             Self {
-                __ptr,
                 __mutated: false,
                 __initial: FooObserverInitial::new(__value),
                 __variant: FooObserverVariant::observe(__value),
+                __ptr: ::morphix::helper::Pointer::new(head),
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, mut head: &mut S) {
-            ::morphix::helper::Pointer::set(this, &mut head);
+        unsafe fn refresh(this: &mut Self, head: &mut S) {
             let __value = head.as_deref_mut();
             unsafe { this.__variant.refresh(__value) }
+            ::morphix::helper::Pointer::set(this, head);
         }
     }
     #[automatically_derived]

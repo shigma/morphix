@@ -131,10 +131,10 @@ pub fn derive_observe_for_enum(
                     #(#if_named #field_ident:)* ::morphix::helper::Pointer<#field_ty>,
                 });
                 observe_fields.extend(quote_spanned! { field_span =>
-                    #(#if_named #field_ident:)* ::morphix::helper::Pointer::new(&mut { #observe_ident }),
+                    #(#if_named #field_ident:)* ::morphix::helper::Pointer::new(#observe_ident),
                 });
                 refresh_stmts.extend(quote_spanned! { field_span =>
-                    ::morphix::helper::Pointer::set(#ob_ident, &mut { #value_ident });
+                    ::morphix::helper::Pointer::set(#ob_ident, #value_ident);
                 });
                 if field_ident.is_none() {
                     flush_idents.push(quote! { _ });
@@ -515,32 +515,31 @@ pub fn derive_observe_for_enum(
         {
             fn uninit() -> Self {
                 Self {
-                    __ptr: ::morphix::helper::Pointer::uninit(),
                     #(#if_has_variant __mutated: false,)*
-                    __phantom: ::std::marker::PhantomData,
                     #(#if_has_initial __initial: #ob_initial_ident::__None,)*
                     #(#if_has_variant __variant: #ob_variant_ident::__None,)*
+                    __ptr: ::morphix::helper::Pointer::uninit(),
+                    __phantom: ::std::marker::PhantomData,
                 }
             }
 
-            fn observe(mut head: &mut #head) -> Self {
-                let __ptr = ::morphix::helper::Pointer::new(&mut head);
+            fn observe(head: &mut #head) -> Self {
                 let __value = head.as_deref_mut();
                 Self {
-                    __ptr,
                     #(#if_has_variant __mutated: false,)*
                     #(#if_has_initial __initial: #ob_initial_ident::new(__value),)*
                     #(#if_has_variant __variant: #ob_variant_ident::observe(__value),)*
+                    __ptr: ::morphix::helper::Pointer::new(head),
                     __phantom: ::std::marker::PhantomData,
                 }
             }
 
-            unsafe fn refresh(this: &mut Self, mut head: &mut #head) {
-                ::morphix::helper::Pointer::set(this, &mut head);
+            unsafe fn refresh(this: &mut Self, head: &mut #head) {
                 #(#if_has_variant
                     let __value = head.as_deref_mut();
                     unsafe { this.__variant.refresh(__value) }
                 )*
+                ::morphix::helper::Pointer::set(this, head);
             }
         }
 

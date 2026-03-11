@@ -28,6 +28,7 @@
         "indexmap",
         "isize",
         "metas",
+        "miri",
         "morphix",
         "newtype",
         "prettyplease",

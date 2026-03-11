@@ -91,22 +91,22 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
-        Pointer::set(this, &mut head);
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         if let (Some(inner), Some(value)) = (&mut this.state.inner, head.as_deref_mut().as_mut()) {
             unsafe { O::force(inner, value) }
         }
+        Pointer::set(this, head);
     }
 
     #[inline]
-    fn observe(mut head: &mut Self::Head) -> Self {
+    fn observe(head: &mut Self::Head) -> Self {
         let mut this = Self {
-            ptr: Pointer::new(&mut head),
             state: OptionObserverState {
                 initial: head.as_deref_mut().is_some(),
                 mutated: false,
                 inner: head.as_deref_mut().as_mut().map(O::observe),
             },
+            ptr: Pointer::new(head),
             phantom: PhantomData,
         };
         Pointer::register_state::<_, D>(&mut this.ptr, &mut this.state);

@@ -286,7 +286,13 @@ pub trait RefObserver: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::H
     unsafe fn force(this: &mut Self, head: &Self::Head) {
         match Pointer::get((*this).as_deref_coinductive()) {
             None => *this = Self::observe(head),
-            Some(_) => unsafe { Self::refresh(this, head) },
+            Some(ptr) => {
+                if !std::ptr::addr_eq(ptr.as_ptr(), head) {
+                    // SAFETY: The observer was previously initialized via `observe`, and the caller
+                    // guarantees that `head` refers to the same logical value.
+                    unsafe { Self::refresh(this, head) }
+                }
+            }
         }
     }
 }

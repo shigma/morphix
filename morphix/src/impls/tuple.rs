@@ -60,20 +60,20 @@ where
     }
 
     #[inline]
-    fn observe(mut head: &mut Self::Head) -> Self {
-        let ptr = Pointer::new(&mut head);
+    fn observe(head: &mut Self::Head) -> Self {
         let tuple = head.as_deref_mut();
         let ob = O::observe(&mut tuple.0);
+        let ptr = Pointer::new(head);
         let mut this = Self(ob, ptr, PhantomData);
         Pointer::register_observer(&mut this.1, &mut this.0);
         this
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
-        Pointer::set(&this.1, &mut head);
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         let tuple = head.as_deref_mut();
         unsafe { O::refresh(&mut this.0, &mut tuple.0) }
+        Pointer::set(&this.1, head);
     }
 }
 
@@ -308,12 +308,11 @@ macro_rules! tuple_observer {
             }
 
             #[inline]
-            fn observe(mut head: &mut Self::Head) -> Self {
-                let ptr = Pointer::new(&mut head);
+            fn observe(head: &mut Self::Head) -> Self {
                 let tuple = head.as_deref_mut();
                 let mut this = Self(
                     $($o::observe(&mut tuple.$n),)*
-                    /* ptr */ ptr,
+                    /* ptr */ Pointer::new(head),
                     /* phantom */ PhantomData,
                 );
                 $(Pointer::register_observer(&mut this.$ptr, &mut this.$n);)*
@@ -321,12 +320,12 @@ macro_rules! tuple_observer {
             }
 
             #[inline]
-            unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
-                Pointer::set(&this.$ptr, &mut head);
+            unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
                 let tuple = head.as_deref_mut();
                 unsafe {
                     $($o::refresh(&mut this.$n, &mut tuple.$n);)*
                 }
+                Pointer::set(&this.$ptr, head);
             }
         }
 
@@ -565,6 +564,17 @@ mod tests {
         ob.0.push_str(" world");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(append!(0, json!(" world"))));
+    }
+
+    #[test]
+    fn read_inner_after_deref_mut() {
+        let mut tuple = (String::from("hello"),);
+        let mut ob = tuple.__observe();
+        *ob.tracked_mut() = (String::from("world"),);
+        // Inner StringObserver's Pointer tag was killed by outer Unique retag.
+        // Reading through the inner observer exercises that tag.
+        let s: &String = ob.0.untracked_ref();
+        assert_eq!(s.as_str(), "world");
     }
 
     #[test]

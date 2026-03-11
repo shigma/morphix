@@ -70,25 +70,24 @@ const _: () = {
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        fn observe(mut head: &mut S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(&mut head);
+        fn observe(head: &mut S) -> Self {
             let __value = head.as_deref_mut();
             Self {
                 r#a: ::morphix::observe::Observer::observe(&mut __value.r#a),
                 b: ::morphix::observe::Observer::observe(&mut __value.b),
                 c: ::morphix::observe::Observer::observe(&mut __value.c),
-                __ptr,
+                __ptr: ::morphix::helper::Pointer::new(head),
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, mut head: &mut S) {
-            ::morphix::helper::Pointer::set(this, &mut head);
+        unsafe fn refresh(this: &mut Self, head: &mut S) {
             let __value = head.as_deref_mut();
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.r#a, &mut __value.r#a);
                 ::morphix::observe::Observer::refresh(&mut this.b, &mut __value.b);
                 ::morphix::observe::Observer::refresh(&mut this.c, &mut __value.c);
             }
+            ::morphix::helper::Pointer::set(this, head);
         }
     }
     #[automatically_derived]
@@ -237,21 +236,20 @@ where
             ::std::marker::PhantomData,
         )
     }
-    fn observe(mut head: &mut S) -> Self {
-        let __ptr = ::morphix::helper::Pointer::new(&mut head);
+    fn observe(head: &mut S) -> Self {
         let __value = head.as_deref_mut();
         Self(
             ::morphix::observe::Observer::observe(&mut __value.0),
-            __ptr,
+            ::morphix::helper::Pointer::new(head),
             ::std::marker::PhantomData,
         )
     }
-    unsafe fn refresh(this: &mut Self, mut head: &mut S) {
-        ::morphix::helper::Pointer::set(this, &mut head);
+    unsafe fn refresh(this: &mut Self, head: &mut S) {
         let __value = head.as_deref_mut();
         unsafe {
             ::morphix::observe::Observer::refresh(&mut this.0, &mut __value.0);
         }
+        ::morphix::helper::Pointer::set(this, head);
     }
 }
 #[rustfmt::skip]
@@ -334,23 +332,22 @@ const _: () = {
                 ::std::marker::PhantomData,
             )
         }
-        fn observe(mut head: &mut S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(&mut head);
+        fn observe(head: &mut S) -> Self {
             let __value = head.as_deref_mut();
             Self(
                 ::morphix::observe::Observer::observe(&mut __value.0),
                 ::morphix::observe::Observer::observe(&mut __value.1),
-                __ptr,
+                ::morphix::helper::Pointer::new(head),
                 ::std::marker::PhantomData,
             )
         }
-        unsafe fn refresh(this: &mut Self, mut head: &mut S) {
-            ::morphix::helper::Pointer::set(this, &mut head);
+        unsafe fn refresh(this: &mut Self, head: &mut S) {
             let __value = head.as_deref_mut();
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.0, &mut __value.0);
                 ::morphix::observe::Observer::refresh(&mut this.1, &mut __value.1);
             }
+            ::morphix::helper::Pointer::set(this, head);
         }
     }
     #[automatically_derived]

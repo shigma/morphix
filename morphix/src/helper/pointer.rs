@@ -6,53 +6,46 @@ use std::ptr::NonNull;
 use crate::helper::quasi::ObserverState;
 use crate::helper::{AsDeref, QuasiObserver, Unsigned};
 
-/// A reference that can serve as the source for creating or updating a [`Pointer`].
+/// Recovers a `*const S` with [exposed provenance](std::ptr#exposed-provenance) from a raw pointer
+/// that may carry a stale tag.
 ///
-/// This trait abstracts over shared (`&S`) and mutable (`&mut &mut S`) references, handling the
-/// provenance derivation required by the Stacked Borrows model:
+/// For thin pointers (`S: Sized`), this replaces the entire pointer. For fat pointers (`S:
+/// ?Sized`), it replaces only the data-address word while preserving the metadata.
 ///
-/// - **Shared references** (`&S`): Simply store the pointer. Shared refs don't cause Unique retags,
-///   so no rebinding is needed.
-/// - **Mutable references** (`&mut &mut S`): Store the pointer and rebind the caller's reference to
-///   one derived from the [`Pointer`]'s stored tag. This ensures that all subsequent inner observer
-///   tags sit above the [`Pointer`]'s SRW tag on the borrow stack, preventing invalidation by
-///   parent Unique retags.
-pub trait PointerSource<S: ?Sized> {
-    fn new_pointer(self) -> Pointer<S>;
-    fn set_pointer(self, ptr: &Pointer<S>);
+/// At the bit level this is a no-op (the address is unchanged). At the abstract-machine level it
+/// replaces stale provenance: Miri's byte-level provenance model tracks the [`std::ptr::write`] and
+/// records the new provenance on the overwritten bytes.
+///
+/// Once [`ptr_metadata`](https://github.com/rust-lang/rust/issues/81513) is stabilized this can
+/// be replaced with [`std::ptr::from_raw_parts`].
+#[inline]
+fn recover_provenance<S: ?Sized>(raw: *const S) -> *const S {
+    let exposed = std::ptr::with_exposed_provenance::<u8>(raw.cast::<u8>().addr());
+    let mut result = raw;
+    // SAFETY: `*const S` always starts with a data-address word (both thin and fat pointers).
+    // Writing a `*const u8` into that word replaces only the data address, preserving metadata.
+    unsafe { std::ptr::write((&raw mut result).cast::<*const u8>(), exposed) }
+    result
 }
 
-impl<S: ?Sized> PointerSource<S> for &S {
-    #[inline]
-    fn new_pointer(self) -> Pointer<S> {
-        Pointer {
-            inner: Cell::new(Some(self.into())),
-            states: Vec::new(),
-        }
-    }
-
-    #[inline]
-    fn set_pointer(self, ptr: &Pointer<S>) {
-        ptr.inner.set(Some(self.into()))
-    }
-}
-
-impl<S: ?Sized> PointerSource<S> for &mut &mut S {
-    #[inline]
-    fn new_pointer(self) -> Pointer<S> {
-        let ptr = Pointer {
-            inner: Cell::new(Some((*self).into())),
-            states: Vec::new(),
-        };
-        *self = unsafe { Pointer::as_mut(&ptr) };
-        ptr
-    }
-
-    #[inline]
-    fn set_pointer(self, ptr: &Pointer<S>) {
-        ptr.inner.set(Some((*self).into()));
-        *self = unsafe { Pointer::as_mut(ptr) };
-    }
+/// Recovers a `*mut S` with [exposed provenance](std::ptr#exposed-provenance) from a raw pointer
+/// that may carry a stale tag.
+///
+/// For thin pointers (`S: Sized`), this replaces the entire pointer. For fat pointers (`S:
+/// ?Sized`), it replaces only the data-address word while preserving the metadata.
+///
+/// At the bit level this is a no-op (the address is unchanged). At the abstract-machine level it
+/// replaces stale provenance: Miri's byte-level provenance model tracks the [`std::ptr::write`] and
+/// records the new provenance on the overwritten bytes.
+///
+/// Once [`ptr_metadata`](https://github.com/rust-lang/rust/issues/81513) is stabilized this can
+/// be replaced with [`std::ptr::from_raw_parts_mut`].
+#[inline]
+fn recover_provenance_mut<S: ?Sized>(raw: *mut S) -> *mut S {
+    let exposed = std::ptr::with_exposed_provenance_mut::<u8>(raw.cast::<u8>().addr());
+    let mut result = raw;
+    unsafe { std::ptr::write((&raw mut result).cast::<*mut u8>(), exposed) }
+    result
 }
 
 /// An internal pointer type for observer dereference chains.
@@ -121,13 +114,18 @@ impl<S: ?Sized> Pointer<S> {
         }
     }
 
-    /// Creates a new pointer from a [`PointerSource`].
+    /// Creates a new pointer from a reference.
     ///
     /// The returned pointer will remain valid as long as the original reference remains valid,
     /// which is enforced by the lifetime parameter in observer types.
     #[inline]
-    pub fn new(head: impl PointerSource<S>) -> Self {
-        head.new_pointer()
+    pub fn new(head: impl Into<NonNull<S>>) -> Self {
+        let ptr = head.into();
+        ptr.cast::<u8>().expose_provenance();
+        Pointer {
+            inner: Cell::new(Some(ptr)),
+            states: Vec::new(),
+        }
     }
 
     /// Retrieves the internal raw pointer.
@@ -136,15 +134,17 @@ impl<S: ?Sized> Pointer<S> {
         this.inner.get()
     }
 
-    /// Updates the internal pointer from a [`PointerSource`].
+    /// Updates the internal pointer from a reference.
     ///
     /// This method is primarily used when observed collections (like [`Vec`]) reallocate their
     /// internal storage. When a vector grows and moves its elements to a new memory location,
     /// any existing [`Pointer`] instances pointing to those elements become invalid. This method
     /// allows updating those pointers to point to the elements' new locations.
     #[inline]
-    pub fn set(this: &Self, head: impl PointerSource<S>) {
-        head.set_pointer(this);
+    pub fn set(this: &Self, head: impl Into<NonNull<S>>) {
+        let ptr = head.into();
+        ptr.cast::<u8>().expose_provenance();
+        this.inner.set(Some(ptr));
     }
 
     /// Checks if this pointer is null.
@@ -158,6 +158,13 @@ impl<S: ?Sized> Pointer<S> {
 
     /// Returns a reference to the pointed value.
     ///
+    /// Uses [exposed provenance](std::ptr#exposed-provenance) to recover a valid pointer tag.
+    /// The original provenance is deposited into the global pool during [`Pointer::new`] or
+    /// [`Pointer::set`]. This ensures that even if intermediate tags on the borrow stack have
+    /// been invalidated (e.g., by a parent observer's Unique retag during
+    /// [`tracked_mut`](QuasiObserver::tracked_mut)), the recovered reference derives
+    /// from a still-live provenance.
+    ///
     /// ## Safety
     ///
     /// The caller must ensure that:
@@ -168,14 +175,19 @@ impl<S: ?Sized> Pointer<S> {
     /// These invariants are automatically maintained when using [`Pointer`] within the observer
     /// infrastructure, but must be manually verified if called directly.
     #[inline]
-    pub const unsafe fn as_ref<'ob>(this: &Self) -> &'ob S {
+    pub unsafe fn as_ref<'ob>(this: &Self) -> &'ob S {
         let ptr = this.inner.get().expect("pointer should not be null");
-        // SAFETY: The caller guarantees the pointer is valid and properly aligned,
-        // and that the lifetime 'ob does not outlive the original value.
-        unsafe { ptr.as_ref() }
+        unsafe { &*recover_provenance(ptr.as_ptr()) }
     }
 
     /// Returns a mutable reference to the pointed value.
+    ///
+    /// Uses [exposed provenance](std::ptr#exposed-provenance) to recover a valid pointer tag.
+    /// The original provenance is deposited into the global pool during [`Pointer::new`] or
+    /// [`Pointer::set`]. This ensures that even if intermediate tags on the borrow stack have
+    /// been invalidated (e.g., by a parent observer's Unique retag during
+    /// [`tracked_mut`](QuasiObserver::tracked_mut)), the recovered reference derives
+    /// from a still-live provenance.
     ///
     /// ## Safety
     ///
@@ -188,12 +200,9 @@ impl<S: ?Sized> Pointer<S> {
     /// These invariants are automatically maintained when using [`Pointer`] within the observer
     /// infrastructure, but must be manually verified if called directly.
     #[inline]
-    pub const unsafe fn as_mut<'ob>(this: &Self) -> &'ob mut S {
-        let mut ptr = this.inner.get().expect("pointer should not be null");
-        // SAFETY: The caller guarantees exclusive access to the pointed value,
-        // that the pointer is valid and properly aligned, and that the lifetime
-        // 'ob does not outlive the original value.
-        unsafe { ptr.as_mut() }
+    pub unsafe fn as_mut<'ob>(this: &Self) -> &'ob mut S {
+        let ptr = this.inner.get().expect("pointer should not be null");
+        unsafe { &mut *recover_provenance_mut(ptr.as_ptr()) }
     }
 
     /// Registers an [`ObserverState`] implementor for fallback invalidation.
@@ -245,22 +254,6 @@ impl<S: ?Sized> Pointer<S> {
     }
 }
 
-impl<S: ?Sized> Debug for Pointer<S> {
-    #[inline]
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Pointer").field(&self.inner.get()).finish()
-    }
-}
-
-impl<S: ?Sized> PartialEq for Pointer<S> {
-    #[inline]
-    fn eq(&self, other: &Self) -> bool {
-        self.inner == other.inner
-    }
-}
-
-impl<S: ?Sized> Eq for Pointer<S> {}
-
 impl<S: ?Sized> Deref for Pointer<S> {
     type Target = S;
 
@@ -276,3 +269,19 @@ impl<S: ?Sized> DerefMut for Pointer<S> {
         unsafe { Self::as_mut(self) }
     }
 }
+
+impl<S: ?Sized> Debug for Pointer<S> {
+    #[inline]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("Pointer").field(&self.inner.get()).finish()
+    }
+}
+
+impl<S: ?Sized> PartialEq for Pointer<S> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner
+    }
+}
+
+impl<S: ?Sized> Eq for Pointer<S> {}

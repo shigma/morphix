@@ -96,26 +96,25 @@ where
     }
 
     #[inline]
-    fn observe(mut head: &mut Self::Head) -> Self {
-        let ptr = Pointer::new(&mut head);
+    fn observe(head: &mut Self::Head) -> Self {
         let rc = (*head).as_deref().upgrade();
         Self {
-            ptr,
             mutated: false,
             initial: rc.is_some(),
             inner: rc.map(|ptr| O::observe(&*ptr)),
+            ptr: Pointer::new(head),
             phantom: PhantomData,
         }
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
-        Pointer::set(&this.ptr, &mut head);
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         if let Some(inner) = &mut this.inner
             && let Some(ptr) = (*head).as_deref().upgrade()
         {
             unsafe { O::refresh(inner, &*ptr) }
         }
+        Pointer::set(&this.ptr, head);
     }
 }
 

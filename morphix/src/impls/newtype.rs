@@ -111,20 +111,20 @@ where
     }
 
     #[inline]
-    fn observe(mut head: &mut Self::Head) -> Self {
-        let ptr = Pointer::new(&mut head);
+    fn observe(head: &mut Self::Head) -> Self {
         let value = head.as_deref_mut();
         let ob = O::observe(value.as_inner_mut());
+        let ptr = Pointer::new(head);
         let mut this = Self(ob, ptr, PhantomData);
         Pointer::register_observer(&mut this.1, &mut this.0);
         this
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
-        Pointer::set(&this.1, &mut head);
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         let value = head.as_deref_mut();
         unsafe { O::refresh(&mut this.0, value.as_inner_mut()) }
+        Pointer::set(&this.1, head);
     }
 }
 

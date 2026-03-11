@@ -105,25 +105,24 @@ const _: () = {
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        fn observe(mut head: &mut _S) -> Self {
-            let __ptr = ::morphix::helper::Pointer::new(&mut head);
+        fn observe(head: &mut _S) -> Self {
             let __value = head.as_deref_mut();
             Self {
                 a: ::morphix::observe::Observer::observe(&mut __value.a),
-                b: ::morphix::helper::Pointer::new(&mut &mut __value.b),
+                b: ::morphix::helper::Pointer::new(&mut __value.b),
                 c: ::morphix::observe::Observer::observe(&mut __value.c),
-                __ptr,
+                __ptr: ::morphix::helper::Pointer::new(head),
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, mut head: &mut _S) {
-            ::morphix::helper::Pointer::set(this, &mut head);
+        unsafe fn refresh(this: &mut Self, head: &mut _S) {
             let __value = head.as_deref_mut();
             unsafe {
                 ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
-                ::morphix::helper::Pointer::set(&this.b, &mut &mut __value.b);
+                ::morphix::helper::Pointer::set(&this.b, &mut __value.b);
                 ::morphix::observe::Observer::refresh(&mut this.c, &mut __value.c);
             }
+            ::morphix::helper::Pointer::set(this, head);
         }
     }
     #[automatically_derived]

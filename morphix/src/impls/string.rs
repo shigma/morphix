@@ -96,13 +96,13 @@ where
     }
 
     #[inline]
-    fn observe(mut head: &mut Self::Head) -> Self {
+    fn observe(head: &mut Self::Head) -> Self {
         let mut this = Self {
-            ptr: Pointer::new(&mut head),
             mutation: StringObserverState {
                 append_index: head.as_deref_mut().len(),
                 truncate_len: 0,
             },
+            ptr: Pointer::new(head),
             phantom: PhantomData,
         };
         Pointer::register_state::<_, D>(&mut this.ptr, &mut this.mutation);
@@ -110,8 +110,8 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
-        Pointer::set(this, &mut head);
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+        Pointer::set(this, head);
     }
 }
 

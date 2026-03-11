@@ -208,14 +208,14 @@ where
     }
 
     #[inline]
-    unsafe fn refresh(this: &mut Self, mut head: &mut Self::Head) {
-        Pointer::set(this, &mut head);
+    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+        Pointer::set(this, head);
     }
 
     #[inline]
-    fn observe(mut head: &mut Self::Head) -> Self {
+    fn observe(head: &mut Self::Head) -> Self {
         let mut this = Self {
-            ptr: Pointer::new(&mut head),
+            ptr: Pointer::new(head),
             state: Default::default(),
             phantom: PhantomData,
         };
@@ -783,7 +783,7 @@ mod tests {
     #[test]
     fn get_mut_refresh_across_splits() {
         let mut map = BTreeMap::new();
-        map.insert("a", "hello".to_string());
+        map.insert("a".to_string(), "hello".to_string());
         let mut ob = map.__observe();
         // First get_mut: modify the value through the child observer
         ob.get_mut("a").unwrap().push_str(" world");
@@ -792,7 +792,7 @@ mod tests {
         // observed BTreeMap without adding to diff.replaced
         for i in 1..100 {
             ob.untracked_mut()
-                .insert(Box::leak(i.to_string().into_boxed_str()), format!("value {i}"));
+                .insert(i.to_string(), format!("value {i}"));
         }
         // Second get_mut: refresh updates the child observer's stale pointer
         ob.get_mut("a").unwrap().push_str("!");
