@@ -75,6 +75,9 @@ where
             Cow::Borrowed(_) => None,
             Cow::Owned(value) => Some(O::observe(value)),
         };
+        // B is a RefObserver so its Pointer only has shared provenance.
+        // Re-expose with mutable provenance for later Pointer::as_mut calls.
+        Pointer::set(inner.as_deref_coinductive(), &mut *head);
         Self {
             inner,
             owned,
@@ -91,6 +94,8 @@ where
                 Cow::Owned(value) => unsafe { O::refresh(owned, value) },
             }
         }
+        // Re-expose with mutable provenance (see observe for rationale).
+        Pointer::set(this.inner.as_deref_coinductive(), &mut *head);
     }
 }
 

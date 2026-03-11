@@ -1,5 +1,4 @@
 use std::ops::{Index, RangeFrom};
-use std::ptr::NonNull;
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 use crate::helper::{AsDeref, ObserverState, Unsigned};
@@ -25,7 +24,9 @@ impl<T> Len for [T] {
 }
 
 pub struct UnsizeHandler<T: ?Sized> {
-    ptr: Option<NonNull<T>>,
+    addr: usize,
+    old_len: usize,
+    phantom: std::marker::PhantomData<*const T>,
 }
 
 impl<T: ?Sized> ObserverState for UnsizeHandler<T> {
@@ -34,18 +35,27 @@ impl<T: ?Sized> ObserverState for UnsizeHandler<T> {
     fn invalidate(_: &mut Self, _: &T) {}
 }
 
-impl<T: ?Sized> GeneralHandler for UnsizeHandler<T> {
+impl<T: ?Sized> GeneralHandler for UnsizeHandler<T>
+where
+    T: Len,
+{
     type Spec = DefaultSpec;
 
     #[inline]
     fn uninit() -> Self {
-        Self { ptr: None }
+        Self {
+            addr: 0,
+            old_len: 0,
+            phantom: std::marker::PhantomData,
+        }
     }
 
     #[inline]
     fn observe(value: &T) -> Self {
         Self {
-            ptr: Some(NonNull::from(value)),
+            addr: (value as *const T).cast::<u8>().addr(),
+            old_len: value.len(),
+            phantom: std::marker::PhantomData,
         }
     }
 }
@@ -55,33 +65,31 @@ where
     T: Len + Index<RangeFrom<usize>, Output = T> + serde::Serialize + 'static,
 {
     unsafe fn flush(&mut self, new_value: &T) -> Mutations {
-        let old_value = unsafe {
-            self.ptr
-                .expect("pointer should not be null in GeneralHandler::flush")
-                .as_ref()
-        };
-        if !std::ptr::addr_eq(new_value, old_value) {
+        let old_addr = self.addr;
+        let old_len = self.old_len;
+        self.addr = (new_value as *const T).cast::<u8>().addr();
+        let new_len = new_value.len();
+        self.old_len = new_len;
+        if (new_value as *const T).cast::<u8>().addr() != old_addr {
             return Mutations::replace(new_value);
         }
-        let old_len = old_value.len();
-        let new_len = new_value.len();
         if new_len < old_len {
             #[cfg(feature = "truncate")]
-            return MutationKind::Truncate(old_value[new_len..].len()).into();
+            return MutationKind::Truncate(old_len - new_len).into();
             #[cfg(not(feature = "truncate"))]
-            return Mutations::replace_from(new_value);
+            return Mutations::replace(new_value);
         }
         if new_len > old_len {
             #[cfg(feature = "append")]
             return Mutations::append(&new_value[old_len..]);
             #[cfg(not(feature = "append"))]
-            return Mutations::replace_from(new_value);
+            return Mutations::replace(new_value);
         }
         Mutations::new()
     }
 }
 
-impl<T: ?Sized> DebugHandler for UnsizeHandler<T> {
+impl<T: Len + ?Sized> DebugHandler for UnsizeHandler<T> {
     const NAME: &'static str = "UnsizeObserver";
 }
 
