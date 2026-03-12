@@ -172,19 +172,65 @@ macro_rules! default_impl_ref_observe {
 }
 
 macro_rules! delegate_methods {
-    ($delegate:ident as $type:ident => $(
+    (@item $delegate:ident $type:ident
         $(#[doc = $doc:expr])*
         pub fn $name:ident $(<$($gen:tt),*>)? (&mut self $(, $arg:ident: $arg_ty:ty)*) $(-> $ret:ty)? $(where { $($where:tt)+ })?;
-    )*) => {
-        $(
-            $(#[doc = $doc])*
-            #[doc = ""]
-            #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`].")]
-            #[inline]
-            pub fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $(-> $ret)? $(where $($where)+)? {
-                self.$delegate().$name($($arg),*)
-            }
-        )*
+    ) => {
+        $(#[doc = $doc])*
+        #[doc = ""]
+        #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`].")]
+        #[inline]
+        pub fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $(-> $ret)? $(where $($where)+)? {
+            self.$delegate().$name($($arg),*)
+        }
+    };
+    (@item $delegate:ident $type:ident
+        $(#[doc = $doc:expr])*
+        pub unsafe fn $name:ident $(<$($gen:tt),*>)? (&mut self $(, $arg:ident: $arg_ty:ty)*) $(-> $ret:ty)? $(where { $($where:tt)+ })?;
+    ) => {
+        $(#[doc = $doc])*
+        #[doc = ""]
+        #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`].")]
+        ///
+        /// # Safety
+        ///
+        #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`] for safety requirements.")]
+        #[inline]
+        pub unsafe fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $(-> $ret)? $(where $($where)+)? {
+            unsafe { self.$delegate().$name($($arg),*) }
+        }
+    };
+    ($delegate:ident as $type:ident => $($item:tt)*) => {
+        delegate_methods!(@parse $delegate $type [] $($item)*);
+    };
+    (@parse $delegate:ident $type:ident [$($acc:tt)*]) => {
+        $($acc)*
+    };
+    (@parse $delegate:ident $type:ident [$($acc:tt)*]
+        $(#[doc = $doc:expr])*
+        pub unsafe fn $name:ident $(<$($gen:tt),*>)? (&mut self $(, $arg:ident: $arg_ty:ty)*) $(-> $ret:ty)? $(where { $($where:tt)+ })?;
+        $($rest:tt)*
+    ) => {
+        delegate_methods!(@parse $delegate $type [
+            $($acc)*
+            delegate_methods!(@item $delegate $type
+                $(#[doc = $doc])*
+                pub unsafe fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $(-> $ret)? $(where { $($where)+ })?;
+            );
+        ] $($rest)*);
+    };
+    (@parse $delegate:ident $type:ident [$($acc:tt)*]
+        $(#[doc = $doc:expr])*
+        pub fn $name:ident $(<$($gen:tt),*>)? (&mut self $(, $arg:ident: $arg_ty:ty)*) $(-> $ret:ty)? $(where { $($where:tt)+ })?;
+        $($rest:tt)*
+    ) => {
+        delegate_methods!(@parse $delegate $type [
+            $($acc)*
+            delegate_methods!(@item $delegate $type
+                $(#[doc = $doc])*
+                pub fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $(-> $ret)? $(where { $($where)+ })?;
+            );
+        ] $($rest)*);
     };
 }
 

@@ -21,6 +21,7 @@ mod newtype;
 mod option;
 mod range;
 pub mod slice;
+mod str;
 mod string;
 mod tuple;
 mod unsize;

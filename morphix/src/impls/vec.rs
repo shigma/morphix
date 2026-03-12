@@ -39,13 +39,14 @@ pub struct VecObserverState<O> {
     /// Lazily-initialized element observer storage.
     ///
     /// Unlike map observers which use [`Box<O>`] for pointer stability across rehashing /
-    /// node-splits, we store observers inline in a [`Vec<O>`]. This is sound because `init_range`
-    /// always resizes to `values.len()` (the full observed slice length), not just `end`. Since
-    /// `values.len()` can only change through `&mut self` operations (push, pop, etc.), it
-    /// stays constant for the entire duration of any `&self` borrow. Therefore, the first
-    /// `init_range` call sizes the Vec to its final length, and subsequent calls within the
-    /// same `&self` borrow lifetime never trigger reallocation, keeping all previously returned
-    /// references valid.
+    /// node-splits, we store observers inline in a [`Vec<O>`]. This is sound because
+    /// [`init_range`](SliceObserverState::init_range) always resizes to `values.len()` (the
+    /// full observed slice length), not just `end`. Since `values.len()` can only change
+    /// through `&mut self` operations ([`push`](Vec::push), [`pop`](Vec::pop), etc.), it stays
+    /// constant for the entire duration of any `&self` borrow. Therefore, the first
+    /// [`init_range`](SliceObserverState::init_range) call sizes the [`Vec`] to its final length,
+    /// and subsequent calls within the same `&self` borrow lifetime never trigger reallocation,
+    /// keeping all previously returned references valid.
     inner: UnsafeCell<Vec<O>>,
 }
 
