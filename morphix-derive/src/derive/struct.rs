@@ -35,6 +35,7 @@ pub fn derive_observe_for_struct(
     };
 
     let mut ob_fields = quote! {};
+    let mut observe_field_stmts = quote! {};
     let mut observe_fields = quote! {};
     let mut uninit_fields = quote! {};
     let mut refresh_stmts = quote! {};
@@ -65,6 +66,35 @@ pub fn derive_observe_for_struct(
             field_cloned.attrs = vec![];
             field_cloned.span()
         };
+
+        let observer_ident;
+        let mutation_ident;
+        let is_replace_ident;
+        let default_segment;
+        if let Some(ident) = &field.ident {
+            let mut field_name = ident.to_string();
+            if field_name.starts_with("r#") {
+                field_name = field_name[2..].to_string();
+            }
+            debug_chain.extend(quote_spanned! { field_span =>
+                .field(#field_name, &self.#field_member)
+            });
+            observer_ident = ident.clone();
+            mutation_ident = syn::Ident::new(&format!("mutations_{field_name}"), field_span);
+            is_replace_ident = syn::Ident::new(&format!("is_replace_{field_name}"), field_span);
+            let segment = input_meta.serde.rename_all.apply(&field_name);
+            default_segment = quote! { #segment };
+        } else {
+            debug_chain.extend(quote_spanned! { field_span =>
+                .field(&self.#field_member)
+            });
+            observer_ident = syn::Ident::new(&format!("observer_{i}"), field_span);
+            mutation_ident = syn::Ident::new(&format!("mutations_{i}"), field_span);
+            is_replace_ident = syn::Ident::new(&format!("is_replace_{i}"), field_span);
+            default_segment = quote! { #i };
+        }
+        observe_fields.extend(quote_spanned! { field_span => #observer_ident, });
+
         let field_ty = &field.ty;
         let field_trivial = !GenericsDetector::detect(field_ty, &input.generics);
         if field_meta.skip || field_meta.serde.skip || field_meta.serde.skip_serializing {
@@ -74,8 +104,8 @@ pub fn derive_observe_for_struct(
             ob_fields.extend(quote_spanned! { field_span =>
                 #field_vis #(#if_named #field_ident:)* ::morphix::helper::Pointer<#field_ty>,
             });
-            observe_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* ::morphix::helper::Pointer::new(&mut __value.#field_member),
+            observe_field_stmts.extend(quote_spanned! { field_span =>
+                let #observer_ident = ::morphix::helper::Pointer::new(&mut __value.#field_member);
             });
             uninit_fields.extend(quote_spanned! { field_span =>
                 #(#if_named #field_ident:)* ::morphix::helper::Pointer::uninit(),
@@ -98,13 +128,10 @@ pub fn derive_observe_for_struct(
             if !field_trivial {
                 skipped_tys.push(quote! { #field_ty });
             }
-            deref_fields.push((i, field, ob_field_ty, deref_ident));
+            deref_fields.push((i, field, ob_field_ty, deref_ident, observer_ident));
             ob_field_tys.push(quote! { #inner });
             ob_fields.extend(quote_spanned! { field_span =>
                 #field_vis #(#if_named #field_ident:)* #inner,
-            });
-            observe_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* __inner,
             });
         } else {
             let ob_field_ty = match &field_meta.general_impl {
@@ -126,37 +153,13 @@ pub fn derive_observe_for_struct(
             ob_fields.extend(quote_spanned! { field_span =>
                 #field_vis #(#if_named #field_ident:)* #ob_field_ty,
             });
-            observe_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* ::morphix::observe::Observer::observe(&mut __value.#field_member),
+            observe_field_stmts.extend(quote_spanned! { field_span =>
+                let #observer_ident = ::morphix::observe::Observer::observe(&mut __value.#field_member);
             });
         };
         uninit_fields.extend(quote_spanned! { field_span =>
             #(#if_named #field_ident:)* ::morphix::observe::Observer::uninit(),
         });
-
-        let mutation_ident;
-        let is_replace_ident;
-        let default_segment;
-        if let Some(ident) = &field.ident {
-            let mut field_name = ident.to_string();
-            if field_name.starts_with("r#") {
-                field_name = field_name[2..].to_string();
-            }
-            debug_chain.extend(quote_spanned! { field_span =>
-                .field(#field_name, &self.#field_member)
-            });
-            mutation_ident = syn::Ident::new(&format!("mutations_{field_name}"), field_span);
-            is_replace_ident = syn::Ident::new(&format!("is_replace_{field_name}"), field_span);
-            let segment = input_meta.serde.rename_all.apply(&field_name);
-            default_segment = quote! { #segment };
-        } else {
-            debug_chain.extend(quote_spanned! { field_span =>
-                .field(&self.#field_member)
-            });
-            mutation_ident = syn::Ident::new(&format!("mutations_{i}"), field_span);
-            is_replace_ident = syn::Ident::new(&format!("is_replace_{i}"), field_span);
-            default_segment = quote! { #i };
-        }
 
         let mut mutability = quote! {};
         if cfg!(feature = "delete")
@@ -324,6 +327,7 @@ pub fn derive_observe_for_struct(
 
             fn observe(head: &mut #head) -> Self {
                 let __value = head.as_deref_mut();
+                #observe_field_stmts
                 #observer_observe_expr
             }
 
@@ -349,12 +353,12 @@ pub fn derive_observe_for_struct(
     } else if deref_fields.len() > 1 {
         return deref_fields
             .into_iter()
-            .map(|(_, _, _, ident)| {
+            .map(|(_, _, _, ident, _)| {
                 syn::Error::new(ident.span(), "only one field can be marked as `deref`").to_compile_error()
             })
             .collect();
     } else {
-        let (i, field, ob_field_ty, meta_deref_ident) = deref_fields.swap_remove(0);
+        let (i, field, ob_field_ty, meta_deref_ident, observer_ident) = deref_fields.swap_remove(0);
         let field_ty = &field.ty;
         let field_member = match &field.ident {
             Some(ident) => quote! { #ident },
@@ -432,10 +436,8 @@ pub fn derive_observe_for_struct(
         if !non_deref_members.is_empty() {
             observer_observe_expr = quote! {
                 let this = #observer_observe_expr;
-                let __ptr = <#inner as ::morphix::helper::AsDerefCoinductive<
-                    <#inner as ::morphix::helper::QuasiObserver>::OuterDepth
-                >>::as_deref_coinductive(&this.#field_member);
-                #(::morphix::helper::Pointer::register_observer(__ptr, &this.#non_deref_members);)*
+                let ptr = #inner::as_deref_coinductive(&this.#field_member);
+                #(::morphix::helper::Pointer::register_observer(ptr, &this.#non_deref_members);)*
                 this
             };
         };
@@ -446,16 +448,17 @@ pub fn derive_observe_for_struct(
             }
 
             fn observe(head: &mut #inner::Head) -> Self {
-                let __inner = ::morphix::observe::Observer::observe(head);
                 #prepare_value
+                #observe_field_stmts
+                let #observer_ident = ::morphix::observe::Observer::observe(head);
                 #observer_observe_expr
             }
 
             unsafe fn refresh(this: &mut Self, head: &mut #inner::Head) {
                 unsafe {
-                    ::morphix::observe::Observer::refresh(&mut this.#field_member, head);
                     #prepare_value
                     #refresh_stmts
+                    ::morphix::observe::Observer::refresh(&mut this.#field_member, head);
                 }
             }
         };

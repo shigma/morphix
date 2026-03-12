@@ -72,10 +72,13 @@ const _: () = {
         }
         fn observe(head: &mut S) -> Self {
             let __value = head.as_deref_mut();
+            let r#a = ::morphix::observe::Observer::observe(&mut __value.r#a);
+            let b = ::morphix::observe::Observer::observe(&mut __value.b);
+            let c = ::morphix::observe::Observer::observe(&mut __value.c);
             Self {
-                r#a: ::morphix::observe::Observer::observe(&mut __value.r#a),
-                b: ::morphix::observe::Observer::observe(&mut __value.b),
-                c: ::morphix::observe::Observer::observe(&mut __value.c),
+                r#a,
+                b,
+                c,
                 __ptr: ::morphix::helper::Pointer::new(head),
                 __phantom: ::std::marker::PhantomData,
             }
@@ -238,8 +241,9 @@ where
     }
     fn observe(head: &mut S) -> Self {
         let __value = head.as_deref_mut();
+        let observer_0 = ::morphix::observe::Observer::observe(&mut __value.0);
         Self(
-            ::morphix::observe::Observer::observe(&mut __value.0),
+            observer_0,
             ::morphix::helper::Pointer::new(head),
             ::std::marker::PhantomData,
         )
@@ -334,9 +338,11 @@ const _: () = {
         }
         fn observe(head: &mut S) -> Self {
             let __value = head.as_deref_mut();
+            let observer_0 = ::morphix::observe::Observer::observe(&mut __value.0);
+            let observer_1 = ::morphix::observe::Observer::observe(&mut __value.1);
             Self(
-                ::morphix::observe::Observer::observe(&mut __value.0),
-                ::morphix::observe::Observer::observe(&mut __value.1),
+                observer_0,
+                observer_1,
                 ::morphix::helper::Pointer::new(head),
                 ::std::marker::PhantomData,
             )
