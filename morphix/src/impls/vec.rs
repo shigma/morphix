@@ -245,7 +245,7 @@ where
     S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    delegate_methods! { untracked_mut as Vec =>
+    delegate_methods! { untracked_mut() as Vec =>
         pub fn reserve(&mut self, additional: usize);
         pub fn reserve_exact(&mut self, additional: usize);
         pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
@@ -274,7 +274,7 @@ where
     S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    delegate_methods! { untracked_mut as Vec =>
+    delegate_methods! { untracked_mut() as Vec =>
         pub fn push(&mut self, value: T);
         pub fn append(&mut self, other: &mut Vec<T>);
     }
@@ -551,10 +551,10 @@ where
     O: Observer<InnerDepth = Zero, Head = T>,
     T: Clone,
 {
-    delegate_methods! { untracked_mut as Vec =>
+    delegate_methods! { untracked_mut() as Vec =>
         pub fn extend_from_slice(&mut self, other: &[T]);
         pub fn extend_from_within<R>(&mut self, src: R)
-        where { R: RangeBounds<usize> };
+        where R: RangeBounds<usize>;
     }
 }
 

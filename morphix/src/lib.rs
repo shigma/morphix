@@ -1,8 +1,10 @@
 #![cfg_attr(docsrs, allow(internal_features))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(docsrs, feature(rustdoc_internals))]
+#![cfg_attr(docsrs, feature(intra_doc_pointers))]
 #![allow(rustdoc::private_intra_doc_links)]
 #![warn(missing_docs)]
+#![recursion_limit = "256"]
 #![doc = include_str!("../README.md")]
 
 #[cfg(test)]

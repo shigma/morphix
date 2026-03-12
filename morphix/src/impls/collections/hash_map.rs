@@ -311,7 +311,7 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     K: Clone + Eq + Hash,
 {
-    delegate_methods! { untracked_mut as HashMap =>
+    delegate_methods! { untracked_mut() as HashMap =>
         pub fn reserve(&mut self, additional: usize);
         pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
         pub fn shrink_to_fit(&mut self);

@@ -310,7 +310,7 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     K: Clone + Eq + Hash,
 {
-    delegate_methods! { untracked_mut as IndexMap =>
+    delegate_methods! { untracked_mut() as IndexMap =>
         pub fn reserve(&mut self, additional: usize);
         pub fn reserve_exact(&mut self, additional: usize);
         pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
@@ -319,14 +319,14 @@ where
         pub fn shrink_to(&mut self, min_capacity: usize);
     }
 
-    delegate_methods! { tracked_mut as IndexMap =>
-        pub fn sort_keys(&mut self) where { K: Ord };
-        pub fn sort_by<F>(&mut self, cmp: F) where { F: FnMut(&K, &V, &K, &V) -> Ordering };
-        pub fn sort_by_key<T, F>(&mut self, sort_key: F) where { T: Ord, F: FnMut(&K, &V) -> T };
-        pub fn sort_unstable_keys(&mut self) where { K: Ord };
-        pub fn sort_unstable_by<F>(&mut self, cmp: F) where { F: FnMut(&K, &V, &K, &V) -> Ordering };
-        pub fn sort_unstable_by_key<T, F>(&mut self, sort_key: F) where { T: Ord, F: FnMut(&K, &V) -> T };
-        pub fn sort_by_cached_key<T, F>(&mut self, sort_key: F) where { T: Ord, F: FnMut(&K, &V) -> T };
+    delegate_methods! { tracked_mut() as IndexMap =>
+        pub fn sort_keys(&mut self) where K: Ord;
+        pub fn sort_by<F>(&mut self, cmp: F) where F: FnMut(&K, &V, &K, &V) -> Ordering;
+        pub fn sort_by_key<T, F>(&mut self, sort_key: F) where T: Ord, F: FnMut(&K, &V) -> T;
+        pub fn sort_unstable_keys(&mut self) where K: Ord;
+        pub fn sort_unstable_by<F>(&mut self, cmp: F) where F: FnMut(&K, &V, &K, &V) -> Ordering;
+        pub fn sort_unstable_by_key<T, F>(&mut self, sort_key: F) where T: Ord, F: FnMut(&K, &V) -> T;
+        pub fn sort_by_cached_key<T, F>(&mut self, sort_key: F) where T: Ord, F: FnMut(&K, &V) -> T;
         pub fn reverse(&mut self);
         pub fn move_index(&mut self, from: usize, to: usize);
         pub fn swap_indices(&mut self, a: usize, b: usize);
@@ -340,13 +340,13 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     K: Clone + Eq + Hash,
 {
-    delegate_methods! { tracked_mut as IndexMap =>
+    delegate_methods! { tracked_mut() as IndexMap =>
         pub fn insert_sorted(&mut self, key: K, value: O::Head) -> (usize, Option<O::Head>)
-        where { K: Ord };
+        where K: Ord;
         pub fn insert_sorted_by<F>(&mut self, key: K, value: O::Head, cmp: F) -> (usize, Option<O::Head>)
-        where { F: FnMut(&K, &O::Head, &K, &O::Head) -> Ordering };
+        where F: FnMut(&K, &O::Head, &K, &O::Head) -> Ordering;
         pub fn insert_sorted_by_key<B, F>(&mut self, key: K, value: O::Head, sort_key: F) -> (usize, Option<O::Head>)
-        where { B: Ord, F: FnMut(&K, &O::Head) -> B };
+        where B: Ord, F: FnMut(&K, &O::Head) -> B;
         pub fn insert_before(&mut self, index: usize, key: K, value: O::Head) -> (usize, Option<O::Head>);
         pub fn shift_insert(&mut self, index: usize, key: K, value: O::Head) -> Option<O::Head>;
         pub fn replace_index(&mut self, index: usize, key: K) -> Result<K, (usize, K)>;
@@ -412,7 +412,7 @@ where
         }
     }
 
-    delegate_methods! { replacing_mut as IndexMap =>
+    delegate_methods! { replacing_mut() as IndexMap =>
         pub fn clear(&mut self);
     }
 }

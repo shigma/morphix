@@ -1,8 +1,7 @@
 use std::marker::PhantomData;
 
-use crate::Observe;
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Unsigned, Zero};
+use crate::helper::{AsDeref, ObserverState, Zero};
 use crate::observe::DefaultSpec;
 
 /// A general observer that tracks any mutation access as a change.
@@ -83,25 +82,4 @@ impl<T: ?Sized> ReplaceHandler for ShallowHandler<T> {
 
 impl<T: ?Sized> DebugHandler for ShallowHandler<T> {
     const NAME: &'static str = "ShallowObserver";
-}
-
-macro_rules! impl_shallow_observe {
-    ($($ty:ty),* $(,)?) => {
-        $(
-            impl Observe for $ty {
-                type Observer<'ob, S, D>
-                    = ShallowObserver<'ob, S, D>
-                where
-                    Self: 'ob,
-                    D: Unsigned,
-                    S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
-
-                type Spec = DefaultSpec;
-            }
-        )*
-    };
-}
-
-impl_shallow_observe! {
-    str,
 }

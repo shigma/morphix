@@ -148,7 +148,7 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String>,
 {
-    delegate_methods! { untracked_mut as String =>
+    delegate_methods! { untracked_mut() as String =>
         pub fn reserve(&mut self, additional: usize);
         pub fn reserve_exact(&mut self, additional: usize);
         pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
@@ -169,11 +169,11 @@ where
         self.mutation.append_index
     }
 
-    delegate_methods! { untracked_mut as String =>
+    delegate_methods! { untracked_mut() as String =>
         pub fn push(&mut self, c: char);
         pub fn push_str(&mut self, s: &str);
         pub fn extend_from_within<R>(&mut self, src: R)
-        where { R: RangeBounds<usize> };
+        where R: RangeBounds<usize>;
     }
 
     /// See [`String::insert`].

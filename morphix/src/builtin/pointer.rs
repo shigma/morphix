@@ -1,7 +1,9 @@
 use std::ptr::NonNull;
 
+use crate::Observe;
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, ObserverState};
+use crate::helper::macros::default_impl_ref_observe;
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, Unsigned};
 use crate::observe::DefaultSpec;
 
 /// A general observer implementation for reference types.
@@ -68,4 +70,19 @@ impl<T: ?Sized> ReplaceHandler for PointerHandler<T> {
 
 impl<T: ?Sized> DebugHandler for PointerHandler<T> {
     const NAME: &'static str = "PointerObserver";
+}
+
+impl Observe for std::fmt::Arguments<'_> {
+    type Observer<'ob, S, D>
+        = PointerObserver<'ob, S, D>
+    where
+        Self: 'ob,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+    type Spec = DefaultSpec;
+}
+
+default_impl_ref_observe! {
+    impl RefObserve for std::fmt::Arguments<'_>;
 }

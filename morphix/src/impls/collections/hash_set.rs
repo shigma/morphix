@@ -48,24 +48,24 @@ where
     S: AsDerefMut<D, Target = HashSet<T>>,
     T: Eq + Hash,
 {
-    delegate_methods! { untracked_mut as HashSet =>
+    delegate_methods! { untracked_mut() as HashSet =>
         pub fn reserve(&mut self, additional: usize);
         pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
         pub fn shrink_to_fit(&mut self);
         pub fn shrink_to(&mut self, min_capacity: usize);
     }
 
-    delegate_methods! { tracked_mut as HashSet =>
+    delegate_methods! { tracked_mut() as HashSet =>
         pub fn insert(&mut self, value: T) -> bool;
         pub fn replace(&mut self, value: T) -> Option<T>;
         pub fn remove<Q>(&mut self, value: &Q) -> bool
-        where { T: Borrow<Q>, Q: Hash + Eq + ?Sized };
+        where T: Borrow<Q>, Q: Hash + Eq + ?Sized;
         pub fn take<Q>(&mut self, value: &Q) -> Option<T>
-        where { T: Borrow<Q>, Q: Hash + Eq + ?Sized };
+        where T: Borrow<Q>, Q: Hash + Eq + ?Sized;
         pub fn retain<F>(&mut self, f: F)
-        where { F: FnMut(&T) -> bool };
+        where F: FnMut(&T) -> bool;
         pub fn extract_if<F>(&mut self, pred: F) -> ExtractIf<'_, T, F>
-        where { F: FnMut(&T) -> bool };
+        where F: FnMut(&T) -> bool;
     }
 
     /// See [`HashSet::clear`].
