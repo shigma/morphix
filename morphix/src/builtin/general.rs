@@ -644,6 +644,7 @@ generic_impl_cmp! {
     impl _ for std::path::Path;
     impl _ for std::path::PathBuf;
     impl ['a] _ for std::borrow::Cow<'a, str>;
+    impl [T: Eq + std::hash::Hash] _ for std::collections::HashSet<T>;
 }
 
 #[cfg(feature = "chrono")]

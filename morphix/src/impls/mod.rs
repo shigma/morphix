@@ -7,16 +7,20 @@
 //! ## Usage
 //!
 //! These observers are typically used automatically through the [`Observe`](crate::Observe)
-//! trait implementations. Direct usage is rarely needed unless implementing custom observers.
+//! trait implementations. Direct usage is rarely needed unless implementing custom observers
+//! or implementing foreign traits on observer types.
+//!
+//! ## Stability
+//!
+//! The internal module structure is not part of the public API and may change in future versions
+//! without notice. Only items re-exported at the crate root or from this module are considered
+//! stable.
 
 mod array;
 mod atomic;
-pub mod btree_map;
+mod collections;
 mod cow;
 mod deref;
-pub mod hash_map;
-#[cfg(feature = "indexmap")]
-pub mod index_map;
 mod newtype;
 mod option;
 mod range;
@@ -29,12 +33,9 @@ pub mod vec;
 mod weak;
 
 pub use array::ArrayObserver;
-pub use btree_map::BTreeMapObserver;
+pub use collections::*;
 pub use cow::CowObserver;
 pub use deref::{DerefMutObserver, DerefObserver};
-pub use hash_map::HashMapObserver;
-#[cfg(feature = "indexmap")]
-pub use index_map::IndexMapObserver;
 pub use newtype::NewtypeObserver;
 pub use option::OptionObserver;
 pub use slice::SliceObserver;
