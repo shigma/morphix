@@ -139,24 +139,6 @@ pub trait QuasiObserver: AsDerefMutCoinductive<Self::OuterDepth, Target: Deref<T
         self.as_deref_coinductive().deref().as_deref()
     }
 
-    /// Returns a mutable reference to the observed value.
-    ///
-    /// It first calls [`invalidate`](Self::invalidate) to reset all granular tracking state, then
-    /// dereferences through the observer chain to reach the underlying value, bypassing all
-    /// [`DerefMut`] hooks to avoid fallback invalidation.
-    ///
-    /// The [`observe!`](crate::observe!) macro calls this method on the left-hand side of
-    /// assignment operators.
-    #[inline]
-    fn tracked_mut<T: ?Sized>(&mut self) -> &mut T
-    where
-        Self::Target: DerefMutUntracked,
-        Self::Head: AsDerefMut<Self::InnerDepth, Target = T>,
-    {
-        Self::invalidate(self);
-        DerefMutUntracked::deref_mut_untracked(self).as_deref_mut()
-    }
-
     /// Returns a mutable reference to the observed value **without** triggering any invalidation.
     ///
     /// Unlike [`tracked_mut`](QuasiObserver::tracked_mut), this method does not call
@@ -187,6 +169,24 @@ pub trait QuasiObserver: AsDerefMutCoinductive<Self::OuterDepth, Target: Deref<T
         Self::Target: DerefMutUntracked,
         Self::Head: AsDerefMut<Self::InnerDepth, Target = T>,
     {
+        DerefMutUntracked::deref_mut_untracked(self).as_deref_mut()
+    }
+
+    /// Returns a mutable reference to the observed value.
+    ///
+    /// It first calls [`invalidate`](Self::invalidate) to reset all granular tracking state, then
+    /// dereferences through the observer chain to reach the underlying value, bypassing all
+    /// [`DerefMut`] hooks to avoid fallback invalidation.
+    ///
+    /// The [`observe!`](crate::observe!) macro calls this method on the left-hand side of
+    /// assignment operators.
+    #[inline]
+    fn tracked_mut<T: ?Sized>(&mut self) -> &mut T
+    where
+        Self::Target: DerefMutUntracked,
+        Self::Head: AsDerefMut<Self::InnerDepth, Target = T>,
+    {
+        Self::invalidate(self);
         DerefMutUntracked::deref_mut_untracked(self).as_deref_mut()
     }
 }

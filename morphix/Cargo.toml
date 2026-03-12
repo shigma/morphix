@@ -1,6 +1,6 @@
 [package]
 name = "morphix"
-version = "0.16.0"
+version = "0.17.0"
 edition = "2024"
 license = "MIT"
 authors = [
@@ -28,7 +28,7 @@ features = ["full"]
 
 [dependencies]
 erased-serde = { version = "0.4.10" }
-morphix_derive = { version = "0.16.0", path = "../morphix-derive", optional = true, default-features = false }
+morphix_derive = { version = "0.17.0", path = "../morphix-derive", optional = true, default-features = false }
 serde = { version = "1" }
 serde_json = { version = "1", optional = true }
 serde_yaml_ng = { version = "0.10", optional = true }

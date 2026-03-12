@@ -11,7 +11,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-morphix = { version = "0.16", features = ["json"] }
+morphix = { version = "0.17", features = ["json"] }
 ```
 
 ## Basic Usage
@@ -222,10 +222,10 @@ trait QuasiObserver {
     type OuterDepth: Unsigned;
     type InnerDepth: Unsigned;
 
-    fn invalidate(this: &mut Self) { .. }
-    fn untracked_ref(&self) -> &Target;
-    fn tracked_mut(&mut self) -> &mut Target;
-    fn untracked_mut(&mut self) -> &mut Target;
+    fn invalidate(this: &mut Self);
+    fn untracked_ref(&self) -> &Target { .. }
+    fn untracked_mut(&mut self) -> &mut Target { .. }
+    fn tracked_mut(&mut self) -> &mut Target { .. }
 }
 ```
 
