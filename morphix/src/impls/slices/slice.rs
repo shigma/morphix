@@ -7,16 +7,15 @@
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
+use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, Range, RangeBounds};
 use std::slice::{
     ChunkByMut, ChunksExactMut, ChunksMut, IterMut, RChunksExactMut, RChunksMut, RSplitMut, RSplitNMut, SliceIndex,
     SplitInclusiveMut, SplitMut, SplitNMut,
 };
 
 use crate::builtin::UnsizeObserver;
-use crate::helper::{
-    AsDeref, AsDerefMut, AsDerefMutCoinductive, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero,
-};
+use crate::helper::macros::delegate_methods;
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::vec::VecObserverState;
 use crate::observe::{DefaultSpec, Observer, RefObserve, RefObserver, SerializeObserver};
 use crate::{Mutations, Observe};
@@ -51,7 +50,7 @@ pub trait SliceObserverState: ObserverState<Target: AsRef<[<Self::Item as QuasiO
     /// The caller must ensure that no references obtained from [`as_slice`](Self::as_slice) are
     /// alive when this method is called, as the implementation may create mutable references to
     /// the same storage through interior mutability.
-    unsafe fn init_range(&self, start: usize, end: usize, slice: &mut Self::Target);
+    unsafe fn force_range(&self, start: usize, end: usize, slice: &mut Self::Target);
 }
 
 /// Shared-reference counterpart to [`SliceObserverState`] for element [`RefObserver`] management.
@@ -233,7 +232,7 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = V::Target>,
 {
-    unsafe fn __init_index<I>(&self, index: &I) -> Option<()>
+    unsafe fn __force_index<I>(&self, index: &I) -> Option<()>
     where
         I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
     {
@@ -244,7 +243,7 @@ where
             return None;
         }
         let slice = unsafe { Pointer::as_mut(&self.ptr).as_deref_mut() };
-        unsafe { self.state.init_range(start, end, slice) };
+        unsafe { self.state.force_range(start, end, slice) };
         Some(())
     }
 
@@ -252,7 +251,7 @@ where
     where
         I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
     {
-        unsafe { self.__init_index(&index)? }
+        unsafe { self.__force_index(&index)? }
         Some(self.state.as_slice().index(index))
     }
 
@@ -260,19 +259,19 @@ where
     where
         I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
     {
-        unsafe { self.__init_index(&index)? }
+        unsafe { self.__force_index(&index)? }
         Some(self.state.as_mut_slice().index_mut(index))
     }
 
-    pub(crate) fn __force_ref(&self) -> &[V::Item] {
+    pub(crate) fn force_ref(&self) -> &[V::Item] {
         let slice = unsafe { Pointer::as_mut(&self.ptr).as_deref_mut() };
-        unsafe { self.state.init_range(0, slice.as_ref().len(), slice) };
+        unsafe { self.state.force_range(0, slice.as_ref().len(), slice) };
         self.state.as_slice()
     }
 
-    pub(crate) fn __force_mut(&mut self) -> &mut [V::Item] {
+    pub(crate) fn force_mut(&mut self) -> &mut [V::Item] {
         let slice = (*self.ptr).as_deref_mut();
-        unsafe { self.state.init_range(0, slice.as_ref().len(), slice) };
+        unsafe { self.state.force_range(0, slice.as_ref().len(), slice) };
         self.state.as_mut_slice()
     }
 }
@@ -286,157 +285,53 @@ where
     S: AsDerefMut<D, Target = V::Target>,
     S::Target: AsMut<[T]>,
 {
-    /// See [`slice::first_mut`].
-    pub fn first_mut(&mut self) -> Option<&mut V::Item> {
-        self.__get_mut(0)
-    }
-
-    /// See [`slice::split_first_mut`].
-    pub fn split_first_mut(&mut self) -> Option<(&mut V::Item, &mut [V::Item])> {
-        self.__force_mut().split_first_mut()
-    }
-
-    /// See [`slice::split_last_mut`].
-    pub fn split_last_mut(&mut self) -> Option<(&mut V::Item, &mut [V::Item])> {
-        self.__force_mut().split_last_mut()
-    }
-
-    /// See [`slice::last_mut`].
-    pub fn last_mut(&mut self) -> Option<&mut V::Item> {
-        self.__get_mut(..)?.last_mut()
-    }
-
-    /// See [`slice::first_chunk_mut`].
-    pub fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [V::Item; N]> {
-        let len = (*self).untracked_ref().as_ref().len();
-        if len < N {
-            return None;
-        }
-        self.__get_mut(..N)?.first_chunk_mut()
-    }
-
-    /// See [`slice::split_first_chunk_mut`].
-    pub fn split_first_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [V::Item; N], &mut [V::Item])> {
-        self.__force_mut().split_first_chunk_mut()
-    }
-
-    /// See [`slice::split_last_chunk_mut`].
-    pub fn split_last_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [V::Item], &mut [V::Item; N])> {
-        self.__force_mut().split_last_chunk_mut()
-    }
-
-    /// See [`slice::last_chunk_mut`].
-    pub fn last_chunk_mut<const N: usize>(&mut self) -> Option<&mut [V::Item; N]> {
-        let len = (*self).untracked_ref().as_ref().len();
-        if len < N {
-            return None;
-        }
-        self.__get_mut(len - N..)?.last_chunk_mut()
-    }
-
-    /// See [`slice::get_mut`].
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut V::Item> {
-        self.__get_mut(index)
+    delegate_methods! { force_mut() as slice =>
+        pub fn first_mut(&mut self) -> Option<&mut V::Item>;
+        pub fn last_mut(&mut self) -> Option<&mut V::Item>;
+        pub fn first_chunk_mut<const N: usize>(&mut self) -> Option<&mut [V::Item; N]>;
+        pub fn split_first_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [V::Item; N], &mut [V::Item])>;
+        pub fn split_last_chunk_mut<const N: usize>(&mut self) -> Option<(&mut [V::Item], &mut [V::Item; N])>;
+        pub fn last_chunk_mut<const N: usize>(&mut self) -> Option<&mut [V::Item; N]>;
+        pub fn get_mut<I>(&mut self, index: I) -> Option<&mut I::Output> where I: SliceIndex<[V::Item]>;
+        pub unsafe fn get_unchecked_mut<I>(&mut self, index: I) -> &mut I::Output where I: SliceIndex<[V::Item]>;
+        pub fn as_mut_ptr(&mut self) -> *mut V::Item;
+        pub fn as_mut_ptr_range(&mut self) -> Range<*mut V::Item>;
+        pub fn as_mut_array<const N: usize>(&mut self) -> Option<&mut [V::Item; N]>;
     }
 
     /// See [`slice::swap`].
     pub fn swap(&mut self, a: usize, b: usize) {
-        self[a].as_deref_mut_coinductive();
-        self[b].as_deref_mut_coinductive();
+        QuasiObserver::invalidate(&mut self[a]);
+        QuasiObserver::invalidate(&mut self[b]);
         self.untracked_mut().as_mut().swap(a, b);
     }
 
-    /// See [`slice::iter_mut`].
-    pub fn iter_mut(&mut self) -> IterMut<'_, V::Item> {
-        self.__force_mut().iter_mut()
+    /// See [`slice::reverse`].
+    pub fn reverse(&mut self) {
+        if (*self).untracked_ref().as_ref().is_empty() {
+            return;
+        }
+        self.tracked_mut().as_mut().reverse();
     }
 
-    /// See [`slice::chunks_mut`].
-    pub fn chunks_mut(&mut self, chunk_size: usize) -> ChunksMut<'_, V::Item> {
-        self.__force_mut().chunks_mut(chunk_size)
-    }
-
-    /// See [`slice::chunks_exact_mut`].
-    pub fn chunks_exact_mut(&mut self, chunk_size: usize) -> ChunksExactMut<'_, V::Item> {
-        self.__force_mut().chunks_exact_mut(chunk_size)
-    }
-
-    /// See [`slice::as_chunks_mut`].
-    pub fn as_chunks_mut<const N: usize>(&mut self) -> (&mut [[V::Item; N]], &mut [V::Item]) {
-        self.__force_mut().as_chunks_mut()
-    }
-
-    /// See [`slice::as_rchunks_mut`].
-    pub fn as_rchunks_mut<const N: usize>(&mut self) -> (&mut [V::Item], &mut [[V::Item; N]]) {
-        self.__force_mut().as_rchunks_mut()
-    }
-
-    /// See [`slice::rchunks_mut`].
-    pub fn rchunks_mut(&mut self, chunk_size: usize) -> RChunksMut<'_, V::Item> {
-        self.__force_mut().rchunks_mut(chunk_size)
-    }
-
-    /// See [`slice::rchunks_exact_mut`].
-    pub fn rchunks_exact_mut(&mut self, chunk_size: usize) -> RChunksExactMut<'_, V::Item> {
-        self.__force_mut().rchunks_exact_mut(chunk_size)
-    }
-
-    /// See [`slice::chunk_by_mut`].
-    pub fn chunk_by_mut<F>(&mut self, pred: F) -> ChunkByMut<'_, V::Item, F>
-    where
-        F: FnMut(&V::Item, &V::Item) -> bool,
-    {
-        self.__force_mut().chunk_by_mut(pred)
-    }
-
-    /// See [`slice::split_at_mut`].
-    pub fn split_at_mut(&mut self, mid: usize) -> (&mut [V::Item], &mut [V::Item]) {
-        self.__force_mut().split_at_mut(mid)
-    }
-
-    /// See [`slice::split_at_mut_checked`].
-    pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut [V::Item], &mut [V::Item])> {
-        self.__force_mut().split_at_mut_checked(mid)
-    }
-
-    /// See [`slice::split_mut`].
-    pub fn split_mut<F>(&mut self, pred: F) -> SplitMut<'_, V::Item, F>
-    where
-        F: FnMut(&V::Item) -> bool,
-    {
-        self.__force_mut().split_mut(pred)
-    }
-
-    /// See [`slice::split_inclusive_mut`].
-    pub fn split_inclusive_mut<F>(&mut self, pred: F) -> SplitInclusiveMut<'_, V::Item, F>
-    where
-        F: FnMut(&V::Item) -> bool,
-    {
-        self.__force_mut().split_inclusive_mut(pred)
-    }
-
-    /// See [`slice::rsplit_mut`].
-    pub fn rsplit_mut<F>(&mut self, pred: F) -> RSplitMut<'_, V::Item, F>
-    where
-        F: FnMut(&V::Item) -> bool,
-    {
-        self.__force_mut().rsplit_mut(pred)
-    }
-
-    /// See [`slice::splitn_mut`].
-    pub fn splitn_mut<F>(&mut self, n: usize, pred: F) -> SplitNMut<'_, V::Item, F>
-    where
-        F: FnMut(&V::Item) -> bool,
-    {
-        self.__force_mut().splitn_mut(n, pred)
-    }
-
-    /// See [`slice::rsplitn_mut`].
-    pub fn rsplitn_mut<F>(&mut self, n: usize, pred: F) -> RSplitNMut<'_, V::Item, F>
-    where
-        F: FnMut(&V::Item) -> bool,
-    {
-        self.__force_mut().rsplitn_mut(n, pred)
+    delegate_methods! { force_mut() as slice =>
+        pub fn iter_mut(&mut self) -> IterMut<'_, V::Item>;
+        pub fn chunks_mut(&mut self, chunk_size: usize) -> ChunksMut<'_, V::Item>;
+        pub fn chunks_exact_mut(&mut self, chunk_size: usize) -> ChunksExactMut<'_, V::Item>;
+        pub unsafe fn as_chunks_unchecked_mut<const N: usize>(&mut self) -> &mut [[V::Item; N]];
+        pub fn as_chunks_mut<const N: usize>(&mut self) -> (&mut [[V::Item; N]], &mut [V::Item]);
+        pub fn as_rchunks_mut<const N: usize>(&mut self) -> (&mut [V::Item], &mut [[V::Item; N]]);
+        pub fn rchunks_mut(&mut self, chunk_size: usize) -> RChunksMut<'_, V::Item>;
+        pub fn rchunks_exact_mut(&mut self, chunk_size: usize) -> RChunksExactMut<'_, V::Item>;
+        pub fn chunk_by_mut<F>(&mut self, pred: F) -> ChunkByMut<'_, V::Item, F> where F: FnMut(&V::Item, &V::Item) -> bool;
+        pub fn split_at_mut(&mut self, mid: usize) -> (&mut [V::Item], &mut [V::Item]);
+        pub unsafe fn split_at_mut_unchecked(&mut self, mid: usize) -> (&mut [V::Item], &mut [V::Item]);
+        pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(&mut [V::Item], &mut [V::Item])>;
+        pub fn split_mut<F>(&mut self, pred: F) -> SplitMut<'_, V::Item, F> where F: FnMut(&V::Item) -> bool;
+        pub fn split_inclusive_mut<F>(&mut self, pred: F) -> SplitInclusiveMut<'_, V::Item, F> where F: FnMut(&V::Item) -> bool;
+        pub fn rsplit_mut<F>(&mut self, pred: F) -> RSplitMut<'_, V::Item, F> where F: FnMut(&V::Item) -> bool;
+        pub fn splitn_mut<F>(&mut self, n: usize, pred: F) -> SplitNMut<'_, V::Item, F> where F: FnMut(&V::Item) -> bool;
+        pub fn rsplitn_mut<F>(&mut self, n: usize, pred: F) -> RSplitNMut<'_, V::Item, F> where F: FnMut(&V::Item) -> bool;
     }
 }
 

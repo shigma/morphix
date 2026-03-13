@@ -141,7 +141,6 @@ where
 ///
 /// impl<T> GeneralHandler for MyHandler<T> {
 ///     // omitted for brevity
-/// #   type Spec = morphix::observe::DefaultSpec;
 /// #   fn uninit() -> Self { Self(PhantomData) }
 /// #   fn observe(_value: &T) -> Self { Self(PhantomData) }
 /// }
@@ -331,32 +330,6 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple(H::NAME).field(&self.untracked_ref()).finish()
-    }
-}
-
-impl<'ob, H, S: ?Sized, D, I> std::ops::Index<I> for GeneralObserver<'ob, H, S, D>
-where
-    H: GeneralHandler<Target = S::Target>,
-    S: AsDeref<D>,
-    D: Unsigned,
-    S::Target: std::ops::Index<I>,
-{
-    type Output = <S::Target as std::ops::Index<I>>::Output;
-
-    fn index(&self, index: I) -> &Self::Output {
-        self.untracked_ref().index(index)
-    }
-}
-
-impl<'ob, H, S: ?Sized, D, I> std::ops::IndexMut<I> for GeneralObserver<'ob, H, S, D>
-where
-    S: AsDerefMut<D>,
-    H: GeneralHandler<Target = S::Target>,
-    D: Unsigned,
-    S::Target: std::ops::IndexMut<I>,
-{
-    fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        self.tracked_mut().index_mut(index)
     }
 }
 

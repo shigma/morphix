@@ -16,7 +16,6 @@
 //! without notice. Only items re-exported at the crate root or from this module are considered
 //! stable.
 
-mod array;
 mod atomic;
 mod collections;
 mod cow;
@@ -24,24 +23,18 @@ mod deref;
 mod newtype;
 mod option;
 mod range;
-pub mod slice;
-mod str;
-mod string;
+mod slices;
 mod tuple;
-pub mod vec;
 mod weak;
 
-pub use array::ArrayObserver;
 pub use collections::*;
 pub use cow::CowObserver;
 pub use deref::{DerefMutObserver, DerefObserver};
 pub use newtype::NewtypeObserver;
 pub use option::OptionObserver;
-pub use slice::SliceObserver;
-pub use string::StringObserver;
+pub use slices::*;
 pub use tuple::{
     TupleObserver, TupleObserver2, TupleObserver3, TupleObserver4, TupleObserver5, TupleObserver6, TupleObserver7,
     TupleObserver8, TupleObserver9, TupleObserver10, TupleObserver11, TupleObserver12,
 };
-pub use vec::VecObserver;
 pub use weak::WeakObserver;

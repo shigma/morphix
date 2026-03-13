@@ -57,7 +57,7 @@ where
         slice.each_mut().map(O::observe)
     }
 
-    unsafe fn init_range(&self, _start: usize, _end: usize, _slice: &mut Self::Target) {
+    unsafe fn force_range(&self, _start: usize, _end: usize, _slice: &mut Self::Target) {
         // No need to re-initialize fixed-size array.
     }
 }
@@ -113,23 +113,23 @@ where
 {
     /// See [`array::as_slice`].
     pub fn as_slice(&self) -> &[O] {
-        self.inner.__force_ref()
+        self.inner.force_ref()
     }
 
     /// See [`array::as_mut_slice`].
     pub fn as_mut_slice(&mut self) -> &mut [O] {
-        self.inner.__force_mut()
+        self.inner.force_mut()
     }
 
     /// See [`array::each_ref`].
     pub fn each_ref(&self) -> [&O; N] {
-        self.inner.__force_ref();
+        self.inner.force_ref();
         self.inner.state.each_ref()
     }
 
     /// See [`array::each_mut`].
     pub fn each_mut(&mut self) -> [&mut O; N] {
-        self.inner.__force_mut();
+        self.inner.force_mut();
         self.inner.state.each_mut()
     }
 }

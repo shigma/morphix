@@ -1,3 +1,4 @@
+use std::ops::{Index, IndexMut};
 use std::slice::SliceIndex;
 
 use crate::Observe;
@@ -52,5 +53,29 @@ where
 {
     fn as_mut(&mut self) -> &mut str {
         self.tracked_mut()
+    }
+}
+
+impl<'ob, S: ?Sized, D, I> Index<I> for ShallowObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = str>,
+    I: SliceIndex<str>,
+{
+    type Output = I::Output;
+
+    fn index(&self, index: I) -> &Self::Output {
+        self.untracked_ref().index(index)
+    }
+}
+
+impl<'ob, S: ?Sized, D, I> IndexMut<I> for ShallowObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = str>,
+    I: SliceIndex<str>,
+{
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        self.tracked_mut().index_mut(index)
     }
 }

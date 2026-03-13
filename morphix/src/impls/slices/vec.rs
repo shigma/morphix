@@ -103,7 +103,7 @@ where
         self.inner.get_mut()
     }
 
-    unsafe fn init_range(&self, start: usize, end: usize, slice: &mut Self::Target) {
+    unsafe fn force_range(&self, start: usize, end: usize, slice: &mut Self::Target) {
         let inner = unsafe { &mut *self.inner.get() };
         inner.resize_with(slice.len(), O::uninit);
         let ob_iter = inner[start..end].iter_mut();
@@ -133,7 +133,7 @@ where
         // init_range must precede Mutations::append: init_range takes `&mut slice` (Unique function-entry
         // retag over the full slice), which would invalidate a SerializeRef's SRO tag if the append
         // mutation were created first.
-        unsafe { self.init_range(0, append_index, slice) }
+        unsafe { self.force_range(0, append_index, slice) }
         #[cfg(feature = "append")]
         if slice.len() > append_index {
             mutations.extend(Mutations::append(&slice[append_index..]));
@@ -242,12 +242,12 @@ where
 
     /// See [`Vec::as_slice`].
     pub fn as_slice(&self) -> &[O] {
-        self.__force_ref()
+        self.force_ref()
     }
 
     /// See [`Vec::as_mut_slice`].
     pub fn as_mut_slice(&mut self) -> &mut [O] {
-        self.__force_mut()
+        self.force_mut()
     }
 }
 
