@@ -552,8 +552,6 @@ where
 {
 }
 
-// ── Observe impl ────────────────────────────────────
-
 impl<T: Serialize + 'static> Observe for VecDeque<T> {
     type Observer<'ob, S, D>
         = VecDequeObserver<'ob, T, S, D>
