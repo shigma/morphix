@@ -333,6 +333,32 @@ where
     }
 }
 
+impl<'ob, H, S: ?Sized, D, I> std::ops::Index<I> for GeneralObserver<'ob, H, S, D>
+where
+    H: GeneralHandler<Target = S::Target>,
+    S: AsDeref<D>,
+    D: Unsigned,
+    S::Target: std::ops::Index<I>,
+{
+    type Output = <S::Target as std::ops::Index<I>>::Output;
+
+    fn index(&self, index: I) -> &Self::Output {
+        self.untracked_ref().index(index)
+    }
+}
+
+impl<'ob, H, S: ?Sized, D, I> std::ops::IndexMut<I> for GeneralObserver<'ob, H, S, D>
+where
+    S: AsDerefMut<D>,
+    H: GeneralHandler<Target = S::Target>,
+    D: Unsigned,
+    S::Target: std::ops::IndexMut<I>,
+{
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        self.tracked_mut().index_mut(index)
+    }
+}
+
 impl<'ob, H1, H2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<GeneralObserver<'ob, H2, S2, D2>>
     for GeneralObserver<'ob, H1, S1, D1>
 where
@@ -587,7 +613,6 @@ generic_impl_cmp! {
     impl _ for std::path::Path;
     impl _ for std::path::PathBuf;
     impl ['a] _ for std::borrow::Cow<'a, str>;
-    impl [T: Eq + std::hash::Hash] _ for std::collections::HashSet<T>;
 }
 
 #[cfg(feature = "chrono")]

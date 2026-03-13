@@ -242,8 +242,7 @@ macro_rules! shallow_observer {
             S: $crate::helper::AsDeref<D, Target: ::serde::Serialize + 'static>,
         {
             unsafe fn flush(this: &mut Self) -> $crate::mutation::Mutations {
-                let is_replace = std::mem::take(&mut this.mutated);
-                if is_replace {
+                if ::std::mem::take(&mut this.mutated) {
                     $crate::mutation::Mutations::replace((*this.ptr).as_deref())
                 } else {
                     $crate::mutation::Mutations::new()
