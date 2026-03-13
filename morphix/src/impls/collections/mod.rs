@@ -2,12 +2,15 @@
 
 mod binary_heap;
 pub mod btree_map;
+pub mod btree_set;
 pub mod hash_map;
-mod hash_set;
+pub mod hash_set;
 #[cfg(feature = "indexmap")]
 pub mod index_map;
 
 pub use btree_map::BTreeMapObserver;
+pub use btree_set::BTreeSetObserver;
 pub use hash_map::HashMapObserver;
+pub use hash_set::HashSetObserver;
 #[cfg(feature = "indexmap")]
 pub use index_map::IndexMapObserver;

@@ -1,3 +1,5 @@
+//! Observer implementation for [`HashSet<T>`].
+
 use std::borrow::Borrow;
 use std::collections::hash_set::Drain;
 use std::collections::{HashSet, TryReserveError};
