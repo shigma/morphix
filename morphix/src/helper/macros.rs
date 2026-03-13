@@ -174,24 +174,24 @@ macro_rules! default_impl_ref_observe {
 macro_rules! shallow_observer {
     (impl $([$($gen:tt)*])? $ob:ident for $ty:ty;) => {
         #[doc = concat!("Observer implementation for [`", stringify!($ty), "`].")]
-        pub struct $ob<'ob, S: ?Sized, D = Zero> {
-            ptr: Pointer<S>,
+        pub struct $ob<'ob, S: ?Sized, D = $crate::helper::Zero> {
+            ptr: $crate::helper::Pointer<S>,
             mutated: bool,
-            phantom: PhantomData<&'ob mut D>,
+            phantom: ::std::marker::PhantomData<&'ob mut D>,
         }
 
-        impl<'ob, S: ?Sized, D> Deref for $ob<'ob, S, D> {
-            type Target = Pointer<S>;
+        impl<'ob, S: ?Sized, D> ::std::ops::Deref for $ob<'ob, S, D> {
+            type Target = $crate::helper::Pointer<S>;
 
             fn deref(&self) -> &Self::Target {
                 &self.ptr
             }
         }
 
-        impl<'ob, S: ?Sized, D> DerefMut for $ob<'ob, S, D> {
+        impl<'ob, S: ?Sized, D> ::std::ops::DerefMut for $ob<'ob, S, D> {
             fn deref_mut(&mut self) -> &mut Self::Target {
                 self.mutated = true;
-                Pointer::invalidate(&mut self.ptr);
+                $crate::helper::Pointer::invalidate(&mut self.ptr);
                 &mut self.ptr
             }
         }
@@ -199,10 +199,10 @@ macro_rules! shallow_observer {
         impl<'ob, S: ?Sized, D> QuasiObserver for $ob<'ob, S, D>
         where
             D: Unsigned,
-            S: AsDeref<D>,
+            S: $crate::helper::AsDeref<D>,
         {
             type Head = S;
-            type OuterDepth = Succ<Zero>;
+            type OuterDepth = $crate::helper::Succ<$crate::helper::Zero>;
             type InnerDepth = D;
 
             fn invalidate(this: &mut Self) {
@@ -210,28 +210,28 @@ macro_rules! shallow_observer {
             }
         }
 
-        impl<'ob, S: ?Sized, D> Observer for $ob<'ob, S, D>
+        impl<'ob, S: ?Sized, D> $crate::observe::Observer for $ob<'ob, S, D>
         where
             D: Unsigned,
             S: AsDerefMut<D>,
         {
             fn uninit() -> Self {
                 Self {
-                    ptr: Pointer::uninit(),
+                    ptr: $crate::helper::Pointer::uninit(),
                     mutated: false,
-                    phantom: PhantomData,
+                    phantom: ::std::marker::PhantomData,
                 }
             }
 
             unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-                Pointer::set(this, head);
+                $crate::helper::Pointer::set(this, head);
             }
 
             fn observe(head: &mut Self::Head) -> Self {
                 Self {
-                    ptr: Pointer::new(head),
+                    ptr: $crate::helper::Pointer::new(head),
                     mutated: false,
-                    phantom: PhantomData,
+                    phantom: ::std::marker::PhantomData,
                 }
             }
         }
@@ -239,7 +239,7 @@ macro_rules! shallow_observer {
         impl<'ob, S: ?Sized, D> $crate::observe::SerializeObserver for $ob<'ob, S, D>
         where
             D: Unsigned,
-            S: AsDeref<D, Target: ::serde::Serialize + 'static>,
+            S: $crate::helper::AsDeref<D, Target: ::serde::Serialize + 'static>,
         {
             unsafe fn flush(this: &mut Self) -> $crate::mutation::Mutations {
                 let is_replace = std::mem::take(&mut this.mutated);

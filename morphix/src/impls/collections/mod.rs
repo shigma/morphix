@@ -1,5 +1,6 @@
 //! Observer implementations for collection types in [`std::collections`].
 
+mod binary_heap;
 pub mod btree_map;
 pub mod hash_map;
 mod hash_set;

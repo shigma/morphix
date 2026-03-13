@@ -2,13 +2,12 @@ use std::borrow::Borrow;
 use std::collections::hash_set::Drain;
 use std::collections::{HashSet, TryReserveError};
 use std::hash::Hash;
-use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use crate::Observe;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods, shallow_observer};
-use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::observe::{DefaultSpec, Observer};
+use crate::helper::{AsDerefMut, QuasiObserver, Unsigned};
+use crate::observe::DefaultSpec;
 
 shallow_observer! {
     impl [T] HashSetObserver for HashSet<T>;
@@ -82,9 +81,8 @@ where
     where
         F: FnMut(&T) -> bool,
     {
-        let inner = (*self.ptr).as_deref_mut().extract_if(pred);
         ExtractIf {
-            inner,
+            inner: (*self.ptr).as_deref_mut().extract_if(pred),
             mutated: &mut self.mutated,
         }
     }
