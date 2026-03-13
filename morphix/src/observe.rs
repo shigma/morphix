@@ -236,12 +236,20 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     /// - Lazily initialized on first access, and
     /// - Refreshed after container reallocation moves elements in memory.
     unsafe fn force(this: &mut Self, head: &mut Self::Head) {
-        if Pointer::is_null((*this).as_deref_coinductive()) {
-            *this = Self::observe(head);
-        } else {
-            // SAFETY: The observer was previously initialized via `observe`, and the caller
-            // guarantees that `head` refers to the same logical value.
-            unsafe { Self::refresh(this, head) }
+        match Pointer::get((*this).as_deref_coinductive()) {
+            None => *this = Self::observe(head),
+            Some(ptr) => {
+                if std::ptr::addr_eq(ptr.as_ptr(), head) {
+                    // Same address — skip sub-observer refresh, but re-expose provenance
+                    // because intervening retags (e.g., &mut [T] from as_deref_mut) may have
+                    // popped our previously exposed tag from the borrow stack.
+                    Pointer::set((*this).as_deref_coinductive(), head);
+                } else {
+                    // SAFETY: The observer was previously initialized via `observe`, and the caller
+                    // guarantees that `head` refers to the same logical value.
+                    unsafe { Self::refresh(this, head) }
+                }
+            }
         }
     }
 }
@@ -379,5 +387,30 @@ impl<T: SerializeObserver> SerializeObserverExt for T {}
 /// attributes.
 pub struct DefaultSpec;
 
-#[doc(hidden)]
+/// Resolves the concrete [`Observer`] type for a given [`Observe`] type.
+///
+/// This is a convenience alias used primarily by the derive macro to refer to field observer types
+/// without repeating the full associated type syntax.
+///
+/// ## Type Parameters
+///
+/// - `T`: The observed type (must implement [`Observe`]).
+/// - `S`: The head type stored in the observer's [`Pointer`]. Defaults to `T` (for top-level or
+///   struct-field observers where the head is the field itself).
+/// - `D`: The [`InnerDepth`](QuasiObserver::InnerDepth). Defaults to [`Zero`] (no extra dereference
+///   layers between `S` and `T`).
 pub type DefaultObserver<'ob, T, S = T, D = Zero> = <T as Observe>::Observer<'ob, S, D>;
+
+/// Resolves the concrete [`RefObserver`] type for a given [`RefObserve`] type.
+///
+/// This is a convenience alias used primarily by the derive macro to refer to field observer types
+/// without repeating the full associated type syntax.
+///
+/// ## Type Parameters
+///
+/// - `T`: The observed type (must implement [`RefObserve`]).
+/// - `S`: The head type stored in the observer's [`Pointer`]. Defaults to `T` (for top-level or
+///   struct-field observers where the head is the field itself).
+/// - `D`: The [`InnerDepth`](QuasiObserver::InnerDepth). Defaults to [`Zero`] (no extra dereference
+///   layers between `S` and `T`).
+pub type DefaultRefObserver<'ob, T, S = T, D = Zero> = <T as RefObserve>::Observer<'ob, S, D>;
