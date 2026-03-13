@@ -53,7 +53,7 @@ impl<O, S: ?Sized, D> DerefMut for OptionObserver<O, S, D> {
 
 impl<O, S: ?Sized, D> QuasiObserver for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized>,
+    O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
     D: Unsigned,
     S: AsDeref<D, Target = Option<O::Head>>,
 {
@@ -220,7 +220,7 @@ where
 
 impl<O, S: ?Sized, D> Debug for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized + Debug>,
+    O: QuasiObserver<InnerDepth = Zero, Head: Sized + Debug>,
     D: Unsigned,
     S: AsDeref<D, Target = Option<O::Head>>,
 {
@@ -231,7 +231,7 @@ where
 
 impl<O, S: ?Sized, D, U> PartialEq<Option<U>> for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized>,
+    O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
     D: Unsigned,
     S: AsDeref<D, Target = Option<O::Head>>,
     Option<O::Head>: PartialEq<Option<U>>,
@@ -243,8 +243,8 @@ where
 
 impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<OptionObserver<O2, S2, D2>> for OptionObserver<O1, S1, D1>
 where
-    O1: QuasiObserver<Target: Deref<Target: AsDeref<O1::InnerDepth>>, Head: Sized>,
-    O2: QuasiObserver<Target: Deref<Target: AsDeref<O2::InnerDepth>>, Head: Sized>,
+    O1: QuasiObserver<InnerDepth = Zero, Head: Sized>,
+    O2: QuasiObserver<InnerDepth = Zero, Head: Sized>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDeref<D1, Target = Option<O1::Head>>,
@@ -258,7 +258,7 @@ where
 
 impl<O, S: ?Sized, D> Eq for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized + Eq>,
+    O: QuasiObserver<InnerDepth = Zero, Head: Sized + Eq>,
     D: Unsigned,
     S: AsDeref<D, Target = Option<O::Head>>,
 {
@@ -266,7 +266,7 @@ where
 
 impl<O, S: ?Sized, D, U> PartialOrd<Option<U>> for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized>,
+    O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
     D: Unsigned,
     S: AsDeref<D, Target = Option<O::Head>>,
     Option<O::Head>: PartialOrd<Option<U>>,
@@ -278,8 +278,8 @@ where
 
 impl<O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<OptionObserver<O2, S2, D2>> for OptionObserver<O1, S1, D1>
 where
-    O1: QuasiObserver<Target: Deref<Target: AsDeref<O1::InnerDepth>>, Head: Sized>,
-    O2: QuasiObserver<Target: Deref<Target: AsDeref<O2::InnerDepth>>, Head: Sized>,
+    O1: QuasiObserver<InnerDepth = Zero, Head: Sized>,
+    O2: QuasiObserver<InnerDepth = Zero, Head: Sized>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDeref<D1, Target = Option<O1::Head>>,
@@ -293,7 +293,7 @@ where
 
 impl<O, S: ?Sized, D> Ord for OptionObserver<O, S, D>
 where
-    O: QuasiObserver<Target: Deref<Target: AsDeref<O::InnerDepth>>, Head: Sized + Ord>,
+    O: QuasiObserver<InnerDepth = Zero, Head: Sized + Ord>,
     D: Unsigned,
     S: AsDeref<D, Target = Option<O::Head>>,
 {

@@ -1,46 +1,96 @@
 use std::borrow::Borrow;
-use std::collections::hash_set::ExtractIf;
+use std::collections::hash_set::Drain;
 use std::collections::{HashSet, TryReserveError};
 use std::hash::Hash;
+use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 
 use crate::Observe;
-use crate::builtin::{ShallowObserver, Snapshot};
-use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::{AsDerefMut, QuasiObserver, Unsigned};
-use crate::observe::DefaultSpec;
+use crate::helper::macros::{default_impl_ref_observe, delegate_methods, shallow_observer};
+use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::observe::{DefaultSpec, Observer};
 
-impl<T> Observe for HashSet<T> {
-    type Observer<'ob, S, D>
-        = ShallowObserver<'ob, S, D>
-    where
-        Self: 'ob,
-        D: Unsigned,
-        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
-
-    type Spec = DefaultSpec;
+shallow_observer! {
+    impl [T] HashSetObserver for HashSet<T>;
 }
 
 default_impl_ref_observe! {
     impl [T] RefObserve for HashSet<T>;
 }
 
-impl<T> Snapshot for HashSet<T>
-where
-    T: Snapshot,
-    T::Snapshot: Eq + Hash,
-{
-    type Snapshot = HashSet<T::Snapshot>;
+struct Guard<'a, T> {
+    old_len: usize,
+    mutated: &'a mut bool,
+    inner: &'a mut HashSet<T>,
+}
 
-    fn to_snapshot(&self) -> Self::Snapshot {
-        self.iter().map(|item| item.to_snapshot()).collect()
-    }
-
-    fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
-        self.len() == snapshot.len() && self.iter().all(|item| snapshot.contains(&item.to_snapshot()))
+impl<T> Drop for Guard<'_, T> {
+    fn drop(&mut self) {
+        if self.old_len != self.inner.len() {
+            *self.mutated = true;
+        }
     }
 }
 
-impl<'ob, S: ?Sized, D, T> ShallowObserver<'ob, S, D>
+impl<T> Deref for Guard<'_, T> {
+    type Target = HashSet<T>;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner
+    }
+}
+
+impl<T> DerefMut for Guard<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.inner
+    }
+}
+
+impl<'ob, S: ?Sized, D, T> HashSetObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = HashSet<T>>,
+{
+    fn nonempty_mut(&mut self) -> &mut HashSet<T> {
+        if (*self).untracked_ref().is_empty() {
+            self.untracked_mut()
+        } else {
+            self.tracked_mut()
+        }
+    }
+
+    fn guarded_mut(&mut self) -> Guard<'_, T> {
+        let inner = (*self.ptr).as_deref_mut();
+        Guard {
+            old_len: inner.len(),
+            mutated: &mut self.mutated,
+            inner,
+        }
+    }
+
+    delegate_methods! { nonempty_mut() as HashSet =>
+        pub fn drain(&mut self) -> Drain<'_, T>;
+        pub fn clear(&mut self);
+    }
+
+    delegate_methods! { guarded_mut() as HashSet =>
+        pub fn retain<F>(&mut self, f: F) where F: FnMut(&T) -> bool;
+    }
+
+    /// See [`HashSet::extract_if`].
+    pub fn extract_if<F>(&mut self, pred: F) -> ExtractIf<'_, T, F>
+    where
+        F: FnMut(&T) -> bool,
+    {
+        let inner = (*self.ptr).as_deref_mut().extract_if(pred);
+        ExtractIf {
+            inner,
+            mutated: &mut self.mutated,
+        }
+    }
+}
+
+impl<'ob, S: ?Sized, D, T> HashSetObserver<'ob, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashSet<T>>,
@@ -54,36 +104,46 @@ where
     }
 
     delegate_methods! { tracked_mut() as HashSet =>
-        pub fn insert(&mut self, value: T) -> bool;
         pub fn replace(&mut self, value: T) -> Option<T>;
-        pub fn remove<Q>(&mut self, value: &Q) -> bool
-        where T: Borrow<Q>, Q: Hash + Eq + ?Sized;
-        pub fn take<Q>(&mut self, value: &Q) -> Option<T>
-        where T: Borrow<Q>, Q: Hash + Eq + ?Sized;
-        pub fn retain<F>(&mut self, f: F)
-        where F: FnMut(&T) -> bool;
-        pub fn extract_if<F>(&mut self, pred: F) -> ExtractIf<'_, T, F>
-        where F: FnMut(&T) -> bool;
     }
 
-    /// See [`HashSet::clear`].
-    pub fn clear(&mut self) {
-        if (*self).untracked_ref().is_empty() {
-            self.untracked_mut().clear()
-        } else {
-            self.tracked_mut().clear()
-        }
+    delegate_methods! { guarded_mut() as HashSet =>
+        pub fn insert(&mut self, value: T) -> bool;
+        pub fn remove<Q>(&mut self, value: &Q) -> bool where T: Borrow<Q>, Q: Hash + Eq + ?Sized;
+        pub fn take<Q>(&mut self, value: &Q) -> Option<T> where T: Borrow<Q>, Q: Hash + Eq + ?Sized;
     }
 }
 
-impl<'ob, S: ?Sized, D, T, U> Extend<U> for ShallowObserver<'ob, S, D>
+impl<'ob, S: ?Sized, D, T, U> Extend<U> for HashSetObserver<'ob, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = HashSet<T>>,
     HashSet<T>: Extend<U>,
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, iter: I) {
-        self.tracked_mut().extend(iter);
+        self.guarded_mut().extend(iter)
+    }
+}
+
+/// Iterator produced by [`HashSetObserver::extract_if`].
+pub struct ExtractIf<'a, T, F> {
+    inner: std::collections::hash_set::ExtractIf<'a, T, F>,
+    mutated: &'a mut bool,
+}
+
+impl<T, F: FnMut(&T) -> bool> Iterator for ExtractIf<'_, T, F> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<T> {
+        let result = self.inner.next();
+        if result.is_some() {
+            *self.mutated = true;
+        }
+        result
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
     }
 }
 
@@ -123,12 +183,48 @@ mod tests {
     }
 
     #[test]
+    fn insert_duplicate_no_mutation() {
+        let mut set = HashSet::from([1, 2, 3]);
+        let mut ob = set.__observe();
+        assert!(!ob.insert(2));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
+    }
+
+    #[test]
     fn remove_existing_triggers_replace() {
         let mut set = HashSet::from([1, 2, 3]);
         let mut ob = set.__observe();
         assert!(ob.remove(&2));
         let Json(mutation) = ob.flush().unwrap();
         assert!(is_replace(&mutation));
+    }
+
+    #[test]
+    fn remove_nonexistent_no_mutation() {
+        let mut set = HashSet::from([1, 2, 3]);
+        let mut ob = set.__observe();
+        assert!(!ob.remove(&99));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
+    }
+
+    #[test]
+    fn take_triggers_replace() {
+        let mut set = HashSet::from([1, 2, 3]);
+        let mut ob = set.__observe();
+        assert_eq!(ob.take(&2), Some(2));
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(is_replace(&mutation));
+    }
+
+    #[test]
+    fn take_nonexistent_no_mutation() {
+        let mut set = HashSet::from([1, 2, 3]);
+        let mut ob = set.__observe();
+        assert_eq!(ob.take(&99), None);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
     }
 
     #[test]
@@ -179,6 +275,15 @@ mod tests {
     }
 
     #[test]
+    fn extend_duplicates_no_mutation() {
+        let mut set = HashSet::from([1, 2, 3]);
+        let mut ob = set.__observe();
+        ob.extend([1, 2, 3]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
+    }
+
+    #[test]
     fn deref_mut_triggers_replace() {
         let mut set = HashSet::from([1, 2]);
         let mut ob = set.__observe();
@@ -198,6 +303,15 @@ mod tests {
     }
 
     #[test]
+    fn retain_all_no_mutation() {
+        let mut set = HashSet::from([1, 2, 3]);
+        let mut ob = set.__observe();
+        ob.retain(|_| true);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
+    }
+
+    #[test]
     fn extract_if_triggers_replace() {
         let mut set = HashSet::from([1, 2, 3, 4]);
         let mut ob = set.__observe();
@@ -208,12 +322,32 @@ mod tests {
     }
 
     #[test]
-    fn take_triggers_replace() {
+    fn extract_if_none_no_mutation() {
         let mut set = HashSet::from([1, 2, 3]);
         let mut ob = set.__observe();
-        assert_eq!(ob.take(&2), Some(2));
+        let extracted: Vec<_> = ob.extract_if(|_| false).collect();
+        assert!(extracted.is_empty());
         let Json(mutation) = ob.flush().unwrap();
-        assert!(is_replace(&mutation));
+        assert_eq!(mutation, None);
+    }
+
+    #[test]
+    fn extract_if_no_consume_no_mutation() {
+        let mut set = HashSet::from([1, 2, 3]);
+        let mut ob = set.__observe();
+        let _ = ob.extract_if(|_| true);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
+    }
+
+    #[test]
+    fn drain_empty_no_mutation() {
+        let mut set: HashSet<i32> = HashSet::new();
+        let mut ob = set.__observe();
+        let drained: Vec<_> = ob.drain().collect();
+        assert!(drained.is_empty());
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
     }
 
     #[test]

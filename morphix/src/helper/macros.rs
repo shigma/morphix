@@ -171,6 +171,99 @@ macro_rules! default_impl_ref_observe {
     };
 }
 
+macro_rules! shallow_observer {
+    (impl $([$($gen:tt)*])? $ob:ident for $ty:ty;) => {
+        #[doc = concat!("Observer implementation for [`", stringify!($ty), "`].")]
+        pub struct $ob<'ob, S: ?Sized, D = Zero> {
+            ptr: Pointer<S>,
+            mutated: bool,
+            phantom: PhantomData<&'ob mut D>,
+        }
+
+        impl<'ob, S: ?Sized, D> Deref for $ob<'ob, S, D> {
+            type Target = Pointer<S>;
+
+            fn deref(&self) -> &Self::Target {
+                &self.ptr
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> DerefMut for $ob<'ob, S, D> {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                self.mutated = true;
+                Pointer::invalidate(&mut self.ptr);
+                &mut self.ptr
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> QuasiObserver for $ob<'ob, S, D>
+        where
+            D: Unsigned,
+            S: AsDeref<D>,
+        {
+            type Head = S;
+            type OuterDepth = Succ<Zero>;
+            type InnerDepth = D;
+
+            fn invalidate(this: &mut Self) {
+                this.mutated = true;
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> Observer for $ob<'ob, S, D>
+        where
+            D: Unsigned,
+            S: AsDerefMut<D>,
+        {
+            fn uninit() -> Self {
+                Self {
+                    ptr: Pointer::uninit(),
+                    mutated: false,
+                    phantom: PhantomData,
+                }
+            }
+
+            unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+                Pointer::set(this, head);
+            }
+
+            fn observe(head: &mut Self::Head) -> Self {
+                Self {
+                    ptr: Pointer::new(head),
+                    mutated: false,
+                    phantom: PhantomData,
+                }
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> $crate::observe::SerializeObserver for $ob<'ob, S, D>
+        where
+            D: Unsigned,
+            S: AsDeref<D, Target: ::serde::Serialize + 'static>,
+        {
+            unsafe fn flush(this: &mut Self) -> $crate::mutation::Mutations {
+                let is_replace = std::mem::take(&mut this.mutated);
+                if is_replace {
+                    $crate::mutation::Mutations::replace((*this.ptr).as_deref())
+                } else {
+                    $crate::mutation::Mutations::new()
+                }
+            }
+        }
+
+        impl $(<$($gen)*>)? Observe for $ty {
+            type Observer<'ob, S, D>
+                = $ob<'ob, S, D>
+            where
+                Self: 'ob,
+                D: Unsigned,
+                S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+            type Spec = DefaultSpec;
+        }
+    };
+}
+
 macro_rules! delegate_methods {
     ($($delegate:ident()).+ as $type:ident => $($tokens:tt)*) => {
         delegate_methods!(@fn ($($delegate()).+) as $type => [] $($tokens)*);
@@ -260,5 +353,6 @@ macro_rules! delegate_methods {
 }
 
 pub(crate) use {
-    default_impl_ref_observe, delegate_methods, spec_impl_observe, spec_impl_observe_from_ref, spec_impl_ref_observe,
+    default_impl_ref_observe, delegate_methods, shallow_observer, spec_impl_observe, spec_impl_observe_from_ref,
+    spec_impl_ref_observe,
 };
