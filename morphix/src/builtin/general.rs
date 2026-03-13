@@ -38,8 +38,6 @@ use crate::observe::{Observer, RefObserver, SerializeObserver};
 /// }
 ///
 /// impl<T> GeneralHandler for ShallowHandler<T> {
-///     type Spec = DefaultSpec;
-///
 ///     fn uninit() -> Self {
 ///        Self { mutated: false, phantom: PhantomData }
 ///     }
@@ -52,9 +50,6 @@ use crate::observe::{Observer, RefObserver, SerializeObserver};
 /// type ShallowObserver<'ob, T> = GeneralObserver<'ob, T, ShallowHandler<T>>;
 /// ```
 pub trait GeneralHandler: ObserverState {
-    /// Associated specification type for [`GeneralObserver`].
-    type Spec;
-
     /// Implementation for [`Observer::uninit`].
     fn uninit() -> Self;
 

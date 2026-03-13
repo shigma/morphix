@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
 use crate::helper::{AsDeref, ObserverState, Zero};
-use crate::observe::DefaultSpec;
 
 /// A general observer that never reports changes.
 ///
@@ -40,8 +39,6 @@ impl<T: ?Sized> ObserverState for NoopHandler<T> {
 }
 
 impl<T: ?Sized> GeneralHandler for NoopHandler<T> {
-    type Spec = DefaultSpec;
-
     fn uninit() -> Self {
         Self(PhantomData)
     }

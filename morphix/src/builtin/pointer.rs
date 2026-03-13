@@ -41,8 +41,6 @@ impl<T: ?Sized> ObserverState for PointerHandler<T> {
 }
 
 impl<T: ?Sized> GeneralHandler for PointerHandler<T> {
-    type Spec = DefaultSpec;
-
     fn uninit() -> Self {
         Self { ptr: None }
     }

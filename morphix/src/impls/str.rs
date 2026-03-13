@@ -1,10 +1,10 @@
 use std::slice::SliceIndex;
 
 use crate::Observe;
-use crate::builtin::ShallowObserver;
+use crate::builtin::{ShallowObserver, UnsizeObserver};
 use crate::helper::macros::delegate_methods;
-use crate::helper::{AsDerefMut, QuasiObserver, Unsigned};
-use crate::observe::DefaultSpec;
+use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Unsigned};
+use crate::observe::{DefaultSpec, RefObserve};
 
 impl Observe for str {
     type Observer<'ob, S, D>
@@ -13,6 +13,17 @@ impl Observe for str {
         Self: 'ob,
         D: Unsigned,
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+    type Spec = DefaultSpec;
+}
+
+impl RefObserve for str {
+    type Observer<'ob, S, D>
+        = UnsizeObserver<'ob, S, D>
+    where
+        Self: 'ob,
+        D: Unsigned,
+        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }

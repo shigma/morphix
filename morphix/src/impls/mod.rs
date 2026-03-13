@@ -28,7 +28,6 @@ pub mod slice;
 mod str;
 mod string;
 mod tuple;
-mod unsize;
 pub mod vec;
 mod weak;
 

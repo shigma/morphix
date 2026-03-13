@@ -13,11 +13,12 @@ use std::slice::{
     SplitInclusiveMut, SplitMut, SplitNMut,
 };
 
+use crate::builtin::UnsizeObserver;
 use crate::helper::{
     AsDeref, AsDerefMut, AsDerefMutCoinductive, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero,
 };
 use crate::impls::vec::VecObserverState;
-use crate::observe::{DefaultSpec, Observer, RefObserver, SerializeObserver};
+use crate::observe::{DefaultSpec, Observer, RefObserve, RefObserver, SerializeObserver};
 use crate::{Mutations, Observe};
 
 /// Trait for managing the internal observer storage within a slice observer.
@@ -574,6 +575,17 @@ impl<T: Observe> Observe for [T] {
         Self: 'ob,
         D: Unsigned,
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+    type Spec = DefaultSpec;
+}
+
+impl<T> RefObserve for [T] {
+    type Observer<'ob, S, D>
+        = UnsizeObserver<'ob, S, D>
+    where
+        Self: 'ob,
+        D: Unsigned,
+        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
 }

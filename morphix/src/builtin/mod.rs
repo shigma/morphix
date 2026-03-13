@@ -11,9 +11,11 @@ mod noop;
 mod pointer;
 mod shallow;
 pub(crate) mod snapshot;
+mod unsize;
 
 pub use general::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler, SerializeHandler};
 pub use noop::NoopObserver;
 pub use pointer::PointerObserver;
 pub use shallow::ShallowObserver;
 pub use snapshot::{Snapshot, SnapshotObserver};
+pub(crate) use unsize::UnsizeObserver;

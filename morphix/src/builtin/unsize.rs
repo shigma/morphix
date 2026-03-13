@@ -1,9 +1,11 @@
+use std::marker::PhantomData;
 use std::ops::{Index, RangeFrom};
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
-use crate::helper::{AsDeref, ObserverState, Unsigned};
-use crate::observe::{DefaultSpec, RefObserve};
+use crate::helper::{AsDeref, ObserverState, Zero};
 use crate::{MutationKind, Mutations};
+
+pub type UnsizeObserver<'ob, S, D = Zero> = GeneralObserver<'ob, UnsizeHandler<<S as AsDeref<D>>::Target>, S, D>;
 
 trait Len {
     fn len(&self) -> usize;
@@ -24,7 +26,7 @@ impl<T> Len for [T] {
 pub struct UnsizeHandler<T: ?Sized> {
     addr: usize,
     old_len: usize,
-    phantom: std::marker::PhantomData<*const T>,
+    phantom: PhantomData<*const T>,
 }
 
 impl<T: ?Sized> ObserverState for UnsizeHandler<T> {
@@ -37,13 +39,11 @@ impl<T: ?Sized> GeneralHandler for UnsizeHandler<T>
 where
     T: Len,
 {
-    type Spec = DefaultSpec;
-
     fn uninit() -> Self {
         Self {
             addr: 0,
             old_len: 0,
-            phantom: std::marker::PhantomData,
+            phantom: PhantomData,
         }
     }
 
@@ -51,7 +51,7 @@ where
         Self {
             addr: (value as *const T).cast::<u8>().addr(),
             old_len: value.len(),
-            phantom: std::marker::PhantomData,
+            phantom: PhantomData,
         }
     }
 }
@@ -87,28 +87,6 @@ where
 
 impl<T: Len + ?Sized> DebugHandler for UnsizeHandler<T> {
     const NAME: &'static str = "UnsizeObserver";
-}
-
-impl RefObserve for str {
-    type Observer<'ob, S, D>
-        = GeneralObserver<'ob, UnsizeHandler<S::Target>, S, D>
-    where
-        Self: 'ob,
-        D: Unsigned,
-        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
-
-    type Spec = DefaultSpec;
-}
-
-impl<T> RefObserve for [T] {
-    type Observer<'ob, S, D>
-        = GeneralObserver<'ob, UnsizeHandler<S::Target>, S, D>
-    where
-        Self: 'ob,
-        D: Unsigned,
-        S: AsDeref<D, Target = Self> + ?Sized + 'ob;
-
-    type Spec = DefaultSpec;
 }
 
 #[cfg(test)]

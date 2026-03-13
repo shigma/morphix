@@ -96,8 +96,6 @@ impl<T: Snapshot + ?Sized> ObserverState for SnapshotHandler<T> {
 }
 
 impl<T: Snapshot + ?Sized> GeneralHandler for SnapshotHandler<T> {
-    type Spec = SnapshotSpec;
-
     fn uninit() -> Self {
         Self {
             snapshot: MaybeUninit::uninit(),

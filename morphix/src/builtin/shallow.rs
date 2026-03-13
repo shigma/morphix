@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
 use crate::helper::{AsDeref, ObserverState, Zero};
-use crate::observe::DefaultSpec;
 
 /// A general observer that tracks any mutation access as a change.
 ///
@@ -54,8 +53,6 @@ impl<T: ?Sized> ObserverState for ShallowHandler<T> {
 }
 
 impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
-    type Spec = DefaultSpec;
-
     fn uninit() -> Self {
         Self {
             mutated: false,
