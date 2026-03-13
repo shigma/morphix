@@ -5,17 +5,19 @@
 //! The [`SliceObserverState`] trait is an internal abstraction used by [`SliceObserver`] and may
 //! change in future versions without notice.
 
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, Range, RangeBounds};
 use std::slice::{
-    ChunkByMut, ChunksExactMut, ChunksMut, IterMut, RChunksExactMut, RChunksMut, RSplitMut, RSplitNMut, SliceIndex,
-    SplitInclusiveMut, SplitMut, SplitNMut,
+    ChunkByMut, ChunksExactMut, ChunksMut, GetDisjointMutError, IterMut, RChunksExactMut, RChunksMut, RSplitMut,
+    RSplitNMut, SliceIndex, SplitInclusiveMut, SplitMut, SplitNMut,
 };
 
 use crate::builtin::UnsizeObserver;
 use crate::helper::macros::delegate_methods;
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::impls::slices::helper::GetDisjointMutIndexImpl;
 use crate::impls::vec::VecObserverState;
 use crate::observe::{DefaultSpec, Observer, RefObserve, RefObserver, SerializeObserver};
 use crate::{Mutations, Observe};
@@ -285,6 +287,14 @@ where
     S: AsDerefMut<D, Target = V::Target>,
     S::Target: AsMut<[T]>,
 {
+    fn nonempty_mut(&mut self) -> &mut [T] {
+        if (*self).untracked_ref().as_ref().is_empty() {
+            self.untracked_mut().as_mut()
+        } else {
+            self.tracked_mut().as_mut()
+        }
+    }
+
     delegate_methods! { force_mut() as slice =>
         pub fn first_mut(&mut self) -> Option<&mut V::Item>;
         pub fn last_mut(&mut self) -> Option<&mut V::Item>;
@@ -306,12 +316,8 @@ where
         self.untracked_mut().as_mut().swap(a, b);
     }
 
-    /// See [`slice::reverse`].
-    pub fn reverse(&mut self) {
-        if (*self).untracked_ref().as_ref().is_empty() {
-            return;
-        }
-        self.tracked_mut().as_mut().reverse();
+    delegate_methods! { nonempty_mut() as slice =>
+        pub fn reverse(&mut self);
     }
 
     delegate_methods! { force_mut() as slice =>
@@ -332,6 +338,54 @@ where
         pub fn rsplit_mut<F>(&mut self, pred: F) -> RSplitMut<'_, V::Item, F> where F: FnMut(&V::Item) -> bool;
         pub fn splitn_mut<F>(&mut self, n: usize, pred: F) -> SplitNMut<'_, V::Item, F> where F: FnMut(&V::Item) -> bool;
         pub fn rsplitn_mut<F>(&mut self, n: usize, pred: F) -> RSplitNMut<'_, V::Item, F> where F: FnMut(&V::Item) -> bool;
+    }
+
+    delegate_methods! { nonempty_mut() as slice =>
+        pub fn sort_unstable(&mut self) where T: Ord;
+        pub fn sort_unstable_by<F>(&mut self, compare: F) where F: FnMut(&T, &T) -> Ordering;
+        pub fn sort_unstable_by_key<K, F>(&mut self, f: F) where F: FnMut(&T) -> K, K: Ord;
+        pub fn select_nth_unstable(&mut self, index: usize) -> (&mut [T], &mut T, &mut [T]) where T: Ord;
+        pub fn select_nth_unstable_by<F>(&mut self, index: usize, compare: F) -> (&mut [T], &mut T, &mut [T]) where F: FnMut(&T, &T) -> Ordering;
+        pub fn select_nth_unstable_by_key<K, F>(&mut self, index: usize, f: F) -> (&mut [T], &mut T, &mut [T]) where F: FnMut(&T) -> K, K: Ord;
+        pub fn rotate_left(&mut self, mid: usize);
+        pub fn rotate_right(&mut self, k: usize);
+        pub fn fill(&mut self, value: T) where T: Clone;
+        pub fn fill_with<F>(&mut self, f: F) where F: FnMut() -> T;
+        pub fn clone_from_slice(&mut self, src: &[T]) where T: Clone;
+        pub fn copy_from_slice(&mut self, src: &[T]) where T: Copy;
+        pub fn copy_within<R: RangeBounds<usize>>(&mut self, src: R, dest: usize) where T: Copy;
+        pub fn swap_with_slice(&mut self, other: &mut [T]);
+        pub unsafe fn align_to_mut<U>(&mut self) -> (&mut [T], &mut [U], &mut [T]);
+    }
+
+    /// See [`slice::get_disjoint_unchecked_mut`].
+    ///
+    /// ## Safety
+    ///
+    /// See [`slice::get_disjoint_unchecked_mut`] for safety requirements.
+    pub unsafe fn get_disjoint_unchecked_mut<I, const N: usize>(&mut self, indices: [I; N]) -> [&mut I::Output; N]
+    where
+        I: GetDisjointMutIndexImpl<V::Item>,
+    {
+        unsafe { GetDisjointMutIndexImpl::get_disjoint_unchecked_mut(self.force_mut(), indices) }
+    }
+
+    /// See [`slice::get_disjoint_unchecked_mut`].
+    pub fn get_disjoint_mut<I, const N: usize>(
+        &mut self,
+        indices: [I; N],
+    ) -> Result<[&mut I::Output; N], GetDisjointMutError>
+    where
+        I: GetDisjointMutIndexImpl<V::Item>,
+    {
+        GetDisjointMutIndexImpl::get_disjoint_mut(self.force_mut(), indices)
+    }
+
+    delegate_methods! { nonempty_mut() as slice =>
+        pub fn sort(&mut self) where T: Ord;
+        pub fn sort_by<F>(&mut self, compare: F) where F: FnMut(&T, &T) -> Ordering;
+        pub fn sort_by_key<K, F>(&mut self, f: F) where F: FnMut(&T) -> K, K: Ord;
+        pub fn sort_by_cached_key<K, F>(&mut self, f: F) where F: FnMut(&T) -> K, K: Ord;
     }
 }
 
