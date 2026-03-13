@@ -173,52 +173,78 @@ macro_rules! default_impl_ref_observe {
 
 macro_rules! delegate_methods {
     ($($delegate:ident()).+ as $type:ident => $($tokens:tt)*) => {
-        delegate_methods!(@item ($($delegate()).+) as $type => () $($tokens)*);
+        delegate_methods!(@fn ($($delegate()).+) as $type => [] $($tokens)*);
     };
 
-    (@item ($($delegate:tt)*) as $type:ident => ()) => {};
+    (@fn ($($delegate:tt)*) as $type:ident => []) => {};
 
-    (@item ($($delegate:tt)*) as $type:ident => () $(#[$meta:meta])* pub fn $name:ident $($rest:tt)*) => {
-        delegate_methods!(@item ($($delegate)*) as $type => ($(#[$meta])* pub fn $name) $($rest)*);
+    (@fn ($($delegate:tt)*) as $type:ident => [] $(#[$meta:meta])* pub fn $name:ident $($rest:tt)*) => {
+        delegate_methods!(@fn ($($delegate)*) as $type => [$(#[$meta])* pub fn $name] $($rest)*);
     };
 
-    (@item ($($delegate:tt)*) as $type:ident => () $(#[$meta:meta])* pub unsafe fn $name:ident $($rest:tt)*) => {
-        delegate_methods!(@item ($($delegate)*) as $type => ($(#[$meta])* pub unsafe fn $name) $($rest)*);
+    (@fn ($($delegate:tt)*) as $type:ident => [] $(#[$meta:meta])* pub unsafe fn $name:ident $($rest:tt)*) => {
+        delegate_methods!(@fn ($($delegate)*) as $type => [$(#[$meta])* pub unsafe fn $name] $($rest)*);
     };
 
-    (@item ($($delegate:tt)*) as $type:ident => ($($sig:tt)*) -> $ty:ty; $($rest:tt)*) => {
-        delegate_methods!(@emit ($($delegate)*) as $type => $($sig)* -> $ty);
-        delegate_methods!(@item ($($delegate)*) as $type => () $($rest)*);
+    (@fn ($($delegate:tt)*) as $type:ident => [$($head:tt)*] ($($arg:tt)*) $(-> $ty:ty)?; $($rest:tt)*) => {
+        delegate_methods!(@impl ($($delegate)*) as $type => $($head)* [] ($($arg)*) $(-> $ty)?);
+        delegate_methods!(@fn ($($delegate)*) as $type => [] $($rest)*);
     };
 
-    (@item ($($delegate:tt)*) as $type:ident => ($($sig:tt)*) -> $ty:ty where $($rest:tt)*) => {
-        delegate_methods!(@item ($($delegate)*) as $type => ($($sig)* -> $ty where) $($rest)*);
+    (@fn ($($delegate:tt)*) as $type:ident => [$($head:tt)*] ($($arg:tt)*) $(-> $ty:ty)? where $($rest:tt)*) => {
+        delegate_methods!(@where ($($delegate)*) as $type => [$($head)*] [] (($($arg)*) $(-> $ty)? where) $($rest)*);
     };
 
-    (@item ($($delegate:tt)*) as $type:ident => ($($sig:tt)*) ; $($rest:tt)*) => {
-        delegate_methods!(@emit ($($delegate)*) as $type => $($sig)*);
-        delegate_methods!(@item ($($delegate)*) as $type => () $($rest)*);
+    (@fn ($($delegate:tt)*) as $type:ident => [$($head:tt)*] < $($rest:tt)*) => {
+        delegate_methods!(@gen ($($delegate)*) as $type => [$($head)*] [] $($rest)*);
     };
 
-    (@item ($($delegate:tt)*) as $type:ident => ($($sig:tt)*) $tt:tt $($rest:tt)*) => {
-        delegate_methods!(@item ($($delegate)*) as $type => ($($sig)* $tt) $($rest)*);
+    (@gen ($($delegate:tt)*) as $type:ident => [$($head:tt)*] [$($gen:tt)*] > ($($arg:tt)*) $(-> $ty:ty)?; $($rest:tt)*) => {
+        delegate_methods!(@impl ($($delegate)*) as $type => $($head)* [$($gen)*] ($($arg)*) $(-> $ty)?);
+        delegate_methods!(@fn ($($delegate)*) as $type => [] $($rest)*);
     };
 
-    (@emit ($($delegate:tt)*) as $type:ident =>
+    (@gen ($($delegate:tt)*) as $type:ident => [$($head:tt)*] [$($gen:tt)*] > ($($arg:tt)*) $(-> $ty:ty)? where $($rest:tt)*) => {
+        delegate_methods!(@where ($($delegate)*) as $type => [$($head)*] [$($gen)*] (($($arg)*) $(-> $ty)? where) $($rest)*);
+    };
+
+    (@gen ($($delegate:tt)*) as $type:ident => [$($head:tt)*] [$($gen:tt)*] >> ($($arg:tt)*) $(-> $ty:ty)?; $($rest:tt)*) => {
+        delegate_methods!(@impl ($($delegate)*) as $type => $($head)* [$($gen)* >] ($($arg)*) $(-> $ty)?);
+        delegate_methods!(@fn ($($delegate)*) as $type => [] $($rest)*);
+    };
+
+    (@gen ($($delegate:tt)*) as $type:ident => [$($head:tt)*] [$($gen:tt)*] >> ($($arg:tt)*) $(-> $ty:ty)? where $($rest:tt)*) => {
+        delegate_methods!(@where ($($delegate)*) as $type => [$($head)*] [$($gen)* >] (($($arg)*) $(-> $ty)? where) $($rest)*);
+    };
+
+    (@gen ($($delegate:tt)*) as $type:ident => [$($head:tt)*] [$($gen:tt)*] $tt:tt $($rest:tt)*) => {
+        delegate_methods!(@gen ($($delegate)*) as $type => [$($head)*] [$($gen)* $tt] $($rest)*);
+    };
+
+    (@where ($($delegate:tt)*) as $type:ident => [$($head:tt)*] [$($gen:tt)*] ($($tail:tt)*); $($rest:tt)*) => {
+        delegate_methods!(@impl ($($delegate)*) as $type => $($head)* [$($gen)*] $($tail)*);
+        delegate_methods!(@fn ($($delegate)*) as $type => [] $($rest)*);
+    };
+
+    (@where ($($delegate:tt)*) as $type:ident => [$($head:tt)*] [$($gen:tt)*] ($($tail:tt)*) $tt:tt $($rest:tt)*) => {
+        delegate_methods!(@where ($($delegate)*) as $type => [$($head)*] [$($gen)*] ($($tail)* $tt) $($rest)*);
+    };
+
+    (@impl ($($delegate:tt)*) as $type:ident =>
         $(#[$meta:meta])*
-        pub fn $name:ident $(<$($gen:tt),*>)? (&mut self $(, $arg:ident : $arg_ty:ty)*) $($rest:tt)*
+        pub fn $name:ident [$($gen:tt)*] (&mut self $(, $arg:ident : $arg_ty:ty)*) $($rest:tt)*
     ) => {
         $(#[$meta])*
         #[doc = ""]
         #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`].")]
-        pub fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $($rest)* {
+        pub fn $name <$($gen)*> (&mut self $(, $arg: $arg_ty)*) $($rest)* {
             self.$($delegate)*.$name($($arg),*)
         }
     };
 
-    (@emit ($($delegate:tt)*) as $type:ident =>
+    (@impl ($($delegate:tt)*) as $type:ident =>
         $(#[$meta:meta])*
-        pub unsafe fn $name:ident $(<$($gen:tt),*>)? (&mut self $(, $arg:ident : $arg_ty:ty)*) $($rest:tt)*
+        pub unsafe fn $name:ident [$($gen:tt)*] (&mut self $(, $arg:ident : $arg_ty:ty)*) $($rest:tt)*
     ) => {
         $(#[$meta])*
         #[doc = ""]
@@ -227,13 +253,9 @@ macro_rules! delegate_methods {
         #[doc = "## Safety"]
         #[doc = ""]
         #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`] for safety requirements.")]
-        pub unsafe fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $($rest)* {
+        pub unsafe fn $name <$($gen)*> (&mut self $(, $arg: $arg_ty)*) $($rest)* {
             unsafe { self.$($delegate)*.$name($($arg),*) }
         }
-    };
-
-    (@emit ($($delegate:tt)*) as $type:ident; $($bad:tt)*) => {
-        compile_error!("delegate_methods: invalid method declaration");
     };
 }
 
