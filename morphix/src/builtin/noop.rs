@@ -42,19 +42,16 @@ impl<T: ?Sized> ObserverState for NoopHandler<T> {
 impl<T: ?Sized> GeneralHandler for NoopHandler<T> {
     type Spec = DefaultSpec;
 
-    #[inline]
     fn uninit() -> Self {
         Self(PhantomData)
     }
 
-    #[inline]
     fn observe(_value: &T) -> Self {
         Self(PhantomData)
     }
 }
 
 impl<T: ?Sized> ReplaceHandler for NoopHandler<T> {
-    #[inline]
     unsafe fn is_replace(&self, _value: &T) -> bool {
         false
     }

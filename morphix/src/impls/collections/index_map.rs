@@ -39,7 +39,6 @@ struct IndexMapObserverState<K, O> {
 }
 
 impl<K, O> Default for IndexMapObserverState<K, O> {
-    #[inline]
     fn default() -> Self {
         Self {
             mutated: false,
@@ -56,7 +55,6 @@ where
 {
     type Target = IndexMap<K, O::Head>;
 
-    #[inline]
     fn invalidate(this: &mut Self, map: &Self::Target) {
         if !this.mutated {
             this.mutated = true;
@@ -113,7 +111,6 @@ where
         Some((key, value))
     }
 
-    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
@@ -130,7 +127,6 @@ impl<K, V, O, F> Debug for ExtractIf<'_, K, V, O, F>
 where
     F: FnMut(&K, &mut V) -> bool,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ExtractIf").finish_non_exhaustive()
     }
@@ -153,14 +149,12 @@ pub struct IndexMapObserver<K, O, S: ?Sized, D = Zero> {
 impl<K, O, S: ?Sized, D> Deref for IndexMapObserver<K, O, S, D> {
     type Target = Pointer<S>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.ptr
     }
 }
 
 impl<K, O, S: ?Sized, D> DerefMut for IndexMapObserver<K, O, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.ptr);
@@ -179,7 +173,6 @@ where
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         ObserverState::invalidate(&mut this.state, (*this.ptr).as_deref());
     }
@@ -193,7 +186,6 @@ where
     O::Head: Sized,
     K: Clone + Eq + Hash,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
@@ -202,12 +194,10 @@ where
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
             ptr: Pointer::new(head),
@@ -443,13 +433,11 @@ where
     }
 
     /// See [`IndexMap::iter_mut`].
-    #[inline]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut O)> + '_ {
         self.__force_all().iter_mut().map(|(k, v)| (k, v.as_mut()))
     }
 
     /// See [`IndexMap::values_mut`].
-    #[inline]
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut O> + '_ {
         self.__force_all().values_mut().map(|v| v.as_mut())
     }
@@ -528,7 +516,6 @@ where
     }
 
     /// See [`IndexMap::insert`].
-    #[inline]
     pub fn insert(&mut self, key: K, value: O::Head) -> Option<O::Head> {
         self.insert_full(key, value).1
     }
@@ -609,13 +596,11 @@ where
     }
 
     /// See [`IndexMap::append`].
-    #[inline]
     pub fn append(&mut self, other: &mut IndexMap<K, O::Head>) {
         self.extend(other.drain(..))
     }
 
     /// See [`IndexMap::get_mut`].
-    #[inline]
     pub fn get_mut<Q>(&mut self, key: &Q) -> Option<&mut O>
     where
         Q: Equivalent<K> + Hash + ?Sized,
@@ -624,7 +609,6 @@ where
     }
 
     /// See [`IndexMap::get_key_value_mut`].
-    #[inline]
     pub fn get_key_value_mut<Q>(&mut self, key: &Q) -> Option<(&K, &mut O)>
     where
         Q: Equivalent<K> + Hash + ?Sized,
@@ -652,7 +636,6 @@ where
     // TODO: get_disjoint_mut
 
     /// See [`IndexMap::swap_remove`].
-    #[inline]
     pub fn swap_remove<Q>(&mut self, key: &Q) -> Option<O::Head>
     where
         Q: ?Sized + Hash + Equivalent<K>,
@@ -661,7 +644,6 @@ where
     }
 
     /// See [`IndexMap::swap_remove_entry`].
-    #[inline]
     pub fn swap_remove_entry<Q>(&mut self, key: &Q) -> Option<(K, O::Head)>
     where
         Q: ?Sized + Hash + Equivalent<K>,
@@ -683,7 +665,6 @@ where
     }
 
     /// See [`IndexMap::shift_remove`].
-    #[inline]
     pub fn shift_remove<Q>(&mut self, key: &Q) -> Option<O::Head>
     where
         Q: ?Sized + Hash + Equivalent<K>,
@@ -692,7 +673,6 @@ where
     }
 
     /// See [`IndexMap::shift_remove_entry`].
-    #[inline]
     pub fn shift_remove_entry<Q>(&mut self, key: &Q) -> Option<(K, O::Head)>
     where
         Q: ?Sized + Hash + Equivalent<K>,
@@ -724,7 +704,6 @@ where
     }
 
     /// See [`IndexMap::retain`].
-    #[inline]
     pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&K, &mut O::Head) -> bool,
@@ -753,7 +732,6 @@ where
     // TODO: get_range_mut
 
     /// See [`IndexMap::first_mut`].
-    #[inline]
     pub fn first_mut(&mut self) -> Option<(&K, &mut O)> {
         self.get_index_mut(0)
     }
@@ -761,7 +739,6 @@ where
     // TODO: first_entry
 
     /// See [`IndexMap::last_mut`].
-    #[inline]
     pub fn last_mut(&mut self) -> Option<(&K, &mut O)> {
         let last = (*self.ptr).as_deref().len().checked_sub(1)?;
         self.get_index_mut(last)
@@ -798,7 +775,6 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     IndexMap<K, V>: Debug,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("IndexMapObserver").field(&self.untracked_ref()).finish()
     }
@@ -812,7 +788,6 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     IndexMap<K, V>: PartialEq,
 {
-    #[inline]
     fn eq(&self, other: &IndexMap<K, V>) -> bool {
         self.untracked_ref().eq(other)
     }
@@ -831,7 +806,6 @@ where
     O2: Observer<InnerDepth = Zero, Head = V2>,
     IndexMap<K1, V1>: PartialEq<IndexMap<K2, V2>>,
 {
-    #[inline]
     fn eq(&self, other: &IndexMapObserver<K2, O2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
@@ -857,7 +831,6 @@ where
 {
     type Output = O;
 
-    #[inline]
     fn index(&self, index: &'q Q) -> &Self::Output {
         self.get(index).expect("no entry found for key")
     }
@@ -871,7 +844,6 @@ where
     K: Clone + Eq + Hash,
     Q: Hash + Equivalent<K>,
 {
-    #[inline]
     fn index_mut(&mut self, index: &'q Q) -> &mut Self::Output {
         self.get_mut(index).expect("no entry found for key")
     }
@@ -887,7 +859,6 @@ where
 {
     type Output = O;
 
-    #[inline]
     fn index(&self, index: usize) -> &Self::Output {
         self.get_index(index).expect("index out of bounds").1
     }
@@ -901,7 +872,6 @@ where
     O::Head: Sized,
     K: Clone + Eq + Hash,
 {
-    #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.get_index_mut(index).expect("index out of bounds").1
     }
@@ -967,14 +937,12 @@ where
 {
     type Snapshot = IndexMap<K::Snapshot, V::Snapshot>;
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         self.iter()
             .map(|(key, value)| (key.to_snapshot(), value.to_snapshot()))
             .collect()
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.len() == snapshot.len()
             && self

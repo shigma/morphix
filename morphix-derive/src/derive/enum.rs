@@ -599,7 +599,6 @@ pub fn derive_observe_for_enum(
                     #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
                     #depth: ::morphix::helper::Unsigned,
                 {
-                    #[inline]
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                         ::std::fmt::#path::fmt(self.as_deref(), f)
                     }
@@ -616,7 +615,6 @@ pub fn derive_observe_for_enum(
                     #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
                     #depth: ::morphix::helper::Unsigned,
                 {
-                    #[inline]
                     fn eq(&self, other: &Self) -> bool {
                         self.as_deref().eq(other.as_deref())
                     }
@@ -645,7 +643,6 @@ pub fn derive_observe_for_enum(
                     #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
                     #depth: ::morphix::helper::Unsigned,
                 {
-                    #[inline]
                     fn partial_cmp(&self, other: &Self) -> ::std::option::Option<::std::cmp::Ordering> {
                         self.as_deref().partial_cmp(other.as_deref())
                     }
@@ -662,7 +659,6 @@ pub fn derive_observe_for_enum(
                     #head: ::morphix::helper::AsDeref<#depth, Target = #input_ident #input_type_generics>,
                     #depth: ::morphix::helper::Unsigned,
                 {
-                    #[inline]
                     fn cmp(&self, other: &Self) -> ::std::cmp::Ordering {
                         self.as_deref().cmp(other.as_deref())
                     }

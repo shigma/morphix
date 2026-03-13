@@ -31,12 +31,10 @@ where
 {
     type Snapshot = HashSet<T::Snapshot>;
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         self.iter().map(|item| item.to_snapshot()).collect()
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.len() == snapshot.len() && self.iter().all(|item| snapshot.contains(&item.to_snapshot()))
     }
@@ -69,7 +67,6 @@ where
     }
 
     /// See [`HashSet::clear`].
-    #[inline]
     pub fn clear(&mut self) {
         if (*self).untracked_ref().is_empty() {
             self.untracked_mut().clear()
@@ -85,7 +82,6 @@ where
     S: AsDerefMut<D, Target = HashSet<T>>,
     HashSet<T>: Extend<U>,
 {
-    #[inline]
     fn extend<I: IntoIterator<Item = U>>(&mut self, iter: I) {
         self.tracked_mut().extend(iter);
     }

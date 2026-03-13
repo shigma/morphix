@@ -38,7 +38,6 @@ struct HashMapObserverState<K, O> {
 }
 
 impl<K, O> Default for HashMapObserverState<K, O> {
-    #[inline]
     fn default() -> Self {
         Self {
             mutated: false,
@@ -55,7 +54,6 @@ where
 {
     type Target = HashMap<K, O::Head>;
 
-    #[inline]
     fn invalidate(this: &mut Self, map: &Self::Target) {
         if !this.mutated {
             this.mutated = true;
@@ -112,7 +110,6 @@ where
         Some((key, value))
     }
 
-    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
@@ -131,7 +128,6 @@ where
     V: Debug,
     F: FnMut(&K, &mut V) -> bool,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
@@ -154,14 +150,12 @@ pub struct HashMapObserver<K, O, S: ?Sized, D = Zero> {
 impl<K, O, S: ?Sized, D> Deref for HashMapObserver<K, O, S, D> {
     type Target = Pointer<S>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.ptr
     }
 }
 
 impl<K, O, S: ?Sized, D> DerefMut for HashMapObserver<K, O, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.ptr);
@@ -180,7 +174,6 @@ where
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         ObserverState::invalidate(&mut this.state, (*this.ptr).as_deref());
     }
@@ -194,7 +187,6 @@ where
     O::Head: Sized,
     K: Clone + Eq + Hash,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
@@ -203,12 +195,10 @@ where
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
             ptr: Pointer::new(head),
@@ -390,7 +380,6 @@ where
     }
 
     /// See [`HashMap::clear`].
-    #[inline]
     pub fn clear(&mut self) {
         self.state.inner.get_mut().clear();
         if (*self).untracked_ref().is_empty() {
@@ -457,7 +446,6 @@ where
     }
 
     /// See [`HashMap::retain`].
-    #[inline]
     pub fn retain<F>(&mut self, mut f: F)
     where
         K: Eq + Hash,
@@ -482,7 +470,6 @@ where
     }
 
     /// See [`HashMap::iter_mut`].
-    #[inline]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut O)> + '_
     where
         K: Eq + Hash,
@@ -491,7 +478,6 @@ where
     }
 
     /// See [`HashMap::values_mut`].
-    #[inline]
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut O> + '_
     where
         K: Eq + Hash,
@@ -508,7 +494,6 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     HashMap<K, V>: Debug,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("HashMapObserver").field(&self.untracked_ref()).finish()
     }
@@ -522,7 +507,6 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     HashMap<K, V>: PartialEq,
 {
-    #[inline]
     fn eq(&self, other: &HashMap<K, V>) -> bool {
         self.untracked_ref().eq(other)
     }
@@ -541,7 +525,6 @@ where
     O2: Observer<InnerDepth = Zero, Head = V2>,
     HashMap<K1, V1>: PartialEq<HashMap<K2, V2>>,
 {
-    #[inline]
     fn eq(&self, other: &HashMapObserver<K2, O2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
@@ -567,7 +550,6 @@ where
 {
     type Output = O;
 
-    #[inline]
     fn index(&self, index: &'q Q) -> &Self::Output {
         self.get(index).expect("no entry found for key")
     }
@@ -581,7 +563,6 @@ where
     K: Borrow<Q> + Clone + Eq + Hash,
     Q: Eq + Hash,
 {
-    #[inline]
     fn index_mut(&mut self, index: &'q Q) -> &mut Self::Output {
         self.get_mut(index).expect("no entry found for key")
     }
@@ -627,14 +608,12 @@ where
 {
     type Snapshot = HashMap<K::Snapshot, V::Snapshot>;
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         self.iter()
             .map(|(key, value)| (key.to_snapshot(), value.to_snapshot()))
             .collect()
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.len() == snapshot.len()
             && self

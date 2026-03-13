@@ -39,7 +39,6 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = str>,
 {
-    #[inline]
     fn as_mut(&mut self) -> &mut str {
         self.tracked_mut()
     }

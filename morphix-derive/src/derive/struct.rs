@@ -663,7 +663,6 @@ pub fn derive_observe_for_struct(
                     #ob_observer_predicates
                     #depth: ::morphix::helper::Unsigned,
                 {
-                    #[inline]
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                         let inner = ::morphix::helper::QuasiObserver::untracked_ref(self);
                         ::std::fmt::#path::fmt(inner, f)
@@ -701,7 +700,6 @@ pub fn derive_observe_for_struct(
                     #ob_observer_predicates
                     #depth: ::morphix::helper::Unsigned,
                 {
-                    #[inline]
                     fn eq(&self, other: &Self) -> bool {
                         let lhs = ::morphix::helper::QuasiObserver::untracked_ref(self);
                         let rhs = ::morphix::helper::QuasiObserver::untracked_ref(other);
@@ -734,7 +732,6 @@ pub fn derive_observe_for_struct(
                     #ob_observer_predicates
                     #depth: ::morphix::helper::Unsigned,
                 {
-                    #[inline]
                     fn partial_cmp(&self, other: &Self) -> ::std::option::Option<::std::cmp::Ordering> {
                         let lhs = ::morphix::helper::QuasiObserver::untracked_ref(self);
                         let rhs = ::morphix::helper::QuasiObserver::untracked_ref(other);
@@ -754,7 +751,6 @@ pub fn derive_observe_for_struct(
                     #ob_observer_predicates
                     #depth: ::morphix::helper::Unsigned,
                 {
-                    #[inline]
                     fn cmp(&self, other: &Self) -> ::std::cmp::Ordering {
                         let lhs = ::morphix::helper::QuasiObserver::untracked_ref(self);
                         let rhs = ::morphix::helper::QuasiObserver::untracked_ref(other);

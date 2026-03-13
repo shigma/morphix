@@ -16,14 +16,12 @@ pub struct TupleObserver<O, S: ?Sized, D = Zero>(pub O, Pointer<S>, PhantomData<
 impl<O, S: ?Sized, D> Deref for TupleObserver<O, S, D> {
     type Target = Pointer<S>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.1
     }
 }
 
 impl<O, S: ?Sized, D> DerefMut for TupleObserver<O, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.1);
@@ -41,7 +39,6 @@ where
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         O::invalidate(&mut this.0);
     }
@@ -54,12 +51,10 @@ where
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    #[inline]
     fn uninit() -> Self {
         Self(O::uninit(), Pointer::uninit(), PhantomData)
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let tuple = head.as_deref_mut();
         let ob = O::observe(&mut tuple.0);
@@ -69,7 +64,6 @@ where
         this
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         let tuple = head.as_deref_mut();
         unsafe { O::refresh(&mut this.0, &mut tuple.0) }
@@ -84,12 +78,10 @@ where
     O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    #[inline]
     fn uninit() -> Self {
         Self(O::uninit(), Pointer::uninit(), PhantomData)
     }
 
-    #[inline]
     fn observe(head: &Self::Head) -> Self {
         let tuple = head.as_deref();
         let this = Self(O::observe(&tuple.0), Pointer::new(head), PhantomData);
@@ -97,7 +89,6 @@ where
         this
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         Pointer::set(&this.1, head);
         let tuple = head.as_deref();
@@ -112,7 +103,6 @@ where
     O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized + 'static,
 {
-    #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
         let mutations_0 = unsafe { SerializeObserver::flush(&mut this.0) };
         if mutations_0.is_replace() {
@@ -132,7 +122,6 @@ where
     S: AsDeref<D>,
     S::Target: Debug,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("TupleObserver").field(&self.untracked_ref()).finish()
     }
@@ -145,7 +134,6 @@ where
     S: AsDeref<D>,
     S::Target: PartialEq<(U,)>,
 {
-    #[inline]
     fn eq(&self, other: &(U,)) -> bool {
         self.untracked_ref().eq(other)
     }
@@ -161,7 +149,6 @@ where
     S2: AsDeref<D2>,
     S1::Target: PartialEq<S2::Target>,
 {
-    #[inline]
     fn eq(&self, other: &TupleObserver<O2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
@@ -183,7 +170,6 @@ where
     S: AsDeref<D>,
     S::Target: PartialOrd<(U,)>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &(U,)) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other)
     }
@@ -199,7 +185,6 @@ where
     S2: AsDeref<D2>,
     S1::Target: PartialOrd<S2::Target>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &TupleObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other.untracked_ref())
     }
@@ -212,7 +197,6 @@ where
     S: AsDeref<D>,
     S::Target: Ord,
 {
-    #[inline]
     fn cmp(&self, other: &TupleObserver<O, S, D>) -> std::cmp::Ordering {
         self.untracked_ref().cmp(other.untracked_ref())
     }
@@ -235,12 +219,10 @@ spec_impl_ref_observe! {
 impl<T: Snapshot> Snapshot for (T,) {
     type Snapshot = (T::Snapshot,);
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         (self.0.to_snapshot(),)
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.0.eq_snapshot(&snapshot.0)
     }
@@ -258,7 +240,6 @@ macro_rules! tuple_observer {
         impl<$($o,)* S: ?Sized, D> Deref for $ty<$($o,)* S, D> {
             type Target = Pointer<S>;
 
-            #[inline]
             fn deref(&self) -> &Self::Target {
                 &self.$ptr
             }
@@ -268,7 +249,6 @@ macro_rules! tuple_observer {
         where
             $($o: QuasiObserver<Target: Deref<Target: AsDeref<$o::InnerDepth>>>,)*
         {
-            #[inline]
             fn deref_mut(&mut self) -> &mut Self::Target {
                 std::ptr::from_mut(self).expose_provenance();
                 Pointer::invalidate(&mut self.$ptr);
@@ -286,7 +266,6 @@ macro_rules! tuple_observer {
             type OuterDepth = Succ<Zero>;
             type InnerDepth = D;
 
-            #[inline]
             fn invalidate(this: &mut Self) {
                 $($o::invalidate(&mut this.$n);)*
             }
@@ -298,7 +277,6 @@ macro_rules! tuple_observer {
             S: AsDerefMut<D, Target = ($($o::Head,)*)>,
             $($o: Observer<InnerDepth = Zero, Head: Sized>,)*
         {
-            #[inline]
             fn uninit() -> Self {
                 Self(
                     $($o::uninit(),)*
@@ -307,7 +285,6 @@ macro_rules! tuple_observer {
                 )
             }
 
-            #[inline]
             fn observe(head: &mut Self::Head) -> Self {
                 let tuple = head.as_deref_mut();
                 let this = Self(
@@ -319,7 +296,6 @@ macro_rules! tuple_observer {
                 this
             }
 
-            #[inline]
             unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
                 let tuple = head.as_deref_mut();
                 unsafe {
@@ -335,7 +311,6 @@ macro_rules! tuple_observer {
             S: AsDeref<D, Target = ($($o::Head,)*)>,
             $($o: RefObserver<InnerDepth = Zero, Head: Sized>,)*
         {
-            #[inline]
             fn uninit() -> Self {
                 Self(
                     $($o::uninit(),)*
@@ -344,7 +319,6 @@ macro_rules! tuple_observer {
                 )
             }
 
-            #[inline]
             fn observe(head: &Self::Head) -> Self {
                 let tuple = head.as_deref();
                 let this = Self(
@@ -356,7 +330,6 @@ macro_rules! tuple_observer {
                 this
             }
 
-            #[inline]
             unsafe fn refresh(this: &mut Self, head: &Self::Head) {
                 Pointer::set(&this.$ptr, head);
                 let tuple = head.as_deref();
@@ -372,7 +345,6 @@ macro_rules! tuple_observer {
             S: AsDeref<D, Target = ($($o::Head,)*)>,
             $($o: SerializeObserver<InnerDepth = Zero, Head: Serialize + Sized + 'static>,)*
         {
-            #[inline]
             unsafe fn flush(this: &mut Self) -> Mutations {
                 let mutations_tuple = ($(unsafe { SerializeObserver::flush(&mut this.$n) },)*);
                 let capacity = 0 $(+ mutations_tuple.$n.is_replace() as usize)*;
@@ -394,7 +366,6 @@ macro_rules! tuple_observer {
             S: AsDeref<D>,
             S::Target: Debug,
         {
-            #[inline]
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 f.debug_tuple(stringify!($ty)).field(&self.untracked_ref()).finish()
             }
@@ -407,7 +378,6 @@ macro_rules! tuple_observer {
             S: AsDeref<D>,
             S::Target: PartialEq<(U,)>,
         {
-            #[inline]
             fn eq(&self, other: &(U,)) -> bool {
                 self.untracked_ref().eq(other)
             }
@@ -424,7 +394,6 @@ macro_rules! tuple_observer {
             S2: AsDeref<D2>,
             S1::Target: PartialEq<S2::Target>,
         {
-            #[inline]
             fn eq(&self, other: &$ty<$($p,)* S2, D2>) -> bool {
                 self.untracked_ref().eq(other.untracked_ref())
             }
@@ -446,7 +415,6 @@ macro_rules! tuple_observer {
             S: AsDeref<D>,
             S::Target: PartialOrd<(U,)>,
         {
-            #[inline]
             fn partial_cmp(&self, other: &(U,)) -> Option<std::cmp::Ordering> {
                 self.untracked_ref().partial_cmp(other)
             }
@@ -463,7 +431,6 @@ macro_rules! tuple_observer {
             S2: AsDeref<D2>,
             S1::Target: PartialOrd<S2::Target>,
         {
-            #[inline]
             fn partial_cmp(&self, other: &$ty<$($p,)* S2, D2>) -> Option<std::cmp::Ordering> {
                 self.untracked_ref().partial_cmp(other.untracked_ref())
             }
@@ -476,7 +443,6 @@ macro_rules! tuple_observer {
             S: AsDeref<D>,
             S::Target: Ord,
         {
-            #[inline]
             fn cmp(&self, other: &$ty<$($o,)* S, D>) -> std::cmp::Ordering {
                 self.untracked_ref().cmp(other.untracked_ref())
             }
@@ -515,12 +481,10 @@ macro_rules! tuple_observer {
         impl<$($t: Snapshot,)*> Snapshot for ($($t,)*) {
             type Snapshot = ($($t::Snapshot,)*);
 
-            #[inline]
             fn to_snapshot(&self) -> Self::Snapshot {
                 ($(self.$n.to_snapshot(),)*)
             }
 
-            #[inline]
             fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
                 $(self.$n.eq_snapshot(&snapshot.$n))&&+
             }

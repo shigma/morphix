@@ -98,7 +98,6 @@ impl<T: Snapshot + ?Sized> ObserverState for SnapshotHandler<T> {
 impl<T: Snapshot + ?Sized> GeneralHandler for SnapshotHandler<T> {
     type Spec = SnapshotSpec;
 
-    #[inline]
     fn uninit() -> Self {
         Self {
             snapshot: MaybeUninit::uninit(),
@@ -106,7 +105,6 @@ impl<T: Snapshot + ?Sized> GeneralHandler for SnapshotHandler<T> {
         }
     }
 
-    #[inline]
     fn observe(value: &T) -> Self {
         Self {
             snapshot: MaybeUninit::new(value.to_snapshot()),
@@ -116,7 +114,6 @@ impl<T: Snapshot + ?Sized> GeneralHandler for SnapshotHandler<T> {
 }
 
 impl<T: Snapshot + ?Sized> ReplaceHandler for SnapshotHandler<T> {
-    #[inline]
     unsafe fn is_replace(&self, value: &T) -> bool {
         // SAFETY: only called from `flush`, where the observer contains a valid pointer
         !value.eq_snapshot(unsafe { self.snapshot.assume_init_ref() })
@@ -139,11 +136,9 @@ macro_rules! impl_snapshot_observe {
         $(
             impl Snapshot for $ty {
                 type Snapshot = Self;
-                #[inline]
                 fn to_snapshot(&self) -> Self {
                     *self
                 }
-                #[inline]
                 fn eq_snapshot(&self, snapshot: &Self) -> bool {
                     self == snapshot
                 }
@@ -200,11 +195,9 @@ macro_rules! generic_impl_snapshot_observe {
         $(
             impl<$($($gen)*)?> Snapshot for $ty {
                 type Snapshot = Self;
-                #[inline]
                 fn to_snapshot(&self) -> Self {
                     self.clone()
                 }
-                #[inline]
                 fn eq_snapshot(&self, snapshot: &Self) -> bool {
                     self == snapshot
                 }

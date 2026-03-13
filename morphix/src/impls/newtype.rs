@@ -21,12 +21,10 @@ pub trait Newtype {
 impl<T> Newtype for Wrapping<T> {
     type Inner = T;
 
-    #[inline]
     fn as_inner(&self) -> &T {
         &self.0
     }
 
-    #[inline]
     fn as_inner_mut(&mut self) -> &mut T {
         &mut self.0
     }
@@ -35,12 +33,10 @@ impl<T> Newtype for Wrapping<T> {
 impl<T> Newtype for Saturating<T> {
     type Inner = T;
 
-    #[inline]
     fn as_inner(&self) -> &T {
         &self.0
     }
 
-    #[inline]
     fn as_inner_mut(&mut self) -> &mut T {
         &mut self.0
     }
@@ -49,12 +45,10 @@ impl<T> Newtype for Saturating<T> {
 impl<T> Newtype for Reverse<T> {
     type Inner = T;
 
-    #[inline]
     fn as_inner(&self) -> &T {
         &self.0
     }
 
-    #[inline]
     fn as_inner_mut(&mut self) -> &mut T {
         &mut self.0
     }
@@ -67,14 +61,12 @@ pub struct NewtypeObserver<O, S: ?Sized, D = Zero>(pub O, Pointer<S>, PhantomDat
 impl<O, S: ?Sized, D> Deref for NewtypeObserver<O, S, D> {
     type Target = Pointer<S>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.1
     }
 }
 
 impl<O, S: ?Sized, D> DerefMut for NewtypeObserver<O, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.1);
@@ -92,7 +84,6 @@ where
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         O::invalidate(&mut this.0);
     }
@@ -105,12 +96,10 @@ where
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    #[inline]
     fn uninit() -> Self {
         Self(O::uninit(), Pointer::uninit(), PhantomData)
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let value = head.as_deref_mut();
         let ob = O::observe(value.as_inner_mut());
@@ -120,7 +109,6 @@ where
         this
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         let value = head.as_deref_mut();
         unsafe { O::refresh(&mut this.0, value.as_inner_mut()) }
@@ -135,12 +123,10 @@ where
     O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    #[inline]
     fn uninit() -> Self {
         Self(O::uninit(), Pointer::uninit(), PhantomData)
     }
 
-    #[inline]
     fn observe(head: &Self::Head) -> Self {
         let value = head.as_deref();
         let this = Self(O::observe(value.as_inner()), Pointer::new(head), PhantomData);
@@ -148,7 +134,6 @@ where
         this
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         Pointer::set(&this.1, head);
         let value = head.as_deref();
@@ -162,12 +147,10 @@ where
     S: AsDeref<D, Target: Newtype<Inner = O::Head>>,
     O: SerializeObserver<InnerDepth = Zero, Head: Sized>,
 {
-    #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
         unsafe { SerializeObserver::flush(&mut this.0) }
     }
 
-    #[inline]
     unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
         unsafe { SerializeObserver::flat_flush(&mut this.0) }
     }
@@ -180,7 +163,6 @@ where
     S: AsDeref<D>,
     S::Target: Debug,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("NewtypeObserver").field(&self.untracked_ref()).finish()
     }
@@ -196,7 +178,6 @@ where
     S2: AsDeref<D2>,
     S1::Target: PartialEq<S2::Target>,
 {
-    #[inline]
     fn eq(&self, other: &NewtypeObserver<O2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
@@ -221,7 +202,6 @@ where
     S2: AsDeref<D2>,
     S1::Target: PartialOrd<S2::Target>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &NewtypeObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other.untracked_ref())
     }
@@ -234,7 +214,6 @@ where
     S: AsDeref<D>,
     S::Target: Ord,
 {
-    #[inline]
     fn cmp(&self, other: &NewtypeObserver<O, S, D>) -> std::cmp::Ordering {
         self.untracked_ref().cmp(other.untracked_ref())
     }
@@ -250,7 +229,6 @@ macro_rules! impl_fmt {
                 S: AsDeref<D>,
                 S::Target: std::fmt::$trait,
             {
-                #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     std::fmt::$trait::fmt(self.untracked_ref(), f)
                 }
@@ -279,7 +257,6 @@ macro_rules! impl_ops_assign {
                 D: Unsigned,
                 S::Target: std::ops::$trait<U>,
             {
-                #[inline]
                 fn $method(&mut self, rhs: U) {
                     self.tracked_mut().$method(rhs);
                 }
@@ -313,7 +290,6 @@ macro_rules! impl_ops_copy {
             {
                 type Output = <S::Target as std::ops::$trait<U>>::Output;
 
-                #[inline]
                 fn $method(self, rhs: U) -> Self::Output {
                     self.untracked_ref().$method(rhs)
                 }
@@ -347,7 +323,6 @@ macro_rules! impl_ops_copy_unary {
             {
                 type Output = <S::Target as std::ops::$trait>::Output;
 
-                #[inline]
                 fn $method(self) -> Self::Output {
                     (*self.untracked_ref()).$method()
                 }
@@ -369,12 +344,10 @@ macro_rules! impl_newtype {
         impl<T: Snapshot> Snapshot for $wrapper<T> {
             type Snapshot = T::Snapshot;
 
-            #[inline]
             fn to_snapshot(&self) -> Self::Snapshot {
                 self.0.to_snapshot()
             }
 
-            #[inline]
             fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
                 self.0.eq_snapshot(snapshot)
             }
@@ -387,7 +360,6 @@ macro_rules! impl_newtype {
             S: AsDeref<D>,
             S::Target: PartialEq<$wrapper<U>>,
         {
-            #[inline]
             fn eq(&self, other: &$wrapper<U>) -> bool {
                 self.untracked_ref().eq(other)
             }
@@ -400,7 +372,6 @@ macro_rules! impl_newtype {
             S: AsDeref<D>,
             S::Target: PartialOrd<$wrapper<U>>,
         {
-            #[inline]
             fn partial_cmp(&self, other: &$wrapper<U>) -> Option<std::cmp::Ordering> {
                 self.untracked_ref().partial_cmp(other)
             }

@@ -30,7 +30,6 @@ use crate::helper::{AsDeref, AsDerefMut, AsDerefMutCoinductive, Pointer, Unsigne
 pub trait DerefMutUntracked: DerefMut {
     /// Traverses the coinductive dereference chain to reach the underlying value without triggering
     /// any observer [`DerefMut`] hooks (if possible).
-    #[inline]
     fn deref_mut_untracked<'a, U, D>(this: &'a mut U) -> &'a mut Self::Target
     where
         Self: 'a,
@@ -44,7 +43,6 @@ pub trait DerefMutUntracked: DerefMut {
 impl<T: ?Sized> DerefMutUntracked for &mut T {}
 
 impl<S: ?Sized> DerefMutUntracked for Pointer<S> {
-    #[inline]
     fn deref_mut_untracked<'a, U, D>(this: &'a mut U) -> &'a mut Self::Target
     where
         Self: 'a,
@@ -131,7 +129,6 @@ pub trait QuasiObserver: AsDerefMutCoinductive<Self::OuterDepth, Target: Deref<T
     ///
     /// The [`observe!`](crate::observe!) macro calls this method on both sides of comparison
     /// operators.
-    #[inline]
     fn untracked_ref<T: ?Sized>(&self) -> &T
     where
         Self::Head: AsDeref<Self::InnerDepth, Target = T>,
@@ -163,7 +160,6 @@ pub trait QuasiObserver: AsDerefMutCoinductive<Self::OuterDepth, Target: Deref<T
     ///     }
     /// }
     /// ```
-    #[inline]
     fn untracked_mut<T: ?Sized>(&mut self) -> &mut T
     where
         Self::Target: DerefMutUntracked,
@@ -180,7 +176,6 @@ pub trait QuasiObserver: AsDerefMutCoinductive<Self::OuterDepth, Target: Deref<T
     ///
     /// The [`observe!`](crate::observe!) macro calls this method on the left-hand side of
     /// assignment operators.
-    #[inline]
     fn tracked_mut<T: ?Sized>(&mut self) -> &mut T
     where
         Self::Target: DerefMutUntracked,

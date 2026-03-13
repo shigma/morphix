@@ -22,7 +22,6 @@ where
 {
     type Target = Option<O::Head>;
 
-    #[inline]
     fn invalidate(this: &mut Self, _value: &Self::Target) {
         this.mutated = true;
         this.inner = None;
@@ -39,14 +38,12 @@ pub struct OptionObserver<O, S: ?Sized, D = Zero> {
 impl<O, S: ?Sized, D> Deref for OptionObserver<O, S, D> {
     type Target = Pointer<S>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.ptr
     }
 }
 
 impl<O, S: ?Sized, D> DerefMut for OptionObserver<O, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.ptr);
@@ -64,7 +61,6 @@ where
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         ObserverState::invalidate(&mut this.state, (*this.ptr).as_deref());
     }
@@ -77,7 +73,6 @@ where
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
@@ -90,7 +85,6 @@ where
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         if let (Some(inner), Some(value)) = (&mut this.state.inner, head.as_deref_mut().as_mut()) {
             unsafe { O::force(inner, value) }
@@ -98,7 +92,6 @@ where
         Pointer::set(this, head);
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
             state: OptionObserverState {
@@ -121,7 +114,6 @@ where
     O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
@@ -134,7 +126,6 @@ where
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         Pointer::set(this, head);
         if let (Some(inner), Some(value)) = (&mut this.state.inner, head.as_deref().as_ref()) {
@@ -142,7 +133,6 @@ where
         }
     }
 
-    #[inline]
     fn observe(head: &Self::Head) -> Self {
         let this = Self {
             ptr: Pointer::new(head),
@@ -190,7 +180,6 @@ where
     O::Head: Sized,
 {
     /// See [`Option::as_mut`].
-    #[inline]
     pub fn as_mut(&mut self) -> Option<&mut O> {
         let value = (*self.ptr).as_deref_mut().as_mut()?;
         let inner = self.state.inner.get_or_insert_with(O::uninit);
@@ -199,20 +188,17 @@ where
     }
 
     /// See [`Option::insert`].
-    #[inline]
     pub fn insert(&mut self, value: O::Head) -> &mut O {
         *self.tracked_mut() = Some(value);
         self.as_mut().unwrap()
     }
 
     /// See [`Option::get_or_insert`].
-    #[inline]
     pub fn get_or_insert(&mut self, value: O::Head) -> &mut O {
         self.get_or_insert_with(|| value)
     }
 
     /// See [`Option::get_or_insert_default`].
-    #[inline]
     pub fn get_or_insert_default(&mut self) -> &mut O
     where
         O::Head: Default,
@@ -221,7 +207,6 @@ where
     }
 
     /// See [`Option::get_or_insert_with`].
-    #[inline]
     pub fn get_or_insert_with<F>(&mut self, f: F) -> &mut O
     where
         F: FnOnce() -> O::Head,
@@ -239,7 +224,6 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = Option<O::Head>>,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("OptionObserver").field(&self.untracked_ref()).finish()
     }
@@ -252,7 +236,6 @@ where
     S: AsDeref<D, Target = Option<O::Head>>,
     Option<O::Head>: PartialEq<Option<U>>,
 {
-    #[inline]
     fn eq(&self, other: &Option<U>) -> bool {
         self.untracked_ref().eq(other)
     }
@@ -268,7 +251,6 @@ where
     S2: AsDeref<D2, Target = Option<O2::Head>>,
     Option<O1::Head>: PartialEq<Option<O2::Head>>,
 {
-    #[inline]
     fn eq(&self, other: &OptionObserver<O2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
@@ -289,7 +271,6 @@ where
     S: AsDeref<D, Target = Option<O::Head>>,
     Option<O::Head>: PartialOrd<Option<U>>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &Option<U>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other)
     }
@@ -305,7 +286,6 @@ where
     S2: AsDeref<D2, Target = Option<O2::Head>>,
     Option<O1::Head>: PartialOrd<Option<O2::Head>>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &OptionObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other.untracked_ref())
     }
@@ -317,7 +297,6 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = Option<O::Head>>,
 {
-    #[inline]
     fn cmp(&self, other: &OptionObserver<O, S, D>) -> std::cmp::Ordering {
         self.untracked_ref().cmp(other.untracked_ref())
     }
@@ -329,12 +308,10 @@ spec_impl_ref_observe!(OptionRefObserveImpl, Option<Self>, Option<T>, OptionObse
 impl<T: Snapshot> Snapshot for Option<T> {
     type Snapshot = Option<T::Snapshot>;
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         self.as_ref().map(|v| v.to_snapshot())
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         match (self, snapshot) {
             (Some(v), Some(snapshot)) => v.eq_snapshot(snapshot),

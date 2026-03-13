@@ -27,14 +27,12 @@ macro_rules! impl_range {
             impl<O, S: ?Sized, D> Deref for $ob<O, S, D> {
                 type Target = Pointer<S>;
 
-                #[inline]
                 fn deref(&self) -> &Self::Target {
                     &self.ptr
                 }
             }
 
             impl<O, S: ?Sized, D> DerefMut for $ob<O, S, D> {
-                #[inline]
                 fn deref_mut(&mut self) -> &mut Self::Target {
                     std::ptr::from_mut(self).expose_provenance();
                     Pointer::invalidate(&mut self.ptr);
@@ -52,7 +50,6 @@ macro_rules! impl_range {
                 type OuterDepth = Succ<Zero>;
                 type InnerDepth = D;
 
-                #[inline]
                 fn invalidate(this: &mut Self) {
                     $(O::invalidate(&mut this.$field);)*
                 }
@@ -65,7 +62,6 @@ macro_rules! impl_range {
                 O: Observer<InnerDepth = Zero>,
                 O::Head: Sized,
             {
-                #[inline]
                 fn uninit() -> Self {
                     Self {
                         ptr: Pointer::uninit(),
@@ -74,7 +70,6 @@ macro_rules! impl_range {
                     }
                 }
 
-                #[inline]
                 fn observe(head: &mut Self::Head) -> Self {
                     let value = head.as_deref_mut();
                     let this = Self {
@@ -86,7 +81,6 @@ macro_rules! impl_range {
                     this
                 }
 
-                #[inline]
                 unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
                     let value = head.as_deref_mut();
                     unsafe {
@@ -103,7 +97,6 @@ macro_rules! impl_range {
                 O: RefObserver<InnerDepth = Zero>,
                 O::Head: Sized,
             {
-                #[inline]
                 fn uninit() -> Self {
                     Self {
                         $($field: O::uninit(),)*
@@ -112,7 +105,6 @@ macro_rules! impl_range {
                     }
                 }
 
-                #[inline]
                 fn observe(head: &Self::Head) -> Self {
                     let value = head.as_deref();
                     let this = Self {
@@ -124,7 +116,6 @@ macro_rules! impl_range {
                     this
                 }
 
-                #[inline]
                 unsafe fn refresh(this: &mut Self, head: &Self::Head) {
                     Pointer::set(this, head);
                     let value = head.as_deref();
@@ -172,7 +163,6 @@ macro_rules! impl_range {
                 S: AsDeref<D>,
                 S::Target: Debug,
             {
-                #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     f.debug_tuple(stringify!($ob)).field(&self.untracked_ref()).finish()
                 }
@@ -185,7 +175,6 @@ macro_rules! impl_range {
                 S: AsDeref<D>,
                 S::Target: PartialEq<$ty<U>>,
             {
-                #[inline]
                 fn eq(&self, other: &$ty<U>) -> bool {
                     self.untracked_ref().eq(other)
                 }
@@ -201,7 +190,6 @@ macro_rules! impl_range {
                 S2: AsDeref<D2>,
                 S1::Target: PartialEq<S2::Target>,
             {
-                #[inline]
                 fn eq(&self, other: &$ob<O2, S2, D2>) -> bool {
                     self.untracked_ref().eq(other.untracked_ref())
                 }
@@ -222,14 +210,12 @@ macro_rules! impl_range {
             impl<T: Snapshot> Snapshot for $ty<T> {
                 type Snapshot = $ty<T::Snapshot>;
 
-                #[inline]
                 fn to_snapshot(&self) -> Self::Snapshot {
                     $ty {
                         $($field: self.$field.to_snapshot(),)*
                     }
                 }
 
-                #[inline]
                 fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
                     $(self.$field.eq_snapshot(&snapshot.$field))&&*
                 }
@@ -255,14 +241,12 @@ pub struct RangeInclusiveObserver<O, S: ?Sized, D = Zero> {
 impl<O, S: ?Sized, D> Deref for RangeInclusiveObserver<O, S, D> {
     type Target = Pointer<S>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.ptr
     }
 }
 
 impl<O, S: ?Sized, D> DerefMut for RangeInclusiveObserver<O, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.ptr);
@@ -280,7 +264,6 @@ where
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         O::invalidate(&mut this.start);
         O::invalidate(&mut this.end);
@@ -294,7 +277,6 @@ where
     O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             start: O::uninit(),
@@ -304,7 +286,6 @@ where
         }
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let value = (*head).as_deref();
         let this = Self {
@@ -318,7 +299,6 @@ where
         this
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         let value = (*head).as_deref();
         unsafe {
@@ -336,7 +316,6 @@ where
     O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             start: O::uninit(),
@@ -346,7 +325,6 @@ where
         }
     }
 
-    #[inline]
     fn observe(head: &Self::Head) -> Self {
         let value = head.as_deref();
         let this = Self {
@@ -360,7 +338,6 @@ where
         this
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         Pointer::set(this, head);
         let value = head.as_deref();
@@ -409,7 +386,6 @@ where
     S: AsDeref<D>,
     S::Target: Debug,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("RangeInclusiveObserver")
             .field(&self.untracked_ref())
@@ -424,7 +400,6 @@ where
     S: AsDeref<D>,
     S::Target: PartialEq<RangeInclusive<U>>,
 {
-    #[inline]
     fn eq(&self, other: &RangeInclusive<U>) -> bool {
         self.untracked_ref().eq(other)
     }
@@ -441,7 +416,6 @@ where
     S2: AsDeref<D2>,
     S1::Target: PartialEq<S2::Target>,
 {
-    #[inline]
     fn eq(&self, other: &RangeInclusiveObserver<O2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
@@ -473,12 +447,10 @@ spec_impl_ref_observe!(
 impl<T: Snapshot> Snapshot for RangeInclusive<T> {
     type Snapshot = (T::Snapshot, T::Snapshot);
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         (self.start().to_snapshot(), self.end().to_snapshot())
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.start().eq_snapshot(&snapshot.0) && self.end().eq_snapshot(&snapshot.1)
     }

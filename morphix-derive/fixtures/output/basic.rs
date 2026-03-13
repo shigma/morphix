@@ -172,7 +172,6 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
-        #[inline]
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             let inner = ::morphix::helper::QuasiObserver::untracked_ref(self);
             ::std::fmt::Display::fmt(inner, f)
@@ -419,7 +418,6 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
-        #[inline]
         fn eq(&self, other: &Self) -> bool {
             let lhs = ::morphix::helper::QuasiObserver::untracked_ref(self);
             let rhs = ::morphix::helper::QuasiObserver::untracked_ref(other);
@@ -438,7 +436,6 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
-        #[inline]
         fn partial_cmp(
             &self,
             other: &Self,
@@ -454,7 +451,6 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
-        #[inline]
         fn cmp(&self, other: &Self) -> ::std::cmp::Ordering {
             let lhs = ::morphix::helper::QuasiObserver::untracked_ref(self);
             let rhs = ::morphix::helper::QuasiObserver::untracked_ref(other);

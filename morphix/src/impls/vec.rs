@@ -51,13 +51,11 @@ pub struct VecObserverState<O> {
 }
 
 impl<O> VecObserverState<O> {
-    #[inline]
     fn mark_truncate(&mut self, new_len: usize) {
         self.truncate_len += self.append_index - new_len;
         self.append_index = new_len;
     }
 
-    #[inline]
     fn mark_replace(&mut self) {
         self.inner.get_mut().clear();
         self.mark_truncate(0);
@@ -70,7 +68,6 @@ where
 {
     type Target = [O::Head];
 
-    #[inline]
     fn invalidate(this: &mut Self, _: &[O::Head]) {
         this.mark_replace();
     }
@@ -82,7 +79,6 @@ where
 {
     type Item = O;
 
-    #[inline]
     fn uninit() -> Self {
         Self {
             truncate_len: 0,
@@ -91,7 +87,6 @@ where
         }
     }
 
-    #[inline]
     fn observe(slice: &mut Self::Target) -> Self {
         Self {
             truncate_len: 0,
@@ -100,12 +95,10 @@ where
         }
     }
 
-    #[inline]
     fn as_slice(&self) -> &[Self::Item] {
         unsafe { &*self.inner.get() }
     }
 
-    #[inline]
     fn as_mut_slice(&mut self) -> &mut [Self::Item] {
         self.inner.get_mut()
     }
@@ -170,14 +163,12 @@ pub struct VecObserver<O, S: ?Sized, D = Zero> {
 impl<O, S: ?Sized, D> Deref for VecObserver<O, S, D> {
     type Target = SliceObserver<VecObserverState<O>, S, Succ<D>>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
 impl<O, S: ?Sized, D> DerefMut for VecObserver<O, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
@@ -193,7 +184,6 @@ where
     type OuterDepth = Succ<Succ<Zero>>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         // SliceObserver::invalidate(&mut this.inner);
         ObserverState::invalidate(&mut this.inner.state, (*this.inner.ptr).as_deref());
@@ -206,21 +196,18 @@ where
     S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             inner: Observer::uninit(),
         }
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         Self {
             inner: Observer::observe(head),
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         unsafe { Observer::refresh(&mut this.inner, head) }
     }
@@ -233,7 +220,6 @@ where
     O: Observer<InnerDepth = Zero, Head = T> + SerializeObserver,
     T: Serialize + 'static,
 {
-    #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
         unsafe { SliceObserver::flush(&mut this.inner) }
     }
@@ -255,13 +241,11 @@ where
     }
 
     /// See [`Vec::as_slice`].
-    #[inline]
     pub fn as_slice(&self) -> &[O] {
         self.__force_ref()
     }
 
     /// See [`Vec::as_mut_slice`].
-    #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [O] {
         self.__force_mut()
     }
@@ -280,7 +264,6 @@ where
     }
 
     /// See [`Vec::insert`].
-    #[inline]
     pub fn insert(&mut self, index: usize, element: T) {
         if index >= self.state.append_index {
             self.untracked_mut().insert(index, element)
@@ -298,7 +281,6 @@ where
     O: Observer<InnerDepth = Zero, Head = T>,
 {
     /// See [`Vec::clear`].
-    #[inline]
     pub fn clear(&mut self) {
         if self.state.append_index == 0 {
             self.untracked_mut().clear()
@@ -348,7 +330,6 @@ where
     }
 
     /// See [`Vec::pop_if`].
-    #[inline]
     pub fn pop_if(&mut self, predicate: impl FnOnce(&mut O) -> bool) -> Option<T> {
         let last = self.last_mut()?;
         if predicate(last) { self.pop() } else { None }
@@ -380,7 +361,6 @@ where
     }
 
     /// See [`Vec::resize_with`].
-    #[inline]
     pub fn resize_with<F>(&mut self, new_len: usize, f: F)
     where
         F: FnMut() -> T,
@@ -453,7 +433,6 @@ where
     }
 
     /// See [`Vec::retain`].
-    #[inline]
     pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&T) -> bool,
@@ -517,7 +496,6 @@ where
         Some(value)
     }
 
-    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
@@ -537,7 +515,6 @@ where
     O: Observer<InnerDepth = Zero, Head: Debug + Sized>,
     F: FnMut(&mut O::Head) -> bool,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
@@ -567,7 +544,6 @@ where
     T: Clone,
 {
     /// See [`Vec::resize`].
-    #[inline]
     pub fn resize(&mut self, new_len: usize, value: T) {
         self.untracked_mut().resize(new_len, value);
         if new_len >= self.state.append_index {
@@ -588,7 +564,6 @@ where
     O: Observer<InnerDepth = Zero, Head = T>,
     Vec<T>: Extend<U>,
 {
-    #[inline]
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
         self.untracked_mut().extend(other);
     }
@@ -600,7 +575,6 @@ where
     S: AsDeref<D, Target = Vec<O::Head>>,
     O: Observer<InnerDepth = Zero, Head: Sized + Debug>,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("VecObserver").field(&self.untracked_ref()).finish()
     }
@@ -616,7 +590,6 @@ macro_rules! generic_impl_partial_eq {
                 O: Observer<InnerDepth = Zero, Head: Sized>,
                 Vec<O::Head>: PartialEq<$ty>,
             {
-                #[inline]
                 fn eq(&self, other: &$ty) -> bool {
                     self.untracked_ref().eq(other)
                 }
@@ -642,7 +615,6 @@ where
     S2: AsDeref<D2, Target = Vec<O2::Head>>,
     Vec<O1::Head>: PartialEq<Vec<O2::Head>>,
 {
-    #[inline]
     fn eq(&self, other: &VecObserver<O2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
@@ -663,7 +635,6 @@ where
     O: Observer<InnerDepth = Zero, Head: Sized>,
     Vec<O::Head>: PartialOrd<Vec<U>>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &Vec<U>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other)
     }
@@ -679,7 +650,6 @@ where
     S2: AsDeref<D2, Target = Vec<O2::Head>>,
     Vec<O1::Head>: PartialOrd<Vec<O2::Head>>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &VecObserver<O2, S2, D2>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other.untracked_ref())
     }
@@ -691,7 +661,6 @@ where
     S: AsDeref<D, Target = Vec<O::Head>>,
     O: Observer<InnerDepth = Zero, Head: Sized + Ord>,
 {
-    #[inline]
     fn cmp(&self, other: &VecObserver<O, S, D>) -> std::cmp::Ordering {
         self.untracked_ref().cmp(other.untracked_ref())
     }
@@ -706,7 +675,6 @@ where
 {
     type Output = I::Output;
 
-    #[inline]
     fn index(&self, index: I) -> &Self::Output {
         &self.inner[index]
     }
@@ -719,7 +687,6 @@ where
     O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
-    #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         &mut self.inner[index]
     }
@@ -743,12 +710,10 @@ default_impl_ref_observe! {
 impl<T: Snapshot> Snapshot for Vec<T> {
     type Snapshot = Vec<T::Snapshot>;
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         self.iter().map(|item| item.to_snapshot()).collect()
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.len() == snapshot.len() && self.iter().zip(snapshot.iter()).all(|(a, b)| a.eq_snapshot(b))
     }

@@ -167,7 +167,6 @@ pub enum MutationKind<T> {
 
 impl<T> MutationKind<T> {
     #[cfg(any(feature = "json", feature = "yaml"))]
-    #[inline]
     pub(crate) fn try_map<U, E>(self, f: &mut impl FnMut(T) -> Result<U, E>) -> Result<MutationKind<U>, E> {
         Ok(match self {
             MutationKind::Replace(value) => MutationKind::Replace(f(value)?),
@@ -207,7 +206,6 @@ pub struct Mutation<V> {
 
 impl<V> Mutation<V> {
     #[cfg(any(feature = "json", feature = "yaml"))]
-    #[inline]
     pub(crate) fn try_map<U, E>(self, f: &mut impl FnMut(V) -> Result<U, E>) -> Result<Mutation<U>, E> {
         Ok(Mutation {
             path: self.path,
@@ -266,14 +264,12 @@ pub struct Mutations<V = Box<dyn Serialize>> {
 }
 
 impl<V> Default for Mutations<V> {
-    #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
 impl<V> From<MutationKind<V>> for Mutations<V> {
-    #[inline]
     fn from(kind: MutationKind<V>) -> Self {
         Self {
             inner: Some(Mutation {
@@ -286,7 +282,6 @@ impl<V> From<MutationKind<V>> for Mutations<V> {
 }
 
 impl<V> From<Mutations<V>> for Option<Mutation<V>> {
-    #[inline]
     fn from(value: Mutations<V>) -> Self {
         value.into_inner()
     }
@@ -294,7 +289,6 @@ impl<V> From<Mutations<V>> for Option<Mutation<V>> {
 
 impl<V> Mutations<V> {
     /// Creates a new empty collection.
-    #[inline]
     pub fn new() -> Self {
         Self {
             inner: None,
@@ -306,13 +300,11 @@ impl<V> Mutations<V> {
     ///
     /// The capacity hint is used when the internal storage needs to be converted to a
     /// [`Batch`](MutationKind::Batch) to hold multiple mutations.
-    #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Self { inner: None, capacity }
     }
 
     /// Consumes the batch and returns the collected mutation.
-    #[inline]
     pub fn into_inner(self) -> Option<Mutation<V>> {
         self.inner
     }
@@ -343,7 +335,6 @@ impl<V> Mutations<V> {
     ///
     /// The incoming mutations will have the given segment prepended to their path before being
     /// added to this collection.
-    #[inline]
     pub fn insert(&mut self, segment: impl Into<PathSegment>, mutations: impl Into<Self>) {
         self.__insert(Some(segment.into()), mutations.into());
     }
@@ -352,7 +343,6 @@ impl<V> Mutations<V> {
     ///
     /// This is a convenience method primarily used for enum named variants, where mutations need to
     /// be inserted at a path like `variant_name.field_name`.
-    #[inline]
     pub fn insert2(
         &mut self,
         segment1: impl Into<PathSegment>,
@@ -433,7 +423,6 @@ impl<T> serde::Serialize for SerializeRef<T>
 where
     T: serde::Serialize + ?Sized,
 {
-    #[inline]
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -448,7 +437,6 @@ impl Mutations {
     ///
     /// Unlike [`replace`](Self::replace), which accepts `&T` (including unsized types) and wraps it
     /// in [`SerializeRef`], this method takes `T` by value and boxes it directly.
-    #[inline]
     pub fn replace_owned<T: serde::Serialize + 'static>(value: T) -> Self {
         MutationKind::Replace(Box::new(value) as Box<dyn Serialize>).into()
     }
@@ -458,7 +446,6 @@ impl Mutations {
     ///
     /// The value is wrapped in a [`Box<dyn Serialize>`](erased_serde::Serialize) via
     /// [`SerializeRef`], allowing unsized types like `str` and `[T]` to be used.
-    #[inline]
     pub fn replace<T: serde::Serialize + ?Sized + 'static>(value: &T) -> Self {
         Self::replace_owned(SerializeRef(value))
     }
@@ -468,7 +455,6 @@ impl Mutations {
     ///
     /// The value is wrapped in a [`Box<dyn Serialize>`](erased_serde::Serialize) via
     /// [`SerializeRef`], allowing unsized types like `str` and `[T]` to be used.
-    #[inline]
     pub fn append<T: serde::Serialize + ?Sized + 'static>(value: &T) -> Self {
         MutationKind::Append(Box::new(SerializeRef(value)) as Box<dyn Serialize>).into()
     }

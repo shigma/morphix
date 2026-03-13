@@ -39,7 +39,6 @@ enum BatchChildrenIntoIter<A: Adapter> {
 impl<A: Adapter> Iterator for BatchChildrenIntoIter<A> {
     type Item = (PathSegment, BatchTree<A>);
 
-    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         match self {
             Self::String(iter) => iter.next(),
@@ -53,7 +52,6 @@ impl<A: Adapter> IntoIterator for BatchChildren<A> {
     type Item = (PathSegment, BatchTree<A>);
     type IntoIter = BatchChildrenIntoIter<A>;
 
-    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         match self {
             Self::String(map) => {

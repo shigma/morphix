@@ -251,11 +251,9 @@ pub fn derive_snapshot(input: &syn::DeriveInput) -> TokenStream {
             #[automatically_derived]
             impl #impl_generics ::morphix::builtin::Snapshot for #input_ident #ty_generics #where_clause {
                 type Snapshot = #snap_ident #ty_generics;
-                #[inline]
                 fn to_snapshot(&self) -> Self::Snapshot {
                     #to_snapshot
                 }
-                #[inline]
                 #[allow(clippy::match_like_matches_macro)]
                 fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
                     #eq_snapshot
@@ -272,9 +270,7 @@ pub fn derive_noop_snapshot(input: &syn::DeriveInput) -> TokenStream {
         #[automatically_derived]
         impl #impl_generics ::morphix::builtin::Snapshot for #input_ident #ty_generics #where_clause {
             type Snapshot = ();
-            #[inline]
             fn to_snapshot(&self) {}
-            #[inline]
             fn eq_snapshot(&self, snapshot: &()) -> bool {
                 true
             }

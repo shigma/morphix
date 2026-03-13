@@ -28,7 +28,6 @@ where
     /// [`SnapshotObserver`](crate::builtin::SnapshotObserver)).
     ///
     /// [as_deref_mut_coinductive]: crate::helper::AsDerefMutCoinductive::as_deref_mut_coinductive
-    #[inline]
     fn invalidate(this: &mut Self, _: &[O::Head; N]) {
         for ob in this.as_mut_slice() {
             O::invalidate(ob);
@@ -42,27 +41,22 @@ where
 {
     type Item = O;
 
-    #[inline]
     fn as_slice(&self) -> &[O] {
         self
     }
 
-    #[inline]
     fn as_mut_slice(&mut self) -> &mut [O] {
         self
     }
 
-    #[inline]
     fn uninit() -> Self {
         std::array::from_fn(|_| O::uninit())
     }
 
-    #[inline]
     fn observe(slice: &mut Self::Target) -> Self {
         slice.each_mut().map(O::observe)
     }
 
-    #[inline]
     unsafe fn init_range(&self, _start: usize, _end: usize, _slice: &mut Self::Target) {
         // No need to re-initialize fixed-size array.
     }
@@ -74,12 +68,10 @@ where
 {
     type Item = O;
 
-    #[inline]
     fn uninit() -> Self {
         std::array::from_fn(|_| O::uninit())
     }
 
-    #[inline]
     fn observe(slice: &Self::Target) -> Self {
         slice.each_ref().map(O::observe)
     }
@@ -120,26 +112,22 @@ where
     O: Observer<InnerDepth = Zero, Head = T>,
 {
     /// See [`array::as_slice`].
-    #[inline]
     pub fn as_slice(&self) -> &[O] {
         self.inner.__force_ref()
     }
 
     /// See [`array::as_mut_slice`].
-    #[inline]
     pub fn as_mut_slice(&mut self) -> &mut [O] {
         self.inner.__force_mut()
     }
 
     /// See [`array::each_ref`].
-    #[inline]
     pub fn each_ref(&self) -> [&O; N] {
         self.inner.__force_ref();
         self.inner.state.each_ref()
     }
 
     /// See [`array::each_mut`].
-    #[inline]
     pub fn each_mut(&mut self) -> [&mut O; N] {
         self.inner.__force_mut();
         self.inner.state.each_mut()
@@ -149,14 +137,12 @@ where
 impl<const N: usize, O, S: ?Sized, D> Deref for ArrayObserver<N, O, S, D> {
     type Target = SliceObserver<[O; N], S, D>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
 impl<const N: usize, O, S: ?Sized, D> DerefMut for ArrayObserver<N, O, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
@@ -172,7 +158,6 @@ where
     type OuterDepth = Succ<Succ<Zero>>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         SliceObserver::invalidate(&mut this.inner);
     }
@@ -184,21 +169,18 @@ where
     S: AsDerefMut<D, Target = [T; N]>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             inner: Observer::uninit(),
         }
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         Self {
             inner: Observer::observe(head),
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         unsafe { Observer::refresh(&mut this.inner, head) }
     }
@@ -210,21 +192,18 @@ where
     S: AsDeref<D, Target = [T; N]>,
     O: RefObserver<InnerDepth = Zero, Head = T>,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             inner: RefObserver::uninit(),
         }
     }
 
-    #[inline]
     fn observe(head: &Self::Head) -> Self {
         Self {
             inner: RefObserver::observe(head),
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         unsafe { RefObserver::refresh(&mut this.inner, head) }
     }
@@ -237,7 +216,6 @@ where
     O: SerializeObserver<InnerDepth = Zero, Head = T>,
     T: Serialize + 'static,
 {
-    #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
         unsafe { SliceObserver::flush(&mut this.inner) }
     }
@@ -249,7 +227,6 @@ where
     S: AsDeref<D, Target = [O::Head; N]>,
     O: Observer<InnerDepth = Zero, Head: Sized + Debug>,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("ArrayObserver").field(&self.untracked_ref()).finish()
     }
@@ -265,7 +242,6 @@ macro_rules! generic_impl_partial_eq {
                 O: Observer<InnerDepth = Zero, Head: Sized>,
                 [O::Head; N]: PartialEq<$ty>,
             {
-                #[inline]
                 fn eq(&self, other: &$ty) -> bool {
                     self.untracked_ref().eq(other)
                 }
@@ -292,7 +268,6 @@ where
     S2: AsDeref<D2, Target = [O2::Head; N]>,
     [O1::Head; N]: PartialEq<[O2::Head; N]>,
 {
-    #[inline]
     fn eq(&self, other: &ArrayObserver<N, O2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
@@ -313,7 +288,6 @@ where
     O: Observer<InnerDepth = Zero, Head: Sized>,
     [O::Head; N]: PartialOrd<[U; N]>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &[U; N]) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other)
     }
@@ -330,7 +304,6 @@ where
     S2: AsDeref<D2, Target = [O2::Head; N]>,
     [O1::Head; N]: PartialOrd<[O2::Head; N]>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &ArrayObserver<N, O2, S2, D2>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other.untracked_ref())
     }
@@ -342,7 +315,6 @@ where
     S: AsDeref<D, Target = [O::Head; N]>,
     O: Observer<InnerDepth = Zero, Head: Sized + Ord>,
 {
-    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.untracked_ref().cmp(other.untracked_ref())
     }
@@ -357,7 +329,6 @@ where
 {
     type Output = I::Output;
 
-    #[inline]
     fn index(&self, index: I) -> &Self::Output {
         &self.inner[index]
     }
@@ -370,7 +341,6 @@ where
     O: Observer<InnerDepth = Zero, Head = T>,
     I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
 {
-    #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         &mut self.inner[index]
     }
@@ -401,12 +371,10 @@ impl<T: RefObserve, const N: usize> RefObserve for [T; N] {
 impl<T: Snapshot, const N: usize> Snapshot for [T; N] {
     type Snapshot = [T::Snapshot; N];
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         std::array::from_fn(|i| self[i].to_snapshot())
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         (0..N).all(|i| self[i].eq_snapshot(&snapshot[i]))
     }

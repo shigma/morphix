@@ -18,7 +18,6 @@ use crate::helper::{AsDeref, QuasiObserver, Unsigned};
 ///
 /// Once [`ptr_metadata`](https://github.com/rust-lang/rust/issues/81513) is stabilized this can
 /// be replaced with [`std::ptr::from_raw_parts`].
-#[inline]
 fn recover_provenance<S: ?Sized>(raw: *const S) -> *const S {
     let exposed = std::ptr::with_exposed_provenance::<u8>(raw.cast::<u8>().addr());
     let mut result = raw;
@@ -40,7 +39,6 @@ fn recover_provenance<S: ?Sized>(raw: *const S) -> *const S {
 ///
 /// Once [`ptr_metadata`](https://github.com/rust-lang/rust/issues/81513) is stabilized this can
 /// be replaced with [`std::ptr::from_raw_parts_mut`].
-#[inline]
 fn recover_provenance_mut<S: ?Sized>(raw: *mut S) -> *mut S {
     let exposed = std::ptr::with_exposed_provenance_mut::<u8>(raw.cast::<u8>().addr());
     let mut result = raw;
@@ -106,7 +104,6 @@ pub struct Pointer<S: ?Sized> {
 
 impl<S: ?Sized> Pointer<S> {
     /// Create an uninitialized pointer.
-    #[inline]
     pub const fn uninit() -> Self {
         Self {
             inner: Cell::new(None),
@@ -118,7 +115,6 @@ impl<S: ?Sized> Pointer<S> {
     ///
     /// The returned pointer will remain valid as long as the original reference remains valid,
     /// which is enforced by the lifetime parameter in observer types.
-    #[inline]
     pub fn new(head: impl Into<NonNull<S>>) -> Self {
         let ptr = head.into();
         ptr.cast::<u8>().expose_provenance();
@@ -129,7 +125,6 @@ impl<S: ?Sized> Pointer<S> {
     }
 
     /// Retrieves the internal raw pointer.
-    #[inline]
     pub const fn get(this: &Self) -> Option<NonNull<S>> {
         this.inner.get()
     }
@@ -140,7 +135,6 @@ impl<S: ?Sized> Pointer<S> {
     /// internal storage. When a vector grows and moves its elements to a new memory location,
     /// any existing [`Pointer`] instances pointing to those elements become invalid. This method
     /// allows updating those pointers to point to the elements' new locations.
-    #[inline]
     pub fn set(this: &Self, head: impl Into<NonNull<S>>) {
         let ptr = head.into();
         ptr.cast::<u8>().expose_provenance();
@@ -151,7 +145,6 @@ impl<S: ?Sized> Pointer<S> {
     ///
     /// A null pointer indicates the observer was constructed with [`uninit`](Self::uninit) and has
     /// not been properly initialized via [`refresh`](crate::observe::Observer::refresh).
-    #[inline]
     pub const fn is_null(this: &Self) -> bool {
         this.inner.get().is_none()
     }
@@ -174,7 +167,6 @@ impl<S: ?Sized> Pointer<S> {
     ///
     /// These invariants are automatically maintained when using [`Pointer`] within the observer
     /// infrastructure, but must be manually verified if called directly.
-    #[inline]
     pub unsafe fn as_ref<'ob>(this: &Self) -> &'ob S {
         let ptr = this.inner.get().expect("pointer should not be null");
         unsafe { &*recover_provenance(ptr.as_ptr()) }
@@ -199,7 +191,6 @@ impl<S: ?Sized> Pointer<S> {
     ///
     /// These invariants are automatically maintained when using [`Pointer`] within the observer
     /// infrastructure, but must be manually verified if called directly.
-    #[inline]
     pub unsafe fn as_mut<'ob>(this: &Self) -> &'ob mut S {
         let ptr = this.inner.get().expect("pointer should not be null");
         unsafe { &mut *recover_provenance_mut(ptr.as_ptr()) }
@@ -257,28 +248,24 @@ impl<S: ?Sized> Pointer<S> {
 impl<S: ?Sized> Deref for Pointer<S> {
     type Target = S;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         unsafe { Self::as_ref(self) }
     }
 }
 
 impl<S: ?Sized> DerefMut for Pointer<S> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut S {
         unsafe { Self::as_mut(self) }
     }
 }
 
 impl<S: ?Sized> Debug for Pointer<S> {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("Pointer").field(&self.inner.get()).finish()
     }
 }
 
 impl<S: ?Sized> PartialEq for Pointer<S> {
-    #[inline]
     fn eq(&self, other: &Self) -> bool {
         self.inner == other.inner
     }

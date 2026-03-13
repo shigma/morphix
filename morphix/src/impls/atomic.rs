@@ -10,7 +10,6 @@ macro_rules! impl_atomic {
             impl Snapshot for std::sync::atomic::$ident {
                 type Snapshot = $output;
 
-                #[inline]
                 fn to_snapshot(&self) -> Self::Snapshot {
                     self.load(Ordering::Relaxed)
                 }

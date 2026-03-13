@@ -211,7 +211,6 @@ macro_rules! delegate_methods {
         $(#[$meta])*
         #[doc = ""]
         #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`].")]
-        #[inline]
         pub fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $($rest)* {
             self.$($delegate)*.$name($($arg),*)
         }
@@ -228,7 +227,6 @@ macro_rules! delegate_methods {
         #[doc = "## Safety"]
         #[doc = ""]
         #[doc = concat!(" See [`", stringify!($type), "::", stringify!($name), "`] for safety requirements.")]
-        #[inline]
         pub unsafe fn $name $(<$($gen),*>)? (&mut self $(, $arg: $arg_ty)*) $($rest)* {
             unsafe { self.$($delegate)*.$name($($arg),*) }
         }

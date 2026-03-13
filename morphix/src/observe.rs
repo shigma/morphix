@@ -99,7 +99,6 @@ pub trait ObserveExt: Observe {
     ///
     /// This is a convenience method that calls [`Observer::observe`] with the appropriate type
     /// parameters automatically inferred.
-    #[inline]
     fn __observe<'ob>(&'ob mut self) -> Self::Observer<'ob, Self, Zero> {
         Observer::observe(self)
     }
@@ -342,7 +341,6 @@ pub trait SerializeObserver: QuasiObserver<Target = Pointer<<Self as QuasiObserv
     /// ## Safety
     ///
     /// Same as [`flush`](Self::flush).
-    #[inline]
     unsafe fn flat_flush(_this: &mut Self) -> (Mutations, bool) {
         panic!("flat_flush can only be called on structs and maps")
     }
@@ -356,7 +354,6 @@ pub trait SerializeObserverExt: SerializeObserver {
     /// Collects mutations using the specified adapter.
     ///
     /// This is a convenience method for [`SerializeObserver::flush`].
-    #[inline]
     fn flush<A: Adapter>(&mut self) -> Result<A, A::Error> {
         A::from_mutations(unsafe { SerializeObserver::flush(self) })
     }
@@ -364,7 +361,6 @@ pub trait SerializeObserverExt: SerializeObserver {
     /// Collects flattened mutations using the specified adapter.
     ///
     /// This is a convenience method for [`SerializeObserver::flat_flush`].
-    #[inline]
     fn flat_flush<A: Adapter>(&mut self) -> Result<A, A::Error> {
         A::from_mutations(unsafe { SerializeObserver::flat_flush(self) }.0)
     }

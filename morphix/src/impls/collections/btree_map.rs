@@ -38,7 +38,6 @@ struct BTreeMapObserverState<K, O> {
 }
 
 impl<K, O> Default for BTreeMapObserverState<K, O> {
-    #[inline]
     fn default() -> Self {
         Self {
             mutated: false,
@@ -76,7 +75,6 @@ where
 {
     type Target = BTreeMap<K, O::Head>;
 
-    #[inline]
     fn invalidate(this: &mut Self, map: &Self::Target) {
         if !this.mutated {
             this.mutated = true;
@@ -114,7 +112,6 @@ where
         Some((key, value))
     }
 
-    #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
         self.inner.size_hint()
     }
@@ -135,7 +132,6 @@ where
     R: RangeBounds<K>,
     F: FnMut(&K, &mut V) -> bool,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
     }
@@ -158,14 +154,12 @@ pub struct BTreeMapObserver<K, O, S: ?Sized, D = Zero> {
 impl<K, O, S: ?Sized, D> Deref for BTreeMapObserver<K, O, S, D> {
     type Target = Pointer<S>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.ptr
     }
 }
 
 impl<K, O, S: ?Sized, D> DerefMut for BTreeMapObserver<K, O, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.ptr);
@@ -184,7 +178,6 @@ where
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         ObserverState::invalidate(&mut this.state, (*this.ptr).as_deref());
     }
@@ -198,7 +191,6 @@ where
     O::Head: Sized,
     K: Clone + Ord,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
@@ -207,12 +199,10 @@ where
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
             ptr: Pointer::new(head),
@@ -379,7 +369,6 @@ where
     }
 
     /// See [`BTreeMap::clear`].
-    #[inline]
     pub fn clear(&mut self) {
         self.state.inner.get_mut().clear();
         if (*self).untracked_ref().is_empty() {
@@ -463,7 +452,6 @@ where
     }
 
     /// See [`BTreeMap::retain`].
-    #[inline]
     pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&K, &mut O::Head) -> bool,
@@ -515,13 +503,11 @@ where
     }
 
     /// See [`BTreeMap::iter_mut`].
-    #[inline]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (&K, &mut O)> + '_ {
         self.__force_all().iter_mut().map(|(k, v)| (k, v.as_mut()))
     }
 
     /// See [`BTreeMap::values_mut`].
-    #[inline]
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut O> + '_ {
         self.__force_all().values_mut().map(|v| v.as_mut())
     }
@@ -535,7 +521,6 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     BTreeMap<K, V>: Debug,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("BTreeMapObserver").field(&self.untracked_ref()).finish()
     }
@@ -549,7 +534,6 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     BTreeMap<K, V>: PartialEq,
 {
-    #[inline]
     fn eq(&self, other: &BTreeMap<K, V>) -> bool {
         self.untracked_ref().eq(other)
     }
@@ -568,7 +552,6 @@ where
     O2: Observer<InnerDepth = Zero, Head = V2>,
     BTreeMap<K1, V1>: PartialEq<BTreeMap<K2, V2>>,
 {
-    #[inline]
     fn eq(&self, other: &BTreeMapObserver<K2, O2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
@@ -592,7 +575,6 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     BTreeMap<K, V>: PartialOrd,
 {
-    #[inline]
     fn partial_cmp(&self, other: &BTreeMap<K, V>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other)
     }
@@ -611,7 +593,6 @@ where
     O2: Observer<InnerDepth = Zero, Head = V2>,
     BTreeMap<K1, V1>: PartialOrd<BTreeMap<K2, V2>>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &BTreeMapObserver<K2, O2, S2, D2>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other.untracked_ref())
     }
@@ -625,7 +606,6 @@ where
     O: Observer<InnerDepth = Zero, Head = V>,
     BTreeMap<K, V>: Ord,
 {
-    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.untracked_ref().cmp(other.untracked_ref())
     }
@@ -641,7 +621,6 @@ where
 {
     type Output = O;
 
-    #[inline]
     fn index(&self, index: &'q Q) -> &Self::Output {
         self.get(index).expect("no entry found for key")
     }
@@ -655,7 +634,6 @@ where
     K: Borrow<Q> + Clone + Ord,
     Q: Ord,
 {
-    #[inline]
     fn index_mut(&mut self, index: &'q Q) -> &mut Self::Output {
         self.get_mut(index).expect("no entry found for key")
     }
@@ -701,14 +679,12 @@ where
 {
     type Snapshot = BTreeMap<K::Snapshot, V::Snapshot>;
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         self.iter()
             .map(|(key, value)| (key.to_snapshot(), value.to_snapshot()))
             .collect()
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.len() == snapshot.len()
             && self

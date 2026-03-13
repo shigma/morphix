@@ -20,7 +20,6 @@ trait Weak<T: ?Sized> {
 impl<T: ?Sized> Weak<T> for std::rc::Weak<T> {
     type Ptr = std::rc::Rc<T>;
 
-    #[inline]
     fn upgrade(&self) -> Option<Self::Ptr> {
         self.upgrade()
     }
@@ -29,7 +28,6 @@ impl<T: ?Sized> Weak<T> for std::rc::Weak<T> {
 impl<T: ?Sized> Weak<T> for std::sync::Weak<T> {
     type Ptr = std::sync::Arc<T>;
 
-    #[inline]
     fn upgrade(&self) -> Option<Self::Ptr> {
         self.upgrade()
     }
@@ -47,14 +45,12 @@ pub struct WeakObserver<O, S: ?Sized, D> {
 impl<O, S: ?Sized, D> Deref for WeakObserver<O, S, D> {
     type Target = Pointer<S>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.ptr
     }
 }
 
 impl<O, S: ?Sized, D> DerefMut for WeakObserver<O, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.mutated = true;
         self.inner = None;
@@ -71,7 +67,6 @@ where
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         this.mutated = true;
         this.inner = None;
@@ -84,7 +79,6 @@ where
     S: AsDeref<D, Target: Weak<O::Head>>,
     O: RefObserver<InnerDepth = Zero>,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
@@ -95,7 +89,6 @@ where
         }
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let rc = (*head).as_deref().upgrade();
         Self {
@@ -107,7 +100,6 @@ where
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         if let Some(inner) = &mut this.inner
             && let Some(ptr) = (*head).as_deref().upgrade()
@@ -124,7 +116,6 @@ where
     S: AsDeref<D, Target: Weak<O::Head>>,
     O: RefObserver<InnerDepth = Zero>,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
@@ -135,7 +126,6 @@ where
         }
     }
 
-    #[inline]
     fn observe(head: &Self::Head) -> Self {
         let rc = head.as_deref().upgrade();
         Self {
@@ -147,7 +137,6 @@ where
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         if let Some(inner) = &mut this.inner
             && let Some(ptr) = head.as_deref().upgrade()
@@ -164,7 +153,6 @@ where
     O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + 'static,
 {
-    #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
         let rc = (*this.ptr).as_deref().upgrade();
         let initial = this.initial;
@@ -191,7 +179,6 @@ where
     S: AsDeref<D>,
     S::Target: Debug,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("WeakObserver").field(&self.untracked_ref()).finish()
     }
@@ -203,12 +190,10 @@ spec_impl_ref_observe!(WeakRefObserveImpl, std::rc::Weak<Self>, std::rc::Weak<T>
 impl<T: Snapshot + ?Sized> Snapshot for std::rc::Weak<T> {
     type Snapshot = Option<T::Snapshot>;
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         self.upgrade().map(|v| v.to_snapshot())
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.upgrade()
             .zip(snapshot.as_ref())
@@ -219,12 +204,10 @@ impl<T: Snapshot + ?Sized> Snapshot for std::rc::Weak<T> {
 impl<T: Snapshot + ?Sized> Snapshot for std::sync::Weak<T> {
     type Snapshot = Option<T::Snapshot>;
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         self.upgrade().map(|v| v.to_snapshot())
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         self.upgrade()
             .zip(snapshot.as_ref())

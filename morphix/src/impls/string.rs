@@ -16,14 +16,12 @@ struct StringObserverState {
 }
 
 impl StringObserverState {
-    #[inline]
     fn mark_truncate(&mut self, value: &str, new_len: usize) {
         let count = value[new_len..].chars().count();
         self.truncate_len += count;
         self.append_index = new_len;
     }
 
-    #[inline]
     fn mark_replace(&mut self, value: &str) {
         self.mark_truncate(value, 0);
     }
@@ -32,7 +30,6 @@ impl StringObserverState {
 impl ObserverState for StringObserverState {
     type Target = String;
 
-    #[inline]
     fn invalidate(this: &mut Self, value: &String) {
         this.mark_replace(value.as_str());
     }
@@ -48,14 +45,12 @@ pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
 impl<'ob, S: ?Sized, D> Deref for StringObserver<'ob, S, D> {
     type Target = Pointer<S>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.ptr
     }
 }
 
 impl<'ob, S: ?Sized, D> DerefMut for StringObserver<'ob, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.ptr);
@@ -72,7 +67,6 @@ where
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         ObserverState::invalidate(&mut this.mutation, (*this.ptr).as_deref());
     }
@@ -83,7 +77,6 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String>,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
@@ -95,7 +88,6 @@ where
         }
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
             mutation: StringObserverState {
@@ -109,7 +101,6 @@ where
         this
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
@@ -164,7 +155,6 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String>,
 {
-    #[inline]
     fn __append_index(&mut self) -> usize {
         self.mutation.append_index
     }
@@ -177,7 +167,6 @@ where
     }
 
     /// See [`String::insert`].
-    #[inline]
     pub fn insert(&mut self, idx: usize, ch: char) {
         if idx >= self.__append_index() {
             self.untracked_mut().insert(idx, ch)
@@ -187,7 +176,6 @@ where
     }
 
     /// See [`String::insert_str`].
-    #[inline]
     pub fn insert_str(&mut self, idx: usize, string: &str) {
         if idx >= self.__append_index() {
             self.untracked_mut().insert_str(idx, string)
@@ -203,7 +191,6 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String>,
 {
-    #[inline]
     fn __mark_truncate(&mut self, range: Range<usize>) {
         let count = (*self).untracked_ref()[range.clone()].chars().count();
         self.mutation.truncate_len += count;
@@ -211,7 +198,6 @@ where
     }
 
     /// See [`String::clear`].
-    #[inline]
     pub fn clear(&mut self) {
         if self.__append_index() == 0 {
             self.untracked_mut().clear()
@@ -343,7 +329,6 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String>,
 {
-    #[inline]
     fn add_assign(&mut self, rhs: &str) {
         #[cfg(feature = "append")]
         self.push_str(rhs);
@@ -359,7 +344,6 @@ where
     S: AsDerefMut<D, Target = String>,
     String: Extend<U>,
 {
-    #[inline]
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
         self.untracked_mut().extend(other);
     }
@@ -370,7 +354,6 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = String>,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("StringObserver").field(&self.untracked_ref()).finish()
     }
@@ -381,7 +364,6 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = String>,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Display::fmt(self.untracked_ref(), f)
     }
@@ -396,7 +378,6 @@ macro_rules! generic_impl_partial_eq {
                 S: AsDeref<D, Target = String>,
                 String: PartialEq<$ty>,
             {
-                #[inline]
                 fn eq(&self, other: &$ty) -> bool {
                     self.untracked_ref().eq(other)
                 }
@@ -420,7 +401,6 @@ where
     S1: AsDeref<D1, Target = String>,
     S2: AsDeref<D2, Target = String>,
 {
-    #[inline]
     fn eq(&self, other: &StringObserver<'ob, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
@@ -438,7 +418,6 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = String>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &String) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other)
     }
@@ -451,7 +430,6 @@ where
     S1: AsDeref<D1, Target = String>,
     S2: AsDeref<D2, Target = String>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &StringObserver<'ob, S2, D2>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other.untracked_ref())
     }
@@ -462,7 +440,6 @@ where
     D: Unsigned,
     S: AsDeref<D, Target = String>,
 {
-    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.untracked_ref().cmp(other.untracked_ref())
     }

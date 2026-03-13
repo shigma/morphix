@@ -115,7 +115,6 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
-        #[inline]
         fn eq(&self, other: &Self) -> bool {
             self.as_deref().eq(other.as_deref())
         }
@@ -132,7 +131,6 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
-        #[inline]
         fn partial_cmp(
             &self,
             other: &Self,
@@ -146,7 +144,6 @@ const _: () = {
         S: ::morphix::helper::AsDeref<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
-        #[inline]
         fn cmp(&self, other: &Self) -> ::std::cmp::Ordering {
             self.as_deref().cmp(other.as_deref())
         }
@@ -169,7 +166,6 @@ const _: () = {
     #[automatically_derived]
     impl ::morphix::builtin::Snapshot for Bar {
         type Snapshot = BarSnapshot;
-        #[inline]
         fn to_snapshot(&self) -> Self::Snapshot {
             match self {
                 Self::A => BarSnapshot::A,
@@ -177,7 +173,6 @@ const _: () = {
                 Self::C {} => BarSnapshot::C {},
             }
         }
-        #[inline]
         #[allow(clippy::match_like_matches_macro)]
         fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
             match (self, snapshot) {

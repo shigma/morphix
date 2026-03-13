@@ -26,7 +26,6 @@ pub struct DerefMutObserver<O> {
 impl<O> Deref for DerefObserver<O> {
     type Target = O;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
@@ -35,21 +34,18 @@ impl<O> Deref for DerefObserver<O> {
 impl<O> Deref for DerefMutObserver<O> {
     type Target = O;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
 impl<O> DerefMut for DerefObserver<O> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
 impl<O> DerefMut for DerefMutObserver<O> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
@@ -65,7 +61,6 @@ where
     type OuterDepth = Succ<O::OuterDepth>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         O::invalidate(&mut this.inner);
     }
@@ -81,7 +76,6 @@ where
     type OuterDepth = Succ<O::OuterDepth>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         O::invalidate(&mut this.inner);
     }
@@ -93,19 +87,16 @@ where
     O::Head: AsDeref<D>,
     D: Unsigned,
 {
-    #[inline]
     fn uninit() -> Self {
         Self { inner: O::uninit() }
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         Self {
             inner: O::observe(head),
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         unsafe { O::refresh(&mut this.inner, head) }
     }
@@ -117,19 +108,16 @@ where
     O::Head: AsDeref<D>,
     D: Unsigned,
 {
-    #[inline]
     fn uninit() -> Self {
         Self { inner: O::uninit() }
     }
 
-    #[inline]
     fn observe(head: &Self::Head) -> Self {
         Self {
             inner: O::observe(head),
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         unsafe { O::refresh(&mut this.inner, head) }
     }
@@ -141,19 +129,16 @@ where
     O::Head: AsDeref<D>,
     D: Unsigned,
 {
-    #[inline]
     fn uninit() -> Self {
         Self { inner: O::uninit() }
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         Self {
             inner: O::observe(head),
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         unsafe { O::refresh(&mut this.inner, head) }
     }
@@ -165,12 +150,10 @@ where
     O::Head: AsDeref<D>,
     D: Unsigned,
 {
-    #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
         unsafe { O::flush(&mut this.inner) }
     }
 
-    #[inline]
     unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
         unsafe { O::flat_flush(&mut this.inner) }
     }
@@ -182,12 +165,10 @@ where
     O::Head: AsDeref<D>,
     D: Unsigned,
 {
-    #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
         unsafe { O::flush(&mut this.inner) }
     }
 
-    #[inline]
     unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
         unsafe { O::flat_flush(&mut this.inner) }
     }
@@ -200,7 +181,6 @@ macro_rules! impl_fmt {
             where
                 O: std::fmt::$trait,
             {
-                #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     std::fmt::$trait::fmt(&self.inner, f)
                 }
@@ -210,7 +190,6 @@ macro_rules! impl_fmt {
             where
                 O: std::fmt::$trait,
             {
-                #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     std::fmt::$trait::fmt(&self.inner, f)
                 }
@@ -234,7 +213,6 @@ impl<O> Debug for DerefObserver<O>
 where
     O: Debug,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("DerefObserver").field(&self.inner).finish()
     }
@@ -244,7 +222,6 @@ impl<O> Debug for DerefMutObserver<O>
 where
     O: Debug,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("DerefObserver").field(&self.inner).finish()
     }
@@ -254,7 +231,6 @@ impl<O1, O2> PartialEq<DerefObserver<O2>> for DerefObserver<O1>
 where
     O1: PartialEq<O2>,
 {
-    #[inline]
     fn eq(&self, other: &DerefObserver<O2>) -> bool {
         self.inner.eq(&other.inner)
     }
@@ -264,7 +240,6 @@ impl<O1, O2> PartialEq<DerefMutObserver<O2>> for DerefMutObserver<O1>
 where
     O1: PartialEq<O2>,
 {
-    #[inline]
     fn eq(&self, other: &DerefMutObserver<O2>) -> bool {
         self.inner.eq(&other.inner)
     }
@@ -278,7 +253,6 @@ impl<O1, O2> PartialOrd<DerefObserver<O2>> for DerefObserver<O1>
 where
     O1: PartialOrd<O2>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &DerefObserver<O2>) -> Option<std::cmp::Ordering> {
         self.inner.partial_cmp(&other.inner)
     }
@@ -288,7 +262,6 @@ impl<O1, O2> PartialOrd<DerefMutObserver<O2>> for DerefMutObserver<O1>
 where
     O1: PartialOrd<O2>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &DerefMutObserver<O2>) -> Option<std::cmp::Ordering> {
         self.inner.partial_cmp(&other.inner)
     }
@@ -298,7 +271,6 @@ impl<O> Ord for DerefObserver<O>
 where
     O: Ord,
 {
-    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.inner.cmp(&other.inner)
     }
@@ -308,7 +280,6 @@ impl<O> Ord for DerefMutObserver<O>
 where
     O: Ord,
 {
-    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.inner.cmp(&other.inner)
     }
@@ -370,12 +341,10 @@ macro_rules! impl_snapshot {
             impl <$($($gen)*)?> Snapshot for $ty {
                 type Snapshot = $value;
 
-                #[inline]
                 fn to_snapshot(&self) -> Self::Snapshot {
                     (**self).to_snapshot()
                 }
 
-                #[inline]
                 fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
                     (**self).eq_snapshot(snapshot)
                 }
@@ -402,7 +371,6 @@ macro_rules! generic_impl_cmp {
                 T: PartialEq<$ty>,
                 D: Unsigned,
             {
-                #[inline]
                 fn eq(&self, other: &$ty) -> bool {
                     self.untracked_ref().eq(other)
                 }
@@ -415,7 +383,6 @@ macro_rules! generic_impl_cmp {
                 T: PartialEq<$ty>,
                 D: Unsigned,
             {
-                #[inline]
                 fn eq(&self, other: &$ty) -> bool {
                     self.untracked_ref().eq(other)
                 }
@@ -428,7 +395,6 @@ macro_rules! generic_impl_cmp {
                 T: PartialOrd<$ty>,
                 D: Unsigned,
             {
-                #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
                     self.untracked_ref().partial_cmp(other)
                 }
@@ -441,7 +407,6 @@ macro_rules! generic_impl_cmp {
                 T: PartialOrd<$ty>,
                 D: Unsigned,
             {
-                #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
                     self.untracked_ref().partial_cmp(other)
                 }

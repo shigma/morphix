@@ -10,14 +10,12 @@ trait Len {
 }
 
 impl Len for str {
-    #[inline]
     fn len(&self) -> usize {
         self.chars().count()
     }
 }
 
 impl<T> Len for [T] {
-    #[inline]
     fn len(&self) -> usize {
         <[T]>::len(self)
     }
@@ -41,7 +39,6 @@ where
 {
     type Spec = DefaultSpec;
 
-    #[inline]
     fn uninit() -> Self {
         Self {
             addr: 0,
@@ -50,7 +47,6 @@ where
         }
     }
 
-    #[inline]
     fn observe(value: &T) -> Self {
         Self {
             addr: (value as *const T).cast::<u8>().addr(),

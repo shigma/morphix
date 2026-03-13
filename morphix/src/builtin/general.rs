@@ -113,7 +113,6 @@ where
     H: ReplaceHandler,
     H::Target: Serialize + 'static,
 {
-    #[inline]
     unsafe fn flush(&mut self, value: &Self::Target) -> Mutations {
         let is_replace = unsafe { ReplaceHandler::is_replace(self, value) };
         *self = H::observe(value);
@@ -202,14 +201,12 @@ pub struct GeneralObserver<'ob, H, S: ?Sized, D = Zero> {
 impl<'ob, H, S: ?Sized, D> Deref for GeneralObserver<'ob, H, S, D> {
     type Target = Pointer<S>;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.ptr
     }
 }
 
 impl<'ob, H, S: ?Sized, D> DerefMut for GeneralObserver<'ob, H, S, D> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.ptr);
@@ -227,7 +224,6 @@ where
     type OuterDepth = Succ<Zero>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         H::invalidate(&mut this.handler, (*this.ptr).as_deref());
     }
@@ -239,7 +235,6 @@ where
     H: GeneralHandler<Target = T>,
     D: Unsigned,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
@@ -248,12 +243,10 @@ where
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
             handler: H::observe((*head).as_deref()),
@@ -271,7 +264,6 @@ where
     H: GeneralHandler<Target = T>,
     D: Unsigned,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             ptr: Pointer::uninit(),
@@ -280,12 +272,10 @@ where
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         Pointer::set(this, head);
     }
 
-    #[inline]
     fn observe(head: &Self::Head) -> Self {
         let this = Self {
             ptr: Pointer::new(head),
@@ -303,7 +293,6 @@ where
     H: SerializeHandler<Target = T>,
     D: Unsigned,
 {
-    #[inline]
     unsafe fn flush(this: &mut Self) -> Mutations {
         unsafe { this.handler.flush((*this.ptr).as_deref()) }
     }
@@ -319,7 +308,6 @@ macro_rules! impl_fmt {
                 D: Unsigned,
                 S::Target: std::fmt::$trait,
             {
-                #[inline]
                 fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                     std::fmt::$trait::fmt(self.untracked_ref(), f)
                 }
@@ -346,7 +334,6 @@ where
     D: Unsigned,
     T: Debug,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple(H::NAME).field(&self.untracked_ref()).finish()
     }
@@ -361,7 +348,6 @@ where
 {
     type Output = <S::Target as std::ops::Index<I>>::Output;
 
-    #[inline]
     fn index(&self, index: I) -> &Self::Output {
         self.untracked_ref().index(index)
     }
@@ -374,7 +360,6 @@ where
     D: Unsigned,
     S::Target: std::ops::IndexMut<I>,
 {
-    #[inline]
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         self.tracked_mut().index_mut(index)
     }
@@ -391,7 +376,6 @@ where
     D2: Unsigned,
     S1::Target: PartialEq<S2::Target>,
 {
-    #[inline]
     fn eq(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
@@ -417,7 +401,6 @@ where
     D2: Unsigned,
     S1::Target: PartialOrd<S2::Target>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &GeneralObserver<'ob, H2, S2, D2>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other.untracked_ref())
     }
@@ -430,7 +413,6 @@ where
     D: Unsigned,
     S::Target: Ord,
 {
-    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.untracked_ref().cmp(other.untracked_ref())
     }
@@ -446,7 +428,6 @@ macro_rules! impl_ops_assign {
                 D: Unsigned,
                 T: std::ops::$trait<U>,
             {
-                #[inline]
                 fn $method(&mut self, rhs: U) {
                     self.tracked_mut().$method(rhs);
                 }
@@ -480,7 +461,6 @@ macro_rules! impl_ops_copy {
             {
                 type Output = <T as std::ops::$trait<U>>::Output;
 
-                #[inline]
                 fn $method(self, rhs: U) -> Self::Output {
                     self.untracked_ref().$method(rhs)
                 }
@@ -514,7 +494,6 @@ macro_rules! impl_ops_copy_unary {
             {
                 type Output = <T as std::ops::$trait>::Output;
 
-                #[inline]
                 fn $method(self) -> Self::Output {
                     (*self.untracked_ref()).$method()
                 }
@@ -536,7 +515,6 @@ macro_rules! impl_partial_eq {
                 S: AsDeref<D, Target = $ty>,
                 D: Unsigned,
             {
-                #[inline]
                 fn eq(&self, other: &$ty) -> bool {
                     (***self).as_deref().eq(other)
                 }
@@ -574,7 +552,6 @@ macro_rules! impl_partial_ord {
                 S: AsDeref<D, Target = $ty>,
                 D: Unsigned,
             {
-                #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
                     (***self).as_deref().partial_cmp(other)
                 }
@@ -613,7 +590,6 @@ macro_rules! generic_impl_cmp {
                 D: Unsigned,
                 S::Target: PartialEq<$ty>,
             {
-                #[inline]
                 fn eq(&self, other: &$ty) -> bool {
                     (***self).as_deref().eq(other)
                 }
@@ -625,7 +601,6 @@ macro_rules! generic_impl_cmp {
                 D: Unsigned,
                 S::Target: PartialOrd<$ty>,
             {
-                #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
                     (***self).as_deref().partial_cmp(other)
                 }

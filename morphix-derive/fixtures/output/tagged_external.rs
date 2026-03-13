@@ -279,9 +279,7 @@ pub struct Qux {}
 #[automatically_derived]
 impl ::morphix::builtin::Snapshot for Qux {
     type Snapshot = ();
-    #[inline]
     fn to_snapshot(&self) {}
-    #[inline]
     fn eq_snapshot(&self, snapshot: &()) -> bool {
         true
     }

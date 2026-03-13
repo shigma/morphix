@@ -19,28 +19,24 @@ pub enum PathSegment {
 }
 
 impl From<usize> for PathSegment {
-    #[inline]
     fn from(n: usize) -> Self {
         Self::Positive(n)
     }
 }
 
 impl From<&'static str> for PathSegment {
-    #[inline]
     fn from(s: &'static str) -> Self {
         Self::String(Cow::Borrowed(s))
     }
 }
 
 impl From<String> for PathSegment {
-    #[inline]
     fn from(s: String) -> Self {
         Self::String(Cow::Owned(s))
     }
 }
 
 impl From<Cow<'static, str>> for PathSegment {
-    #[inline]
     fn from(s: Cow<'static, str>) -> Self {
         Self::String(s)
     }

@@ -18,14 +18,12 @@ pub struct CowObserver<B, O> {
 impl<B, O> Deref for CowObserver<B, O> {
     type Target = B;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
 impl<B, O> DerefMut for CowObserver<B, O> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.owned = None;
         self.mutated = true;
@@ -43,7 +41,6 @@ where
     type OuterDepth = Succ<B::OuterDepth>;
     type InnerDepth = D;
 
-    #[inline]
     fn invalidate(this: &mut Self) {
         this.owned = None;
         this.mutated = true;
@@ -59,7 +56,6 @@ where
     D: Unsigned,
     T: ToOwned + ?Sized + 'a,
 {
-    #[inline]
     fn uninit() -> Self {
         Self {
             inner: B::uninit(),
@@ -68,7 +64,6 @@ where
         }
     }
 
-    #[inline]
     fn observe(head: &mut Self::Head) -> Self {
         let inner = B::observe(head);
         let owned = match AsDerefMut::<D>::as_deref_mut(head) {
@@ -85,7 +80,6 @@ where
         }
     }
 
-    #[inline]
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         unsafe { B::refresh(&mut this.inner, head) }
         if let Some(owned) = &mut this.owned {
@@ -120,7 +114,6 @@ where
         }
     }
 
-    #[inline]
     unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
         if let Some(owned) = this.owned.as_mut()
             && !this.mutated
@@ -144,7 +137,6 @@ where
     T: ToOwned + ?Sized + 'a,
 {
     /// See [`Cow::to_mut`].
-    #[inline]
     pub fn to_mut(&mut self) -> &mut O {
         let head = unsafe { Pointer::as_mut(self.inner.as_deref_coinductive()) };
         let cow = AsDerefMut::<D>::as_deref_mut(head);
@@ -157,7 +149,6 @@ impl<B, O> Debug for CowObserver<B, O>
 where
     B: Debug,
 {
-    #[inline]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("CowObserver").field(&self.inner).finish()
     }
@@ -167,7 +158,6 @@ impl<B1, B2, O1, O2> PartialEq<CowObserver<B2, O2>> for CowObserver<B1, O1>
 where
     B1: PartialEq<B2>,
 {
-    #[inline]
     fn eq(&self, other: &CowObserver<B2, O2>) -> bool {
         self.inner.eq(&other.inner)
     }
@@ -179,7 +169,6 @@ impl<B1, B2, O1, O2> PartialOrd<CowObserver<B2, O2>> for CowObserver<B1, O1>
 where
     B1: PartialOrd<B2>,
 {
-    #[inline]
     fn partial_cmp(&self, other: &CowObserver<B2, O2>) -> Option<std::cmp::Ordering> {
         self.inner.partial_cmp(&other.inner)
     }
@@ -189,7 +178,6 @@ impl<B, O> Ord for CowObserver<B, O>
 where
     B: Ord,
 {
-    #[inline]
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.inner.cmp(&other.inner)
     }
@@ -203,7 +191,6 @@ where
     Cow<'a, str>: AddAssign<R>,
     R: Deref<Target = str> + Into<Cow<'a, str>>,
 {
-    #[inline]
     fn add_assign(&mut self, rhs: R) {
         let head = unsafe { Pointer::as_mut(self.inner.as_deref_coinductive()) };
         let cow = AsDerefMut::<D>::as_deref_mut(head);
@@ -232,7 +219,6 @@ macro_rules! generic_impl_cmp {
                 T: ToOwned + ?Sized + 'a,
                 Cow<'a, T>: PartialEq<$ty>,
             {
-                #[inline]
                 fn eq(&self, other: &$ty) -> bool {
                     self.untracked_ref().eq(other)
                 }
@@ -246,7 +232,6 @@ macro_rules! generic_impl_cmp {
                 T: ToOwned + ?Sized + 'a,
                 Cow<'a, T>: PartialOrd<$ty>,
             {
-                #[inline]
                 fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
                     self.untracked_ref().partial_cmp(other)
                 }
@@ -305,12 +290,10 @@ where
 {
     type Snapshot = T::Snapshot;
 
-    #[inline]
     fn to_snapshot(&self) -> Self::Snapshot {
         (**self).to_snapshot()
     }
 
-    #[inline]
     fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
         (**self).eq_snapshot(snapshot)
     }

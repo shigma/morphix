@@ -43,12 +43,10 @@ impl<T: ?Sized> ObserverState for PointerHandler<T> {
 impl<T: ?Sized> GeneralHandler for PointerHandler<T> {
     type Spec = DefaultSpec;
 
-    #[inline]
     fn uninit() -> Self {
         Self { ptr: None }
     }
 
-    #[inline]
     fn observe(value: &T) -> Self {
         Self {
             ptr: Some(NonNull::from(value)),
@@ -57,7 +55,6 @@ impl<T: ?Sized> GeneralHandler for PointerHandler<T> {
 }
 
 impl<T: ?Sized> ReplaceHandler for PointerHandler<T> {
-    #[inline]
     unsafe fn is_replace(&self, value: &T) -> bool {
         !std::ptr::eq(
             value,

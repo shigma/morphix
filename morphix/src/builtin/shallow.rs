@@ -56,7 +56,6 @@ impl<T: ?Sized> ObserverState for ShallowHandler<T> {
 impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
     type Spec = DefaultSpec;
 
-    #[inline]
     fn uninit() -> Self {
         Self {
             mutated: false,
@@ -64,7 +63,6 @@ impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
         }
     }
 
-    #[inline]
     fn observe(_value: &T) -> Self {
         Self {
             mutated: false,
@@ -74,7 +72,6 @@ impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
 }
 
 impl<T: ?Sized> ReplaceHandler for ShallowHandler<T> {
-    #[inline]
     unsafe fn is_replace(&self, _value: &T) -> bool {
         self.mutated
     }
