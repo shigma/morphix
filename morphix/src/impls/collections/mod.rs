@@ -1,6 +1,6 @@
 //! Observer implementations for collection types in [`std::collections`].
 
-mod binary_heap;
+pub mod binary_heap;
 pub mod btree_map;
 pub mod btree_set;
 pub mod hash_map;
@@ -8,6 +8,7 @@ pub mod hash_set;
 #[cfg(feature = "indexmap")]
 pub mod index_map;
 
+pub use binary_heap::BinaryHeapObserver;
 pub use btree_map::BTreeMapObserver;
 pub use btree_set::BTreeSetObserver;
 pub use hash_map::HashMapObserver;

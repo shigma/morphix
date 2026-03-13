@@ -1,3 +1,5 @@
+//! Observer implementation for [`BinaryHeap<T>`].
+
 use std::collections::binary_heap::{Drain, PeekMut};
 use std::collections::{BinaryHeap, TryReserveError};
 use std::ops::{Deref, DerefMut};
