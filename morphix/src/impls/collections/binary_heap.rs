@@ -97,9 +97,7 @@ where
     delegate_methods! { guarded_mut() as BinaryHeap =>
         pub fn pop(&mut self) -> Option<T>;
         pub fn append(&mut self, other: &mut BinaryHeap<T>);
-        pub fn retain<F>(&mut self, f: F)
-        where
-            F: FnMut(&T) -> bool;
+        pub fn retain<F>(&mut self, f: F) where F: FnMut(&T) -> bool;
     }
 }
 

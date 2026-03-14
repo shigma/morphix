@@ -1,6 +1,7 @@
 //! Observer implementation for [`VecDeque<T>`].
 
-use std::collections::vec_deque::{Drain, IterMut};
+use std::cell::UnsafeCell;
+use std::collections::vec_deque::Drain;
 use std::collections::{TryReserveError, VecDeque};
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -11,7 +12,7 @@ use serde::Serialize;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
-use crate::{MutationKind, Mutations, Observe};
+use crate::{MutationKind, Mutations, Observe, PathSegment};
 
 /// Observer state for [`VecDeque<T>`], tracking back-end
 /// [`Append`](MutationKind::Append) / [`Truncate`](MutationKind::Truncate) boundaries.
@@ -19,7 +20,7 @@ use crate::{MutationKind, Mutations, Observe};
 /// Front-end mutations (`push_front`, `pop_front`) trigger a full
 /// [`Replace`](MutationKind::Replace) because the current [`MutationKind`] set has no `Prepend`
 /// variant.
-struct VecDequeObserverState {
+struct VecDequeObserverState<O> {
     /// Number of elements truncated from the back since the last flush.
     back_truncate_len: usize,
     /// Logical index dividing "existing" elements from "appended" elements at the back.
@@ -28,9 +29,14 @@ struct VecDequeObserverState {
     back_append_index: usize,
     /// Whether a front-end mutation (push_front / pop_front) occurred, forcing full Replace.
     front_mutated: bool,
+    /// Lazily-initialized element observer storage.
+    ///
+    /// Mirrors the logical layout of the observed `VecDeque<T>`. Observers are created lazily
+    /// via [`force_range`](VecDequeObserverState::force_range) on first mutable access.
+    inner: UnsafeCell<VecDeque<O>>,
 }
 
-impl VecDequeObserverState {
+impl<O> VecDequeObserverState<O> {
     fn mark_back_truncate(&mut self, new_len: usize) {
         self.back_truncate_len += self.back_append_index - new_len;
         self.back_append_index = new_len;
@@ -39,15 +45,19 @@ impl VecDequeObserverState {
     /// Full invalidation: all existing content is lost, emit Replace on next flush.
     /// Does NOT set front_mutated — that's only for explicit front-end operations.
     fn mark_replace(&mut self) {
+        self.inner.get_mut().clear();
         self.back_truncate_len += self.back_append_index;
         self.back_append_index = 0;
     }
 }
 
-impl ObserverState for VecDequeObserverState {
-    type Target = VecDeque<u8>; // placeholder; we never use Target generically
+impl<O> ObserverState for VecDequeObserverState<O>
+where
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+{
+    type Target = VecDeque<O::Head>;
 
-    fn invalidate(this: &mut Self, _: &VecDeque<u8>) {
+    fn invalidate(this: &mut Self, _: &VecDeque<O::Head>) {
         this.mark_replace();
     }
 }
@@ -57,13 +67,17 @@ impl ObserverState for VecDequeObserverState {
 /// Precisely tracks back-end `push_back` / `pop_back` as [`Append`](MutationKind::Append) /
 /// [`Truncate`](MutationKind::Truncate). Front-end mutations and arbitrary modifications
 /// fall back to [`Replace`](MutationKind::Replace).
-pub struct VecDequeObserver<'ob, T, S: ?Sized, D = Zero> {
+///
+/// Inner element observers are stored in a parallel `VecDeque<O>`, enabling fine-grained
+/// mutation tracking for individual elements (e.g., modifying a field of a struct inside the
+/// deque produces a path like `[-2].field` instead of a whole-deque Replace).
+pub struct VecDequeObserver<'ob, O, S: ?Sized, D = Zero> {
     ptr: Pointer<S>,
-    state: VecDequeObserverState,
-    phantom: PhantomData<&'ob mut (T, D)>,
+    state: VecDequeObserverState<O>,
+    phantom: PhantomData<&'ob mut D>,
 }
 
-impl<'ob, T, S: ?Sized, D> Deref for VecDequeObserver<'ob, T, S, D> {
+impl<'ob, O, S: ?Sized, D> Deref for VecDequeObserver<'ob, O, S, D> {
     type Target = Pointer<S>;
 
     fn deref(&self) -> &Self::Target {
@@ -71,7 +85,7 @@ impl<'ob, T, S: ?Sized, D> Deref for VecDequeObserver<'ob, T, S, D> {
     }
 }
 
-impl<'ob, T, S: ?Sized, D> DerefMut for VecDequeObserver<'ob, T, S, D> {
+impl<'ob, O, S: ?Sized, D> DerefMut for VecDequeObserver<'ob, O, S, D> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         std::ptr::from_mut(self).expose_provenance();
         Pointer::invalidate(&mut self.ptr);
@@ -79,10 +93,11 @@ impl<'ob, T, S: ?Sized, D> DerefMut for VecDequeObserver<'ob, T, S, D> {
     }
 }
 
-impl<'ob, T, S: ?Sized, D> QuasiObserver for VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D> QuasiObserver for VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = VecDeque<T>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDeref<D, Target = VecDeque<O::Head>>,
 {
     type Head = S;
     type OuterDepth = Succ<Zero>;
@@ -93,10 +108,11 @@ where
     }
 }
 
-impl<'ob, T, S: ?Sized, D> Observer for VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D> Observer for VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = VecDeque<T>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDerefMut<D, Target = VecDeque<O::Head>>,
 {
     fn uninit() -> Self {
         Self {
@@ -105,6 +121,7 @@ where
                 back_truncate_len: 0,
                 back_append_index: 0,
                 front_mutated: false,
+                inner: UnsafeCell::new(VecDeque::new()),
             },
             phantom: PhantomData,
         }
@@ -117,6 +134,7 @@ where
                 back_truncate_len: 0,
                 back_append_index: len,
                 front_mutated: false,
+                inner: UnsafeCell::new(VecDeque::new()),
             },
             ptr: Pointer::new(head),
             phantom: PhantomData,
@@ -128,11 +146,12 @@ where
     }
 }
 
-impl<'ob, T, S: ?Sized, D> SerializeObserver for VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D> SerializeObserver for VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    T: Serialize + 'static,
-    S: AsDerefMut<D, Target = VecDeque<T>>,
+    O: Observer<InnerDepth = Zero, Head: Sized> + SerializeObserver,
+    O::Head: Serialize + 'static,
+    S: AsDerefMut<D, Target = VecDeque<O::Head>>,
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
         let deque = (*this.ptr).as_deref_mut();
@@ -147,6 +166,8 @@ where
         // If front was mutated, or if all existing content was replaced, emit whole Replace.
         if front_mutated || (back_append_index == 0 && back_truncate_len > 0) {
             if len > 0 || back_truncate_len > 0 {
+                // Clear stale inner observers.
+                this.state.inner.get_mut().clear();
                 return Mutations::replace(slice);
             }
             return Mutations::new();
@@ -157,20 +178,63 @@ where
         if back_truncate_len > 0 {
             mutations.extend(MutationKind::Truncate(back_truncate_len));
         }
+
+        // Force-init inner observers for existing elements so we can flush them.
+        unsafe { force_range(&this.state.inner, slice, 0, back_append_index) };
+
         #[cfg(feature = "append")]
         if len > back_append_index {
             mutations.extend(Mutations::append(&slice[back_append_index..]));
         }
+
+        // Flush inner observers for existing elements.
+        let inner = this.state.inner.get_mut();
+        // inner might be shorter than back_append_index if not all elements were accessed;
+        // force_range above ensures it's at least back_append_index long.
+        let existing_len = back_append_index.min(inner.len());
+        let existing = inner.make_contiguous();
+        let mut is_replace = true;
+        for (index, ob) in existing[..existing_len].iter_mut().enumerate().rev() {
+            let mutations_i = unsafe { SerializeObserver::flush(ob) };
+            is_replace &= mutations_i.is_replace();
+            mutations.insert(PathSegment::Negative(len - index), mutations_i);
+        }
+
+        // Clear stale observers beyond the existing region.
+        for ob in &mut existing[existing_len..] {
+            *ob = O::uninit();
+        }
+
+        if is_replace && (back_append_index > 0 || back_truncate_len > 0) {
+            return Mutations::replace(slice);
+        }
+
         mutations
     }
 }
 
-// ── Inherent methods ─────────────────────────────────────────
+/// Force-initializes element observers for the range `[start, end)`.
+///
+/// # Safety
+///
+/// The caller must ensure no references from previous `force_range` calls are alive.
+unsafe fn force_range<O>(inner: &UnsafeCell<VecDeque<O>>, deque_slice: &mut [O::Head], start: usize, end: usize)
+where
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+{
+    let observers = unsafe { &mut *inner.get() };
+    observers.resize_with(deque_slice.len(), O::uninit);
+    let ob_contiguous = observers.make_contiguous();
+    for i in start..end {
+        unsafe { Observer::force(&mut ob_contiguous[i], &mut deque_slice[i]) };
+    }
+}
 
-impl<'ob, T, S: ?Sized, D> VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D> VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = VecDeque<T>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDerefMut<D, Target = VecDeque<O::Head>>,
 {
     delegate_methods! { untracked_mut() as VecDeque =>
         pub fn reserve_exact(&mut self, additional: usize);
@@ -184,46 +248,120 @@ where
     /// See [`VecDeque::make_contiguous`].
     ///
     /// This only rearranges internal memory layout without changing logical order.
-    pub fn make_contiguous(&mut self) -> &mut [T] {
-        self.untracked_mut().make_contiguous()
+    /// Returns a mutable slice of inner element observers.
+    pub fn make_contiguous(&mut self) -> &mut [O] {
+        let deque = (*self.ptr).as_deref_mut();
+        let deque_slice = deque.make_contiguous();
+        let len = deque_slice.len();
+        unsafe { force_range(&self.state.inner, deque_slice, 0, len) };
+        self.state.inner.get_mut().make_contiguous()
+    }
+
+    /// Force-initializes and returns a mutable reference to the element observer at `index`.
+    #[expect(clippy::mut_from_ref)]
+    fn force_index(&self, index: usize) -> Option<&mut O> {
+        let deque = unsafe { Pointer::as_mut(&self.ptr).as_deref_mut() };
+        let len = deque.len();
+        if index >= len {
+            return None;
+        }
+        // Make contiguous so force_range can work with a slice.
+        let slice = deque.make_contiguous();
+        unsafe { force_range(&self.state.inner, slice, index, index + 1) };
+        let observers = unsafe { &mut *self.state.inner.get() };
+        observers.get_mut(index)
+    }
+
+    /// Force-initializes and returns mutable references to all element observers.
+    fn force_all(&mut self) -> &mut VecDeque<O> {
+        let deque = (*self.ptr).as_deref_mut();
+        let slice = deque.make_contiguous();
+        let len = slice.len();
+        unsafe { force_range(&self.state.inner, slice, 0, len) };
+        self.state.inner.get_mut()
     }
 
     /// See [`VecDeque::get_mut`].
-    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
-        self.tracked_mut().get_mut(index)
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut O> {
+        let deque = (*self.ptr).as_deref_mut();
+        let len = deque.len();
+        if index >= len {
+            return None;
+        }
+        let slice = deque.make_contiguous();
+        unsafe { force_range(&self.state.inner, slice, index, index + 1) };
+        self.state.inner.get_mut().get_mut(index)
     }
 
     /// See [`VecDeque::front_mut`].
-    pub fn front_mut(&mut self) -> Option<&mut T> {
-        self.tracked_mut().front_mut()
+    pub fn front_mut(&mut self) -> Option<&mut O> {
+        if (*self).untracked_ref().is_empty() {
+            return None;
+        }
+        self.get_mut(0)
     }
 
     /// See [`VecDeque::back_mut`].
-    pub fn back_mut(&mut self) -> Option<&mut T> {
-        self.tracked_mut().back_mut()
+    pub fn back_mut(&mut self) -> Option<&mut O> {
+        let len = (*self).untracked_ref().len();
+        if len == 0 {
+            return None;
+        }
+        self.get_mut(len - 1)
     }
 
     /// See [`VecDeque::iter_mut`].
-    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
-        self.tracked_mut().iter_mut()
+    ///
+    /// Returns an iterator over mutable references to inner element observers.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = &mut O> {
+        let observers = self.force_all();
+        observers.iter_mut()
     }
 
     /// See [`VecDeque::as_mut_slices`].
-    pub fn as_mut_slices(&mut self) -> (&mut [T], &mut [T]) {
-        self.tracked_mut().as_mut_slices()
+    ///
+    /// Returns observer slices. Since `force_all` makes the observer deque contiguous,
+    /// the second slice will be empty.
+    pub fn as_mut_slices(&mut self) -> (&mut [O], &mut [O]) {
+        self.force_all();
+        self.state.inner.get_mut().as_mut_slices()
     }
 
     /// See [`VecDeque::range_mut`].
-    pub fn range_mut<R>(&mut self, range: R) -> IterMut<'_, T>
+    pub fn range_mut<R>(&mut self, range: R) -> impl Iterator<Item = &mut O>
     where
-        R: RangeBounds<usize>,
+        R: RangeBounds<usize> + Clone,
     {
-        self.tracked_mut().range_mut(range)
+        let deque = (*self.ptr).as_deref_mut();
+        let len = deque.len();
+        let start = match range.start_bound() {
+            Bound::Included(&n) => n,
+            Bound::Excluded(&n) => n + 1,
+            Bound::Unbounded => 0,
+        };
+        let end = match range.end_bound() {
+            Bound::Included(&n) => n + 1,
+            Bound::Excluded(&n) => n,
+            Bound::Unbounded => len,
+        };
+        let slice = deque.make_contiguous();
+        unsafe { force_range(&self.state.inner, slice, start, end) };
+        self.state.inner.get_mut().range_mut(range)
     }
 
     /// See [`VecDeque::swap`].
     pub fn swap(&mut self, i: usize, j: usize) {
-        self.tracked_mut().swap(i, j);
+        if i != j {
+            // Invalidate observers for swapped elements.
+            let observers = self.state.inner.get_mut();
+            if let Some(ob) = observers.get_mut(i) {
+                QuasiObserver::invalidate(ob);
+            }
+            if let Some(ob) = observers.get_mut(j) {
+                QuasiObserver::invalidate(ob);
+            }
+            self.untracked_mut().swap(i, j);
+        }
     }
 
     /// See [`VecDeque::rotate_left`].
@@ -241,70 +379,73 @@ where
     }
 
     /// See [`VecDeque::push_front`].
-    pub fn push_front(&mut self, value: T) {
+    pub fn push_front(&mut self, value: O::Head) {
         self.state.front_mutated = true;
+        self.state.inner.get_mut().clear();
         self.untracked_mut().push_front(value);
     }
 
     /// See [`VecDeque::pop_front`].
-    pub fn pop_front(&mut self) -> Option<T> {
+    pub fn pop_front(&mut self) -> Option<O::Head> {
         let value = self.untracked_mut().pop_front()?;
         self.state.front_mutated = true;
+        self.state.inner.get_mut().clear();
         Some(value)
     }
 
     /// See [`VecDeque::pop_front_if`].
-    pub fn pop_front_if(&mut self, predicate: impl FnOnce(&mut T) -> bool) -> Option<T> {
+    pub fn pop_front_if(&mut self, predicate: impl FnOnce(&mut O::Head) -> bool) -> Option<O::Head> {
+        // We need to check predicate without committing to front_mutated.
         let front = self.untracked_mut().front_mut()?;
         if predicate(front) { self.pop_front() } else { None }
     }
 
     /// See [`VecDeque::swap_remove_front`].
-    pub fn swap_remove_front(&mut self, index: usize) -> Option<T> {
+    pub fn swap_remove_front(&mut self, index: usize) -> Option<O::Head> {
         let value = self.untracked_mut().swap_remove_front(index)?;
         self.state.front_mutated = true;
+        self.state.inner.get_mut().clear();
         Some(value)
     }
 }
 
-// ── Back-end append tracking (feature = "append") ─────────────
-
 #[cfg(feature = "append")]
-impl<'ob, T, S: ?Sized, D> VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D> VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = VecDeque<T>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDerefMut<D, Target = VecDeque<O::Head>>,
 {
     /// See [`VecDeque::push_back`].
-    pub fn push_back(&mut self, value: T) {
+    pub fn push_back(&mut self, value: O::Head) {
         self.untracked_mut().push_back(value);
     }
 
     /// See [`VecDeque::append`].
-    pub fn append(&mut self, other: &mut VecDeque<T>) {
+    pub fn append(&mut self, other: &mut VecDeque<O::Head>) {
         self.untracked_mut().append(other);
     }
 
     /// See [`VecDeque::insert`].
-    pub fn insert(&mut self, index: usize, value: T) {
+    pub fn insert(&mut self, index: usize, value: O::Head) {
         if index >= self.state.back_append_index {
             self.untracked_mut().insert(index, value);
         } else {
+            self.state.inner.get_mut().clear();
             self.tracked_mut().insert(index, value);
         }
     }
 }
 
-// ── Back-end truncate + append tracking ─────────────
-
 #[cfg(any(feature = "append", feature = "truncate"))]
-impl<'ob, T, S: ?Sized, D> VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D> VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = VecDeque<T>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDerefMut<D, Target = VecDeque<O::Head>>,
 {
     /// See [`VecDeque::pop_back`].
-    pub fn pop_back(&mut self) -> Option<T> {
+    pub fn pop_back(&mut self) -> Option<O::Head> {
         let value = self.untracked_mut().pop_back()?;
         let len = (*self).untracked_ref().len();
         if len >= self.state.back_append_index {
@@ -318,7 +459,7 @@ where
     }
 
     /// See [`VecDeque::pop_back_if`].
-    pub fn pop_back_if(&mut self, predicate: impl FnOnce(&mut T) -> bool) -> Option<T> {
+    pub fn pop_back_if(&mut self, predicate: impl FnOnce(&mut O::Head) -> bool) -> Option<O::Head> {
         let back = self.untracked_mut().back_mut()?;
         if predicate(back) { self.pop_back() } else { None }
     }
@@ -328,6 +469,7 @@ where
         if self.state.back_append_index == 0 && !self.state.front_mutated {
             self.untracked_mut().clear();
         } else {
+            self.state.inner.get_mut().clear();
             self.tracked_mut().clear();
         }
     }
@@ -340,6 +482,7 @@ where
             return;
         }
         if cfg!(not(feature = "truncate")) || len == 0 {
+            self.state.inner.get_mut().clear();
             self.tracked_mut().truncate(len);
             return;
         }
@@ -348,7 +491,7 @@ where
     }
 
     /// See [`VecDeque::remove`].
-    pub fn remove(&mut self, index: usize) -> Option<T> {
+    pub fn remove(&mut self, index: usize) -> Option<O::Head> {
         let bai = self.state.back_append_index;
         let value = self.untracked_mut().remove(index)?;
         if index >= bai {
@@ -362,7 +505,7 @@ where
     }
 
     /// See [`VecDeque::swap_remove_back`].
-    pub fn swap_remove_back(&mut self, index: usize) -> Option<T> {
+    pub fn swap_remove_back(&mut self, index: usize) -> Option<O::Head> {
         let bai = self.state.back_append_index;
         let value = self.untracked_mut().swap_remove_back(index)?;
         if index >= bai {
@@ -376,7 +519,7 @@ where
     }
 
     /// See [`VecDeque::split_off`].
-    pub fn split_off(&mut self, at: usize) -> VecDeque<T> {
+    pub fn split_off(&mut self, at: usize) -> VecDeque<O::Head> {
         let bai = self.state.back_append_index;
         let split = self.untracked_mut().split_off(at);
         if at >= bai {
@@ -392,21 +535,23 @@ where
     /// See [`VecDeque::retain`].
     pub fn retain<F>(&mut self, f: F)
     where
-        F: FnMut(&T) -> bool,
+        F: FnMut(&O::Head) -> bool,
     {
+        self.state.inner.get_mut().clear();
         self.tracked_mut().retain(f);
     }
 
     /// See [`VecDeque::retain_mut`].
     pub fn retain_mut<F>(&mut self, f: F)
     where
-        F: FnMut(&mut T) -> bool,
+        F: FnMut(&mut O::Head) -> bool,
     {
+        self.state.inner.get_mut().clear();
         self.tracked_mut().retain_mut(f);
     }
 
     /// See [`VecDeque::resize_with`].
-    pub fn resize_with(&mut self, new_len: usize, generator: impl FnMut() -> T) {
+    pub fn resize_with(&mut self, new_len: usize, generator: impl FnMut() -> O::Head) {
         let bai = self.state.back_append_index;
         self.untracked_mut().resize_with(new_len, generator);
         if new_len >= bai {
@@ -419,7 +564,7 @@ where
     }
 
     /// See [`VecDeque::drain`].
-    pub fn drain<R>(&mut self, range: R) -> Drain<'_, T>
+    pub fn drain<R>(&mut self, range: R) -> Drain<'_, O::Head>
     where
         R: RangeBounds<usize>,
     {
@@ -433,6 +578,7 @@ where
             return self.untracked_mut().drain(range);
         }
         if cfg!(not(feature = "truncate")) || start == 0 {
+            self.state.inner.get_mut().clear();
             return self.tracked_mut().drain(range);
         }
         let end = match range.end_bound() {
@@ -441,21 +587,25 @@ where
             Bound::Unbounded => (*self).untracked_ref().len(),
         };
         if end < bai {
+            self.state.inner.get_mut().clear();
             return self.tracked_mut().drain(range);
         }
         self.state.mark_back_truncate(start);
+        self.state.inner.get_mut().clear();
         self.tracked_mut().drain(range)
     }
 }
 
 #[cfg(any(feature = "append", feature = "truncate"))]
-impl<'ob, T: Clone, S: ?Sized, D> VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D> VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = VecDeque<T>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    O::Head: Clone,
+    S: AsDerefMut<D, Target = VecDeque<O::Head>>,
 {
     /// See [`VecDeque::resize`].
-    pub fn resize(&mut self, new_len: usize, value: T) {
+    pub fn resize(&mut self, new_len: usize, value: O::Head) {
         let bai = self.state.back_append_index;
         self.untracked_mut().resize(new_len, value);
         if new_len >= bai {
@@ -468,93 +618,95 @@ where
     }
 }
 
-// ── Extend ──────────────────────────────────────────
-
 #[cfg(feature = "append")]
-impl<'ob, T, S: ?Sized, D, U> Extend<U> for VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D, U> Extend<U> for VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = VecDeque<T>>,
-    VecDeque<T>: Extend<U>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDerefMut<D, Target = VecDeque<O::Head>>,
+    VecDeque<O::Head>: Extend<U>,
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
         self.untracked_mut().extend(other);
     }
 }
 
-// ── IndexMut ────────────────────────────────────────
-
-impl<'ob, T, S: ?Sized, D> Index<usize> for VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D> Index<usize> for VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = VecDeque<T>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDerefMut<D, Target = VecDeque<O::Head>>,
 {
-    type Output = T;
+    type Output = O;
 
     fn index(&self, index: usize) -> &Self::Output {
-        &self.untracked_ref()[index]
+        self.force_index(index).expect("index out of bounds")
     }
 }
 
-impl<'ob, T, S: ?Sized, D> IndexMut<usize> for VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D> IndexMut<usize> for VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDerefMut<D, Target = VecDeque<T>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDerefMut<D, Target = VecDeque<O::Head>>,
 {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        self.tracked_mut().index_mut(index)
+        self.get_mut(index).expect("index out of bounds")
     }
 }
 
-// ── Trait impls ─────────────────────────────────────
-
-impl<'ob, T, S: ?Sized, D> Debug for VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D> Debug for VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    T: Debug,
-    S: AsDeref<D, Target = VecDeque<T>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    O::Head: Debug,
+    S: AsDeref<D, Target = VecDeque<O::Head>>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_tuple("VecDequeObserver").field(&self.untracked_ref()).finish()
     }
 }
 
-impl<'ob, T, S: ?Sized, D, U> PartialEq<VecDeque<U>> for VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D, U> PartialEq<VecDeque<U>> for VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    S: AsDeref<D, Target = VecDeque<T>>,
-    VecDeque<T>: PartialEq<VecDeque<U>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    S: AsDeref<D, Target = VecDeque<O::Head>>,
+    VecDeque<O::Head>: PartialEq<VecDeque<U>>,
 {
     fn eq(&self, other: &VecDeque<U>) -> bool {
         self.untracked_ref().eq(other)
     }
 }
 
-impl<'ob, T, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<VecDequeObserver<'ob, T, S2, D2>>
-    for VecDequeObserver<'ob, T, S1, D1>
+impl<'ob, O1, O2, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<VecDequeObserver<'ob, O2, S2, D2>>
+    for VecDequeObserver<'ob, O1, S1, D1>
 where
     D1: Unsigned,
     D2: Unsigned,
-    T: PartialEq,
-    S1: AsDeref<D1, Target = VecDeque<T>>,
-    S2: AsDeref<D2, Target = VecDeque<T>>,
+    O1: Observer<InnerDepth = Zero, Head: Sized>,
+    O2: Observer<InnerDepth = Zero, Head: Sized>,
+    S1: AsDeref<D1, Target = VecDeque<O1::Head>>,
+    S2: AsDeref<D2, Target = VecDeque<O2::Head>>,
+    VecDeque<O1::Head>: PartialEq<VecDeque<O2::Head>>,
 {
-    fn eq(&self, other: &VecDequeObserver<'ob, T, S2, D2>) -> bool {
+    fn eq(&self, other: &VecDequeObserver<'ob, O2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
-impl<'ob, T, S: ?Sized, D> Eq for VecDequeObserver<'ob, T, S, D>
+impl<'ob, O, S: ?Sized, D> Eq for VecDequeObserver<'ob, O, S, D>
 where
     D: Unsigned,
-    T: Eq,
-    S: AsDeref<D, Target = VecDeque<T>>,
+    O: Observer<InnerDepth = Zero, Head: Sized>,
+    O::Head: Eq,
+    S: AsDeref<D, Target = VecDeque<O::Head>>,
 {
 }
 
-impl<T: Serialize + 'static> Observe for VecDeque<T> {
+impl<T: Observe> Observe for VecDeque<T> {
     type Observer<'ob, S, D>
-        = VecDequeObserver<'ob, T, S, D>
+        = VecDequeObserver<'ob, T::Observer<'ob, T, Zero>, S, D>
     where
         Self: 'ob,
         D: Unsigned,
@@ -564,7 +716,7 @@ impl<T: Serialize + 'static> Observe for VecDeque<T> {
 }
 
 default_impl_ref_observe! {
-    impl [T: Serialize + 'static] RefObserve for VecDeque<T>;
+    impl [T: Observe] RefObserve for VecDeque<T>;
 }
 
 #[cfg(test)]
@@ -928,10 +1080,171 @@ mod tests {
 
     #[test]
     fn index_mut_triggers_replace() {
-        let mut deque = VecDeque::from([1, 2, 3]);
+        let mut deque = VecDeque::from([1i32, 2, 3]);
         let mut ob = deque.__observe();
-        ob[1] = 99;
+        **ob[1] = 99;
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation, Some(replace!(_, json!([1, 99, 3]))));
+        assert_eq!(mutation, Some(replace!(-2, json!(99))));
+    }
+
+    #[test]
+    fn index_returns_inner_observer() {
+        let mut deque = VecDeque::from(["hello".to_string(), "world".to_string()]);
+        let mut ob = deque.__observe();
+        // Access through index should return an observer, not raw T.
+        assert_eq!(ob[0], "hello");
+        assert_eq!(ob[1], "world");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
+    }
+
+    #[test]
+    fn modify_element_via_inner_observer() {
+        let mut deque = VecDeque::from(["hello".to_string(), "world".to_string()]);
+        let mut ob = deque.__observe();
+        // Modify element through observer — should produce fine-grained mutation.
+        // String's push_str produces Append at the element level.
+        ob[0].push_str("!");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(append!(-2, json!("!"))));
+    }
+
+    #[test]
+    fn modify_multiple_elements_via_inner_observer() {
+        let mut deque = VecDeque::from(["a".to_string(), "b".to_string(), "c".to_string()]);
+        let mut ob = deque.__observe();
+        ob[0].push_str("1");
+        ob[2].push_str("3");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(batch!(_, append!(-1, json!("3")), append!(-3, json!("1"))))
+        );
+    }
+
+    #[test]
+    fn get_mut_returns_observer() {
+        let mut deque = VecDeque::from(["foo".to_string(), "bar".to_string()]);
+        let mut ob = deque.__observe();
+        let elem = ob.get_mut(1).unwrap();
+        elem.push_str("baz");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(append!(-1, json!("baz"))));
+    }
+
+    #[test]
+    fn front_mut_returns_observer() {
+        let mut deque = VecDeque::from(["first".to_string(), "second".to_string()]);
+        let mut ob = deque.__observe();
+        let front = ob.front_mut().unwrap();
+        front.push_str("!");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(append!(-2, json!("!"))));
+    }
+
+    #[test]
+    fn back_mut_returns_observer() {
+        let mut deque = VecDeque::from(["first".to_string(), "second".to_string()]);
+        let mut ob = deque.__observe();
+        let back = ob.back_mut().unwrap();
+        back.push_str("!");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(append!(-1, json!("!"))));
+    }
+
+    #[test]
+    fn iter_mut_returns_observers() {
+        let mut deque = VecDeque::from(["a".to_string(), "b".to_string(), "c".to_string()]);
+        let mut ob = deque.__observe();
+        for elem in ob.iter_mut() {
+            elem.push_str("!");
+        }
+        let Json(mutation) = ob.flush().unwrap();
+        // All elements have fine-grained Append mutations.
+        // Since not all report Replace, they are emitted individually.
+        assert_eq!(
+            mutation,
+            Some(batch!(
+                _,
+                append!(-1, json!("!")),
+                append!(-2, json!("!")),
+                append!(-3, json!("!"))
+            ))
+        );
+    }
+
+    #[test]
+    fn make_contiguous_returns_observer_slice() {
+        let mut deque = VecDeque::from(["x".to_string(), "y".to_string()]);
+        let mut ob = deque.__observe();
+        let slice = ob.make_contiguous();
+        slice[0].push_str("1");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(append!(-2, json!("1"))));
+    }
+
+    #[test]
+    fn modify_then_append() {
+        let mut deque = VecDeque::from(["a".to_string()]);
+        let mut ob = deque.__observe();
+        ob[0].push_str("!");
+        ob.push_back("b".to_string());
+        let Json(mutation) = ob.flush().unwrap();
+        // Element 0 has Append (not Replace), so no collapse.
+        assert_eq!(
+            mutation,
+            Some(batch!(_, append!(_, json!(["b"])), append!(-2, json!("!"))))
+        );
+    }
+
+    #[test]
+    fn no_modify_then_append() {
+        let mut deque = VecDeque::from(["a".to_string()]);
+        let mut ob = deque.__observe();
+        // Access without modification.
+        let _ = &ob[0];
+        ob.push_back("b".to_string());
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(append!(_, json!(["b"]))));
+    }
+
+    #[test]
+    fn modify_element_then_pop_back() {
+        let mut deque = VecDeque::from(["a".to_string(), "b".to_string(), "c".to_string()]);
+        let mut ob = deque.__observe();
+        ob[0].push_str("!");
+        ob.pop_back();
+        let Json(mutation) = ob.flush().unwrap();
+        // Element 0 has Append (not Replace), so fine-grained: truncate + element append.
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 1), append!(-2, json!("!")))));
+    }
+
+    #[test]
+    fn index_read_only_no_mutation() {
+        let mut deque = VecDeque::from(["hello".to_string(), "world".to_string()]);
+        let mut ob = deque.__observe();
+        // Read-only access through index should NOT produce mutations.
+        let _val = &ob[0];
+        let _val2 = &ob[1];
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
+    }
+
+    #[test]
+    fn pop_push_clears_stale_observer_state() {
+        let mut deque = VecDeque::from(["a".to_string(), "b".to_string(), "ab".to_string()]);
+        let mut ob = deque.__observe();
+
+        // Modify element 2, then pop and push back in the same cycle.
+        ob[2].truncate(1);
+        ob.pop_back();
+        ob.push_back("cd".to_string());
+        let Json(mutation) = ob.flush().unwrap();
+        assert!(mutation.is_some()); // Truncate(1) + Append(["cd"])
+
+        // Next cycle: element 2 should have a fresh observer.
+        assert_eq!(ob[2], "cd");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
     }
 }
