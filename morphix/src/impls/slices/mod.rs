@@ -1,5 +1,6 @@
 mod array;
 mod helper;
+mod shallow;
 pub mod slice;
 mod str;
 mod string;
