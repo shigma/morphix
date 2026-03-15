@@ -93,8 +93,8 @@ where
         }
     }
 
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-        unsafe { O::refresh(&mut this.inner, head) }
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
+        unsafe { O::relocate(&mut this.inner, head) }
     }
 }
 
@@ -110,8 +110,8 @@ where
         }
     }
 
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
-        unsafe { O::refresh(&mut this.inner, head) }
+    unsafe fn relocate(this: &mut Self, head: &Self::Head) {
+        unsafe { O::relocate(&mut this.inner, head) }
     }
 }
 
@@ -127,8 +127,8 @@ where
         }
     }
 
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-        unsafe { O::refresh(&mut this.inner, head) }
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
+        unsafe { O::relocate(&mut this.inner, head) }
     }
 }
 

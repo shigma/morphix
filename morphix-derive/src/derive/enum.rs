@@ -162,7 +162,7 @@ pub fn derive_observe_for_enum(
                 #(#if_named #field_ident:)* ::morphix::observe::Observer::observe(#observe_ident),
             });
             refresh_stmts.extend(quote_spanned! { field_span =>
-                ::morphix::observe::Observer::refresh(#ob_ident, #value_ident);
+                ::morphix::observe::Observer::relocate(#ob_ident, #value_ident);
             });
 
             let mutation_ident = if let Some(field_ident) = &field_ident {
@@ -415,7 +415,7 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            unsafe fn refresh(&mut self, value: &mut #input_ident #input_type_generics) {
+            unsafe fn relocate(&mut self, value: &mut #input_ident #input_type_generics) {
                 unsafe {
                     match (self, value) {
                         #variant_refresh_arms
@@ -524,10 +524,10 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            unsafe fn refresh(this: &mut Self, head: &mut #head) {
+            unsafe fn relocate(this: &mut Self, head: &mut #head) {
                 #(#if_has_variant
                     let __value = head.as_deref_mut();
-                    unsafe { this.__variant.refresh(__value) }
+                    unsafe { this.__variant.relocate(__value) }
                 )*
                 ::morphix::helper::Pointer::set(this, head);
             }

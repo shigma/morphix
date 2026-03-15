@@ -144,7 +144,7 @@ pub fn derive_observe_for_struct(
             }
             non_deref_members.push(field_member.clone());
             refresh_stmts.extend(quote_spanned! { field_span =>
-                ::morphix::observe::Observer::refresh(&mut this.#field_member, &mut __value.#field_member);
+                ::morphix::observe::Observer::relocate(&mut this.#field_member, &mut __value.#field_member);
             });
             ob_fields.extend(quote_spanned! { field_span =>
                 #field_vis #(#if_named #field_ident:)* #ob_field_ty,
@@ -303,7 +303,7 @@ pub fn derive_observe_for_struct(
                 #observer_observe_expr
             }
 
-            unsafe fn refresh(this: &mut Self, head: &mut #head) {
+            unsafe fn relocate(this: &mut Self, head: &mut #head) {
                 let __value = head.as_deref_mut();
                 unsafe {
                     #refresh_stmts
@@ -417,11 +417,11 @@ pub fn derive_observe_for_struct(
                 #observer_observe_expr
             }
 
-            unsafe fn refresh(this: &mut Self, head: &mut #inner::Head) {
+            unsafe fn relocate(this: &mut Self, head: &mut #inner::Head) {
                 unsafe {
                     #prepare_value
                     #refresh_stmts
-                    ::morphix::observe::Observer::refresh(&mut this.#field_member, head);
+                    ::morphix::observe::Observer::relocate(&mut this.#field_member, head);
                 }
             }
         };

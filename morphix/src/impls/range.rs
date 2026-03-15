@@ -73,10 +73,10 @@ macro_rules! impl_range {
                     this
                 }
 
-                unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+                unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
                     let value = head.as_deref_mut();
                     unsafe {
-                        $(O::refresh(&mut this.$field, &mut value.$field);)*
+                        $(O::relocate(&mut this.$field, &mut value.$field);)*
                     }
                     Pointer::set(this, head);
                 }
@@ -100,11 +100,11 @@ macro_rules! impl_range {
                     this
                 }
 
-                unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+                unsafe fn relocate(this: &mut Self, head: &Self::Head) {
                     Pointer::set(this, head);
                     let value = head.as_deref();
                     unsafe {
-                        $(O::refresh(&mut this.$field, &value.$field);)*
+                        $(O::relocate(&mut this.$field, &value.$field);)*
                     }
                 }
             }
@@ -274,11 +274,11 @@ where
         this
     }
 
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
         let value = (*head).as_deref();
         unsafe {
-            O::refresh(&mut this.start, value.start());
-            O::refresh(&mut this.end, value.end());
+            O::relocate(&mut this.start, value.start());
+            O::relocate(&mut this.end, value.end());
         }
         Pointer::set(this, head);
     }
@@ -304,12 +304,12 @@ where
         this
     }
 
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &Self::Head) {
         Pointer::set(this, head);
         let value = head.as_deref();
         unsafe {
-            O::refresh(&mut this.start, value.start());
-            O::refresh(&mut this.end, value.end());
+            O::relocate(&mut this.start, value.start());
+            O::relocate(&mut this.end, value.end());
         }
     }
 }

@@ -76,7 +76,7 @@ fn recover_provenance_mut<S: ?Sized>(raw: *mut S) -> *mut S {
 ///
 /// The `inner` field uses [`Cell`] for interior mutability, allowing [`Pointer::set`] to update
 /// the address through a shared reference. This is needed when container reallocation moves
-/// elements — [`Observer::refresh`](crate::observe::Observer::refresh) calls `Pointer::set`
+/// elements — [`Observer::relocate`](crate::observe::Observer::relocate) calls [`Pointer::set`]
 /// through `&self` rather than `&mut self`.
 ///
 /// ## Fallback Invalidation
@@ -97,7 +97,7 @@ fn recover_provenance_mut<S: ?Sized>(raw: *mut S) -> *mut S {
 /// invariants are maintained by the observer infrastructure when used correctly within that
 /// context.
 pub struct Pointer<S: ?Sized> {
-    inner: Cell<Option<NonNull<S>>>,
+    inner: Cell<NonNull<S>>,
     #[expect(clippy::type_complexity)]
     pub(crate) states: UnsafeCell<Vec<(isize, unsafe fn(*mut u8, &S))>>,
 }
@@ -111,13 +111,13 @@ impl<S: ?Sized> Pointer<S> {
         let ptr = head.into();
         ptr.cast::<u8>().expose_provenance();
         Pointer {
-            inner: Cell::new(Some(ptr)),
+            inner: Cell::new(ptr),
             states: UnsafeCell::new(Vec::new()),
         }
     }
 
     /// Retrieves the internal raw pointer.
-    pub const fn get(this: &Self) -> Option<NonNull<S>> {
+    pub const fn get(this: &Self) -> NonNull<S> {
         this.inner.get()
     }
 
@@ -130,15 +130,7 @@ impl<S: ?Sized> Pointer<S> {
     pub fn set(this: &Self, head: impl Into<NonNull<S>>) {
         let ptr = head.into();
         ptr.cast::<u8>().expose_provenance();
-        this.inner.set(Some(ptr));
-    }
-
-    /// Checks if this pointer is null.
-    ///
-    /// A null pointer indicates the observer was constructed with [`uninit`](Self::uninit) and has
-    /// not been properly initialized via [`refresh`](crate::observe::Observer::refresh).
-    pub const fn is_null(this: &Self) -> bool {
-        this.inner.get().is_none()
+        this.inner.set(ptr);
     }
 
     /// Returns a reference to the pointed value.
@@ -160,8 +152,7 @@ impl<S: ?Sized> Pointer<S> {
     /// These invariants are automatically maintained when using [`Pointer`] within the observer
     /// infrastructure, but must be manually verified if called directly.
     pub unsafe fn as_ref<'ob>(this: &Self) -> &'ob S {
-        let ptr = this.inner.get().expect("pointer should not be null");
-        unsafe { &*recover_provenance(ptr.as_ptr()) }
+        unsafe { &*recover_provenance(this.inner.get().as_ptr()) }
     }
 
     /// Returns a mutable reference to the pointed value.
@@ -184,8 +175,7 @@ impl<S: ?Sized> Pointer<S> {
     /// These invariants are automatically maintained when using [`Pointer`] within the observer
     /// infrastructure, but must be manually verified if called directly.
     pub unsafe fn as_mut<'ob>(this: &Self) -> &'ob mut S {
-        let ptr = this.inner.get().expect("pointer should not be null");
-        unsafe { &mut *recover_provenance_mut(ptr.as_ptr()) }
+        unsafe { &mut *recover_provenance_mut(this.inner.get().as_ptr()) }
     }
 
     /// Registers an [`ObserverState`] implementor for fallback invalidation.

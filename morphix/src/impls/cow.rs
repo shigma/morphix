@@ -72,12 +72,12 @@ where
         }
     }
 
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-        unsafe { B::refresh(&mut this.inner, head) }
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
+        unsafe { B::relocate(&mut this.inner, head) }
         if let Some(owned) = &mut this.owned {
             match AsDerefMut::<D>::as_deref_mut(head) {
                 Cow::Borrowed(_) => panic!("inconsistent state for CowObserver"),
-                Cow::Owned(value) => unsafe { O::refresh(owned, value) },
+                Cow::Owned(value) => unsafe { O::relocate(owned, value) },
             }
         }
         // Re-expose with mutable provenance (see observe for rationale).

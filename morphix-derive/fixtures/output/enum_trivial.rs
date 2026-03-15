@@ -70,7 +70,7 @@ const _: () = {
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, head: &mut S) {
+        unsafe fn relocate(this: &mut Self, head: &mut S) {
             ::morphix::helper::Pointer::set(this, head);
         }
     }

@@ -105,9 +105,9 @@ where
         this
     }
 
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
         let value = head.as_deref_mut();
-        unsafe { O::refresh(&mut this.0, value.as_inner_mut()) }
+        unsafe { O::relocate(&mut this.0, value.as_inner_mut()) }
         Pointer::set(&this.1, head);
     }
 }
@@ -126,10 +126,10 @@ where
         this
     }
 
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &Self::Head) {
         Pointer::set(&this.1, head);
         let value = head.as_deref();
-        unsafe { O::refresh(&mut this.0, value.as_inner()) }
+        unsafe { O::relocate(&mut this.0, value.as_inner()) }
     }
 }
 

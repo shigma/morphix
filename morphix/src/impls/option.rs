@@ -73,9 +73,9 @@ where
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
         if let (Some(inner), Some(value)) = (&mut this.state.inner, head.as_deref_mut().as_mut()) {
-            unsafe { O::refresh(inner, value) }
+            unsafe { O::relocate(inner, value) }
         }
         Pointer::set(this, head);
     }
@@ -102,10 +102,10 @@ where
     O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &Self::Head) {
         Pointer::set(this, head);
         if let (Some(inner), Some(value)) = (&mut this.state.inner, head.as_deref().as_ref()) {
-            unsafe { O::refresh(inner, value) }
+            unsafe { O::relocate(inner, value) }
         }
     }
 
@@ -162,7 +162,7 @@ where
             Some(inner) => inner,
             slot @ None => slot.insert(O::observe(value)),
         };
-        unsafe { O::refresh(inner, value) }
+        unsafe { O::relocate(inner, value) }
         Some(inner)
     }
 
@@ -419,7 +419,7 @@ mod tests {
     }
 
     #[test]
-    fn refresh() {
+    fn relocate() {
         let mut vec = vec![None::<i32>];
         let mut ob = vec.__observe();
         **ob[0] = Some(1);

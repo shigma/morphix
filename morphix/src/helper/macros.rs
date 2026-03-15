@@ -215,7 +215,7 @@ macro_rules! shallow_observer {
             D: Unsigned,
             S: AsDerefMut<D>,
         {
-            unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+            unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
                 $crate::helper::Pointer::set(this, head);
             }
 

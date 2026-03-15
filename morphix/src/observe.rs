@@ -113,14 +113,10 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 ///
 /// ## Lifecycle
 ///
-/// - [`uninit()`](Self::uninit) creates an uninitialized observer (null pointer). Used for
-///   pre-allocating storage in containers before values are known.
 /// - [`observe(head)`](Self::observe) fully initializes the observer: sets up the internal pointer,
 ///   initializes diff state, and registers any fallback invalidation entries.
-/// - [`refresh(this, head)`](Self::refresh) updates the internal pointer after the observed value
+/// - [`relocate(this, head)`](Self::relocate) updates the internal pointer after the observed value
 ///   has moved in memory (e.g., due to [`Vec`] reallocation), keeping diff state intact.
-/// - [`force(this, head)`](Self::force) is a convenience: initializes if null, refreshes if moved,
-///   no-ops if unchanged. Used by container observers for lazy initialization.
 ///
 /// ## Invariants
 ///
@@ -154,8 +150,8 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 /// tracking state, and that later accesses cannot obtain inner observers carrying stale state.
 ///
 /// In contrast, a stale pointer (e.g., an inner observer pointing to a previous address after
-/// container reallocation) is tolerable — it will be repaired by [`refresh`](Observer::refresh) or
-/// [`force`](Observer::force) before the next access. Stale state, however, cannot be repaired
+/// container reallocation) is tolerable — it will be repaired by [`relocate`](Observer::relocate)
+/// or [`force`](Observer::force) before the next access. Stale state, however, cannot be repaired
 /// after the fact, which is why [`QuasiObserver::invalidate`] must eagerly clear it.
 ///
 /// See the [Observer Mechanism](https://github.com/shigma/morphix#observer-mechanism) for a
@@ -195,7 +191,7 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     ///
     /// This method should be called after any operation that may relocate the observed
     /// value in memory while the observer is still in use.
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head);
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head);
 }
 
 /// Shared-reference counterpart to [`Observer`].
@@ -214,13 +210,13 @@ pub trait RefObserver: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::H
 
     /// Refreshes the observer's internal pointer after the observed value has moved.
     ///
-    /// See [`Observer::refresh`] for details. The only difference is that `head` is a shared
+    /// See [`Observer::relocate`] for details. The only difference is that `head` is a shared
     /// reference, maintaining shared provenance.
     ///
     /// # Safety
     ///
-    /// Same requirements as [`Observer::refresh`].
-    unsafe fn refresh(this: &mut Self, head: &Self::Head);
+    /// Same requirements as [`Observer::relocate`].
+    unsafe fn relocate(this: &mut Self, head: &Self::Head);
 }
 
 /// Extends [`Observer`] with the ability to flush recorded mutations as serializable values.

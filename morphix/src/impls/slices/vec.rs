@@ -104,7 +104,7 @@ where
             }
         }
         for (ob, value) in inner[start..end].iter_mut().zip(slice[start..end].iter_mut()) {
-            unsafe { Observer::refresh(ob, value) }
+            unsafe { Observer::relocate(ob, value) }
         }
     }
 }
@@ -196,8 +196,8 @@ where
         }
     }
 
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-        unsafe { Observer::refresh(&mut this.inner, head) }
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
+        unsafe { Observer::relocate(&mut this.inner, head) }
     }
 }
 

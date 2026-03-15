@@ -128,7 +128,7 @@ where
         }
     }
 
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
 }
@@ -216,7 +216,7 @@ where
     }
     let ob_contiguous = observers.make_contiguous();
     for i in start..end {
-        unsafe { Observer::refresh(&mut ob_contiguous[i], &mut deque_slice[i]) };
+        unsafe { Observer::relocate(&mut ob_contiguous[i], &mut deque_slice[i]) };
     }
 }
 

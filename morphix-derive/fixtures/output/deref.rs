@@ -61,11 +61,11 @@ const _: () = {
             ::morphix::helper::Pointer::register_observer(ptr, &this.b);
             this
         }
-        unsafe fn refresh(this: &mut Self, head: &mut O::Head) {
+        unsafe fn relocate(this: &mut Self, head: &mut O::Head) {
             unsafe {
                 let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(head);
-                ::morphix::observe::Observer::refresh(&mut this.b, &mut __value.b);
-                ::morphix::observe::Observer::refresh(&mut this.a, head);
+                ::morphix::observe::Observer::relocate(&mut this.b, &mut __value.b);
+                ::morphix::observe::Observer::relocate(&mut this.a, head);
             }
         }
     }
@@ -199,11 +199,11 @@ const _: () = {
             ::morphix::helper::Pointer::register_observer(ptr, &this.1);
             this
         }
-        unsafe fn refresh(this: &mut Self, head: &mut O::Head) {
+        unsafe fn relocate(this: &mut Self, head: &mut O::Head) {
             unsafe {
                 let __value = ::morphix::helper::AsDerefMut::<N>::as_deref_mut(head);
-                ::morphix::observe::Observer::refresh(&mut this.1, &mut __value.1);
-                ::morphix::observe::Observer::refresh(&mut this.0, head);
+                ::morphix::observe::Observer::relocate(&mut this.1, &mut __value.1);
+                ::morphix::observe::Observer::relocate(&mut this.0, head);
             }
         }
     }
@@ -323,9 +323,9 @@ const _: () = {
             let observer_0 = ::morphix::observe::Observer::observe(head);
             Self(observer_0)
         }
-        unsafe fn refresh(this: &mut Self, head: &mut O::Head) {
+        unsafe fn relocate(this: &mut Self, head: &mut O::Head) {
             unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.0, head);
+                ::morphix::observe::Observer::relocate(&mut this.0, head);
             }
         }
     }

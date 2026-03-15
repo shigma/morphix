@@ -90,11 +90,11 @@ where
         }
     }
 
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
         if let Some(inner) = &mut this.inner
             && let Some(ptr) = (*head).as_deref().upgrade()
         {
-            unsafe { O::refresh(inner, &*ptr) }
+            unsafe { O::relocate(inner, &*ptr) }
         }
         Pointer::set(&this.ptr, head);
     }
@@ -117,11 +117,11 @@ where
         }
     }
 
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &Self::Head) {
         if let Some(inner) = &mut this.inner
             && let Some(ptr) = head.as_deref().upgrade()
         {
-            unsafe { O::refresh(inner, &*ptr) }
+            unsafe { O::relocate(inner, &*ptr) }
         }
     }
 }

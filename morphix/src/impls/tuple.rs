@@ -60,9 +60,9 @@ where
         this
     }
 
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
         let tuple = head.as_deref_mut();
-        unsafe { O::refresh(&mut this.0, &mut tuple.0) }
+        unsafe { O::relocate(&mut this.0, &mut tuple.0) }
         Pointer::set(&this.1, head);
     }
 }
@@ -81,10 +81,10 @@ where
         this
     }
 
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &Self::Head) {
         Pointer::set(&this.1, head);
         let tuple = head.as_deref();
-        unsafe { O::refresh(&mut this.0, &tuple.0) }
+        unsafe { O::relocate(&mut this.0, &tuple.0) }
     }
 }
 
@@ -280,10 +280,10 @@ macro_rules! tuple_observer {
                 this
             }
 
-            unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+            unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
                 let tuple = head.as_deref_mut();
                 unsafe {
-                    $($o::refresh(&mut this.$n, &mut tuple.$n);)*
+                    $($o::relocate(&mut this.$n, &mut tuple.$n);)*
                 }
                 Pointer::set(&this.$ptr, head);
             }
@@ -306,11 +306,11 @@ macro_rules! tuple_observer {
                 this
             }
 
-            unsafe fn refresh(this: &mut Self, head: &Self::Head) {
+            unsafe fn relocate(this: &mut Self, head: &Self::Head) {
                 Pointer::set(&this.$ptr, head);
                 let tuple = head.as_deref();
                 unsafe {
-                    $($o::refresh(&mut this.$n, &tuple.$n);)*
+                    $($o::relocate(&mut this.$n, &tuple.$n);)*
                 }
             }
         }

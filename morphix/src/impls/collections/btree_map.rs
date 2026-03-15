@@ -191,7 +191,7 @@ where
     O::Head: Sized,
     K: Clone + Ord,
 {
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
 
@@ -240,7 +240,7 @@ where
                 .as_deref_mut()
                 .get_mut(&key)
                 .expect("observer key not found in observed map");
-            unsafe { O::refresh(&mut ob, value) }
+            unsafe { O::relocate(&mut ob, value) }
             mutations.insert(key, unsafe { O::flush(&mut ob) });
         }
         mutations
@@ -309,7 +309,7 @@ where
         match unsafe { (*self.state.inner.get()).entry(key_cloned) } {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
-                unsafe { O::refresh(ob, value) }
+                unsafe { O::relocate(ob, value) }
                 Some(ob)
             }
             Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
@@ -332,7 +332,7 @@ where
             match inner.entry(key.clone()) {
                 Entry::Occupied(occupied) => {
                     let observer = occupied.into_mut().as_mut();
-                    unsafe { O::refresh(observer, value) }
+                    unsafe { O::relocate(observer, value) }
                 }
                 Entry::Vacant(vacant) => {
                     vacant.insert(Box::new(O::observe(value)));
@@ -353,7 +353,7 @@ where
         match self.state.inner.get_mut().entry(key_cloned) {
             Entry::Occupied(occupied) => {
                 let ob = occupied.into_mut().as_mut();
-                unsafe { O::refresh(ob, value) }
+                unsafe { O::relocate(ob, value) }
                 Some(ob)
             }
             Entry::Vacant(vacant) => Some(vacant.insert(Box::new(O::observe(value)))),
@@ -761,7 +761,7 @@ mod tests {
         for i in 1..100 {
             ob.untracked_mut().insert(i.to_string(), format!("value {i}"));
         }
-        // Second get_mut: refresh updates the child observer's stale pointer
+        // Second get_mut: relocate updates the child observer's stale pointer
         ob.get_mut("a").unwrap().push_str("!");
         assert_eq!(ob.untracked_ref().get("a").unwrap(), "hello world!");
         let Json(mutation) = ob.flush().unwrap();

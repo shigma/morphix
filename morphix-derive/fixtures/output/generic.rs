@@ -109,12 +109,12 @@ const _: () = {
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, head: &mut _S) {
+        unsafe fn relocate(this: &mut Self, head: &mut _S) {
             let __value = head.as_deref_mut();
             unsafe {
-                ::morphix::observe::Observer::refresh(&mut this.a, &mut __value.a);
+                ::morphix::observe::Observer::relocate(&mut this.a, &mut __value.a);
                 ::morphix::helper::Pointer::set(&this.b, &mut __value.b);
-                ::morphix::observe::Observer::refresh(&mut this.c, &mut __value.c);
+                ::morphix::observe::Observer::relocate(&mut this.c, &mut __value.c);
             }
             ::morphix::helper::Pointer::set(this, head);
         }

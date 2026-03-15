@@ -167,8 +167,8 @@ where
         }
     }
 
-    unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
-        unsafe { Observer::refresh(&mut this.inner, head) }
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
+        unsafe { Observer::relocate(&mut this.inner, head) }
     }
 }
 
@@ -184,8 +184,8 @@ where
         }
     }
 
-    unsafe fn refresh(this: &mut Self, head: &Self::Head) {
-        unsafe { RefObserver::refresh(&mut this.inner, head) }
+    unsafe fn relocate(this: &mut Self, head: &Self::Head) {
+        unsafe { RefObserver::relocate(&mut this.inner, head) }
     }
 }
 

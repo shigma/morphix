@@ -47,15 +47,15 @@ const _: () = {
                 }
             }
         }
-        unsafe fn refresh(&mut self, value: &mut Foo<N>) {
+        unsafe fn relocate(&mut self, value: &mut Foo<N>) {
             unsafe {
                 match (self, value) {
                     (Self::A(u0), Foo::A(v0)) => {
-                        ::morphix::observe::Observer::refresh(u0, v0);
+                        ::morphix::observe::Observer::relocate(u0, v0);
                     }
                     (Self::C { bar: u0, qux: u1 }, Foo::C { bar: v0, qux: v1 }) => {
-                        ::morphix::observe::Observer::refresh(u0, v0);
-                        ::morphix::observe::Observer::refresh(u1, v1);
+                        ::morphix::observe::Observer::relocate(u0, v0);
+                        ::morphix::observe::Observer::relocate(u1, v1);
                     }
                     (Self::__None, _) => {}
                     _ => panic!("inconsistent state for FooObserver"),
@@ -147,9 +147,9 @@ const _: () = {
                 __phantom: ::std::marker::PhantomData,
             }
         }
-        unsafe fn refresh(this: &mut Self, head: &mut S) {
+        unsafe fn relocate(this: &mut Self, head: &mut S) {
             let __value = head.as_deref_mut();
-            unsafe { this.__variant.refresh(__value) }
+            unsafe { this.__variant.relocate(__value) }
             ::morphix::helper::Pointer::set(this, head);
         }
     }
