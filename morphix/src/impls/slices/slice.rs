@@ -30,9 +30,6 @@ pub trait SliceObserverState: ObserverState<Target: AsRef<[<Self::Item as QuasiO
     /// The element [`Observer`] type.
     type Item: Observer<InnerDepth = Zero, Head: Sized>;
 
-    /// Creates an uninitialized [`Observer`] collection.
-    fn uninit() -> Self;
-
     /// Creates an [`Observer`] collection for the given slice.
     fn observe(slice: &mut Self::Target) -> Self;
 
@@ -59,9 +56,6 @@ pub trait SliceObserverState: ObserverState<Target: AsRef<[<Self::Item as QuasiO
 pub trait SliceRefObserverState: ObserverState<Target: AsRef<[<Self::Item as QuasiObserver>::Head]>> + Sized {
     /// The element [`RefObserver`] type.
     type Item: RefObserver<InnerDepth = Zero, Head: Sized>;
-
-    /// Creates an uninitialized [`RefObserver`] collection.
-    fn uninit() -> Self;
 
     /// Creates an [`RefObserver`] collection for the given slice.
     fn observe(slice: &Self::Target) -> Self;
@@ -127,14 +121,6 @@ where
     S: AsDerefMut<D, Target = V::Target>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            state: V::uninit(),
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
             state: V::observe(head.as_deref_mut()),
@@ -157,14 +143,6 @@ where
     S: AsDeref<D, Target = V::Target>,
     O: RefObserver<InnerDepth = Zero, Head = T>,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            state: V::uninit(),
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(head: &Self::Head) -> Self {
         let this = Self {
             ptr: Pointer::new(head),

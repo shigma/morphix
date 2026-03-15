@@ -96,10 +96,6 @@ where
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    fn uninit() -> Self {
-        Self(O::uninit(), Pointer::uninit(), PhantomData)
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         let value = head.as_deref_mut();
         let ob = O::observe(value.as_inner_mut());
@@ -123,10 +119,6 @@ where
     O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    fn uninit() -> Self {
-        Self(O::uninit(), Pointer::uninit(), PhantomData)
-    }
-
     fn observe(head: &Self::Head) -> Self {
         let value = head.as_deref();
         let this = Self(O::observe(value.as_inner()), Pointer::new(head), PhantomData);

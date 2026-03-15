@@ -49,10 +49,6 @@ where
         self
     }
 
-    fn uninit() -> Self {
-        std::array::from_fn(|_| O::uninit())
-    }
-
     fn observe(slice: &mut Self::Target) -> Self {
         slice.each_mut().map(O::observe)
     }
@@ -67,10 +63,6 @@ where
     O: RefObserver<InnerDepth = Zero, Head: Sized>,
 {
     type Item = O;
-
-    fn uninit() -> Self {
-        std::array::from_fn(|_| O::uninit())
-    }
 
     fn observe(slice: &Self::Target) -> Self {
         slice.each_ref().map(O::observe)
@@ -169,12 +161,6 @@ where
     S: AsDerefMut<D, Target = [T; N]>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    fn uninit() -> Self {
-        Self {
-            inner: Observer::uninit(),
-        }
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         Self {
             inner: Observer::observe(head),
@@ -192,12 +178,6 @@ where
     S: AsDeref<D, Target = [T; N]>,
     O: RefObserver<InnerDepth = Zero, Head = T>,
 {
-    fn uninit() -> Self {
-        Self {
-            inner: RefObserver::uninit(),
-        }
-    }
-
     fn observe(head: &Self::Head) -> Self {
         Self {
             inner: RefObserver::observe(head),

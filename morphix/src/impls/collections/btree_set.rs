@@ -106,14 +106,6 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = BTreeSet<T>>,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            state: Default::default(),
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
             state: BTreeSetObserverState {

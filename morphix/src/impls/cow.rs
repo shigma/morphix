@@ -56,14 +56,6 @@ where
     D: Unsigned,
     T: ToOwned + ?Sized + 'a,
 {
-    fn uninit() -> Self {
-        Self {
-            inner: B::uninit(),
-            owned: None,
-            mutated: false,
-        }
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         let inner = B::observe(head);
         let owned = match AsDerefMut::<D>::as_deref_mut(head) {

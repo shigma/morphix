@@ -96,15 +96,6 @@ const _: () = {
         _S: ::morphix::helper::AsDerefMut<_N, Target = Foo<'a, S, T, U, N>>,
         _N: ::morphix::helper::Unsigned,
     {
-        fn uninit() -> Self {
-            Self {
-                a: ::morphix::observe::Observer::uninit(),
-                b: ::morphix::helper::Pointer::uninit(),
-                c: ::morphix::observe::Observer::uninit(),
-                __ptr: ::morphix::helper::Pointer::uninit(),
-                __phantom: ::std::marker::PhantomData,
-            }
-        }
         fn observe(head: &mut _S) -> Self {
             let __value = head.as_deref_mut();
             let a = ::morphix::observe::Observer::observe(&mut __value.a);

@@ -62,14 +62,6 @@ macro_rules! impl_range {
                 O: Observer<InnerDepth = Zero>,
                 O::Head: Sized,
             {
-                fn uninit() -> Self {
-                    Self {
-                        ptr: Pointer::uninit(),
-                        $($field: O::uninit(),)*
-                        phantom: PhantomData,
-                    }
-                }
-
                 fn observe(head: &mut Self::Head) -> Self {
                     let value = head.as_deref_mut();
                     let this = Self {
@@ -97,14 +89,6 @@ macro_rules! impl_range {
                 O: RefObserver<InnerDepth = Zero>,
                 O::Head: Sized,
             {
-                fn uninit() -> Self {
-                    Self {
-                        $($field: O::uninit(),)*
-                        ptr: Pointer::uninit(),
-                        phantom: PhantomData,
-                    }
-                }
-
                 fn observe(head: &Self::Head) -> Self {
                     let value = head.as_deref();
                     let this = Self {
@@ -277,15 +261,6 @@ where
     O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    fn uninit() -> Self {
-        Self {
-            start: O::uninit(),
-            end: O::uninit(),
-            ptr: Pointer::uninit(),
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         let value = (*head).as_deref();
         let this = Self {
@@ -316,15 +291,6 @@ where
     O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    fn uninit() -> Self {
-        Self {
-            start: O::uninit(),
-            end: O::uninit(),
-            ptr: Pointer::uninit(),
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(head: &Self::Head) -> Self {
         let value = head.as_deref();
         let this = Self {

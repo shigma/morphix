@@ -96,13 +96,6 @@ impl<T: Snapshot + ?Sized> ObserverState for SnapshotHandler<T> {
 }
 
 impl<T: Snapshot + ?Sized> GeneralHandler for SnapshotHandler<T> {
-    fn uninit() -> Self {
-        Self {
-            snapshot: MaybeUninit::uninit(),
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(value: &T) -> Self {
         Self {
             snapshot: MaybeUninit::new(value.to_snapshot()),

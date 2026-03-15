@@ -51,10 +51,6 @@ where
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    fn uninit() -> Self {
-        Self(O::uninit(), Pointer::uninit(), PhantomData)
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         let tuple = head.as_deref_mut();
         let ob = O::observe(&mut tuple.0);
@@ -78,10 +74,6 @@ where
     O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    fn uninit() -> Self {
-        Self(O::uninit(), Pointer::uninit(), PhantomData)
-    }
-
     fn observe(head: &Self::Head) -> Self {
         let tuple = head.as_deref();
         let this = Self(O::observe(&tuple.0), Pointer::new(head), PhantomData);
@@ -277,14 +269,6 @@ macro_rules! tuple_observer {
             S: AsDerefMut<D, Target = ($($o::Head,)*)>,
             $($o: Observer<InnerDepth = Zero, Head: Sized>,)*
         {
-            fn uninit() -> Self {
-                Self(
-                    $($o::uninit(),)*
-                    /* ptr */ Pointer::uninit(),
-                    /* phantom */ PhantomData,
-                )
-            }
-
             fn observe(head: &mut Self::Head) -> Self {
                 let tuple = head.as_deref_mut();
                 let this = Self(
@@ -311,14 +295,6 @@ macro_rules! tuple_observer {
             S: AsDeref<D, Target = ($($o::Head,)*)>,
             $($o: RefObserver<InnerDepth = Zero, Head: Sized>,)*
         {
-            fn uninit() -> Self {
-                Self(
-                    $($o::uninit(),)*
-                    /* ptr */ Pointer::uninit(),
-                    /* phantom */ PhantomData,
-                )
-            }
-
             fn observe(head: &Self::Head) -> Self {
                 let tuple = head.as_deref();
                 let this = Self(

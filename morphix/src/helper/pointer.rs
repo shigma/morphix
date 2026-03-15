@@ -103,14 +103,6 @@ pub struct Pointer<S: ?Sized> {
 }
 
 impl<S: ?Sized> Pointer<S> {
-    /// Create an uninitialized pointer.
-    pub const fn uninit() -> Self {
-        Self {
-            inner: Cell::new(None),
-            states: UnsafeCell::new(Vec::new()),
-        }
-    }
-
     /// Creates a new pointer from a reference.
     ///
     /// The returned pointer will remain valid as long as the original reference remains valid,

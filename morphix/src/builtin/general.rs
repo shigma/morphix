@@ -38,10 +38,6 @@ use crate::observe::{Observer, RefObserver, SerializeObserver};
 /// }
 ///
 /// impl<T> GeneralHandler for ShallowHandler<T> {
-///     fn uninit() -> Self {
-///        Self { mutated: false, phantom: PhantomData }
-///     }
-///
 ///     fn observe(_value: &T) -> Self {
 ///         Self { mutated: false, phantom: PhantomData }
 ///     }
@@ -50,9 +46,6 @@ use crate::observe::{Observer, RefObserver, SerializeObserver};
 /// type ShallowObserver<'ob, T> = GeneralObserver<'ob, T, ShallowHandler<T>>;
 /// ```
 pub trait GeneralHandler: ObserverState {
-    /// Implementation for [`Observer::uninit`].
-    fn uninit() -> Self;
-
     /// Implementation for [`Observer::observe`].
     fn observe(value: &Self::Target) -> Self;
 }
@@ -140,9 +133,7 @@ where
 /// }
 ///
 /// impl<T> GeneralHandler for MyHandler<T> {
-///     // omitted for brevity
-/// #   fn uninit() -> Self { Self(PhantomData) }
-/// #   fn observe(_value: &T) -> Self { Self(PhantomData) }
+///     fn observe(_value: &T) -> Self { Self(PhantomData) }
 /// }
 ///
 /// impl<T> DebugHandler for MyHandler<T> {
@@ -229,14 +220,6 @@ where
     H: GeneralHandler<Target = T>,
     D: Unsigned,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            handler: H::uninit(),
-            phantom: PhantomData,
-        }
-    }
-
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
@@ -258,14 +241,6 @@ where
     H: GeneralHandler<Target = T>,
     D: Unsigned,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            handler: H::uninit(),
-            phantom: PhantomData,
-        }
-    }
-
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         Pointer::set(this, head);
     }

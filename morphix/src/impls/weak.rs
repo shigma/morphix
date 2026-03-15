@@ -79,16 +79,6 @@ where
     S: AsDeref<D, Target: Weak<O::Head>>,
     O: RefObserver<InnerDepth = Zero>,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            mutated: false,
-            initial: false,
-            inner: None,
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         let rc = (*head).as_deref().upgrade();
         Self {
@@ -116,16 +106,6 @@ where
     S: AsDeref<D, Target: Weak<O::Head>>,
     O: RefObserver<InnerDepth = Zero>,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            mutated: false,
-            initial: false,
-            inner: None,
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(head: &Self::Head) -> Self {
         let rc = head.as_deref().upgrade();
         Self {

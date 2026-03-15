@@ -39,14 +39,6 @@ impl<T: ?Sized> GeneralHandler for UnsizeHandler<T>
 where
     T: Len,
 {
-    fn uninit() -> Self {
-        Self {
-            addr: 0,
-            old_len: 0,
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(value: &T) -> Self {
         Self {
             addr: (value as *const T).cast::<u8>().addr(),

@@ -79,14 +79,6 @@ where
 {
     type Item = O;
 
-    fn uninit() -> Self {
-        Self {
-            truncate_len: 0,
-            append_index: 0,
-            inner: UnsafeCell::new(Vec::new()),
-        }
-    }
-
     fn observe(slice: &mut Self::Target) -> Self {
         Self {
             truncate_len: 0,
@@ -105,11 +97,14 @@ where
 
     unsafe fn force_range(&self, start: usize, end: usize, slice: &mut Self::Target) {
         let inner = unsafe { &mut *self.inner.get() };
-        inner.resize_with(slice.len(), O::uninit);
-        let ob_iter = inner[start..end].iter_mut();
-        let value_iter = slice[start..end].iter_mut();
-        for (ob, value) in ob_iter.zip(value_iter) {
-            unsafe { Observer::force(ob, value) }
+        let current_len = inner.len();
+        if current_len < slice.len() {
+            for value in slice[current_len..].iter_mut() {
+                inner.push(O::observe(value));
+            }
+        }
+        for (ob, value) in inner[start..end].iter_mut().zip(slice[start..end].iter_mut()) {
+            unsafe { Observer::refresh(ob, value) }
         }
     }
 }
@@ -138,16 +133,15 @@ where
         if slice.len() > append_index {
             mutations.extend(Mutations::append(&slice[append_index..]));
         }
-        let (existing, stale) = self.inner.get_mut().split_at_mut(append_index);
+        let (existing, _stale) = self.inner.get_mut().split_at_mut(append_index);
+        let slice_len = slice.len();
         let mut is_replace = true;
         for (index, ob) in existing.iter_mut().enumerate().rev() {
             let mutations_i = unsafe { SerializeObserver::flush(ob) };
             is_replace &= mutations_i.is_replace();
-            mutations.insert(PathSegment::Negative(slice.len() - index), mutations_i);
+            mutations.insert(PathSegment::Negative(slice_len - index), mutations_i);
         }
-        for observer in stale {
-            *observer = O::uninit();
-        }
+        self.inner.get_mut().truncate(append_index);
         if is_replace && (append_index > 0 || truncate_len > 0) {
             return Mutations::replace(slice);
         };
@@ -196,12 +190,6 @@ where
     S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    fn uninit() -> Self {
-        Self {
-            inner: Observer::uninit(),
-        }
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         Self {
             inner: Observer::observe(head),

@@ -187,14 +187,6 @@ where
     O::Head: Sized,
     K: Clone + Eq + Hash,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            state: Default::default(),
-            phantom: PhantomData,
-        }
-    }
-
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }

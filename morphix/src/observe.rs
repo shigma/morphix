@@ -161,19 +161,6 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 /// See the [Observer Mechanism](https://github.com/shigma/morphix#observer-mechanism) for a
 /// detailed overview of the dereference chain and mutation tracking primitives.
 pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head>> + Sized {
-    /// Creates an uninitialized observer with a null pointer.
-    ///
-    /// The returned observer is not associated with any value and must be initialized via
-    /// [`observe`](Observer::observe) or [`force`](Observer::force) before use. Attempting to
-    /// dereference an uninitialized observer results in *undefined behavior*.
-    ///
-    /// ## Use Cases
-    ///
-    /// This method is useful for:
-    /// - Pre-allocating observer storage in containers before values are known
-    /// - Creating placeholder observers that will be lazily initialized
-    fn uninit() -> Self;
-
     /// Creates a new observer for the given value.
     ///
     /// This is the primary way to create an observer. The observer will track all mutations to the
@@ -209,49 +196,6 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     /// This method should be called after any operation that may relocate the observed
     /// value in memory while the observer is still in use.
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head);
-
-    /// Forces the observer into a valid state for the given value.
-    ///
-    /// This method ensures the observer is properly associated with the observed value,
-    /// regardless of its current state:
-    /// - If the observer is uninitialized, it initializes the observer via
-    ///   [`observe`](Observer::observe).
-    /// - If the observer is already initialized but points to a different address, it updates the
-    ///   pointer via [`refresh`](Observer::refresh).
-    /// - If the observer already points to the same address, it does nothing.
-    ///
-    /// ## Safety
-    ///
-    /// The caller must ensure that, if the observer is already initialized, `head` must refer to
-    /// the same logical value that was passed to [`observe`](Observer::observe) when the observer
-    /// was created, just potentially at a new memory location.
-    ///
-    /// Note: If the observer is uninitialized, no safety requirements apply since
-    /// [`observe`](Observer::observe) will be called to initialize it.
-    ///
-    /// ## Use Cases
-    ///
-    /// This method is particularly useful in container observers (like
-    /// [`VecObserver`](crate::impls::VecObserver)) where element observers may need to be:
-    /// - Lazily initialized on first access, and
-    /// - Refreshed after container reallocation moves elements in memory.
-    unsafe fn force(this: &mut Self, head: &mut Self::Head) {
-        match Pointer::get((*this).as_deref_coinductive()) {
-            None => *this = Self::observe(head),
-            Some(ptr) => {
-                if std::ptr::addr_eq(ptr.as_ptr(), head) {
-                    // Same address — skip sub-observer refresh, but re-expose provenance
-                    // because intervening retags (e.g., &mut [T] from as_deref_mut) may have
-                    // popped our previously exposed tag from the borrow stack.
-                    Pointer::set((*this).as_deref_coinductive(), head);
-                } else {
-                    // SAFETY: The observer was previously initialized via `observe`, and the caller
-                    // guarantees that `head` refers to the same logical value.
-                    unsafe { Self::refresh(this, head) }
-                }
-            }
-        }
-    }
 }
 
 /// Shared-reference counterpart to [`Observer`].
@@ -262,11 +206,6 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
 ///
 /// See [`Observer`] for documentation on the lifecycle methods and safety requirements.
 pub trait RefObserver: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head>> + Sized {
-    /// Creates an uninitialized observer with a null pointer.
-    ///
-    /// See [`Observer::uninit`] for details.
-    fn uninit() -> Self;
-
     /// Creates a new observer for the given value via shared reference.
     ///
     /// Unlike [`Observer::observe`], this accepts `&Self::Head` instead of `&mut Self::Head`,
@@ -282,26 +221,6 @@ pub trait RefObserver: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::H
     ///
     /// Same requirements as [`Observer::refresh`].
     unsafe fn refresh(this: &mut Self, head: &Self::Head);
-
-    /// Forces the observer into a valid state for the given value.
-    ///
-    /// See [`Observer::force`] for details.
-    ///
-    /// # Safety
-    ///
-    /// Same requirements as [`Observer::force`].
-    unsafe fn force(this: &mut Self, head: &Self::Head) {
-        match Pointer::get((*this).as_deref_coinductive()) {
-            None => *this = Self::observe(head),
-            Some(ptr) => {
-                if !std::ptr::addr_eq(ptr.as_ptr(), head) {
-                    // SAFETY: The observer was previously initialized via `observe`, and the caller
-                    // guarantees that `head` refers to the same logical value.
-                    unsafe { Self::refresh(this, head) }
-                }
-            }
-        }
-    }
 }
 
 /// Extends [`Observer`] with the ability to flush recorded mutations as serializable values.

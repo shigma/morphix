@@ -28,8 +28,8 @@ use crate::helper::{AsDeref, ObserverState, Zero};
 /// ## When to Use
 ///
 /// Despite its limitations, [`ShallowObserver`] is usually the best choice for external types that
-/// don't implement the [`Observe`] trait, as the performance benefits typically outweigh
-/// the occasional false positive.
+/// don't implement the [`Observe`](crate::Observe) trait, as the performance benefits typically
+/// outweigh the occasional false positive.
 ///
 /// ## Limitations
 ///
@@ -53,13 +53,6 @@ impl<T: ?Sized> ObserverState for ShallowHandler<T> {
 }
 
 impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
-    fn uninit() -> Self {
-        Self {
-            mutated: false,
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(_value: &T) -> Self {
         Self {
             mutated: false,

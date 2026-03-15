@@ -77,17 +77,6 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = String>,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            mutation: StringObserverState {
-                append_index: 0,
-                truncate_len: 0,
-            },
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
             mutation: StringObserverState {

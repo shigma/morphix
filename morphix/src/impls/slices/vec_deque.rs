@@ -114,19 +114,6 @@ where
     O: Observer<InnerDepth = Zero, Head: Sized>,
     S: AsDerefMut<D, Target = VecDeque<O::Head>>,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            state: VecDequeObserverState {
-                back_truncate_len: 0,
-                back_append_index: 0,
-                front_mutated: false,
-                inner: UnsafeCell::new(VecDeque::new()),
-            },
-            phantom: PhantomData,
-        }
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         let len = head.as_deref_mut().len();
         Self {
@@ -201,9 +188,7 @@ where
         }
 
         // Clear stale observers beyond the existing region.
-        for ob in &mut existing[existing_len..] {
-            *ob = O::uninit();
-        }
+        inner.truncate(existing_len);
 
         if is_replace && (back_append_index > 0 || back_truncate_len > 0) {
             return Mutations::replace(slice);
@@ -223,10 +208,15 @@ where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
     let observers = unsafe { &mut *inner.get() };
-    observers.resize_with(deque_slice.len(), O::uninit);
+    let current_len = observers.len();
+    if current_len < deque_slice.len() {
+        for value in deque_slice[current_len..].iter_mut() {
+            observers.push_back(O::observe(value));
+        }
+    }
     let ob_contiguous = observers.make_contiguous();
     for i in start..end {
-        unsafe { Observer::force(&mut ob_contiguous[i], &mut deque_slice[i]) };
+        unsafe { Observer::refresh(&mut ob_contiguous[i], &mut deque_slice[i]) };
     }
 }
 

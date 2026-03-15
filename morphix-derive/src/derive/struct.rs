@@ -37,7 +37,6 @@ pub fn derive_observe_for_struct(
     let mut ob_fields = quote! {};
     let mut observe_field_stmts = quote! {};
     let mut observe_fields = quote! {};
-    let mut uninit_fields = quote! {};
     let mut refresh_stmts = quote! {};
     let mut flush_field_stmts = quote! {};
     let mut flush_delete = quote! {};
@@ -107,9 +106,6 @@ pub fn derive_observe_for_struct(
             observe_field_stmts.extend(quote_spanned! { field_span =>
                 let #observer_ident = ::morphix::helper::Pointer::new(&mut __value.#field_member);
             });
-            uninit_fields.extend(quote_spanned! { field_span =>
-                #(#if_named #field_ident:)* ::morphix::helper::Pointer::uninit(),
-            });
             refresh_stmts.extend(quote_spanned! { field_span =>
                 ::morphix::helper::Pointer::set(&this.#field_member, &mut __value.#field_member);
             });
@@ -157,9 +153,6 @@ pub fn derive_observe_for_struct(
                 let #observer_ident = ::morphix::observe::Observer::observe(&mut __value.#field_member);
             });
         };
-        uninit_fields.extend(quote_spanned! { field_span =>
-            #(#if_named #field_ident:)* ::morphix::observe::Observer::uninit(),
-        });
 
         let mut mutability = quote! {};
         if cfg!(feature = "delete")
@@ -286,23 +279,6 @@ pub fn derive_observe_for_struct(
             type InnerDepth = #depth;
         };
 
-        let observer_uninit_expr = match is_named {
-            true => quote! {
-                Self {
-                    #uninit_fields
-                    __ptr: ::morphix::helper::Pointer::uninit(),
-                    __phantom: ::std::marker::PhantomData,
-                }
-            },
-            false => quote! {
-                Self (
-                    #uninit_fields
-                    ::morphix::helper::Pointer::uninit(),
-                    ::std::marker::PhantomData,
-                )
-            },
-        };
-
         let observer_observe_expr = match is_named {
             true => quote! {
                 Self {
@@ -321,10 +297,6 @@ pub fn derive_observe_for_struct(
         };
 
         observer_impl = quote! {
-            fn uninit() -> Self {
-                #observer_uninit_expr
-            }
-
             fn observe(head: &mut #head) -> Self {
                 let __value = head.as_deref_mut();
                 #observe_field_stmts
@@ -415,11 +387,6 @@ pub fn derive_observe_for_struct(
             type InnerDepth = #depth;
         };
 
-        let observer_uninit_expr = match is_named {
-            true => quote! { Self { #uninit_fields } },
-            false => quote! { Self (#uninit_fields) },
-        };
-
         let mut observer_observe_expr = match is_named {
             true => quote! { Self { #observe_fields } },
             false => quote! { Self (#observe_fields) },
@@ -443,10 +410,6 @@ pub fn derive_observe_for_struct(
         };
 
         observer_impl = quote! {
-            fn uninit() -> Self {
-                #observer_uninit_expr
-            }
-
             fn observe(head: &mut #inner::Head) -> Self {
                 #prepare_value
                 #observe_field_stmts

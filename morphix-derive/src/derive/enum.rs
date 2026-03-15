@@ -513,16 +513,6 @@ pub fn derive_observe_for_enum(
             #head: ::morphix::helper::AsDerefMut<#depth, Target = #input_ident #input_type_generics>,
             #depth: ::morphix::helper::Unsigned,
         {
-            fn uninit() -> Self {
-                Self {
-                    #(#if_has_variant __mutated: false,)*
-                    #(#if_has_initial __initial: #ob_initial_ident::__None,)*
-                    #(#if_has_variant __variant: #ob_variant_ident::__None,)*
-                    __ptr: ::morphix::helper::Pointer::uninit(),
-                    __phantom: ::std::marker::PhantomData,
-                }
-            }
-
             fn observe(head: &mut #head) -> Self {
                 let __value = head.as_deref_mut();
                 Self {

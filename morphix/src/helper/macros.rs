@@ -215,14 +215,6 @@ macro_rules! shallow_observer {
             D: Unsigned,
             S: AsDerefMut<D>,
         {
-            fn uninit() -> Self {
-                Self {
-                    ptr: $crate::helper::Pointer::uninit(),
-                    mutated: false,
-                    phantom: ::std::marker::PhantomData,
-                }
-            }
-
             unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
                 $crate::helper::Pointer::set(this, head);
             }

@@ -61,15 +61,6 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<N, Target = Foo>,
         N: ::morphix::helper::Unsigned,
     {
-        fn uninit() -> Self {
-            Self {
-                r#a: ::morphix::observe::Observer::uninit(),
-                b: ::morphix::observe::Observer::uninit(),
-                c: ::morphix::observe::Observer::uninit(),
-                __ptr: ::morphix::helper::Pointer::uninit(),
-                __phantom: ::std::marker::PhantomData,
-            }
-        }
         fn observe(head: &mut S) -> Self {
             let __value = head.as_deref_mut();
             let r#a = ::morphix::observe::Observer::observe(&mut __value.r#a);
@@ -231,13 +222,6 @@ where
     S: ::morphix::helper::AsDerefMut<N, Target = Bar>,
     N: ::morphix::helper::Unsigned,
 {
-    fn uninit() -> Self {
-        Self(
-            ::morphix::observe::Observer::uninit(),
-            ::morphix::helper::Pointer::uninit(),
-            ::std::marker::PhantomData,
-        )
-    }
     fn observe(head: &mut S) -> Self {
         let __value = head.as_deref_mut();
         let observer_0 = ::morphix::observe::Observer::observe(&mut __value.0);
@@ -327,14 +311,6 @@ const _: () = {
         S: ::morphix::helper::AsDerefMut<N, Target = Baz>,
         N: ::morphix::helper::Unsigned,
     {
-        fn uninit() -> Self {
-            Self(
-                ::morphix::observe::Observer::uninit(),
-                ::morphix::observe::Observer::uninit(),
-                ::morphix::helper::Pointer::uninit(),
-                ::std::marker::PhantomData,
-            )
-        }
         fn observe(head: &mut S) -> Self {
             let __value = head.as_deref_mut();
             let observer_0 = ::morphix::observe::Observer::observe(&mut __value.0);

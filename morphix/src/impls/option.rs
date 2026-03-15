@@ -73,21 +73,9 @@ where
     O: Observer<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            state: OptionObserverState {
-                initial: false,
-                mutated: false,
-                inner: None,
-            },
-            phantom: PhantomData,
-        }
-    }
-
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         if let (Some(inner), Some(value)) = (&mut this.state.inner, head.as_deref_mut().as_mut()) {
-            unsafe { O::force(inner, value) }
+            unsafe { O::refresh(inner, value) }
         }
         Pointer::set(this, head);
     }
@@ -114,22 +102,10 @@ where
     O: RefObserver<InnerDepth = Zero>,
     O::Head: Sized,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            state: OptionObserverState {
-                initial: false,
-                mutated: false,
-                inner: None,
-            },
-            phantom: PhantomData,
-        }
-    }
-
     unsafe fn refresh(this: &mut Self, head: &Self::Head) {
         Pointer::set(this, head);
         if let (Some(inner), Some(value)) = (&mut this.state.inner, head.as_deref().as_ref()) {
-            unsafe { O::force(inner, value) }
+            unsafe { O::refresh(inner, value) }
         }
     }
 
@@ -182,8 +158,11 @@ where
     /// See [`Option::as_mut`].
     pub fn as_mut(&mut self) -> Option<&mut O> {
         let value = (*self.ptr).as_deref_mut().as_mut()?;
-        let inner = self.state.inner.get_or_insert_with(O::uninit);
-        unsafe { O::force(inner, value) }
+        let inner = match &mut self.state.inner {
+            Some(inner) => inner,
+            slot @ None => slot.insert(O::observe(value)),
+        };
+        unsafe { O::refresh(inner, value) }
         Some(inner)
     }
 

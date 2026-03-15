@@ -87,10 +87,6 @@ where
     O::Head: AsDeref<D>,
     D: Unsigned,
 {
-    fn uninit() -> Self {
-        Self { inner: O::uninit() }
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         Self {
             inner: O::observe(head),
@@ -108,10 +104,6 @@ where
     O::Head: AsDeref<D>,
     D: Unsigned,
 {
-    fn uninit() -> Self {
-        Self { inner: O::uninit() }
-    }
-
     fn observe(head: &Self::Head) -> Self {
         Self {
             inner: O::observe(head),
@@ -129,10 +121,6 @@ where
     O::Head: AsDeref<D>,
     D: Unsigned,
 {
-    fn uninit() -> Self {
-        Self { inner: O::uninit() }
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         Self {
             inner: O::observe(head),

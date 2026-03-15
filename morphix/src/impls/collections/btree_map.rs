@@ -191,14 +191,6 @@ where
     O::Head: Sized,
     K: Clone + Ord,
 {
-    fn uninit() -> Self {
-        Self {
-            ptr: Pointer::uninit(),
-            state: Default::default(),
-            phantom: PhantomData,
-        }
-    }
-
     unsafe fn refresh(this: &mut Self, head: &mut Self::Head) {
         Pointer::set(this, head);
     }
@@ -767,8 +759,7 @@ mod tests {
         // Insert many keys via untracked_mut to trigger node splits in the
         // observed BTreeMap without adding to diff.replaced
         for i in 1..100 {
-            ob.untracked_mut()
-                .insert(i.to_string(), format!("value {i}"));
+            ob.untracked_mut().insert(i.to_string(), format!("value {i}"));
         }
         // Second get_mut: refresh updates the child observer's stale pointer
         ob.get_mut("a").unwrap().push_str("!");

@@ -39,10 +39,6 @@ impl<T: ?Sized> ObserverState for NoopHandler<T> {
 }
 
 impl<T: ?Sized> GeneralHandler for NoopHandler<T> {
-    fn uninit() -> Self {
-        Self(PhantomData)
-    }
-
     fn observe(_value: &T) -> Self {
         Self(PhantomData)
     }

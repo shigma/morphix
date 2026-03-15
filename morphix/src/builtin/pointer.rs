@@ -41,10 +41,6 @@ impl<T: ?Sized> ObserverState for PointerHandler<T> {
 }
 
 impl<T: ?Sized> GeneralHandler for PointerHandler<T> {
-    fn uninit() -> Self {
-        Self { ptr: None }
-    }
-
     fn observe(value: &T) -> Self {
         Self {
             ptr: Some(NonNull::from(value)),
