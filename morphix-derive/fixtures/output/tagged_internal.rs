@@ -65,37 +65,60 @@ const _: () = {
         fn flush(&mut self) -> ::morphix::Mutations {
             match self {
                 Self::A(u0) => {
-                    let mutations_0 = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(u0)
-                    };
-                    let mut mutations = ::morphix::Mutations::with_capacity(
-                        mutations_0.len(),
-                    );
-                    mutations.extend(mutations_0);
-                    mutations
+                    unsafe { ::morphix::observe::SerializeObserver::flush(u0) }
                 }
                 Self::C { bar, qux } => {
                     let mut mutations_bar = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(bar)
+                        ::morphix::observe::SerializeObserver::flush(bar).prefix("bar")
                     };
+                    let mutations_qux = unsafe {
+                        ::morphix::observe::SerializeObserver::flat_flush(qux)
+                    };
+                    let mut mutations = ::morphix::Mutations::new()
+                        .with_capacity(mutations_bar.len() + mutations_qux.len());
                     if !mutations_bar.is_empty()
                         && String::is_empty(
                             ::morphix::helper::QuasiObserver::untracked_ref(bar),
                         )
                     {
-                        mutations_bar = ::morphix::MutationKind::Delete.into();
+                        mutations_bar = ::morphix::Mutations::delete().prefix("bar");
                     }
-                    let mutations_qux = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(qux)
-                    };
-                    let mut mutations = ::morphix::Mutations::with_capacity(
-                        mutations_bar.len() + mutations_qux.len(),
-                    );
-                    mutations.insert("bar", mutations_bar);
+                    mutations.extend(mutations_bar);
                     mutations.extend(mutations_qux);
                     mutations
                 }
                 Self::__None => ::morphix::Mutations::new(),
+            }
+        }
+        fn flat_flush(&mut self) -> ::morphix::Mutations {
+            match self {
+                Self::A(u0) => {
+                    unsafe { ::morphix::observe::SerializeObserver::flat_flush(u0) }
+                }
+                Self::C { bar, qux } => {
+                    let mut mutations_bar = unsafe {
+                        ::morphix::observe::SerializeObserver::flush(bar).prefix("bar")
+                    };
+                    let mutations_qux = unsafe {
+                        ::morphix::observe::SerializeObserver::flat_flush(qux)
+                    };
+                    let mut mutations = ::morphix::Mutations::new()
+                        .with_capacity(mutations_bar.len() + mutations_qux.len())
+                        .with_replace(
+                            mutations_bar.is_replace() && mutations_qux.is_replace(),
+                        );
+                    if !mutations_bar.is_empty()
+                        && String::is_empty(
+                            ::morphix::helper::QuasiObserver::untracked_ref(bar),
+                        )
+                    {
+                        mutations_bar = ::morphix::Mutations::delete().prefix("bar");
+                    }
+                    mutations.extend(mutations_bar);
+                    mutations.extend(mutations_qux);
+                    mutations
+                }
+                _ => panic!("flat_flush can only be called on structs and maps"),
             }
         }
     }
@@ -164,6 +187,14 @@ const _: () = {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             if !this.__mutated {
                 return this.__variant.flush();
+            }
+            this.__mutated = false;
+            this.__variant = FooObserverVariant::__None;
+            ::morphix::Mutations::replace(this.as_deref())
+        }
+        unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
+            if !this.__mutated {
+                return this.__variant.flat_flush();
             }
             this.__mutated = false;
             this.__variant = FooObserverVariant::__None;

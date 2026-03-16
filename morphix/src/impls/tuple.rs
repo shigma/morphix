@@ -100,9 +100,7 @@ where
         if mutations_0.is_replace() {
             Mutations::replace((*this).untracked_ref())
         } else {
-            let mut mutations = Mutations::new();
-            mutations.insert(0, mutations_0);
-            mutations
+            mutations_0.prefix(0)
         }
     }
 }
@@ -322,14 +320,14 @@ macro_rules! tuple_observer {
             $($o: SerializeObserver<InnerDepth = Zero, Head: Serialize + Sized + 'static>,)*
         {
             unsafe fn flush(this: &mut Self) -> Mutations {
-                let mutations_tuple = ($(unsafe { SerializeObserver::flush(&mut this.$n) },)*);
-                let capacity = 0 $(+ mutations_tuple.$n.is_replace() as usize)*;
+                let mutations_tuple = ($(unsafe { SerializeObserver::flush(&mut this.$n).prefix($n) },)*);
+                let capacity = 0 $(+ mutations_tuple.$n.len())*;
                 if capacity == $ptr {
                     return Mutations::replace((*this).untracked_ref());
                 }
-                let mut mutations = Mutations::with_capacity(capacity);
+                let mut mutations = Mutations::new().with_capacity(capacity);
                 $(
-                    mutations.insert($n, mutations_tuple.$n);
+                    mutations.extend(mutations_tuple.$n);
                 )*
                 mutations
             }

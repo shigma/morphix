@@ -236,13 +236,20 @@ impl<V> Mutation<V> {
 
 /// A collection of mutations collected during observation.
 ///
-/// It is the return type for [`flush`](crate::observe::SerializeObserver::flush) operations.
+/// It is the return type for [`flush`](crate::observe::SerializeObserver::flush) and
+/// [`flat_flush`](crate::observe::SerializeObserver::flat_flush) operations.
 ///
 /// ## Behavior
 ///
 /// - If no mutations are pushed, [`into_inner`](Mutations::into_inner) returns [`None`].
 /// - If exactly one mutation is pushed, it is returned as-is.
 /// - If multiple mutations are pushed, they are wrapped in a [`Batch`](MutationKind::Batch).
+///
+/// The [`is_replace`](Self::is_replace) flag tracks whether this collection represents a
+/// whole-value replace. It is set automatically when constructed from a
+/// [`Replace`](MutationKind::Replace) mutation, and is used by
+/// [`flat_flush`](crate::observe::SerializeObserver::flat_flush) to propagate replace status
+/// to parent observers for replace collapse.
 ///
 /// ## Example
 ///
@@ -261,6 +268,7 @@ impl<V> Mutation<V> {
 pub struct Mutations<V = Box<dyn Serialize>> {
     inner: Option<Mutation<V>>,
     capacity: usize,
+    is_replace: bool,
 }
 
 impl<V> Default for Mutations<V> {
@@ -272,6 +280,7 @@ impl<V> Default for Mutations<V> {
 impl<V> From<MutationKind<V>> for Mutations<V> {
     fn from(kind: MutationKind<V>) -> Self {
         Self {
+            is_replace: matches!(kind, MutationKind::Replace(_)),
             inner: Some(Mutation {
                 path: Default::default(),
                 kind,
@@ -291,22 +300,56 @@ impl<V> Mutations<V> {
     /// Creates a new empty collection.
     pub fn new() -> Self {
         Self {
+            is_replace: false,
             inner: None,
             capacity: 2,
         }
     }
 
-    /// Creates a new empty collection with a specified capacity hint.
+    /// Sets the capacity hint for the internal [`Batch`](MutationKind::Batch) storage.
     ///
     /// The capacity hint is used when the internal storage needs to be converted to a
     /// [`Batch`](MutationKind::Batch) to hold multiple mutations.
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self { inner: None, capacity }
+    pub fn with_capacity(mut self, capacity: usize) -> Self {
+        self.capacity = capacity;
+        self
+    }
+
+    /// Sets the [`is_replace`](Self::is_replace) flag on this collection.
+    ///
+    /// This is used by composite observers to propagate replace status through
+    /// [`flat_flush`](crate::observe::SerializeObserver::flat_flush), where the collection may
+    /// contain per-field mutations that are a flattened decomposition of a whole-value replace.
+    pub fn with_replace(mut self, is_replace: bool) -> Self {
+        self.is_replace = is_replace;
+        self
+    }
+
+    /// Prepends a path segment to the contained mutation.
+    ///
+    /// If the collection is empty, this is a no-op. Otherwise, the segment is pushed onto the
+    /// mutation's reverse-order path.
+    pub fn prefix(mut self, segment: impl Into<PathSegment>) -> Self {
+        if let Some(mutation) = &mut self.inner {
+            mutation.path.push(segment.into());
+        }
+        self
     }
 
     /// Consumes the batch and returns the collected mutation.
     pub fn into_inner(self) -> Option<Mutation<V>> {
         self.inner
+    }
+
+    /// Returns `true` if this collection represents a whole-value replace.
+    ///
+    /// This flag is set automatically when the collection is created from a
+    /// [`Replace`](MutationKind::Replace) mutation kind, or explicitly via
+    /// [`with_replace`](Self::with_replace). It is used by
+    /// [`flat_flush`](crate::observe::SerializeObserver::flat_flush) to signal to the parent
+    /// observer that the entire content was replaced, enabling replace collapse.
+    pub fn is_replace(&self) -> bool {
+        self.is_replace
     }
 
     /// Merges another collection of mutations into this one.
@@ -336,36 +379,7 @@ impl<V> Mutations<V> {
     /// The incoming mutations will have the given segment prepended to their path before being
     /// added to this collection.
     pub fn insert(&mut self, segment: impl Into<PathSegment>, mutations: impl Into<Self>) {
-        self.__insert(Some(segment.into()), mutations.into());
-    }
-
-    /// Inserts mutations at a two-level path.
-    ///
-    /// This is a convenience method primarily used for enum named variants, where mutations need to
-    /// be inserted at a path like `variant_name.field_name`.
-    pub fn insert2(
-        &mut self,
-        segment1: impl Into<PathSegment>,
-        segment2: impl Into<PathSegment>,
-        mutations: impl Into<Self>,
-    ) {
-        self.__insert(
-            Some(segment2.into()).into_iter().chain(Some(segment1.into())),
-            mutations.into(),
-        );
-    }
-
-    fn __insert(&mut self, segments: impl IntoIterator<Item = PathSegment>, mutations: Self) {
-        let Some(mut incoming) = mutations.into_inner() else {
-            return;
-        };
-        incoming.path.extend(segments);
-        let Some(existing) = &mut self.inner else {
-            self.inner = Some(incoming);
-            return;
-        };
-        let existing_batch = existing.make_batch(self.capacity);
-        existing_batch.push(incoming);
+        self.extend(mutations.into().prefix(segment))
     }
 
     /// Returns the number of top-level mutations in this collection.
@@ -389,19 +403,9 @@ impl<V> Mutations<V> {
         self.len() == 0
     }
 
-    /// Returns `true` if this collection contains a single [`Replace`](MutationKind::Replace)
-    /// mutation at the root path.
-    ///
-    /// This is used by composite observers to decide whether to collapse child mutations into a
-    /// single whole-container [`Replace`](MutationKind::Replace). For example, when all elements
-    /// of a slice report `is_replace() == true`, the slice observer emits a single
-    /// [`Replace`](MutationKind::Replace) for the entire slice instead of a
-    /// [`Batch`](MutationKind::Batch) of per-element mutations.
-    pub fn is_replace(&self) -> bool {
-        match &self.inner {
-            Some(mutation) if mutation.path.is_empty() => matches!(mutation.kind, MutationKind::Replace(_)),
-            _ => false,
-        }
+    /// Creates a [`Mutations`] containing a single [`Delete`](MutationKind::Delete) mutation.
+    pub fn delete() -> Self {
+        MutationKind::Delete.into()
     }
 }
 

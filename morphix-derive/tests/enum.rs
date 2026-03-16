@@ -80,9 +80,9 @@ fn field_variant_multiple_inner_mutations() {
     assert_eq!(
         mutation,
         Some(batch!(
-            _,
-            replace!(Rectangle.width, json!(15.0)),
-            replace!(Rectangle.height, json!(25.0)),
+            Rectangle,
+            replace!(width, json!(15.0)),
+            replace!(height, json!(25.0)),
         ))
     );
 }
@@ -270,6 +270,6 @@ fn tuple_variant_multi_field() {
     // External tagging: variant + index combined via insert2
     assert_eq!(
         mutation,
-        Some(batch!(_, replace!(Pair.0, json!(42)), append!(Pair.1, json!("!"))))
+        Some(batch!(Pair, replace!(0, json!(42)), append!(1, json!("!"))))
     );
 }

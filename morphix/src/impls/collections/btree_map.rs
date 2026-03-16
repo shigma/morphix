@@ -266,9 +266,9 @@ where
         Mutations::replace((*this).untracked_ref())
     }
 
-    unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
+    unsafe fn flat_flush(this: &mut Self) -> Mutations {
         if !this.state.mutated {
-            return (unsafe { this.partial_flush() }, false);
+            return unsafe { this.partial_flush() };
         }
         this.state.mutated = false;
         this.state.inner.get_mut().clear();
@@ -276,7 +276,7 @@ where
         // Emit Replace for each current key, Delete for original keys no longer present.
         let mut diff = std::mem::take(&mut this.state.diff);
         let map = (*this.ptr).as_deref();
-        let mut mutations = Mutations::new();
+        let mut mutations = Mutations::new().with_replace(true);
         for (key, value) in map {
             diff.remove(key);
             mutations.insert(key.clone(), Mutations::replace(value));
@@ -287,7 +287,7 @@ where
             #[cfg(not(feature = "delete"))]
             unreachable!("delete feature is not enabled");
         }
-        (mutations, true)
+        mutations
     }
 }
 

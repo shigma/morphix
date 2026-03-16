@@ -105,10 +105,6 @@ impl RenameRule {
         None
     }
 
-    pub fn or(self, other: Self) -> Self {
-        if self == Self::None { other } else { self }
-    }
-
     pub fn apply(self, name: &str) -> String {
         match self {
             Self::None => name.to_string(),

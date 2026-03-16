@@ -119,29 +119,49 @@ const _: () = {
                 Self::A(_) => ::morphix::Mutations::new(),
                 Self::B(u0, u1) => {
                     let mutations_0 = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(u0)
+                        ::morphix::observe::SerializeObserver::flush(u0).prefix(0usize)
                     };
                     let mutations_1 = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(u1)
+                        ::morphix::observe::SerializeObserver::flush(u1).prefix(1usize)
                     };
-                    let mut mutations = ::morphix::Mutations::with_capacity(
-                        mutations_0.len() + mutations_1.len(),
-                    );
-                    mutations.insert2("b", 0usize, mutations_0);
-                    mutations.insert2("b", 1usize, mutations_1);
-                    mutations
+                    let mut mutations = ::morphix::Mutations::new()
+                        .with_capacity(mutations_0.len() + mutations_1.len());
+                    mutations.extend(mutations_0);
+                    mutations.extend(mutations_1);
+                    mutations.prefix("b")
                 }
                 Self::C { qux, .. } => {
                     let mutations_qux = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(qux)
+                        ::morphix::observe::SerializeObserver::flush(qux).prefix("QwQ")
                     };
-                    let mut mutations = ::morphix::Mutations::with_capacity(
-                        mutations_qux.len(),
-                    );
-                    mutations.insert2("OwO", "QwQ", mutations_qux);
-                    mutations
+                    let mut mutations = ::morphix::Mutations::new()
+                        .with_capacity(mutations_qux.len());
+                    mutations.extend(mutations_qux);
+                    mutations.prefix("OwO")
                 }
                 Self::__None => ::morphix::Mutations::new(),
+            }
+        }
+        fn flat_flush(&mut self) -> ::morphix::Mutations
+        where
+            ::morphix::observe::DefaultObserver<
+                'ob,
+                U,
+            >: ::morphix::observe::SerializeObserver,
+        {
+            match self {
+                Self::A(_) => ::morphix::Mutations::new(),
+                Self::C { qux, .. } => {
+                    let mutations_qux = unsafe {
+                        ::morphix::observe::SerializeObserver::flush(qux).prefix("QwQ")
+                    };
+                    let mut mutations = ::morphix::Mutations::new()
+                        .with_capacity(mutations_qux.len())
+                        .with_replace(mutations_qux.is_replace());
+                    mutations.extend(mutations_qux);
+                    mutations.prefix("OwO")
+                }
+                _ => panic!("flat_flush can only be called on structs and maps"),
             }
         }
     }
@@ -236,6 +256,22 @@ const _: () = {
             this.__initial = FooObserverInitial::new(__value);
             if !this.__mutated {
                 return this.__variant.flush();
+            }
+            this.__mutated = false;
+            this.__variant = FooObserverVariant::__None;
+            match (__initial, __value) {
+                (FooObserverInitial::D, Foo::D)
+                | (FooObserverInitial::E, Foo::E())
+                | (FooObserverInitial::F, Foo::F {}) => ::morphix::Mutations::new(),
+                _ => ::morphix::Mutations::replace(__value),
+            }
+        }
+        unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
+            let __value = this.__ptr.as_deref();
+            let __initial = this.__initial;
+            this.__initial = FooObserverInitial::new(__value);
+            if !this.__mutated {
+                return this.__variant.flat_flush();
             }
             this.__mutated = false;
             this.__variant = FooObserverVariant::__None;

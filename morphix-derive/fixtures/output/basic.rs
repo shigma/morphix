@@ -93,49 +93,49 @@ const _: () = {
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             let mutations_a = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.r#a)
+                ::morphix::observe::SerializeObserver::flush(&mut this.r#a).prefix("A")
             };
             let mutations_b = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.b)
+                ::morphix::observe::SerializeObserver::flush(&mut this.b).prefix("bar")
             };
-            let (mutations_c, is_replace_c) = unsafe {
+            let mutations_c = unsafe {
                 ::morphix::observe::SerializeObserver::flat_flush(&mut this.c)
             };
             let is_replace = mutations_a.is_replace() && mutations_b.is_replace()
-                && is_replace_c;
+                && mutations_c.is_replace();
             if is_replace {
                 let value = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
                 return ::morphix::Mutations::replace(value);
             }
-            let mut mutations = ::morphix::Mutations::with_capacity(
-                (!mutations_a.is_empty()) as usize + (!mutations_b.is_empty()) as usize
-                    + mutations_c.len(),
-            );
-            mutations.insert("A", mutations_a);
-            mutations.insert("bar", mutations_b);
+            let mut mutations = ::morphix::Mutations::new()
+                .with_capacity(
+                    mutations_a.len() + mutations_b.len() + mutations_c.len(),
+                );
+            mutations.extend(mutations_a);
+            mutations.extend(mutations_b);
             mutations.extend(mutations_c);
             mutations
         }
-        unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
+        unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
             let mutations_a = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.r#a)
+                ::morphix::observe::SerializeObserver::flush(&mut this.r#a).prefix("A")
             };
             let mutations_b = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.b)
+                ::morphix::observe::SerializeObserver::flush(&mut this.b).prefix("bar")
             };
-            let (mutations_c, is_replace_c) = unsafe {
+            let mutations_c = unsafe {
                 ::morphix::observe::SerializeObserver::flat_flush(&mut this.c)
             };
-            let is_replace = mutations_a.is_replace() && mutations_b.is_replace()
-                && is_replace_c;
-            let mut mutations = ::morphix::Mutations::with_capacity(
-                (!mutations_a.is_empty()) as usize + (!mutations_b.is_empty()) as usize
-                    + mutations_c.len(),
-            );
-            mutations.insert("A", mutations_a);
-            mutations.insert("bar", mutations_b);
+            let mut mutations = ::morphix::Mutations::new()
+                .with_capacity(mutations_a.len() + mutations_b.len() + mutations_c.len())
+                .with_replace(
+                    mutations_a.is_replace() && mutations_b.is_replace()
+                        && mutations_c.is_replace(),
+                );
+            mutations.extend(mutations_a);
+            mutations.extend(mutations_b);
             mutations.extend(mutations_c);
-            (mutations, is_replace)
+            mutations
         }
     }
     #[automatically_derived]
@@ -249,7 +249,7 @@ where
     unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
         unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.0) }
     }
-    unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
+    unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
         unsafe { ::morphix::observe::SerializeObserver::flat_flush(&mut this.0) }
     }
 }
@@ -340,37 +340,35 @@ const _: () = {
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             let mutations_0 = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.0)
+                ::morphix::observe::SerializeObserver::flush(&mut this.0).prefix(0usize)
             };
             let mutations_1 = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.1)
+                ::morphix::observe::SerializeObserver::flush(&mut this.1).prefix(1usize)
             };
             let is_replace = mutations_0.is_replace() && mutations_1.is_replace();
             if is_replace {
                 let value = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
                 return ::morphix::Mutations::replace(value);
             }
-            let mut mutations = ::morphix::Mutations::with_capacity(
-                (!mutations_0.is_empty()) as usize + (!mutations_1.is_empty()) as usize,
-            );
-            mutations.insert(0usize, mutations_0);
-            mutations.insert(1usize, mutations_1);
+            let mut mutations = ::morphix::Mutations::new()
+                .with_capacity(mutations_0.len() + mutations_1.len());
+            mutations.extend(mutations_0);
+            mutations.extend(mutations_1);
             mutations
         }
-        unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
+        unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
             let mutations_0 = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.0)
+                ::morphix::observe::SerializeObserver::flush(&mut this.0).prefix(0usize)
             };
             let mutations_1 = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.1)
+                ::morphix::observe::SerializeObserver::flush(&mut this.1).prefix(1usize)
             };
-            let is_replace = mutations_0.is_replace() && mutations_1.is_replace();
-            let mut mutations = ::morphix::Mutations::with_capacity(
-                (!mutations_0.is_empty()) as usize + (!mutations_1.is_empty()) as usize,
-            );
-            mutations.insert(0usize, mutations_0);
-            mutations.insert(1usize, mutations_1);
-            (mutations, is_replace)
+            let mut mutations = ::morphix::Mutations::new()
+                .with_capacity(mutations_0.len() + mutations_1.len())
+                .with_replace(mutations_0.is_replace() && mutations_1.is_replace());
+            mutations.extend(mutations_0);
+            mutations.extend(mutations_1);
+            mutations
         }
     }
     #[automatically_derived]

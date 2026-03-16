@@ -92,6 +92,17 @@ const _: () = {
                 _ => ::morphix::Mutations::replace(__value),
             }
         }
+        unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
+            let __value = this.__ptr.as_deref();
+            let __initial = this.__initial;
+            this.__initial = FooObserverInitial::new(__value);
+            match (__initial, __value) {
+                (FooObserverInitial::A, Foo::A)
+                | (FooObserverInitial::B, Foo::B())
+                | (FooObserverInitial::C, Foo::C {}) => ::morphix::Mutations::new(),
+                _ => ::morphix::Mutations::replace(__value),
+            }
+        }
     }
     #[automatically_derived]
     impl ::morphix::Observe for Foo {

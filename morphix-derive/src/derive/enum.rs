@@ -35,6 +35,7 @@ pub fn derive_observe_for_enum(
     let mut variant_observe_arms = quote! {};
     let mut variant_relocate_arms = quote! {};
     let mut variant_flush_arms = quote! {};
+    let mut variant_flat_flush_arms = quote! {};
 
     let mut errors = quote! {};
     let mut field_tys = vec![];
@@ -90,6 +91,8 @@ pub fn derive_observe_for_enum(
         let mut observe_fields = quote! {};
         let mut relocate_stmts = quote! {};
         let mut flush_field_stmts = quote! {};
+        let mut flush_delete_stmts = quote! {};
+        let mut is_replace_checks = vec![];
         let mut flush_mutation_stmts = quote! {};
         let mut flush_capacity = vec![];
         let mut has_skipped = false;
@@ -165,73 +168,116 @@ pub fn derive_observe_for_enum(
                 ::morphix::observe::Observer::relocate(#ob_ident, #value_ident);
             });
 
-            let mutation_ident = if let Some(field_ident) = &field_ident {
+            let mutation_ident;
+            let default_segment;
+            if let Some(field_ident) = &field_ident {
                 let mut field_name = field_ident.to_string();
                 if field_name.starts_with("r#") {
                     field_name = field_name[2..].to_string();
                 }
-                syn::Ident::new(&format!("mutations_{field_name}"), field_span)
+                mutation_ident = syn::Ident::new(&format!("mutations_{field_name}"), field_span);
+                let segment = input_meta.serde.rename_all.apply(&field_name);
+                default_segment = quote! { #segment };
             } else {
-                syn::Ident::new(&format!("mutations_{index}"), field_span)
+                mutation_ident = syn::Ident::new(&format!("mutations_{index}"), field_span);
+                default_segment = quote! { #index };
+            }
+
+            let segment = if let Some(rename) = &field_meta.serde.rename {
+                quote! { #rename }
+            } else {
+                default_segment
             };
-            flush_field_stmts.extend(
-                if cfg!(feature = "delete")
-                    && let Some(path) = field_meta.serde.skip_serializing_if
-                {
-                    quote_spanned! { field_span =>
-                        let mut #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(#flush_ident) };
-                        if !#mutation_ident.is_empty() && #path(::morphix::helper::QuasiObserver::untracked_ref(#flush_ident)) {
-                            #mutation_ident = ::morphix::MutationKind::Delete.into();
-                        }
+            let mut mutability = quote! {};
+            if cfg!(feature = "delete")
+                && let Some(path) = field_meta.serde.skip_serializing_if
+            {
+                mutability = quote! { mut };
+                flush_delete_stmts.extend(quote_spanned! { field_span =>
+                    if !#mutation_ident.is_empty() && #path(::morphix::helper::QuasiObserver::untracked_ref(#flush_ident)) {
+                        #mutation_ident = ::morphix::Mutations::delete().prefix(#segment);
                     }
-                } else {
-                    quote_spanned! { field_span =>
-                        let #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(#flush_ident) };
-                    }
-                },
-            );
+                });
+            }
+            if field_meta.serde.flatten {
+                flush_field_stmts.extend(quote_spanned! { field_span =>
+                    let #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flat_flush(#flush_ident) };
+                });
+            } else {
+                flush_field_stmts.extend(quote_spanned! { field_span =>
+                    let #mutability #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(#flush_ident).prefix(#segment) };
+                });
+            }
             flush_capacity.push(quote_spanned! { field_span =>
                 #mutation_ident.len()
             });
-
-            let field_segment = if let Some(field_ident) = field_ident {
-                // named
-                if field_meta.serde.flatten {
-                    None
-                } else if let Some(rename) = &field_meta.serde.rename {
-                    Some(quote! { #rename })
-                } else {
-                    let field_name = field_ident.to_string();
-                    let segment = variant_meta
-                        .serde
-                        .rename_all
-                        .or(input_meta.serde.rename_all_fields)
-                        .apply(&field_name);
-                    Some(quote! { #segment })
-                }
-            } else {
-                // unnamed
-                if field_count > 1 { Some(quote! { #index }) } else { None }
-            };
-            let segment_count = field_segment.iter().len() + tag_segment.iter().len();
-            let segments = tag_segment.iter().chain(&field_segment);
-            flush_mutation_stmts.extend(match segment_count {
-                0 => quote! { mutations.extend(#mutation_ident); },
-                1 => quote! { mutations.insert(#(#segments),*, #mutation_ident); },
-                2 => quote! { mutations.insert2(#(#segments),*, #mutation_ident); },
-                _ => unreachable!(),
+            is_replace_checks.push(quote_spanned! { field_span =>
+                #mutation_ident.is_replace()
+            });
+            flush_mutation_stmts.extend(quote_spanned! { field_span =>
+                mutations.extend(#mutation_ident);
             });
         }
 
+        if !flush_delete_stmts.is_empty() {
+            // flush_delete_stmts = quote! {
+            //     let __inner = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
+            //     #flush_delete_stmts
+            // };
+        }
+
+        let mutations_chain = match &tag_segment {
+            Some(segment) => quote! { .prefix(#segment) },
+            None => quote! {},
+        };
+
         let variant_flush_expr = if flush_capacity.is_empty() {
             quote! { ::morphix::Mutations::new() }
+        } else if matches!(&variant.fields, syn::Fields::Unnamed(_)) && field_count == 1 {
+            let flush_ident = &flush_idents[0];
+            quote! {
+                unsafe { ::morphix::observe::SerializeObserver::flush(#flush_ident) #mutations_chain }
+            }
         } else {
             quote! {{
                 #flush_field_stmts
-                let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
+                // let is_replace = #(#is_replace_checks)&&*;
+                // if is_replace {
+                //     let value = ::morphix::helper::QuasiObserver::untracked_ref(&*self);
+                //     return ::morphix::Mutations::replace(value);
+                // }
+                let mut mutations = ::morphix::Mutations::new().with_capacity(#(#flush_capacity)+*);
+                #flush_delete_stmts
                 #flush_mutation_stmts
-                mutations
+                mutations #mutations_chain
             }}
+        };
+
+        let variant_flat_flush_expr = match &variant.fields {
+            syn::Fields::Named(_) => {
+                if flush_capacity.is_empty() {
+                    Some(quote! { ::morphix::Mutations::new() })
+                } else {
+                    Some(quote! {{
+                        #flush_field_stmts
+                        let mut mutations = ::morphix::Mutations::new().with_capacity(#(#flush_capacity)+*).with_replace(#(#is_replace_checks)&&*);
+                        #flush_delete_stmts
+                        #flush_mutation_stmts
+                        mutations #mutations_chain
+                    }})
+                }
+            }
+            syn::Fields::Unnamed(_) if field_count == 1 => {
+                if flush_capacity.is_empty() {
+                    Some(quote! { ::morphix::Mutations::new() })
+                } else {
+                    let flush_ident = &flush_idents[0];
+                    Some(quote! {
+                        unsafe { ::morphix::observe::SerializeObserver::flat_flush(#flush_ident) #mutations_chain }
+                    })
+                }
+            }
+            _ => None,
         };
 
         match &variant.fields {
@@ -251,6 +297,9 @@ pub fn derive_observe_for_enum(
                 variant_flush_arms.extend(quote! {
                     Self::#variant_ident { #(#flush_idents),* } => #variant_flush_expr,
                 });
+                variant_flat_flush_arms.extend(quote! {
+                    Self::#variant_ident { #(#flush_idents),* } => #variant_flat_flush_expr,
+                });
             }
             syn::Fields::Unnamed(_) => {
                 ob_variant_variants.extend(quote! {
@@ -265,6 +314,11 @@ pub fn derive_observe_for_enum(
                 variant_flush_arms.extend(quote! {
                     Self::#variant_ident(#(#flush_idents),*) => #variant_flush_expr,
                 });
+                if let Some(variant_flat_flush_expr) = variant_flat_flush_expr {
+                    variant_flat_flush_arms.extend(quote! {
+                        Self::#variant_ident(#(#flush_idents),*) => #variant_flat_flush_expr,
+                    });
+                }
             }
             syn::Fields::Unit => {
                 variant_observe_arms.extend(quote! {
@@ -302,6 +356,9 @@ pub fn derive_observe_for_enum(
     variant_flush_arms.extend(quote! {
         Self::__None => ::morphix::Mutations::new(),
     });
+    variant_flat_flush_arms.extend(quote! {
+        _ => panic!("flat_flush can only be called on structs and maps"),
+    });
 
     let ob_flush_prefix_stmt = if has_initial {
         quote! {
@@ -313,6 +370,18 @@ pub fn derive_observe_for_enum(
         quote! {}
     };
     let ob_flush_suffix_stmt = if has_initial {
+        quote! {
+            match (__initial, __value) {
+                #initial_flush_pats => ::morphix::Mutations::new(),
+                _ => ::morphix::Mutations::replace(__value),
+            }
+        }
+    } else {
+        quote! {
+            ::morphix::Mutations::replace(this.as_deref())
+        }
+    };
+    let ob_flat_flush_suffix_stmt = if has_initial {
         quote! {
             match (__initial, __value) {
                 #initial_flush_pats => ::morphix::Mutations::new(),
@@ -430,6 +499,15 @@ pub fn derive_observe_for_enum(
             {
                 match self {
                     #variant_flush_arms
+                }
+            }
+
+            fn flat_flush(&mut self) -> ::morphix::Mutations
+            where
+                #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
+            {
+                match self {
+                    #variant_flat_flush_arms
                 }
             }
         }
@@ -555,6 +633,18 @@ pub fn derive_observe_for_enum(
                     this.__variant = #ob_variant_ident::__None;
                 )*
                 #ob_flush_suffix_stmt
+            }
+
+            unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
+                #ob_flush_prefix_stmt
+                #(#if_has_variant
+                    if !this.__mutated {
+                        return this.__variant.flat_flush();
+                    }
+                    this.__mutated = false;
+                    this.__variant = #ob_variant_ident::__None;
+                )*
+                #ob_flat_flush_suffix_stmt
             }
         }
 

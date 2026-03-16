@@ -143,7 +143,7 @@ where
         unsafe { SerializeObserver::flush(&mut this.0) }
     }
 
-    unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
+    unsafe fn flat_flush(this: &mut Self) -> Mutations {
         unsafe { SerializeObserver::flat_flush(&mut this.0) }
     }
 }

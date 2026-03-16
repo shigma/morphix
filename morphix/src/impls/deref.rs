@@ -142,7 +142,7 @@ where
         unsafe { O::flush(&mut this.inner) }
     }
 
-    unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
+    unsafe fn flat_flush(this: &mut Self) -> Mutations {
         unsafe { O::flat_flush(&mut this.inner) }
     }
 }
@@ -157,7 +157,7 @@ where
         unsafe { O::flush(&mut this.inner) }
     }
 
-    unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
+    unsafe fn flat_flush(this: &mut Self) -> Mutations {
         unsafe { O::flat_flush(&mut this.inner) }
     }
 }

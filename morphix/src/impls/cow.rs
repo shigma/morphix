@@ -106,7 +106,7 @@ where
         }
     }
 
-    unsafe fn flat_flush(this: &mut Self) -> (Mutations, bool) {
+    unsafe fn flat_flush(this: &mut Self) -> Mutations {
         if let Some(owned) = this.owned.as_mut()
             && !this.mutated
         {

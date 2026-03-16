@@ -39,7 +39,7 @@ pub fn derive_observe_for_struct(
     let mut observe_fields = quote! {};
     let mut relocate_stmts = quote! {};
     let mut flush_field_stmts = quote! {};
-    let mut flush_delete = quote! {};
+    let mut flush_delete_stmts = quote! {};
     let mut flush_mutation_stmts = quote! {};
     let mut flush_capacity = vec![];
     let mut is_replace_checks = vec![];
@@ -50,15 +50,14 @@ pub fn derive_observe_for_struct(
     let mut ob_field_tys = vec![];
     let mut deref_fields = vec![];
     let mut non_deref_members = vec![];
-    let mut has_skip_serializing_if = false;
     let field_count = fields.len();
-    for (i, field) in fields.iter().enumerate() {
+    for (index, field) in fields.iter().enumerate() {
         let field_meta = ObserveMeta::parse_attrs(&field.attrs, &mut errors, AttributeKind::Field, DeriveKind::Struct);
         let field_vis = &field.vis;
         let field_ident = &field.ident;
         let field_member = match &field.ident {
             Some(ident) => quote! { #ident },
-            None => syn::Index::from(i).to_token_stream(),
+            None => syn::Index::from(index).to_token_stream(),
         };
         let field_span = {
             let mut field_cloned = field.clone();
@@ -68,7 +67,6 @@ pub fn derive_observe_for_struct(
 
         let observer_ident;
         let mutation_ident;
-        let is_replace_ident;
         let default_segment;
         if let Some(ident) = &field.ident {
             let mut field_name = ident.to_string();
@@ -80,17 +78,15 @@ pub fn derive_observe_for_struct(
             });
             observer_ident = ident.clone();
             mutation_ident = syn::Ident::new(&format!("mutations_{field_name}"), field_span);
-            is_replace_ident = syn::Ident::new(&format!("is_replace_{field_name}"), field_span);
             let segment = input_meta.serde.rename_all.apply(&field_name);
             default_segment = quote! { #segment };
         } else {
             debug_chain.extend(quote_spanned! { field_span =>
                 .field(&self.#field_member)
             });
-            observer_ident = syn::Ident::new(&format!("observer_{i}"), field_span);
-            mutation_ident = syn::Ident::new(&format!("mutations_{i}"), field_span);
-            is_replace_ident = syn::Ident::new(&format!("is_replace_{i}"), field_span);
-            default_segment = quote! { #i };
+            observer_ident = syn::Ident::new(&format!("observer_{index}"), field_span);
+            mutation_ident = syn::Ident::new(&format!("mutations_{index}"), field_span);
+            default_segment = quote! { #index };
         }
         observe_fields.extend(quote_spanned! { field_span => #observer_ident, });
 
@@ -124,7 +120,7 @@ pub fn derive_observe_for_struct(
             if !field_trivial {
                 skipped_tys.push(quote! { #field_ty });
             }
-            deref_fields.push((i, field, ob_field_ty, deref_ident, observer_ident));
+            deref_fields.push((index, field, ob_field_ty, deref_ident, observer_ident));
             ob_field_tys.push(quote! { #inner });
             ob_fields.extend(quote_spanned! { field_span =>
                 #field_vis #(#if_named #field_ident:)* #inner,
@@ -154,59 +150,49 @@ pub fn derive_observe_for_struct(
             });
         };
 
+        let segment = if let Some(rename) = &field_meta.serde.rename {
+            quote! { #rename }
+        } else {
+            default_segment
+        };
         let mut mutability = quote! {};
         if cfg!(feature = "delete")
             && let Some(path) = field_meta.serde.skip_serializing_if
         {
-            has_skip_serializing_if = true;
             mutability = quote! { mut };
-            flush_delete.extend(quote_spanned! { field_span =>
+            flush_delete_stmts.extend(quote_spanned! { field_span =>
                 if !#mutation_ident.is_empty() && #path(&__inner.#field_member) {
-                    #mutation_ident = ::morphix::MutationKind::Delete.into();
+                    #mutation_ident = ::morphix::Mutations::delete().prefix(#segment);
                 }
             });
         }
         if field_meta.serde.flatten {
             flush_field_stmts.extend(quote_spanned! { field_span =>
-                let (#mutation_ident, #is_replace_ident) = unsafe { ::morphix::observe::SerializeObserver::flat_flush(&mut this.#field_member) };
-            });
-            is_replace_checks.push(quote_spanned! { field_span =>
-                #is_replace_ident
-            });
-            flush_capacity.push(quote_spanned! { field_span =>
-                #mutation_ident.len()
-            });
-            flush_mutation_stmts.extend(quote_spanned! { field_span =>
-                mutations.extend(#mutation_ident);
+                let #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flat_flush(&mut this.#field_member) };
             });
         } else {
             flush_field_stmts.extend(quote_spanned! { field_span =>
-                let #mutability #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.#field_member) };
-            });
-            is_replace_checks.push(quote_spanned! { field_span =>
-                #mutation_ident.is_replace()
-            });
-            flush_capacity.push(quote_spanned! { field_span =>
-                (!#mutation_ident.is_empty()) as usize
-            });
-            let segment = if let Some(rename) = &field_meta.serde.rename {
-                quote! { #rename }
-            } else {
-                default_segment
-            };
-            flush_mutation_stmts.extend(quote_spanned! { field_span =>
-                mutations.insert(#segment, #mutation_ident);
+                let #mutability #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.#field_member).prefix(#segment) };
             });
         }
+        flush_capacity.push(quote_spanned! { field_span =>
+            #mutation_ident.len()
+        });
+        is_replace_checks.push(quote_spanned! { field_span =>
+            #mutation_ident.is_replace()
+        });
+        flush_mutation_stmts.extend(quote_spanned! { field_span =>
+            mutations.extend(#mutation_ident);
+        });
     }
     if !errors.is_empty() {
         return errors;
     }
 
-    if has_skip_serializing_if {
-        flush_delete = quote! {
+    if !flush_delete_stmts.is_empty() {
+        flush_delete_stmts = quote! {
             let __inner = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
-            #flush_delete
+            #flush_delete_stmts
         };
     }
 
@@ -491,8 +477,8 @@ pub fn derive_observe_for_struct(
             #flush_field_stmts
             let is_replace = #(#is_replace_checks)&&*;
             #flush_replace
-            #flush_delete
-            let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
+            let mut mutations = ::morphix::Mutations::new().with_capacity(#(#flush_capacity)+*);
+            #flush_delete_stmts
             #flush_mutation_stmts
             mutations
         }
@@ -505,11 +491,10 @@ pub fn derive_observe_for_struct(
     } else {
         quote! {
             #flush_field_stmts
-            let is_replace = #(#is_replace_checks)&&*;
-            #flush_delete
-            let mut mutations = ::morphix::Mutations::with_capacity(#(#flush_capacity)+*);
+            let mut mutations = ::morphix::Mutations::new().with_capacity(#(#flush_capacity)+*).with_replace(#(#is_replace_checks)&&*);
+            #flush_delete_stmts
             #flush_mutation_stmts
-            (mutations, is_replace)
+            mutations
         }
     };
 
@@ -588,7 +573,7 @@ pub fn derive_observe_for_struct(
                 #flush_impl
             }
 
-            unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
+            unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
                 #flat_flush_impl
             }
         }
