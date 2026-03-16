@@ -3,11 +3,10 @@
 use std::cell::UnsafeCell;
 use std::collections::TryReserveError;
 use std::fmt::Debug;
-use std::iter::FusedIterator;
 use std::mem::MaybeUninit;
 use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 use std::slice::SliceIndex;
-use std::vec::{Drain, Splice};
+use std::vec::{Drain, ExtractIf, Splice};
 
 use serde::Serialize;
 
@@ -401,20 +400,26 @@ where
     }
 
     /// See [`Vec::extract_if`].
-    pub fn extract_if<F, R>(&mut self, range: R, filter: F) -> ExtractIf<'_, O, F>
+    pub fn extract_if<F, R>(&mut self, range: R, mut filter: F) -> ExtractIf<'_, T, impl FnMut(&mut T) -> bool>
     where
         F: FnMut(&mut T) -> bool,
         R: RangeBounds<usize>,
     {
-        let index = match range.start_bound() {
+        let mut index = match range.start_bound() {
             Bound::Included(&n) => n,
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
+        let state = &mut self.inner.state;
         let vec = (*self.inner.ptr).as_deref_mut();
-        let inner = vec.extract_if(range, filter);
-        let state = Some(&mut self.inner.state);
-        ExtractIf { inner, state, index }
+        vec.extract_if(range, move |v| {
+            let is_extracted = filter(v);
+            if is_extracted {
+                state.mark_truncate(index);
+            }
+            index += 1;
+            is_extracted
+        })
     }
 }
 
@@ -456,54 +461,6 @@ where
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
         self.untracked_mut().extend(other);
-    }
-}
-
-/// Iterator produced by [`VecObserver::extract_if`].
-pub struct ExtractIf<'a, O, F>
-where
-    O: Observer<InnerDepth = Zero, Head: Sized>,
-    F: FnMut(&mut O::Head) -> bool,
-{
-    inner: std::vec::ExtractIf<'a, O::Head, F>,
-    state: Option<&'a mut VecObserverState<O>>,
-    index: usize,
-}
-
-impl<O, F> Iterator for ExtractIf<'_, O, F>
-where
-    O: Observer<InnerDepth = Zero, Head: Sized>,
-    F: FnMut(&mut O::Head) -> bool,
-{
-    type Item = O::Head;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let value = self.inner.next()?;
-        if let Some(state) = self.state.take() {
-            state.mark_truncate(self.index);
-        }
-        Some(value)
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.inner.size_hint()
-    }
-}
-
-impl<O, F> FusedIterator for ExtractIf<'_, O, F>
-where
-    O: Observer<InnerDepth = Zero, Head: Sized>,
-    F: FnMut(&mut O::Head) -> bool,
-{
-}
-
-impl<O, F> Debug for ExtractIf<'_, O, F>
-where
-    O: Observer<InnerDepth = Zero, Head: Debug + Sized>,
-    F: FnMut(&mut O::Head) -> bool,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.inner.fmt(f)
     }
 }
 
@@ -766,6 +723,17 @@ mod tests {
     }
 
     #[test]
+    fn pop_all_then_push_triggers_replace() {
+        let mut vec = vec![1, 2];
+        let mut ob = vec.__observe();
+        ob.pop();
+        ob.pop();
+        ob.push(3);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(replace!(_, json!([3]))));
+    }
+
+    #[test]
     fn pop_push_clears_stale_state() {
         let mut vec = vec!["a".to_string(), "b".to_string(), "ab".to_string()];
         let mut ob = vec.__observe();
@@ -803,7 +771,10 @@ mod tests {
         ob.insert(1, 99);
         assert_eq!(ob, vec![1, 99, 2, 3]);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation, Some(batch!(_, truncate!(_, 2), append!(_, json!([99, 2, 3])))));
+        assert_eq!(
+            mutation,
+            Some(batch!(_, truncate!(_, 2), append!(_, json!([99, 2, 3]))))
+        );
     }
 
     #[test]
@@ -875,7 +846,10 @@ mod tests {
         assert_eq!(removed, vec![2, 3]);
         assert_eq!(ob, vec![1, 10, 20, 30, 4]);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation, Some(batch!(_, truncate!(_, 3), append!(_, json!([10, 20, 30, 4])))));
+        assert_eq!(
+            mutation,
+            Some(batch!(_, truncate!(_, 3), append!(_, json!([10, 20, 30, 4]))))
+        );
     }
 
     #[test]
@@ -905,12 +879,24 @@ mod tests {
     fn extract_if_before_append_index() {
         let mut vec = vec![1, 2, 3, 4];
         let mut ob = vec.__observe();
-        // start_index == 0 triggers Replace on first extraction.
+        // First extracted element is at index 1, so mark_truncate(1).
         let extracted: Vec<_> = ob.extract_if(.., |x| *x % 2 == 0).collect();
         assert_eq!(extracted, vec![2, 4]);
         assert_eq!(ob, vec![1, 3]);
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation, Some(replace!(_, json!([1, 3]))));
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 3), append!(_, json!([3])))));
+    }
+
+    #[test]
+    fn extract_if_preserves_prefix() {
+        let mut vec = vec![1, 2, 3, 4, 5];
+        let mut ob = vec.__observe();
+        // Only the last element matches; mark_truncate(4) preserves elements 0-3.
+        let extracted: Vec<_> = ob.extract_if(.., |x| *x == 5).collect();
+        assert_eq!(extracted, vec![5]);
+        assert_eq!(ob, vec![1, 2, 3, 4]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(truncate!(_, 1)));
     }
 
     #[test]
