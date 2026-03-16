@@ -4,6 +4,7 @@ use std::cell::UnsafeCell;
 use std::collections::TryReserveError;
 use std::fmt::Debug;
 use std::iter::FusedIterator;
+use std::mem::MaybeUninit;
 use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 use std::slice::SliceIndex;
 use std::vec::{Drain, Splice};
@@ -13,7 +14,7 @@ use serde::Serialize;
 use crate::general::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::impls::slice::{SliceIndexImpl, SliceObserver, SliceObserverState, SliceSerializeObserverState};
+use crate::impls::slice::{SliceObserver, SliceObserverState, SliceSerializeObserverState};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe, PathSegment};
 
@@ -52,6 +53,9 @@ pub struct VecObserverState<O> {
 
 impl<O> VecObserverState<O> {
     fn mark_truncate(&mut self, new_len: usize) {
+        if self.append_index <= new_len {
+            return;
+        }
         self.truncate_len += self.append_index - new_len;
         self.append_index = new_len;
     }
@@ -118,31 +122,39 @@ where
     O::Head: Serialize + Sized + 'static,
 {
     fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations {
+        // Drop stale inner observers beyond `append_index`. Elements in this region were popped
+        // since the last flush; their observers carry outdated state. Truncating here lets
+        // `relocate` create fresh observers for the newly appended elements at these indices.
+        self.inner.get_mut().truncate(self.append_index);
+
+        // `relocate` must precede `Mutations::append`: `relocate` takes `&mut slice` (Unique
+        // function-entry retag over the full slice), which would invalidate a `SerializeRef`'s
+        // SRO tag if the append mutation were created first.
         let slice = (**ptr).as_deref_mut();
+        unsafe { self.relocate(slice) }
+
         let append_index = core::mem::replace(&mut self.append_index, slice.len());
         let truncate_len = core::mem::replace(&mut self.truncate_len, 0);
         let mut mutations = Mutations::new();
-        #[cfg(feature = "truncate")]
         if truncate_len > 0 {
+            #[cfg(feature = "truncate")]
             mutations.extend(MutationKind::Truncate(truncate_len));
+            #[cfg(not(feature = "truncate"))]
+            return Mutations::replace(slice);
         }
-        // relocate must precede Mutations::append: relocate takes `&mut slice` (Unique function-entry
-        // retag over the full slice), which would invalidate a SerializeRef's SRO tag if the append
-        // mutation were created first.
-        unsafe { self.relocate(slice) }
-        #[cfg(feature = "append")]
         if slice.len() > append_index {
+            #[cfg(feature = "append")]
             mutations.extend(Mutations::append(&slice[append_index..]));
+            #[cfg(not(feature = "append"))]
+            return Mutations::replace(slice);
         }
-        let (existing, _stale) = self.inner.get_mut().split_at_mut(append_index);
-        let slice_len = slice.len();
+
         let mut is_replace = true;
-        for (index, ob) in existing.iter_mut().enumerate().rev() {
+        for (index, ob) in self.inner.get_mut().iter_mut().take(append_index).enumerate().rev() {
             let mutations_i = unsafe { SerializeObserver::flush(ob) };
             is_replace &= mutations_i.is_replace();
-            mutations.insert(PathSegment::Negative(slice_len - index), mutations_i);
+            mutations.insert(PathSegment::Negative(slice.len() - index), mutations_i);
         }
-        self.inner.get_mut().truncate(append_index);
         if is_replace && (append_index > 0 || truncate_len > 0) {
             return Mutations::replace(slice);
         };
@@ -214,13 +226,54 @@ where
     }
 }
 
+struct TruncateGuard<'a, O, T> {
+    state: &'a mut VecObserverState<O>,
+    inner: &'a mut Vec<T>,
+}
+
+impl<O, T> Drop for TruncateGuard<'_, O, T> {
+    fn drop(&mut self) {
+        self.state.mark_truncate(self.inner.len());
+    }
+}
+
+impl<O, T> Deref for TruncateGuard<'_, O, T> {
+    type Target = Vec<T>;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner
+    }
+}
+
+impl<O, T> DerefMut for TruncateGuard<'_, O, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.inner
+    }
+}
+
 impl<O, S: ?Sized, D, T> VecObserver<O, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
+    fn nonempty_mut(&mut self) -> &mut Vec<T> {
+        if (*self).untracked_ref().is_empty() {
+            self.untracked_mut()
+        } else {
+            self.tracked_mut()
+        }
+    }
+
+    fn truncate_mut(&mut self) -> TruncateGuard<'_, O, T> {
+        TruncateGuard {
+            state: &mut self.inner.state,
+            inner: (*self.inner.ptr).as_deref_mut(),
+        }
+    }
+
     delegate_methods! { untracked_mut() as Vec =>
+        pub fn push(&mut self, value: T);
         pub fn reserve(&mut self, additional: usize);
         pub fn reserve_exact(&mut self, additional: usize);
         pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
@@ -229,139 +282,73 @@ where
         pub fn shrink_to(&mut self, min_capacity: usize);
     }
 
-    /// See [`Vec::as_slice`].
-    pub fn as_slice(&self) -> &[O] {
-        self.force_ref()
+    delegate_methods! { truncate_mut() as Vec =>
+        pub fn truncate(&mut self, len: usize);
     }
 
     /// See [`Vec::as_mut_slice`].
     pub fn as_mut_slice(&mut self) -> &mut [O] {
         self.force_mut()
     }
-}
 
-#[cfg(feature = "append")]
-impl<O, S: ?Sized, D, T> VecObserver<O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<InnerDepth = Zero, Head = T>,
-{
-    delegate_methods! { untracked_mut() as Vec =>
-        pub fn push(&mut self, value: T);
-        pub fn append(&mut self, other: &mut Vec<T>);
+    delegate_methods! { tracked_mut() as Vec =>
+        pub fn as_mut_ptr(&mut self) -> *mut T;
     }
 
-    /// See [`Vec::insert`].
-    pub fn insert(&mut self, index: usize, element: T) {
-        if index >= self.state.append_index {
-            self.untracked_mut().insert(index, element)
-        } else {
-            self.tracked_mut().insert(index, element)
-        }
-    }
-}
-
-#[cfg(any(feature = "append", feature = "truncate"))]
-impl<O, S: ?Sized, D, T> VecObserver<O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<InnerDepth = Zero, Head = T>,
-{
-    /// See [`Vec::clear`].
-    pub fn clear(&mut self) {
-        if self.state.append_index == 0 {
-            self.untracked_mut().clear()
-        } else {
-            self.tracked_mut().clear()
-        }
-    }
-
-    /// See [`Vec::remove`].
-    pub fn remove(&mut self, index: usize) -> T {
-        let value = self.untracked_mut().remove(index);
-        if index >= self.state.append_index {
-            // no-op
-        } else if cfg!(feature = "truncate") && index + 1 == self.state.append_index {
-            self.state.mark_truncate(index);
-        } else {
-            self.state.mark_replace();
-        }
-        value
+    delegate_methods! { truncate_mut() as Vec =>
+        pub unsafe fn set_len(&mut self, new_len: usize);
     }
 
     /// See [`Vec::swap_remove`].
     pub fn swap_remove(&mut self, index: usize) -> T {
         let value = self.untracked_mut().remove(index);
-        if index >= self.state.append_index {
-            // no-op
-        } else if cfg!(feature = "truncate") && index + 1 == self.state.append_index {
-            self.state.mark_truncate(index);
-        } else {
-            self.state.mark_replace();
-        }
+        self.state.mark_truncate(index);
         value
     }
 
-    /// See [`Vec::pop`].
-    pub fn pop(&mut self) -> Option<T> {
-        let value = self.untracked_mut().pop()?;
-        let len = (*self).untracked_ref().len();
-        if len >= self.state.append_index {
-            // no-op
-        } else if cfg!(feature = "truncate") && len + 1 == self.state.append_index {
-            self.state.mark_truncate(len);
-        } else {
-            self.state.mark_replace();
-        }
-        Some(value)
+    /// See [`Vec::insert`].
+    pub fn insert(&mut self, index: usize, element: T) {
+        self.untracked_mut().insert(index, element);
+        self.state.mark_truncate(index);
     }
 
-    /// See [`Vec::pop_if`].
-    pub fn pop_if(&mut self, predicate: impl FnOnce(&mut O) -> bool) -> Option<T> {
-        let last = self.last_mut()?;
-        if predicate(last) { self.pop() } else { None }
+    /// See [`Vec::remove`].
+    pub fn remove(&mut self, index: usize) -> T {
+        let value = self.untracked_mut().remove(index);
+        self.state.mark_truncate(index);
+        value
     }
 
-    /// See [`Vec::truncate`].
-    pub fn truncate(&mut self, len: usize) {
-        self.untracked_mut().truncate(len);
-        if len >= self.state.append_index {
-            // no-op
-        } else if cfg!(feature = "truncate") && len > 0 {
-            self.state.mark_truncate(len);
-        } else {
-            self.state.mark_replace();
-        }
-    }
-
-    /// See [`Vec::split_off`].
-    pub fn split_off(&mut self, at: usize) -> Vec<T> {
-        let vec = self.untracked_mut().split_off(at);
-        if at >= self.state.append_index {
-            // no-op
-        } else if cfg!(feature = "truncate") && at > 0 {
-            self.state.mark_truncate(at);
-        } else {
-            self.state.mark_replace();
-        }
-        vec
-    }
-
-    /// See [`Vec::resize_with`].
-    pub fn resize_with<F>(&mut self, new_len: usize, f: F)
+    // TODO
+    /// See [`Vec::retain`].
+    pub fn retain<F>(&mut self, mut f: F)
     where
-        F: FnMut() -> T,
+        F: FnMut(&T) -> bool,
     {
-        self.untracked_mut().resize_with(new_len, f);
-        if new_len >= self.state.append_index {
-            // no-op
-        } else if cfg!(feature = "truncate") && new_len > 0 {
-            self.state.mark_truncate(new_len);
-        } else {
-            self.state.mark_replace();
-        }
+        self.extract_if(.., |v| !f(v)).for_each(drop);
+    }
+
+    // TODO
+    /// See [`Vec::retain_mut`].
+    pub fn retain_mut<F>(&mut self, mut f: F)
+    where
+        F: FnMut(&mut T) -> bool,
+    {
+        self.extract_if(.., |v| !f(v)).for_each(drop);
+    }
+
+    delegate_methods! { nonempty_mut() as Vec =>
+        pub fn dedup_by_key<F, K>(&mut self, key: F) where F: FnMut(&mut T) -> K, K: PartialEq;
+        pub fn dedup_by<F>(&mut self, same_bucket: F) where F: FnMut(&mut T, &mut T) -> bool;
+    }
+
+    delegate_methods! { truncate_mut() as Vec =>
+        pub fn pop(&mut self) -> Option<T>;
+        pub fn pop_if(&mut self, predicate: impl FnOnce(&mut T) -> bool) -> Option<T>;
+    }
+
+    delegate_methods! { untracked_mut() as Vec =>
+        pub fn append(&mut self, other: &mut Vec<T>);
     }
 
     /// See [`Vec::drain`].
@@ -390,6 +377,20 @@ where
         }
         self.state.mark_truncate(start_index);
         self.tracked_mut().drain(range)
+    }
+
+    delegate_methods! { nonempty_mut() as Vec =>
+        pub fn clear(&mut self);
+    }
+
+    delegate_methods! { truncate_mut() as Vec =>
+        pub fn split_off(&mut self, at: usize) -> Vec<T>;
+        pub fn resize_with<F>(&mut self, new_len: usize, f: F) where F: FnMut() -> T;
+    }
+
+    delegate_methods! { tracked_mut() as Vec =>
+        // TODO
+        pub fn spare_capacity_mut(&mut self) -> &mut [MaybeUninit<T>];
     }
 
     /// See [`Vec::splice`].
@@ -421,14 +422,6 @@ where
         self.untracked_mut().splice(range, replace_with)
     }
 
-    /// See [`Vec::retain`].
-    pub fn retain<F>(&mut self, mut f: F)
-    where
-        F: FnMut(&T) -> bool,
-    {
-        self.extract_if(.., |v| !f(v)).for_each(drop);
-    }
-
     /// See [`Vec::extract_if`].
     pub fn extract_if<F, R>(&mut self, range: R, filter: F) -> ExtractIf<'_, O, F>
     where
@@ -451,8 +444,48 @@ where
     }
 }
 
+impl<O, S: ?Sized, D, T> VecObserver<O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<InnerDepth = Zero, Head = T>,
+    T: Clone,
+{
+    delegate_methods! { truncate_mut() as Vec =>
+        pub fn resize(&mut self, new_len: usize, value: T);
+    }
+
+    delegate_methods! { untracked_mut() as Vec =>
+        pub fn extend_from_slice(&mut self, other: &[T]);
+        pub fn extend_from_within<R>(&mut self, src: R) where R: RangeBounds<usize>;
+    }
+}
+
+impl<O, S: ?Sized, D, T> VecObserver<O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<InnerDepth = Zero, Head = T>,
+    T: PartialEq,
+{
+    delegate_methods! { nonempty_mut() as Vec =>
+        pub fn dedup(&mut self);
+    }
+}
+
+impl<O, S: ?Sized, D, T, U> Extend<U> for VecObserver<O, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Vec<T>>,
+    O: Observer<InnerDepth = Zero, Head = T>,
+    Vec<T>: Extend<U>,
+{
+    fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
+        self.untracked_mut().extend(other);
+    }
+}
+
 /// Iterator produced by [`VecObserver::extract_if`].
-#[cfg(any(feature = "append", feature = "truncate"))]
 pub struct ExtractIf<'a, O, F>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
@@ -462,7 +495,6 @@ where
     state: Option<(&'a mut VecObserverState<O>, usize)>,
 }
 
-#[cfg(any(feature = "append", feature = "truncate"))]
 impl<O, F> Iterator for ExtractIf<'_, O, F>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
@@ -490,7 +522,6 @@ where
     }
 }
 
-#[cfg(any(feature = "append", feature = "truncate"))]
 impl<O, F> FusedIterator for ExtractIf<'_, O, F>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
@@ -498,7 +529,6 @@ where
 {
 }
 
-#[cfg(any(feature = "append", feature = "truncate"))]
 impl<O, F> Debug for ExtractIf<'_, O, F>
 where
     O: Observer<InnerDepth = Zero, Head: Debug + Sized>,
@@ -506,55 +536,6 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.inner.fmt(f)
-    }
-}
-
-#[cfg(feature = "append")]
-impl<O, S: ?Sized, D, T> VecObserver<O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<InnerDepth = Zero, Head = T>,
-    T: Clone,
-{
-    delegate_methods! { untracked_mut() as Vec =>
-        pub fn extend_from_slice(&mut self, other: &[T]);
-        pub fn extend_from_within<R>(&mut self, src: R)
-        where R: RangeBounds<usize>;
-    }
-}
-
-#[cfg(any(feature = "append", feature = "truncate"))]
-impl<O, S: ?Sized, D, T> VecObserver<O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<InnerDepth = Zero, Head = T>,
-    T: Clone,
-{
-    /// See [`Vec::resize`].
-    pub fn resize(&mut self, new_len: usize, value: T) {
-        self.untracked_mut().resize(new_len, value);
-        if new_len >= self.state.append_index {
-            // no-op
-        } else if cfg!(feature = "truncate") && new_len > 0 {
-            self.state.mark_truncate(new_len);
-        } else {
-            self.state.mark_replace();
-        }
-    }
-}
-
-#[cfg(feature = "append")]
-impl<O, S: ?Sized, D, T, U> Extend<U> for VecObserver<O, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = Vec<T>>,
-    O: Observer<InnerDepth = Zero, Head = T>,
-    Vec<T>: Extend<U>,
-{
-    fn extend<I: IntoIterator<Item = U>>(&mut self, other: I) {
-        self.untracked_mut().extend(other);
     }
 }
 
@@ -660,7 +641,7 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
-    I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+    I: SliceIndex<[O]>,
 {
     type Output = I::Output;
 
@@ -674,7 +655,7 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = Vec<T>>,
     O: Observer<InnerDepth = Zero, Head = T>,
-    I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+    I: SliceIndex<[O]>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         &mut self.inner[index]

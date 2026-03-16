@@ -1,14 +1,9 @@
 //! Observer implementation for slices `[T]`.
-//!
-//! ## Stability
-//!
-//! The [`SliceObserverState`] trait is an internal abstraction used by [`SliceObserver`] and may
-//! change in future versions without notice.
 
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, Range, RangeBounds};
+use std::ops::{Deref, DerefMut, Index, IndexMut, Range, RangeBounds};
 use std::slice::{
     ChunkByMut, ChunksExactMut, ChunksMut, GetDisjointMutError, IterMut, RChunksExactMut, RChunksMut, RSplitMut,
     RSplitNMut, SliceIndex, SplitInclusiveMut, SplitMut, SplitNMut,
@@ -65,8 +60,8 @@ pub trait SliceRefObserverState: ObserverState<Target: AsRef<[<Self::Item as Qua
 ///
 /// This trait is generic over the head type `S` and depth `D`, allowing each implementor to
 /// choose its own mutability requirement: [`[O; N]`](prim@array) bounds `S: AsDeref<D>` (shared
-/// access), while [`VecObserverState`] bounds `S: AsDerefMut<D>` (mutable access for
-/// element relocation).
+/// access), while [`VecObserverState`] bounds `S: AsDerefMut<D>` (mutable access for element
+/// relocation).
 pub trait SliceSerializeObserverState<S: ?Sized, D>: ObserverState {
     /// Consumes the accumulated mutation state, flushes inner element observers, and returns the
     /// collected [`Mutations`].
@@ -114,12 +109,12 @@ where
     }
 }
 
-impl<V, S: ?Sized, D, O, T> Observer for SliceObserver<V, S, D>
+impl<V, S: ?Sized, D, T> Observer for SliceObserver<V, S, D>
 where
-    V: SliceObserverState<Item = O>,
+    V: SliceObserverState,
+    V::Item: Observer<InnerDepth = Zero, Head = T>,
     D: Unsigned,
     S: AsDerefMut<D, Target = V::Target>,
-    O: Observer<InnerDepth = Zero, Head = T>,
 {
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
@@ -136,12 +131,12 @@ where
     }
 }
 
-impl<V, S: ?Sized, D, O, T> RefObserver for SliceObserver<V, S, D>
+impl<V, S: ?Sized, D, T> RefObserver for SliceObserver<V, S, D>
 where
-    V: SliceRefObserverState<Item = O>,
+    V: SliceRefObserverState,
+    V::Item: RefObserver<InnerDepth = Zero, Head = T>,
     D: Unsigned,
     S: AsDeref<D, Target = V::Target>,
-    O: RefObserver<InnerDepth = Zero, Head = T>,
 {
     fn observe(head: &Self::Head) -> Self {
         let this = Self {
@@ -169,79 +164,6 @@ where
     }
 }
 
-pub(crate) trait SliceIndexImpl<T: ?Sized, Output: ?Sized> {
-    fn end_exclusive(&self, len: usize) -> usize;
-}
-
-impl<T> SliceIndexImpl<[T], T> for usize {
-    fn end_exclusive(&self, _len: usize) -> usize {
-        self + 1
-    }
-}
-
-impl<T, I> SliceIndexImpl<[T], [T]> for I
-where
-    I: SliceIndex<[T], Output = [T]> + RangeBounds<usize>,
-{
-    fn end_exclusive(&self, len: usize) -> usize {
-        match self.end_bound() {
-            Bound::Included(&end) => end + 1,
-            Bound::Excluded(&end) => end,
-            Bound::Unbounded => len,
-        }
-    }
-}
-
-impl<V, S: ?Sized, D, T> SliceObserver<V, S, D>
-where
-    V: SliceObserverState,
-    V::Item: Observer<InnerDepth = Zero, Head = T>,
-    D: Unsigned,
-    S: AsDerefMut<D, Target = V::Target>,
-{
-    unsafe fn __force_index<I>(&self, index: &I) -> Option<()>
-    where
-        I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
-    {
-        let len = self.untracked_ref().as_ref().len();
-        let end = index.end_exclusive(len);
-        if end > len {
-            return None;
-        }
-        let slice = unsafe { Pointer::as_mut(&self.ptr).as_deref_mut() };
-        unsafe { self.state.relocate(slice) };
-        Some(())
-    }
-
-    fn __get<I>(&self, index: I) -> Option<&I::Output>
-    where
-        I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
-    {
-        unsafe { self.__force_index(&index)? }
-        Some(self.state.as_slice().index(index))
-    }
-
-    fn __get_mut<I>(&mut self, index: I) -> Option<&mut I::Output>
-    where
-        I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
-    {
-        unsafe { self.__force_index(&index)? }
-        Some(self.state.as_mut_slice().index_mut(index))
-    }
-
-    pub(crate) fn force_ref(&self) -> &[V::Item] {
-        let slice = unsafe { Pointer::as_mut(&self.ptr).as_deref_mut() };
-        unsafe { self.state.relocate(slice) };
-        self.state.as_slice()
-    }
-
-    pub(crate) fn force_mut(&mut self) -> &mut [V::Item] {
-        let slice = (*self.ptr).as_deref_mut();
-        unsafe { self.state.relocate(slice) };
-        self.state.as_mut_slice()
-    }
-}
-
 #[expect(clippy::type_complexity)]
 impl<V, S: ?Sized, D, T> SliceObserver<V, S, D>
 where
@@ -251,6 +173,12 @@ where
     S: AsDerefMut<D, Target = V::Target>,
     S::Target: AsMut<[T]>,
 {
+    pub(crate) fn force_mut(&mut self) -> &mut [V::Item] {
+        let slice = (*self.ptr).as_deref_mut();
+        unsafe { self.state.relocate(slice) };
+        self.state.as_mut_slice()
+    }
+
     fn nonempty_mut(&mut self) -> &mut [T] {
         if (*self).untracked_ref().as_ref().is_empty() {
             self.untracked_mut().as_mut()
@@ -452,32 +380,34 @@ where
     }
 }
 
-impl<V, S: ?Sized, D, O, T, I> Index<I> for SliceObserver<V, S, D>
+impl<V, S: ?Sized, D, T, I> Index<I> for SliceObserver<V, S, D>
 where
-    V: SliceObserverState<Item = O>,
+    V: SliceObserverState,
     D: Unsigned,
     S: AsDerefMut<D, Target = V::Target>,
-    O: Observer<InnerDepth = Zero, Head = T>,
-    I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+    V::Item: Observer<InnerDepth = Zero, Head = T>,
+    I: SliceIndex<[V::Item]>,
 {
     type Output = I::Output;
 
     fn index(&self, index: I) -> &Self::Output {
-        self.__get(index).expect("index out of bounds")
+        unsafe { self.state.relocate(Pointer::as_mut(&self.ptr).as_deref_mut()) };
+        self.state.as_slice().index(index)
     }
 }
 
-impl<V, S: ?Sized, D, O, T, I> IndexMut<I> for SliceObserver<V, S, D>
+impl<V, S: ?Sized, D, T, I> IndexMut<I> for SliceObserver<V, S, D>
 where
-    V: SliceObserverState<Item = O>,
+    V: SliceObserverState,
     D: Unsigned,
     S: AsDerefMut<D, Target = V::Target>,
     S::Target: AsMut<[T]>,
-    O: Observer<InnerDepth = Zero, Head = T>,
-    I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+    V::Item: Observer<InnerDepth = Zero, Head = T>,
+    I: SliceIndex<[V::Item]>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        self.__get_mut(index).expect("index out of bounds")
+        unsafe { self.state.relocate((*self.ptr).as_deref_mut()) };
+        self.state.as_mut_slice().index_mut(index)
     }
 }
 

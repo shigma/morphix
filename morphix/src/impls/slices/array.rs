@@ -6,9 +6,7 @@ use serde::Serialize;
 
 use crate::general::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::impls::slice::{
-    SliceIndexImpl, SliceObserver, SliceObserverState, SliceRefObserverState, SliceSerializeObserverState,
-};
+use crate::impls::slice::{SliceObserver, SliceObserverState, SliceRefObserverState, SliceSerializeObserverState};
 use crate::observe::{DefaultSpec, Observer, RefObserve, RefObserver, SerializeObserver};
 use crate::{Mutations, Observe};
 
@@ -103,20 +101,9 @@ where
     S: AsDerefMut<D, Target = [T; N]>,
     O: Observer<InnerDepth = Zero, Head = T>,
 {
-    /// See [`array::as_slice`].
-    pub fn as_slice(&self) -> &[O] {
-        self.inner.force_ref()
-    }
-
     /// See [`array::as_mut_slice`].
     pub fn as_mut_slice(&mut self) -> &mut [O] {
         self.inner.force_mut()
-    }
-
-    /// See [`array::each_ref`].
-    pub fn each_ref(&self) -> [&O; N] {
-        self.inner.force_ref();
-        self.inner.state.each_ref()
     }
 
     /// See [`array::each_mut`].
@@ -305,7 +292,7 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]>,
     O: Observer<InnerDepth = Zero, Head = T>,
-    I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+    I: SliceIndex<[O]>,
 {
     type Output = I::Output;
 
@@ -319,7 +306,7 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = [T; N]>,
     O: Observer<InnerDepth = Zero, Head = T>,
-    I: SliceIndex<[O]> + SliceIndexImpl<[O], I::Output>,
+    I: SliceIndex<[O]>,
 {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         &mut self.inner[index]
