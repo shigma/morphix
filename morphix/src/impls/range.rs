@@ -118,7 +118,7 @@ macro_rules! impl_range {
             {
                 unsafe fn flush(this: &mut Self) -> Mutations {
                     $(
-                        let $field = unsafe { SerializeObserver::flush(&mut this.$field).prefix(stringify!($field)) };
+                        let $field = unsafe { SerializeObserver::flush(&mut this.$field).with_prefix(stringify!($field)) };
                     )*
                     if $($field.is_replace())&&* {
                         Mutations::replace((*this).untracked_ref())
@@ -131,7 +131,7 @@ macro_rules! impl_range {
 
                 unsafe fn flat_flush(this: &mut Self) -> Mutations {
                     $(
-                        let $field = unsafe { SerializeObserver::flush(&mut this.$field).prefix(stringify!($field)) };
+                        let $field = unsafe { SerializeObserver::flush(&mut this.$field).with_prefix(stringify!($field)) };
                     )*
                     let mut mutations = Mutations::new().with_replace($($field.is_replace())&&*);
                     $(mutations.extend($field);)*
@@ -321,8 +321,8 @@ where
     O::Head: Serialize + Sized + 'static,
 {
     unsafe fn flush(this: &mut Self) -> Mutations {
-        let mutations_start = unsafe { SerializeObserver::flush(&mut this.start).prefix("start") };
-        let mutations_end = unsafe { SerializeObserver::flush(&mut this.end).prefix("end") };
+        let mutations_start = unsafe { SerializeObserver::flush(&mut this.start).with_prefix("start") };
+        let mutations_end = unsafe { SerializeObserver::flush(&mut this.end).with_prefix("end") };
         if mutations_start.is_replace() && mutations_end.is_replace() {
             Mutations::replace((*this).untracked_ref())
         } else {
@@ -334,8 +334,8 @@ where
     }
 
     unsafe fn flat_flush(this: &mut Self) -> Mutations {
-        let mutations_start = unsafe { SerializeObserver::flush(&mut this.start).prefix("start") };
-        let mutations_end = unsafe { SerializeObserver::flush(&mut this.end).prefix("end") };
+        let mutations_start = unsafe { SerializeObserver::flush(&mut this.start).with_prefix("start") };
+        let mutations_end = unsafe { SerializeObserver::flush(&mut this.end).with_prefix("end") };
         let mut mutations = Mutations::new().with_replace(mutations_start.is_replace() && mutations_end.is_replace());
         mutations.extend(mutations_start);
         mutations.extend(mutations_end);

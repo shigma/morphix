@@ -38,11 +38,11 @@ pub fn derive_observe_for_struct(
     let mut observe_field_stmts = quote! {};
     let mut observe_fields = quote! {};
     let mut relocate_stmts = quote! {};
+    let mut mutation_idents = vec![];
+    let mut has_flush_delete = false;
     let mut flush_field_stmts = quote! {};
-    let mut flush_delete_stmts = quote! {};
     let mut flush_mutation_stmts = quote! {};
     let mut flush_capacity = vec![];
-    let mut is_replace_checks = vec![];
     let mut debug_chain = quote! {};
 
     let mut field_tys = vec![];
@@ -150,49 +150,68 @@ pub fn derive_observe_for_struct(
             });
         };
 
-        let segment = if let Some(rename) = &field_meta.serde.rename {
-            quote! { #rename }
-        } else {
-            default_segment
-        };
-        let mut mutability = quote! {};
-        if cfg!(feature = "delete")
-            && let Some(path) = field_meta.serde.skip_serializing_if
-        {
-            mutability = quote! { mut };
-            flush_delete_stmts.extend(quote_spanned! { field_span =>
-                if !#mutation_ident.is_empty() && #path(&__inner.#field_member) {
-                    #mutation_ident = ::morphix::Mutations::delete().prefix(#segment);
-                }
-            });
-        }
         if field_meta.serde.flatten {
             flush_field_stmts.extend(quote_spanned! { field_span =>
                 let #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flat_flush(&mut this.#field_member) };
             });
+            flush_capacity.push(quote_spanned! { field_span =>
+                #mutation_ident.len()
+            });
+            if cfg!(feature = "delete")
+                && let Some(path) = field_meta.serde.skip_serializing_if
+            {
+                has_flush_delete = true;
+                flush_mutation_stmts.extend(quote_spanned! { field_span =>
+                    if !#mutation_ident.is_empty() && #path(&__inner.#field_member) {
+                        mutations.extend(#mutation_ident.into_delete());
+                    } else {
+                        mutations.extend(#mutation_ident);
+                    }
+                });
+            } else {
+                flush_mutation_stmts.extend(quote_spanned! { field_span =>
+                    mutations.extend(#mutation_ident);
+                });
+            }
         } else {
             flush_field_stmts.extend(quote_spanned! { field_span =>
-                let #mutability #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.#field_member).prefix(#segment) };
+                let #mutation_ident = unsafe { ::morphix::observe::SerializeObserver::flush(&mut this.#field_member) };
             });
+            flush_capacity.push(quote_spanned! { field_span =>
+                !#mutation_ident.is_empty() as usize
+            });
+            let segment = if let Some(rename) = &field_meta.serde.rename {
+                quote! { #rename }
+            } else {
+                default_segment
+            };
+            if cfg!(feature = "delete")
+                && let Some(path) = field_meta.serde.skip_serializing_if
+            {
+                has_flush_delete = true;
+                flush_mutation_stmts.extend(quote_spanned! { field_span =>
+                    if !#mutation_ident.is_empty() && #path(&__inner.#field_member) {
+                        mutations.insert(#segment, ::morphix::Mutations::delete());
+                    } else {
+                        mutations.insert(#segment, #mutation_ident);
+                    }
+                });
+            } else {
+                flush_mutation_stmts.extend(quote_spanned! { field_span =>
+                    mutations.insert(#segment, #mutation_ident);
+                });
+            }
         }
-        flush_capacity.push(quote_spanned! { field_span =>
-            #mutation_ident.len()
-        });
-        is_replace_checks.push(quote_spanned! { field_span =>
-            #mutation_ident.is_replace()
-        });
-        flush_mutation_stmts.extend(quote_spanned! { field_span =>
-            mutations.extend(#mutation_ident);
-        });
+        mutation_idents.push(mutation_ident);
     }
     if !errors.is_empty() {
         return errors;
     }
 
-    if !flush_delete_stmts.is_empty() {
-        flush_delete_stmts = quote! {
+    if has_flush_delete {
+        flush_mutation_stmts = quote! {
             let __inner = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
-            #flush_delete_stmts
+            #flush_mutation_stmts
         };
     }
 
@@ -299,7 +318,7 @@ pub fn derive_observe_for_struct(
         };
 
         flush_replace = quote! {
-            if is_replace {
+            if #(#mutation_idents.is_replace())&&* {
                 let value = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
                 return ::morphix::Mutations::replace(value);
             }
@@ -413,7 +432,7 @@ pub fn derive_observe_for_struct(
         };
 
         flush_replace = quote! {
-            if is_replace {
+            if #(#mutation_idents.is_replace())&&* {
                 // let value = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
                 let head = &**(*this).as_deref_coinductive();
                 let value = ::morphix::helper::AsDeref::<N>::as_deref(head);
@@ -475,10 +494,8 @@ pub fn derive_observe_for_struct(
     } else {
         quote! {
             #flush_field_stmts
-            let is_replace = #(#is_replace_checks)&&*;
             #flush_replace
             let mut mutations = ::morphix::Mutations::new().with_capacity(#(#flush_capacity)+*);
-            #flush_delete_stmts
             #flush_mutation_stmts
             mutations
         }
@@ -491,8 +508,9 @@ pub fn derive_observe_for_struct(
     } else {
         quote! {
             #flush_field_stmts
-            let mut mutations = ::morphix::Mutations::new().with_capacity(#(#flush_capacity)+*).with_replace(#(#is_replace_checks)&&*);
-            #flush_delete_stmts
+            let mut mutations = ::morphix::Mutations::new()
+                .with_capacity(#(#flush_capacity)+*)
+                .with_replace(#(#mutation_idents.is_replace())&&*);
             #flush_mutation_stmts
             mutations
         }

@@ -68,22 +68,25 @@ const _: () = {
                     unsafe { ::morphix::observe::SerializeObserver::flush(u0) }
                 }
                 Self::C { bar, qux } => {
-                    let mut mutations_bar = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(bar).prefix("bar")
+                    let mutations_bar = unsafe {
+                        ::morphix::observe::SerializeObserver::flush(bar)
                     };
                     let mutations_qux = unsafe {
                         ::morphix::observe::SerializeObserver::flat_flush(qux)
                     };
                     let mut mutations = ::morphix::Mutations::new()
-                        .with_capacity(mutations_bar.len() + mutations_qux.len());
+                        .with_capacity(
+                            !mutations_bar.is_empty() as usize + mutations_qux.len(),
+                        );
                     if !mutations_bar.is_empty()
                         && String::is_empty(
                             ::morphix::helper::QuasiObserver::untracked_ref(bar),
                         )
                     {
-                        mutations_bar = ::morphix::Mutations::delete().prefix("bar");
+                        mutations.insert("bar", ::morphix::Mutations::delete());
+                    } else {
+                        mutations.insert("bar", mutations_bar);
                     }
-                    mutations.extend(mutations_bar);
                     mutations.extend(mutations_qux);
                     mutations
                 }
@@ -96,14 +99,16 @@ const _: () = {
                     unsafe { ::morphix::observe::SerializeObserver::flat_flush(u0) }
                 }
                 Self::C { bar, qux } => {
-                    let mut mutations_bar = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(bar).prefix("bar")
+                    let mutations_bar = unsafe {
+                        ::morphix::observe::SerializeObserver::flush(bar)
                     };
                     let mutations_qux = unsafe {
                         ::morphix::observe::SerializeObserver::flat_flush(qux)
                     };
                     let mut mutations = ::morphix::Mutations::new()
-                        .with_capacity(mutations_bar.len() + mutations_qux.len())
+                        .with_capacity(
+                            !mutations_bar.is_empty() as usize + mutations_qux.len(),
+                        )
                         .with_replace(
                             mutations_bar.is_replace() && mutations_qux.is_replace(),
                         );
@@ -112,9 +117,10 @@ const _: () = {
                             ::morphix::helper::QuasiObserver::untracked_ref(bar),
                         )
                     {
-                        mutations_bar = ::morphix::Mutations::delete().prefix("bar");
+                        mutations.insert("bar", ::morphix::Mutations::delete());
+                    } else {
+                        mutations.insert("bar", mutations_bar);
                     }
-                    mutations.extend(mutations_bar);
                     mutations.extend(mutations_qux);
                     mutations
                 }

@@ -148,42 +148,47 @@ const _: () = {
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
             let mutations_a = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.a).prefix("a")
+                ::morphix::observe::SerializeObserver::flush(&mut this.a)
             };
-            let mut mutations_c = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.c).prefix("c")
+            let mutations_c = unsafe {
+                ::morphix::observe::SerializeObserver::flush(&mut this.c)
             };
-            let is_replace = mutations_a.is_replace() && mutations_c.is_replace();
-            if is_replace {
+            if mutations_a.is_replace() && mutations_c.is_replace() {
                 let value = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
                 return ::morphix::Mutations::replace(value);
             }
             let mut mutations = ::morphix::Mutations::new()
-                .with_capacity(mutations_a.len() + mutations_c.len());
+                .with_capacity(
+                    !mutations_a.is_empty() as usize + !mutations_c.is_empty() as usize,
+                );
             let __inner = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
+            mutations.insert("a", mutations_a);
             if !mutations_c.is_empty() && Option::is_none(&__inner.c) {
-                mutations_c = ::morphix::Mutations::delete().prefix("c");
+                mutations.insert("c", ::morphix::Mutations::delete());
+            } else {
+                mutations.insert("c", mutations_c);
             }
-            mutations.extend(mutations_a);
-            mutations.extend(mutations_c);
             mutations
         }
         unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
             let mutations_a = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.a).prefix("a")
+                ::morphix::observe::SerializeObserver::flush(&mut this.a)
             };
-            let mut mutations_c = unsafe {
-                ::morphix::observe::SerializeObserver::flush(&mut this.c).prefix("c")
+            let mutations_c = unsafe {
+                ::morphix::observe::SerializeObserver::flush(&mut this.c)
             };
             let mut mutations = ::morphix::Mutations::new()
-                .with_capacity(mutations_a.len() + mutations_c.len())
+                .with_capacity(
+                    !mutations_a.is_empty() as usize + !mutations_c.is_empty() as usize,
+                )
                 .with_replace(mutations_a.is_replace() && mutations_c.is_replace());
             let __inner = ::morphix::helper::QuasiObserver::untracked_ref(&*this);
+            mutations.insert("a", mutations_a);
             if !mutations_c.is_empty() && Option::is_none(&__inner.c) {
-                mutations_c = ::morphix::Mutations::delete().prefix("c");
+                mutations.insert("c", ::morphix::Mutations::delete());
+            } else {
+                mutations.insert("c", mutations_c);
             }
-            mutations.extend(mutations_a);
-            mutations.extend(mutations_c);
             mutations
         }
     }

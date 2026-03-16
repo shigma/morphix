@@ -119,25 +119,28 @@ const _: () = {
                 Self::A(_) => ::morphix::Mutations::new(),
                 Self::B(u0, u1) => {
                     let mutations_0 = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(u0).prefix(0usize)
+                        ::morphix::observe::SerializeObserver::flush(u0)
                     };
                     let mutations_1 = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(u1).prefix(1usize)
+                        ::morphix::observe::SerializeObserver::flush(u1)
                     };
                     let mut mutations = ::morphix::Mutations::new()
-                        .with_capacity(mutations_0.len() + mutations_1.len());
-                    mutations.extend(mutations_0);
-                    mutations.extend(mutations_1);
-                    mutations.prefix("b")
+                        .with_capacity(
+                            !mutations_0.is_empty() as usize
+                                + !mutations_1.is_empty() as usize,
+                        );
+                    mutations.insert(0usize, mutations_0);
+                    mutations.insert(1usize, mutations_1);
+                    mutations.with_prefix("b")
                 }
                 Self::C { qux, .. } => {
                     let mutations_qux = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(qux).prefix("QwQ")
+                        ::morphix::observe::SerializeObserver::flush(qux)
                     };
                     let mut mutations = ::morphix::Mutations::new()
-                        .with_capacity(mutations_qux.len());
-                    mutations.extend(mutations_qux);
-                    mutations.prefix("OwO")
+                        .with_capacity(!mutations_qux.is_empty() as usize);
+                    mutations.insert("QwQ", mutations_qux);
+                    mutations.with_prefix("OwO")
                 }
                 Self::__None => ::morphix::Mutations::new(),
             }
@@ -153,13 +156,13 @@ const _: () = {
                 Self::A(_) => ::morphix::Mutations::new(),
                 Self::C { qux, .. } => {
                     let mutations_qux = unsafe {
-                        ::morphix::observe::SerializeObserver::flush(qux).prefix("QwQ")
+                        ::morphix::observe::SerializeObserver::flush(qux)
                     };
                     let mut mutations = ::morphix::Mutations::new()
-                        .with_capacity(mutations_qux.len())
+                        .with_capacity(!mutations_qux.is_empty() as usize)
                         .with_replace(mutations_qux.is_replace());
-                    mutations.extend(mutations_qux);
-                    mutations.prefix("OwO")
+                    mutations.insert("QwQ", mutations_qux);
+                    mutations.with_prefix("OwO")
                 }
                 _ => panic!("flat_flush can only be called on structs and maps"),
             }

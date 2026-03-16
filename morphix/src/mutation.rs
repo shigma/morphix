@@ -329,7 +329,7 @@ impl<V> Mutations<V> {
     ///
     /// If the collection is empty, this is a no-op. Otherwise, the segment is pushed onto the
     /// mutation's reverse-order path.
-    pub fn prefix(mut self, segment: impl Into<PathSegment>) -> Self {
+    pub fn with_prefix(mut self, segment: impl Into<PathSegment>) -> Self {
         if let Some(mutation) = &mut self.inner {
             mutation.path.push(segment.into());
         }
@@ -379,7 +379,7 @@ impl<V> Mutations<V> {
     /// The incoming mutations will have the given segment prepended to their path before being
     /// added to this collection.
     pub fn insert(&mut self, segment: impl Into<PathSegment>, mutations: impl Into<Self>) {
-        self.extend(mutations.into().prefix(segment))
+        self.extend(mutations.into().with_prefix(segment))
     }
 
     /// Returns the number of top-level mutations in this collection.
@@ -406,6 +406,27 @@ impl<V> Mutations<V> {
     /// Creates a [`Mutations`] containing a single [`Delete`](MutationKind::Delete) mutation.
     pub fn delete() -> Self {
         MutationKind::Delete.into()
+    }
+
+    /// Converts all mutations in this collection to [`Delete`](MutationKind::Delete).
+    ///
+    /// Each mutation retains its path but has its kind replaced with
+    /// [`Delete`](MutationKind::Delete). For a [`Batch`](MutationKind::Batch), every inner
+    /// mutation is converted individually, preserving the per-field paths. This is used by
+    /// [`flat_flush`](crate::observe::SerializeObserver::flat_flush) when the parent needs to emit
+    /// deletions for all fields of a flattened struct or map.
+    pub fn into_delete(mut self) -> Self {
+        if let Some(mutation) = &mut self.inner {
+            match &mut mutation.kind {
+                MutationKind::Batch(batch) => {
+                    for mutation in batch {
+                        mutation.kind = MutationKind::Delete;
+                    }
+                }
+                _ => mutation.kind = MutationKind::Delete,
+            }
+        }
+        self
     }
 }
 
