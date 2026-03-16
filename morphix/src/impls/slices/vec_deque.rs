@@ -32,7 +32,7 @@ struct VecDequeObserverState<O> {
     /// Lazily-initialized element observer storage.
     ///
     /// Mirrors the logical layout of the observed `VecDeque<T>`. Observers are created lazily
-    /// via [`force_range`](VecDequeObserverState::force_range) on first mutable access.
+    /// via [`relocate`] on first mutable access.
     inner: UnsafeCell<VecDeque<O>>,
 }
 
@@ -166,8 +166,8 @@ where
             mutations.extend(MutationKind::Truncate(back_truncate_len));
         }
 
-        // Force-init inner observers for existing elements so we can flush them.
-        unsafe { force_range(&this.state.inner, slice, 0, back_append_index) };
+        // Ensure inner observers exist for existing elements so we can flush them.
+        unsafe { relocate(&this.state.inner, &mut slice[..back_append_index]) };
 
         #[cfg(feature = "append")]
         if len > back_append_index {
@@ -177,7 +177,7 @@ where
         // Flush inner observers for existing elements.
         let inner = this.state.inner.get_mut();
         // inner might be shorter than back_append_index if not all elements were accessed;
-        // force_range above ensures it's at least back_append_index long.
+        // relocate above ensures it's at least back_append_index long.
         let existing_len = back_append_index.min(inner.len());
         let existing = inner.make_contiguous();
         let mut is_replace = true;
@@ -198,25 +198,28 @@ where
     }
 }
 
-/// Force-initializes element observers for the range `[start, end)`.
+/// Ensures element observers exist for all elements and updates their pointers.
+///
+/// Creates observers for any new elements via [`Observer::observe`] and calls
+/// [`Observer::relocate`] on existing observers to update their pointers.
 ///
 /// # Safety
 ///
-/// The caller must ensure no references from previous `force_range` calls are alive.
-unsafe fn force_range<O>(inner: &UnsafeCell<VecDeque<O>>, deque_slice: &mut [O::Head], start: usize, end: usize)
+/// The caller must ensure no references from previous `relocate` calls are alive.
+unsafe fn relocate<O>(inner: &UnsafeCell<VecDeque<O>>, deque_slice: &mut [O::Head])
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
     let observers = unsafe { &mut *inner.get() };
-    let current_len = observers.len();
-    if current_len < deque_slice.len() {
-        for value in deque_slice[current_len..].iter_mut() {
+    if observers.len() < deque_slice.len() {
+        for value in deque_slice[observers.len()..].iter_mut() {
             observers.push_back(O::observe(value));
         }
     }
+    observers.truncate(deque_slice.len());
     let ob_contiguous = observers.make_contiguous();
-    for i in start..end {
-        unsafe { Observer::relocate(&mut ob_contiguous[i], &mut deque_slice[i]) };
+    for (ob, value) in ob_contiguous.iter_mut().zip(deque_slice.iter_mut()) {
+        unsafe { Observer::relocate(ob, value) };
     }
 }
 
@@ -242,12 +245,11 @@ where
     pub fn make_contiguous(&mut self) -> &mut [O] {
         let deque = (*self.ptr).as_deref_mut();
         let deque_slice = deque.make_contiguous();
-        let len = deque_slice.len();
-        unsafe { force_range(&self.state.inner, deque_slice, 0, len) };
+        unsafe { relocate(&self.state.inner, deque_slice) };
         self.state.inner.get_mut().make_contiguous()
     }
 
-    /// Force-initializes and returns a mutable reference to the element observer at `index`.
+    /// Ensures element observers exist and returns a mutable reference at `index`.
     #[expect(clippy::mut_from_ref)]
     fn force_index(&self, index: usize) -> Option<&mut O> {
         let deque = unsafe { Pointer::as_mut(&self.ptr).as_deref_mut() };
@@ -255,19 +257,18 @@ where
         if index >= len {
             return None;
         }
-        // Make contiguous so force_range can work with a slice.
+        // Make contiguous so relocate can work with a slice.
         let slice = deque.make_contiguous();
-        unsafe { force_range(&self.state.inner, slice, index, index + 1) };
+        unsafe { relocate(&self.state.inner, slice) };
         let observers = unsafe { &mut *self.state.inner.get() };
         observers.get_mut(index)
     }
 
-    /// Force-initializes and returns mutable references to all element observers.
+    /// Ensures element observers exist and returns mutable references to all.
     fn force_all(&mut self) -> &mut VecDeque<O> {
         let deque = (*self.ptr).as_deref_mut();
         let slice = deque.make_contiguous();
-        let len = slice.len();
-        unsafe { force_range(&self.state.inner, slice, 0, len) };
+        unsafe { relocate(&self.state.inner, slice) };
         self.state.inner.get_mut()
     }
 
@@ -279,7 +280,7 @@ where
             return None;
         }
         let slice = deque.make_contiguous();
-        unsafe { force_range(&self.state.inner, slice, index, index + 1) };
+        unsafe { relocate(&self.state.inner, slice) };
         self.state.inner.get_mut().get_mut(index)
     }
 
@@ -323,19 +324,8 @@ where
         R: RangeBounds<usize> + Clone,
     {
         let deque = (*self.ptr).as_deref_mut();
-        let len = deque.len();
-        let start = match range.start_bound() {
-            Bound::Included(&n) => n,
-            Bound::Excluded(&n) => n + 1,
-            Bound::Unbounded => 0,
-        };
-        let end = match range.end_bound() {
-            Bound::Included(&n) => n + 1,
-            Bound::Excluded(&n) => n,
-            Bound::Unbounded => len,
-        };
         let slice = deque.make_contiguous();
-        unsafe { force_range(&self.state.inner, slice, start, end) };
+        unsafe { relocate(&self.state.inner, slice) };
         self.state.inner.get_mut().range_mut(range)
     }
 

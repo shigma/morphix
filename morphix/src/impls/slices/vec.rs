@@ -40,11 +40,11 @@ pub struct VecObserverState<O> {
     ///
     /// Unlike map observers which use [`Box<O>`] for pointer stability across rehashing /
     /// node-splits, we store observers inline in a [`Vec<O>`]. This is sound because
-    /// [`init_range`](SliceObserverState::init_range) always resizes to `values.len()` (the
-    /// full observed slice length), not just `end`. Since `values.len()` can only change
-    /// through `&mut self` operations ([`push`](Vec::push), [`pop`](Vec::pop), etc.), it stays
-    /// constant for the entire duration of any `&self` borrow. Therefore, the first
-    /// [`init_range`](SliceObserverState::init_range) call sizes the [`Vec`] to its final length,
+    /// [`relocate`](SliceObserverState::relocate) always resizes to `values.len()` (the full
+    /// observed slice length), not just `end`. Since `values.len()` can only change through `&mut
+    /// self` operations ([`push`](Vec::push), [`pop`](Vec::pop), etc.), it stays constant for the
+    /// entire duration of any `&self` borrow. Therefore, the first
+    /// [`relocate`](SliceObserverState::relocate) call sizes the [`Vec`] to its final length,
     /// and subsequent calls within the same `&self` borrow lifetime never trigger reallocation,
     /// keeping all previously returned references valid.
     inner: UnsafeCell<Vec<O>>,
@@ -79,14 +79,6 @@ where
 {
     type Item = O;
 
-    fn observe(slice: &mut Self::Target) -> Self {
-        Self {
-            truncate_len: 0,
-            append_index: slice.as_ref().len(),
-            inner: UnsafeCell::new(Vec::new()),
-        }
-    }
-
     fn as_slice(&self) -> &[Self::Item] {
         unsafe { &*self.inner.get() }
     }
@@ -95,15 +87,24 @@ where
         self.inner.get_mut()
     }
 
-    unsafe fn force_range(&self, start: usize, end: usize, slice: &mut Self::Target) {
+    fn observe(slice: &mut Self::Target) -> Self {
+        Self {
+            truncate_len: 0,
+            append_index: slice.as_ref().len(),
+            inner: UnsafeCell::new(Vec::new()),
+        }
+    }
+
+    unsafe fn relocate(&self, slice: &mut Self::Target) {
         let inner = unsafe { &mut *self.inner.get() };
-        let current_len = inner.len();
-        if current_len < slice.len() {
-            for value in slice[current_len..].iter_mut() {
+        if inner.len() < slice.len() {
+            inner.reserve(slice.len() - inner.len());
+            for value in slice[inner.len()..].iter_mut() {
                 inner.push(O::observe(value));
             }
         }
-        for (ob, value) in inner[start..end].iter_mut().zip(slice[start..end].iter_mut()) {
+        inner.truncate(slice.len());
+        for (ob, value) in inner.iter_mut().zip(slice.iter_mut()) {
             unsafe { Observer::relocate(ob, value) }
         }
     }
@@ -125,10 +126,10 @@ where
         if truncate_len > 0 {
             mutations.extend(MutationKind::Truncate(truncate_len));
         }
-        // init_range must precede Mutations::append: init_range takes `&mut slice` (Unique function-entry
+        // relocate must precede Mutations::append: relocate takes `&mut slice` (Unique function-entry
         // retag over the full slice), which would invalidate a SerializeRef's SRO tag if the append
         // mutation were created first.
-        unsafe { self.force_range(0, append_index, slice) }
+        unsafe { self.relocate(slice) }
         #[cfg(feature = "append")]
         if slice.len() > append_index {
             mutations.extend(Mutations::append(&slice[append_index..]));

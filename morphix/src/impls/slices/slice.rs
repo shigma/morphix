@@ -30,26 +30,26 @@ pub trait SliceObserverState: ObserverState<Target: AsRef<[<Self::Item as QuasiO
     /// The element [`Observer`] type.
     type Item: Observer<InnerDepth = Zero, Head: Sized>;
 
-    /// Creates an [`Observer`] collection for the given slice.
-    fn observe(slice: &mut Self::Target) -> Self;
-
     /// Returns a shared slice of element observers.
     fn as_slice(&self) -> &[Self::Item];
 
     /// Returns a mutable slice of element observers.
     fn as_mut_slice(&mut self) -> &mut [Self::Item];
 
-    /// Initializes element observers for the specified range.
+    /// Creates an [`Observer`] collection for the given slice.
+    fn observe(slice: &mut Self::Target) -> Self;
+
+    /// Ensures element observers exist for all elements and updates their pointers.
     ///
-    /// This method ensures that observers exist and are properly bound for elements in the range
-    /// `[start, end)`.
+    /// Creates observers for any new elements via [`Observer::observe`] and calls
+    /// [`Observer::relocate`] on existing observers to update their pointers.
     ///
     /// ## Safety
     ///
     /// The caller must ensure that no references obtained from [`as_slice`](Self::as_slice) are
     /// alive when this method is called, as the implementation may create mutable references to
     /// the same storage through interior mutability.
-    unsafe fn force_range(&self, start: usize, end: usize, slice: &mut Self::Target);
+    unsafe fn relocate(&self, slice: &mut Self::Target);
 }
 
 /// Shared-reference counterpart to [`SliceObserverState`] for element [`RefObserver`] management.
@@ -170,15 +170,10 @@ where
 }
 
 pub(crate) trait SliceIndexImpl<T: ?Sized, Output: ?Sized> {
-    fn start_inclusive(&self) -> usize;
     fn end_exclusive(&self, len: usize) -> usize;
 }
 
 impl<T> SliceIndexImpl<[T], T> for usize {
-    fn start_inclusive(&self) -> usize {
-        *self
-    }
-
     fn end_exclusive(&self, _len: usize) -> usize {
         self + 1
     }
@@ -188,14 +183,6 @@ impl<T, I> SliceIndexImpl<[T], [T]> for I
 where
     I: SliceIndex<[T], Output = [T]> + RangeBounds<usize>,
 {
-    fn start_inclusive(&self) -> usize {
-        match self.start_bound() {
-            Bound::Included(&start) => start,
-            Bound::Excluded(&start) => start + 1,
-            Bound::Unbounded => 0,
-        }
-    }
-
     fn end_exclusive(&self, len: usize) -> usize {
         match self.end_bound() {
             Bound::Included(&end) => end + 1,
@@ -217,13 +204,12 @@ where
         I: SliceIndex<[V::Item]> + SliceIndexImpl<[V::Item], I::Output>,
     {
         let len = self.untracked_ref().as_ref().len();
-        let start = index.start_inclusive();
         let end = index.end_exclusive(len);
         if end > len {
             return None;
         }
         let slice = unsafe { Pointer::as_mut(&self.ptr).as_deref_mut() };
-        unsafe { self.state.force_range(start, end, slice) };
+        unsafe { self.state.relocate(slice) };
         Some(())
     }
 
@@ -245,13 +231,13 @@ where
 
     pub(crate) fn force_ref(&self) -> &[V::Item] {
         let slice = unsafe { Pointer::as_mut(&self.ptr).as_deref_mut() };
-        unsafe { self.state.force_range(0, slice.as_ref().len(), slice) };
+        unsafe { self.state.relocate(slice) };
         self.state.as_slice()
     }
 
     pub(crate) fn force_mut(&mut self) -> &mut [V::Item] {
         let slice = (*self.ptr).as_deref_mut();
-        unsafe { self.state.force_range(0, slice.as_ref().len(), slice) };
+        unsafe { self.state.relocate(slice) };
         self.state.as_mut_slice()
     }
 }

@@ -220,10 +220,6 @@ where
     H: GeneralHandler<Target = T>,
     D: Unsigned,
 {
-    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
-        Pointer::set(this, head);
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
             handler: H::observe((*head).as_deref()),
@@ -233,6 +229,10 @@ where
         Pointer::register_state::<_, D>(&this.ptr, &this.handler);
         this
     }
+
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
+        Pointer::set(this, head);
+    }
 }
 
 impl<'ob, H, S: ?Sized, D, T: ?Sized> RefObserver for GeneralObserver<'ob, H, S, D>
@@ -241,10 +241,6 @@ where
     H: GeneralHandler<Target = T>,
     D: Unsigned,
 {
-    unsafe fn relocate(this: &mut Self, head: &Self::Head) {
-        Pointer::set(this, head);
-    }
-
     fn observe(head: &Self::Head) -> Self {
         let this = Self {
             ptr: Pointer::new(head),
@@ -253,6 +249,10 @@ where
         };
         Pointer::register_state::<_, D>(&this.ptr, &this.handler);
         this
+    }
+
+    unsafe fn relocate(this: &mut Self, head: &Self::Head) {
+        Pointer::set(this, head);
     }
 }
 

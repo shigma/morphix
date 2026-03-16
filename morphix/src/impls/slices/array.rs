@@ -53,7 +53,7 @@ where
         slice.each_mut().map(O::observe)
     }
 
-    unsafe fn force_range(&self, _start: usize, _end: usize, _slice: &mut Self::Target) {
+    unsafe fn relocate(&self, _slice: &mut Self::Target) {
         // No need to re-initialize fixed-size array.
     }
 }

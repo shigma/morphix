@@ -186,10 +186,6 @@ where
     O::Head: Sized,
     K: Clone + Eq + Hash,
 {
-    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
-        Pointer::set(this, head);
-    }
-
     fn observe(head: &mut Self::Head) -> Self {
         let this = Self {
             ptr: Pointer::new(head),
@@ -198,6 +194,10 @@ where
         };
         Pointer::register_state::<_, D>(&this.ptr, &this.state);
         this
+    }
+
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
+        Pointer::set(this, head);
     }
 }
 

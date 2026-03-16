@@ -33,7 +33,7 @@ pub fn derive_observe_for_enum(
     let mut initial_observe_arms = quote! {};
     let mut initial_flush_pats = quote! {};
     let mut variant_observe_arms = quote! {};
-    let mut variant_refresh_arms = quote! {};
+    let mut variant_relocate_arms = quote! {};
     let mut variant_flush_arms = quote! {};
 
     let mut errors = quote! {};
@@ -88,7 +88,7 @@ pub fn derive_observe_for_enum(
         let mut flush_idents = vec![];
         let mut variant_fields = quote! {};
         let mut observe_fields = quote! {};
-        let mut refresh_stmts = quote! {};
+        let mut relocate_stmts = quote! {};
         let mut flush_field_stmts = quote! {};
         let mut flush_mutation_stmts = quote! {};
         let mut flush_capacity = vec![];
@@ -133,7 +133,7 @@ pub fn derive_observe_for_enum(
                 observe_fields.extend(quote_spanned! { field_span =>
                     #(#if_named #field_ident:)* ::morphix::helper::Pointer::new(#observe_ident),
                 });
-                refresh_stmts.extend(quote_spanned! { field_span =>
+                relocate_stmts.extend(quote_spanned! { field_span =>
                     ::morphix::helper::Pointer::set(#ob_ident, #value_ident);
                 });
                 if field_ident.is_none() {
@@ -161,7 +161,7 @@ pub fn derive_observe_for_enum(
             observe_fields.extend(quote_spanned! { field_span =>
                 #(#if_named #field_ident:)* ::morphix::observe::Observer::observe(#observe_ident),
             });
-            refresh_stmts.extend(quote_spanned! { field_span =>
+            relocate_stmts.extend(quote_spanned! { field_span =>
                 ::morphix::observe::Observer::relocate(#ob_ident, #value_ident);
             });
 
@@ -245,8 +245,8 @@ pub fn derive_observe_for_enum(
                 variant_observe_arms.extend(quote! {
                     #input_ident::#variant_ident { #(#idents,)* } => Self::#variant_ident { #observe_fields },
                 });
-                variant_refresh_arms.extend(quote! {
-                    (Self::#variant_ident { #(#idents: #ob_idents,)* }, #input_ident::#variant_ident { #(#idents: #value_idents,)* }) => { #refresh_stmts }
+                variant_relocate_arms.extend(quote! {
+                    (Self::#variant_ident { #(#idents: #ob_idents,)* }, #input_ident::#variant_ident { #(#idents: #value_idents,)* }) => { #relocate_stmts }
                 });
                 variant_flush_arms.extend(quote! {
                     Self::#variant_ident { #(#flush_idents),* } => #variant_flush_expr,
@@ -259,8 +259,8 @@ pub fn derive_observe_for_enum(
                 variant_observe_arms.extend(quote! {
                     #input_ident::#variant_ident(#(#value_idents),*) => Self::#variant_ident(#observe_fields),
                 });
-                variant_refresh_arms.extend(quote! {
-                    (Self::#variant_ident(#(#ob_idents),*), #input_ident::#variant_ident(#(#value_idents),*)) => { #refresh_stmts }
+                variant_relocate_arms.extend(quote! {
+                    (Self::#variant_ident(#(#ob_idents),*), #input_ident::#variant_ident(#(#value_idents),*)) => { #relocate_stmts }
                 });
                 variant_flush_arms.extend(quote! {
                     Self::#variant_ident(#(#flush_idents),*) => #variant_flush_expr,
@@ -270,7 +270,7 @@ pub fn derive_observe_for_enum(
                 variant_observe_arms.extend(quote! {
                     #input_ident::#variant_ident => Self::#variant_ident,
                 });
-                variant_refresh_arms.extend(quote! {
+                variant_relocate_arms.extend(quote! {
                     (Self::#variant_ident, #input_ident::#variant_ident) => {},
                 });
                 variant_flush_arms.extend(quote! {
@@ -296,7 +296,7 @@ pub fn derive_observe_for_enum(
             _ => Self::__None,
         });
     }
-    variant_refresh_arms.extend(quote! {
+    variant_relocate_arms.extend(quote! {
         (Self::__None, _) => {},
     });
     variant_flush_arms.extend(quote! {
@@ -418,7 +418,7 @@ pub fn derive_observe_for_enum(
             unsafe fn relocate(&mut self, value: &mut #input_ident #input_type_generics) {
                 unsafe {
                     match (self, value) {
-                        #variant_refresh_arms
+                        #variant_relocate_arms
                         _ => panic!(#inconsistent_state),
                     }
                 }

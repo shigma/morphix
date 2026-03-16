@@ -215,16 +215,16 @@ macro_rules! shallow_observer {
             D: Unsigned,
             S: AsDerefMut<D>,
         {
-            unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
-                $crate::helper::Pointer::set(this, head);
-            }
-
             fn observe(head: &mut Self::Head) -> Self {
                 Self {
                     ptr: $crate::helper::Pointer::new(head),
                     mutated: false,
                     phantom: ::std::marker::PhantomData,
                 }
+            }
+
+            unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
+                $crate::helper::Pointer::set(this, head);
             }
         }
 

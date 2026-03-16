@@ -66,11 +66,9 @@ fn recover_provenance_mut<S: ?Sized>(raw: *mut S) -> *mut S {
 /// This type uses raw pointers internally and relies on several safety invariants:
 ///
 /// 1. **Lifetime tracking**: The lifetime `'ob` in observers ensures the pointed-to value remains
-///    valid for the observer's lifetime
-/// 2. **Initialization**: Pointers must be properly initialized via [`new`](Pointer::new) before
-///    dereferencing
-/// 3. **Single ownership**: Each [`Pointer`] assumes exclusive access to its referenced value
-///    during the observer's lifetime
+///    valid for the observer's lifetime.
+/// 2. **Single ownership**: Each [`Pointer`] assumes exclusive access to its referenced value
+///    during the observer's lifetime.
 ///
 /// ## Interior Mutability
 ///
@@ -145,9 +143,8 @@ impl<S: ?Sized> Pointer<S> {
     /// ## Safety
     ///
     /// The caller must ensure that:
-    /// 1. The pointer is not null (was properly initialized via [`new`](Self::new))
-    /// 2. The original value this pointer was created from is still valid
-    /// 3. No mutable references to the same value exist elsewhere
+    /// 1. The original value this pointer was created from is still valid.
+    /// 2. No mutable references to the same value exist elsewhere.
     ///
     /// These invariants are automatically maintained when using [`Pointer`] within the observer
     /// infrastructure, but must be manually verified if called directly.
@@ -167,10 +164,9 @@ impl<S: ?Sized> Pointer<S> {
     /// ## Safety
     ///
     /// The caller must ensure that:
-    /// 1. The pointer is not null (was properly initialized via [`new`](Self::new))
-    /// 2. The original value this pointer was created from is still valid
-    /// 3. No other references (mutable or immutable) to the same value exist elsewhere
-    /// 4. The returned reference is used in a way that maintains Rust's aliasing rules
+    /// 1. The original value this pointer was created from is still valid.
+    /// 2. No other references (mutable or immutable) to the same value exist elsewhere.
+    /// 3. The returned reference is used in a way that maintains Rust's aliasing rules.
     ///
     /// These invariants are automatically maintained when using [`Pointer`] within the observer
     /// infrastructure, but must be manually verified if called directly.

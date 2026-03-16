@@ -151,8 +151,8 @@ impl<T: Observe + ?Sized> ObserveExt for T {}
 ///
 /// In contrast, a stale pointer (e.g., an inner observer pointing to a previous address after
 /// container reallocation) is tolerable — it will be repaired by [`relocate`](Observer::relocate)
-/// or [`force`](Observer::force) before the next access. Stale state, however, cannot be repaired
-/// after the fact, which is why [`QuasiObserver::invalidate`] must eagerly clear it.
+/// before the next access. Stale state, however, cannot be repaired after the fact, which is why
+/// [`QuasiObserver::invalidate`] must eagerly clear it.
 ///
 /// See the [Observer Mechanism](https://github.com/shigma/morphix#observer-mechanism) for a
 /// detailed overview of the dereference chain and mutation tracking primitives.
@@ -173,7 +173,7 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     /// ```
     fn observe(head: &mut Self::Head) -> Self;
 
-    /// Refreshes the observer's internal pointer after the observed value has moved.
+    /// Updates the observer's internal pointer after the observed value has moved.
     ///
     /// This method updates the observer's internal pointer to point to the new location
     /// of the observed value. It is necessary when the observed value is relocated in
@@ -181,11 +181,8 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     ///
     /// ## Safety
     ///
-    /// The caller must ensure that:
-    /// 1. `this` was properly initialized via [`observe`](Observer::observe) or
-    ///    [`force`](Observer::force)
-    /// 2. `head` refers to the same logical value with which the observer was initialized, just
-    ///    potentially at a new memory location
+    /// The caller must ensure that `head` refers to the same logical value with which the
+    /// observer was initialized, just potentially at a new memory location.
     ///
     /// ## Use Cases
     ///
@@ -208,12 +205,12 @@ pub trait RefObserver: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::H
     /// storing a shared-provenance pointer internally.
     fn observe(head: &Self::Head) -> Self;
 
-    /// Refreshes the observer's internal pointer after the observed value has moved.
+    /// Updates the observer's internal pointer after the observed value has moved.
     ///
     /// See [`Observer::relocate`] for details. The only difference is that `head` is a shared
     /// reference, maintaining shared provenance.
     ///
-    /// # Safety
+    /// ## Safety
     ///
     /// Same requirements as [`Observer::relocate`].
     unsafe fn relocate(this: &mut Self, head: &Self::Head);

@@ -37,7 +37,7 @@ pub fn derive_observe_for_struct(
     let mut ob_fields = quote! {};
     let mut observe_field_stmts = quote! {};
     let mut observe_fields = quote! {};
-    let mut refresh_stmts = quote! {};
+    let mut relocate_stmts = quote! {};
     let mut flush_field_stmts = quote! {};
     let mut flush_delete = quote! {};
     let mut flush_mutation_stmts = quote! {};
@@ -106,7 +106,7 @@ pub fn derive_observe_for_struct(
             observe_field_stmts.extend(quote_spanned! { field_span =>
                 let #observer_ident = ::morphix::helper::Pointer::new(&mut __value.#field_member);
             });
-            refresh_stmts.extend(quote_spanned! { field_span =>
+            relocate_stmts.extend(quote_spanned! { field_span =>
                 ::morphix::helper::Pointer::set(&this.#field_member, &mut __value.#field_member);
             });
             continue;
@@ -143,7 +143,7 @@ pub fn derive_observe_for_struct(
                 ob_field_tys.push(quote! { #ob_field_ty });
             }
             non_deref_members.push(field_member.clone());
-            refresh_stmts.extend(quote_spanned! { field_span =>
+            relocate_stmts.extend(quote_spanned! { field_span =>
                 ::morphix::observe::Observer::relocate(&mut this.#field_member, &mut __value.#field_member);
             });
             ob_fields.extend(quote_spanned! { field_span =>
@@ -306,7 +306,7 @@ pub fn derive_observe_for_struct(
             unsafe fn relocate(this: &mut Self, head: &mut #head) {
                 let __value = head.as_deref_mut();
                 unsafe {
-                    #refresh_stmts
+                    #relocate_stmts
                 }
                 ::morphix::helper::Pointer::set(this, head);
             }
@@ -420,7 +420,7 @@ pub fn derive_observe_for_struct(
             unsafe fn relocate(this: &mut Self, head: &mut #inner::Head) {
                 unsafe {
                     #prepare_value
-                    #refresh_stmts
+                    #relocate_stmts
                     ::morphix::observe::Observer::relocate(&mut this.#field_member, head);
                 }
             }
