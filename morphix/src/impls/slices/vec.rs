@@ -52,12 +52,12 @@ pub struct VecObserverState<O> {
 }
 
 impl<O> VecObserverState<O> {
-    fn mark_truncate(&mut self, new_len: usize) {
-        if self.append_index <= new_len {
+    fn mark_truncate(&mut self, index: usize) {
+        if self.append_index <= index {
             return;
         }
-        self.truncate_len += self.append_index - new_len;
-        self.append_index = new_len;
+        self.truncate_len += self.append_index - index;
+        self.append_index = index;
     }
 
     fn mark_replace(&mut self) {
@@ -301,7 +301,7 @@ where
 
     /// See [`Vec::swap_remove`].
     pub fn swap_remove(&mut self, index: usize) -> T {
-        let value = self.untracked_mut().remove(index);
+        let value = self.untracked_mut().swap_remove(index);
         self.state.mark_truncate(index);
         value
     }
@@ -319,22 +319,28 @@ where
         value
     }
 
-    // TODO
     /// See [`Vec::retain`].
     pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&T) -> bool,
     {
-        self.extract_if(.., |v| !f(v)).for_each(drop);
+        self.retain_mut(|v| f(v));
     }
 
-    // TODO
     /// See [`Vec::retain_mut`].
     pub fn retain_mut<F>(&mut self, mut f: F)
     where
         F: FnMut(&mut T) -> bool,
     {
-        self.extract_if(.., |v| !f(v)).for_each(drop);
+        let mut index = 0;
+        (*self.inner.ptr).as_deref_mut().retain_mut(|v| {
+            let is_retained = f(v);
+            if !is_retained {
+                self.inner.state.mark_truncate(index);
+            }
+            index += 1;
+            is_retained
+        });
     }
 
     delegate_methods! { nonempty_mut() as Vec =>
@@ -361,22 +367,8 @@ where
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= self.state.append_index {
-            return self.untracked_mut().drain(range);
-        }
-        if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.tracked_mut().drain(range);
-        }
-        let end_index = match range.end_bound() {
-            Bound::Included(&n) => n + 1,
-            Bound::Excluded(&n) => n,
-            Bound::Unbounded => (*self).untracked_ref().len(),
-        };
-        if end_index < self.state.append_index {
-            return self.tracked_mut().drain(range);
-        }
         self.state.mark_truncate(start_index);
-        self.tracked_mut().drain(range)
+        self.untracked_mut().drain(range)
     }
 
     delegate_methods! { nonempty_mut() as Vec =>
@@ -404,20 +396,6 @@ where
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
-        if start_index >= self.state.append_index {
-            return self.untracked_mut().splice(range, replace_with);
-        }
-        if cfg!(not(feature = "truncate")) || start_index == 0 {
-            return self.tracked_mut().splice(range, replace_with);
-        }
-        let end_index = match range.end_bound() {
-            Bound::Included(&n) => n + 1,
-            Bound::Excluded(&n) => n,
-            Bound::Unbounded => (*self).untracked_ref().len(),
-        };
-        if end_index < self.state.append_index {
-            return self.tracked_mut().splice(range, replace_with);
-        }
         self.state.mark_truncate(start_index);
         self.untracked_mut().splice(range, replace_with)
     }
@@ -428,19 +406,15 @@ where
         F: FnMut(&mut T) -> bool,
         R: RangeBounds<usize>,
     {
-        let start_index = match range.start_bound() {
+        let index = match range.start_bound() {
             Bound::Included(&n) => n,
             Bound::Excluded(&n) => n + 1,
             Bound::Unbounded => 0,
         };
         let vec = (*self.inner.ptr).as_deref_mut();
         let inner = vec.extract_if(range, filter);
-        let state = if start_index < self.inner.state.append_index {
-            Some((&mut self.inner.state, start_index))
-        } else {
-            None
-        };
-        ExtractIf { inner, state }
+        let state = Some(&mut self.inner.state);
+        ExtractIf { inner, state, index }
     }
 }
 
@@ -492,7 +466,8 @@ where
     F: FnMut(&mut O::Head) -> bool,
 {
     inner: std::vec::ExtractIf<'a, O::Head, F>,
-    state: Option<(&'a mut VecObserverState<O>, usize)>,
+    state: Option<&'a mut VecObserverState<O>>,
+    index: usize,
 }
 
 impl<O, F> Iterator for ExtractIf<'_, O, F>
@@ -504,15 +479,8 @@ where
 
     fn next(&mut self) -> Option<Self::Item> {
         let value = self.inner.next()?;
-        // Update diff on first extraction. We use `start_index` (range start) instead of
-        // the actual index of the extracted element because `std::vec::ExtractIf` only
-        // yields `T` values without index information.
-        if let Some((state, start_index)) = self.state.take() {
-            if cfg!(feature = "truncate") && start_index > 0 {
-                state.mark_truncate(start_index);
-            } else {
-                state.mark_replace();
-            }
+        if let Some(state) = self.state.take() {
+            state.mark_truncate(self.index);
         }
         Some(value)
     }
@@ -815,6 +783,99 @@ mod tests {
         assert_eq!(ob[2], "cd");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, None);
+    }
+
+    #[test]
+    fn swap_remove_triggers_truncate() {
+        let mut vec = vec![1, 2, 3, 4];
+        let mut ob = vec.__observe();
+        let removed = ob.swap_remove(1);
+        assert_eq!(removed, 2);
+        assert_eq!(ob, vec![1, 4, 3]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 3), append!(_, json!([4, 3])))));
+    }
+
+    #[test]
+    fn insert_triggers_truncate() {
+        let mut vec = vec![1, 2, 3];
+        let mut ob = vec.__observe();
+        ob.insert(1, 99);
+        assert_eq!(ob, vec![1, 99, 2, 3]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 2), append!(_, json!([99, 2, 3])))));
+    }
+
+    #[test]
+    fn remove_triggers_truncate() {
+        let mut vec = vec![1, 2, 3, 4];
+        let mut ob = vec.__observe();
+        let removed = ob.remove(1);
+        assert_eq!(removed, 2);
+        assert_eq!(ob, vec![1, 3, 4]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 3), append!(_, json!([3, 4])))));
+    }
+
+    #[test]
+    fn retain_removes_elements() {
+        let mut vec = vec![1, 2, 3, 4];
+        let mut ob = vec.__observe();
+        ob.retain(|x| x % 2 == 1);
+        assert_eq!(ob, vec![1, 3]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 3), append!(_, json!([3])))));
+    }
+
+    #[test]
+    fn retain_mut_removes_elements() {
+        let mut vec = vec![1, 2, 3, 4, 5];
+        let mut ob = vec.__observe();
+        ob.retain_mut(|x| *x % 2 == 1);
+        assert_eq!(ob, vec![1, 3, 5]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 4), append!(_, json!([3, 5])))));
+    }
+
+    #[test]
+    fn retain_no_removal() {
+        let mut vec = vec![1, 2, 3];
+        let mut ob = vec.__observe();
+        ob.retain(|_| true);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
+    }
+
+    #[test]
+    fn drain_range_triggers_truncate() {
+        let mut vec = vec![1, 2, 3, 4];
+        let mut ob = vec.__observe();
+        let drained: Vec<_> = ob.drain(1..3).collect();
+        assert_eq!(drained, vec![2, 3]);
+        assert_eq!(ob, vec![1, 4]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 3), append!(_, json!([4])))));
+    }
+
+    #[test]
+    fn drain_all_triggers_replace() {
+        let mut vec = vec![1, 2, 3];
+        let mut ob = vec.__observe();
+        let _: Vec<_> = ob.drain(..).collect();
+        assert_eq!(ob, Vec::<i32>::new());
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(replace!(_, json!([]))));
+    }
+
+    #[test]
+    fn splice_triggers_truncate() {
+        let mut vec = vec![1, 2, 3, 4];
+        let mut ob = vec.__observe();
+        let removed: Vec<_> = ob.splice(1..3, [10, 20, 30]).collect();
+        assert_eq!(removed, vec![2, 3]);
+        assert_eq!(ob, vec![1, 10, 20, 30, 4]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 3), append!(_, json!([10, 20, 30, 4])))));
     }
 
     #[test]
