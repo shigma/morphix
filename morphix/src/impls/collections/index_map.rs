@@ -211,6 +211,7 @@ where
 {
     unsafe fn partial_flush(&mut self) -> Mutations {
         let diff = std::mem::take(&mut self.state.diff);
+        let mut inner = std::mem::take(self.state.inner.get_mut());
         let mut mutations = Mutations::new();
         for (key, value_state) in diff {
             match value_state {
@@ -218,21 +219,21 @@ where
                     #[cfg(feature = "delete")]
                     mutations.insert(key, MutationKind::Delete);
                     #[cfg(not(feature = "delete"))]
-                    unreachable!("delete feature is not enabled");
+                    return Mutations::replace((*self).untracked_ref());
                 }
                 ValueState::Replaced | ValueState::Inserted => {
-                    self.state.inner.get_mut().swap_remove(&key);
-                    let value = (*self.ptr)
-                        .as_deref()
+                    inner.swap_remove(&key);
+                    let value = (*self)
+                        .untracked_ref()
                         .get(&key)
                         .expect("replaced key not found in observed map");
                     mutations.insert(key, Mutations::replace(value));
                 }
             }
         }
-        for (key, mut ob) in std::mem::take(self.state.inner.get_mut()) {
-            let value = (*self.ptr)
-                .as_deref_mut()
+        for (key, mut ob) in inner {
+            let value = self
+                .untracked_mut()
                 .get_mut(&key)
                 .expect("observer key not found in observed map");
             unsafe { O::relocate(&mut ob, value) }
