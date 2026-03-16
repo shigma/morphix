@@ -498,7 +498,7 @@ pub fn derive_observe_for_struct(
         }
     };
 
-    let flush_flatten_impl = if !is_named && field_count == 1 {
+    let flat_flush_impl = if !is_named && field_count == 1 {
         quote! {
             unsafe { ::morphix::observe::SerializeObserver::flat_flush(&mut this.0) }
         }
@@ -589,7 +589,7 @@ pub fn derive_observe_for_struct(
             }
 
             unsafe fn flat_flush(this: &mut Self) -> (::morphix::Mutations, bool) {
-                #flush_flatten_impl
+                #flat_flush_impl
             }
         }
 
