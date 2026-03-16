@@ -53,15 +53,18 @@ fn field_to_unit_variant() {
 
 #[test]
 fn field_variant_inner_mutation() {
-    let mut s = Shape::Circle { radius: 3.0 };
+    let mut s = Shape::Rectangle {
+        width: 10.0,
+        height: 20.0,
+    };
     let mut ob = s.__observe();
     // Use untracked_mut to access inner fields without triggering DerefMut
-    if let Shape::Circle { radius } = ob.untracked_mut() {
-        *radius = 5.0;
+    if let Shape::Rectangle { width, .. } = ob.untracked_mut() {
+        *width = 5.0;
     }
     let Json(mutation) = ob.flush().unwrap();
     // External tagging: variant + field combined into path
-    assert_eq!(mutation, Some(replace!(Circle.radius, json!(5.0))));
+    assert_eq!(mutation, Some(replace!(Rectangle.width, json!(5.0))));
 }
 
 #[test]
@@ -79,11 +82,7 @@ fn field_variant_multiple_inner_mutations() {
     // External tagging: variant + field combined via insert2
     assert_eq!(
         mutation,
-        Some(batch!(
-            Rectangle,
-            replace!(width, json!(15.0)),
-            replace!(height, json!(25.0)),
-        ))
+        Some(replace!(_, json!({"Rectangle": {"width": 15.0, "height": 25.0}})))
     );
 }
 
@@ -112,7 +111,7 @@ fn field_variant_deref_mut_replace() {
 #[derive(Serialize, Observe)]
 #[serde(rename_all = "snake_case")]
 enum Action {
-    DoSomething { value: i32 },
+    DoSomething { value: i32, bar: i32 },
     DoNothing,
 }
 
@@ -120,17 +119,20 @@ enum Action {
 fn enum_rename_all_variant() {
     let mut a = Action::DoNothing;
     let Json(mutation) = observe!(a => {
-        *a = Action::DoSomething { value: 42 };
+        *a = Action::DoSomething { value: 42, bar: 0 };
     })
     .unwrap();
-    assert_eq!(mutation, Some(replace!(_, json!({"do_something": {"value": 42}}))));
+    assert_eq!(
+        mutation,
+        Some(replace!(_, json!({"do_something": {"value": 42, "bar": 0}})))
+    );
 }
 
 #[test]
 fn enum_rename_all_inner_mutation() {
-    let mut a = Action::DoSomething { value: 1 };
+    let mut a = Action::DoSomething { value: 1, bar: 0 };
     let mut ob = a.__observe();
-    if let Action::DoSomething { value } = ob.untracked_mut() {
+    if let Action::DoSomething { value, .. } = ob.untracked_mut() {
         *value = 99;
     }
     let Json(mutation) = ob.flush().unwrap();

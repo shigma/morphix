@@ -24,18 +24,18 @@ const _: () = {
         T: Clone,
         U: ::morphix::Observe + 'ob,
     {
-        __ptr: ::morphix::helper::Pointer<_S>,
-        __mutated: bool,
-        __initial: FooObserverInitial,
-        __variant: FooObserverVariant<'ob, S, T, U>,
-        __phantom: ::std::marker::PhantomData<&'ob mut N>,
+        ptr: ::morphix::helper::Pointer<_S>,
+        mutated: bool,
+        initial: FooObserverInitial,
+        variant: FooObserverVariant<'ob, S, T, U>,
+        phantom: ::std::marker::PhantomData<&'ob mut N>,
     }
     #[derive(Clone, Copy)]
     pub enum FooObserverInitial {
         D,
         E,
         F,
-        __None,
+        __Unknown,
     }
     impl FooObserverInitial {
         fn new<S, T, U>(value: &Foo<S, T, U>) -> Self
@@ -46,7 +46,7 @@ const _: () = {
                 Foo::D => FooObserverInitial::D,
                 Foo::E() => FooObserverInitial::E,
                 Foo::F {} => FooObserverInitial::F,
-                _ => FooObserverInitial::__None,
+                _ => FooObserverInitial::__Unknown,
             }
         }
     }
@@ -64,7 +64,7 @@ const _: () = {
             bar: ::morphix::helper::Pointer<Option<T>>,
             qux: ::morphix::observe::DefaultObserver<'ob, Qux>,
         },
-        __None,
+        __Unknown,
     }
     impl<'ob, S, T, U> FooObserverVariant<'ob, S, T, U>
     where
@@ -86,7 +86,7 @@ const _: () = {
                         qux: ::morphix::observe::Observer::observe(qux),
                     }
                 }
-                _ => Self::__None,
+                _ => Self::__Unknown,
             }
         }
         unsafe fn relocate(&mut self, value: &mut Foo<S, T, U>) {
@@ -103,13 +103,14 @@ const _: () = {
                         ::morphix::helper::Pointer::set(u0, v0);
                         ::morphix::observe::Observer::relocate(u1, v1);
                     }
-                    (Self::__None, _) => {}
+                    (Self::__Unknown, _) => {}
                     _ => panic!("inconsistent state for FooObserver"),
                 }
             }
         }
-        fn flush(&mut self) -> ::morphix::Mutations
+        fn flush(&mut self, __value: &Foo<S, T, U>) -> ::morphix::Mutations
         where
+            Foo<S, T, U>: ::morphix::helper::serde::Serialize + 'static,
             ::morphix::observe::DefaultObserver<
                 'ob,
                 U,
@@ -124,6 +125,9 @@ const _: () = {
                     let mutations_1 = unsafe {
                         ::morphix::observe::SerializeObserver::flush(u1)
                     };
+                    if mutations_0.is_replace() && mutations_1.is_replace() {
+                        return ::morphix::Mutations::replace(__value);
+                    }
                     let mut mutations = ::morphix::Mutations::new()
                         .with_capacity(
                             !mutations_0.is_empty() as usize
@@ -137,16 +141,20 @@ const _: () = {
                     let mutations_qux = unsafe {
                         ::morphix::observe::SerializeObserver::flush(qux)
                     };
+                    if mutations_qux.is_replace() {
+                        return ::morphix::Mutations::replace(__value);
+                    }
                     let mut mutations = ::morphix::Mutations::new()
                         .with_capacity(!mutations_qux.is_empty() as usize);
                     mutations.insert("QwQ", mutations_qux);
                     mutations.with_prefix("OwO")
                 }
-                Self::__None => ::morphix::Mutations::new(),
+                Self::__Unknown => ::morphix::Mutations::new(),
             }
         }
-        fn flat_flush(&mut self) -> ::morphix::Mutations
+        fn flat_flush(&mut self, __value: &Foo<S, T, U>) -> ::morphix::Mutations
         where
+            Foo<S, T, U>: ::morphix::helper::serde::Serialize + 'static,
             ::morphix::observe::DefaultObserver<
                 'ob,
                 U,
@@ -177,7 +185,7 @@ const _: () = {
     {
         type Target = ::morphix::helper::Pointer<_S>;
         fn deref(&self) -> &Self::Target {
-            &self.__ptr
+            &self.ptr
         }
     }
     #[automatically_derived]
@@ -188,9 +196,9 @@ const _: () = {
         U: ::morphix::Observe,
     {
         fn deref_mut(&mut self) -> &mut Self::Target {
-            self.__mutated = true;
-            self.__variant = FooObserverVariant::__None;
-            &mut self.__ptr
+            self.mutated = true;
+            self.variant = FooObserverVariant::__Unknown;
+            &mut self.ptr
         }
     }
     #[automatically_derived]
@@ -206,8 +214,8 @@ const _: () = {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
         type InnerDepth = N;
         fn invalidate(this: &mut Self) {
-            this.__mutated = true;
-            this.__variant = FooObserverVariant::__None;
+            this.mutated = true;
+            this.variant = FooObserverVariant::__Unknown;
         }
     }
     #[automatically_derived]
@@ -224,16 +232,16 @@ const _: () = {
         fn observe(head: &mut _S) -> Self {
             let __value = head.as_deref_mut();
             Self {
-                __mutated: false,
-                __initial: FooObserverInitial::new(__value),
-                __variant: FooObserverVariant::observe(__value),
-                __ptr: ::morphix::helper::Pointer::new(head),
-                __phantom: ::std::marker::PhantomData,
+                mutated: false,
+                initial: FooObserverInitial::new(__value),
+                variant: FooObserverVariant::observe(__value),
+                ptr: ::morphix::helper::Pointer::new(head),
+                phantom: ::std::marker::PhantomData,
             }
         }
         unsafe fn relocate(this: &mut Self, head: &mut _S) {
             let __value = head.as_deref_mut();
-            unsafe { this.__variant.relocate(__value) }
+            unsafe { this.variant.relocate(__value) }
             ::morphix::helper::Pointer::set(this, head);
         }
     }
@@ -254,35 +262,35 @@ const _: () = {
         >: ::morphix::observe::SerializeObserver,
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
-            let __value = this.__ptr.as_deref();
-            let __initial = this.__initial;
-            this.__initial = FooObserverInitial::new(__value);
-            if !this.__mutated {
-                return this.__variant.flush();
+            let value = this.ptr.as_deref();
+            let initial = this.initial;
+            this.initial = FooObserverInitial::new(value);
+            if !this.mutated {
+                return this.variant.flush(value);
             }
-            this.__mutated = false;
-            this.__variant = FooObserverVariant::__None;
-            match (__initial, __value) {
+            this.mutated = false;
+            this.variant = FooObserverVariant::__Unknown;
+            match (initial, value) {
                 (FooObserverInitial::D, Foo::D)
                 | (FooObserverInitial::E, Foo::E())
                 | (FooObserverInitial::F, Foo::F {}) => ::morphix::Mutations::new(),
-                _ => ::morphix::Mutations::replace(__value),
+                _ => ::morphix::Mutations::replace(value),
             }
         }
         unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
-            let __value = this.__ptr.as_deref();
-            let __initial = this.__initial;
-            this.__initial = FooObserverInitial::new(__value);
-            if !this.__mutated {
-                return this.__variant.flat_flush();
+            let value = this.ptr.as_deref();
+            let initial = this.initial;
+            this.initial = FooObserverInitial::new(value);
+            if !this.mutated {
+                return this.variant.flat_flush(value);
             }
-            this.__mutated = false;
-            this.__variant = FooObserverVariant::__None;
-            match (__initial, __value) {
+            this.mutated = false;
+            this.variant = FooObserverVariant::__Unknown;
+            match (initial, value) {
                 (FooObserverInitial::D, Foo::D)
                 | (FooObserverInitial::E, Foo::E())
                 | (FooObserverInitial::F, Foo::F {}) => ::morphix::Mutations::new(),
-                _ => ::morphix::Mutations::replace(__value),
+                _ => ::morphix::Mutations::replace(value),
             }
         }
     }

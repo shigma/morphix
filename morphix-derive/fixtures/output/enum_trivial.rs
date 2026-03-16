@@ -12,16 +12,15 @@ pub enum Foo {
 const _: () = {
     #[::std::prelude::v1::derive()]
     pub struct FooObserver<'ob, S: ?Sized, N = ::morphix::helper::Zero> {
-        __ptr: ::morphix::helper::Pointer<S>,
-        __initial: FooObserverInitial,
-        __phantom: ::std::marker::PhantomData<&'ob mut N>,
+        ptr: ::morphix::helper::Pointer<S>,
+        initial: FooObserverInitial,
+        phantom: ::std::marker::PhantomData<&'ob mut N>,
     }
     #[derive(Clone, Copy)]
     pub enum FooObserverInitial {
         A,
         B,
         C,
-        __None,
     }
     impl FooObserverInitial {
         fn new(value: &Foo) -> Self {
@@ -36,13 +35,13 @@ const _: () = {
     impl<'ob, S: ?Sized, N> ::std::ops::Deref for FooObserver<'ob, S, N> {
         type Target = ::morphix::helper::Pointer<S>;
         fn deref(&self) -> &Self::Target {
-            &self.__ptr
+            &self.ptr
         }
     }
     #[automatically_derived]
     impl<'ob, S: ?Sized, N> ::std::ops::DerefMut for FooObserver<'ob, S, N> {
         fn deref_mut(&mut self) -> &mut Self::Target {
-            &mut self.__ptr
+            &mut self.ptr
         }
     }
     #[automatically_derived]
@@ -65,9 +64,9 @@ const _: () = {
         fn observe(head: &mut S) -> Self {
             let __value = head.as_deref_mut();
             Self {
-                __initial: FooObserverInitial::new(__value),
-                __ptr: ::morphix::helper::Pointer::new(head),
-                __phantom: ::std::marker::PhantomData,
+                initial: FooObserverInitial::new(__value),
+                ptr: ::morphix::helper::Pointer::new(head),
+                phantom: ::std::marker::PhantomData,
             }
         }
         unsafe fn relocate(this: &mut Self, head: &mut S) {
@@ -82,25 +81,25 @@ const _: () = {
         N: ::morphix::helper::Unsigned,
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
-            let __value = this.__ptr.as_deref();
-            let __initial = this.__initial;
-            this.__initial = FooObserverInitial::new(__value);
-            match (__initial, __value) {
+            let value = this.ptr.as_deref();
+            let initial = this.initial;
+            this.initial = FooObserverInitial::new(value);
+            match (initial, value) {
                 (FooObserverInitial::A, Foo::A)
                 | (FooObserverInitial::B, Foo::B())
                 | (FooObserverInitial::C, Foo::C {}) => ::morphix::Mutations::new(),
-                _ => ::morphix::Mutations::replace(__value),
+                _ => ::morphix::Mutations::replace(value),
             }
         }
         unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
-            let __value = this.__ptr.as_deref();
-            let __initial = this.__initial;
-            this.__initial = FooObserverInitial::new(__value);
-            match (__initial, __value) {
+            let value = this.ptr.as_deref();
+            let initial = this.initial;
+            this.initial = FooObserverInitial::new(value);
+            match (initial, value) {
                 (FooObserverInitial::A, Foo::A)
                 | (FooObserverInitial::B, Foo::B())
                 | (FooObserverInitial::C, Foo::C {}) => ::morphix::Mutations::new(),
-                _ => ::morphix::Mutations::replace(__value),
+                _ => ::morphix::Mutations::replace(value),
             }
         }
     }

@@ -22,10 +22,10 @@ const _: () = {
         S: ?Sized,
         _N = ::morphix::helper::Zero,
     > {
-        __ptr: ::morphix::helper::Pointer<S>,
-        __mutated: bool,
-        __variant: FooObserverVariant<'ob, N>,
-        __phantom: ::std::marker::PhantomData<&'ob mut _N>,
+        ptr: ::morphix::helper::Pointer<S>,
+        mutated: bool,
+        variant: FooObserverVariant<'ob, N>,
+        phantom: ::std::marker::PhantomData<&'ob mut _N>,
     }
     pub enum FooObserverVariant<'ob, const N: usize> {
         A(::morphix::observe::DefaultObserver<'ob, [u32; N]>),
@@ -33,7 +33,7 @@ const _: () = {
             bar: ::morphix::observe::DefaultObserver<'ob, String>,
             qux: ::morphix::observe::DefaultObserver<'ob, Qux>,
         },
-        __None,
+        __Unknown,
     }
     impl<'ob, const N: usize> FooObserverVariant<'ob, N> {
         fn observe(value: &mut Foo<N>) -> Self {
@@ -57,12 +57,15 @@ const _: () = {
                         ::morphix::observe::Observer::relocate(u0, v0);
                         ::morphix::observe::Observer::relocate(u1, v1);
                     }
-                    (Self::__None, _) => {}
+                    (Self::__Unknown, _) => {}
                     _ => panic!("inconsistent state for FooObserver"),
                 }
             }
         }
-        fn flush(&mut self) -> ::morphix::Mutations {
+        fn flush(&mut self, __value: &Foo<N>) -> ::morphix::Mutations
+        where
+            Foo<N>: ::morphix::helper::serde::Serialize + 'static,
+        {
             match self {
                 Self::A(u0) => {
                     unsafe { ::morphix::observe::SerializeObserver::flush(u0) }
@@ -74,6 +77,9 @@ const _: () = {
                     let mutations_qux = unsafe {
                         ::morphix::observe::SerializeObserver::flat_flush(qux)
                     };
+                    if mutations_bar.is_replace() && mutations_qux.is_replace() {
+                        return ::morphix::Mutations::replace(__value);
+                    }
                     let mut mutations = ::morphix::Mutations::new()
                         .with_capacity(
                             !mutations_bar.is_empty() as usize + mutations_qux.len(),
@@ -90,10 +96,13 @@ const _: () = {
                     mutations.extend(mutations_qux);
                     mutations
                 }
-                Self::__None => ::morphix::Mutations::new(),
+                Self::__Unknown => ::morphix::Mutations::new(),
             }
         }
-        fn flat_flush(&mut self) -> ::morphix::Mutations {
+        fn flat_flush(&mut self, __value: &Foo<N>) -> ::morphix::Mutations
+        where
+            Foo<N>: ::morphix::helper::serde::Serialize + 'static,
+        {
             match self {
                 Self::A(u0) => {
                     unsafe { ::morphix::observe::SerializeObserver::flat_flush(u0) }
@@ -133,16 +142,16 @@ const _: () = {
     for FooObserver<'ob, N, S, _N> {
         type Target = ::morphix::helper::Pointer<S>;
         fn deref(&self) -> &Self::Target {
-            &self.__ptr
+            &self.ptr
         }
     }
     #[automatically_derived]
     impl<'ob, const N: usize, S: ?Sized, _N> ::std::ops::DerefMut
     for FooObserver<'ob, N, S, _N> {
         fn deref_mut(&mut self) -> &mut Self::Target {
-            self.__mutated = true;
-            self.__variant = FooObserverVariant::__None;
-            &mut self.__ptr
+            self.mutated = true;
+            self.variant = FooObserverVariant::__Unknown;
+            &mut self.ptr
         }
     }
     #[automatically_derived]
@@ -156,8 +165,8 @@ const _: () = {
         type OuterDepth = ::morphix::helper::Succ<::morphix::helper::Zero>;
         type InnerDepth = _N;
         fn invalidate(this: &mut Self) {
-            this.__mutated = true;
-            this.__variant = FooObserverVariant::__None;
+            this.mutated = true;
+            this.variant = FooObserverVariant::__Unknown;
         }
     }
     #[automatically_derived]
@@ -170,15 +179,15 @@ const _: () = {
         fn observe(head: &mut S) -> Self {
             let __value = head.as_deref_mut();
             Self {
-                __mutated: false,
-                __variant: FooObserverVariant::observe(__value),
-                __ptr: ::morphix::helper::Pointer::new(head),
-                __phantom: ::std::marker::PhantomData,
+                mutated: false,
+                variant: FooObserverVariant::observe(__value),
+                ptr: ::morphix::helper::Pointer::new(head),
+                phantom: ::std::marker::PhantomData,
             }
         }
         unsafe fn relocate(this: &mut Self, head: &mut S) {
             let __value = head.as_deref_mut();
-            unsafe { this.__variant.relocate(__value) }
+            unsafe { this.variant.relocate(__value) }
             ::morphix::helper::Pointer::set(this, head);
         }
     }
@@ -191,19 +200,21 @@ const _: () = {
         _N: ::morphix::helper::Unsigned,
     {
         unsafe fn flush(this: &mut Self) -> ::morphix::Mutations {
-            if !this.__mutated {
-                return this.__variant.flush();
+            let value = this.ptr.as_deref();
+            if !this.mutated {
+                return this.variant.flush(value);
             }
-            this.__mutated = false;
-            this.__variant = FooObserverVariant::__None;
+            this.mutated = false;
+            this.variant = FooObserverVariant::__Unknown;
             ::morphix::Mutations::replace(this.as_deref())
         }
         unsafe fn flat_flush(this: &mut Self) -> ::morphix::Mutations {
-            if !this.__mutated {
-                return this.__variant.flat_flush();
+            let value = this.ptr.as_deref();
+            if !this.mutated {
+                return this.variant.flat_flush(value);
             }
-            this.__mutated = false;
-            this.__variant = FooObserverVariant::__None;
+            this.mutated = false;
+            this.variant = FooObserverVariant::__Unknown;
             ::morphix::Mutations::replace(this.as_deref())
         }
     }
