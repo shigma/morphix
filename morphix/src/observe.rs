@@ -4,7 +4,7 @@
 //! the README for a detailed overview of the observer architecture, dereference chains, and
 //! mutation tracking primitives.
 
-pub use crate::builtin::snapshot::SnapshotSpec;
+pub use crate::general::snapshot::SnapshotSpec;
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Unsigned, Zero};
 use crate::{Adapter, Mutations};
 
@@ -53,7 +53,7 @@ pub trait Observe {
     /// For most types, this will be [`DefaultSpec`]. Types can specify [`SnapshotSpec`] to enable
     /// snapshot-based observation strategies. For example, [`Option<T>`] uses
     /// [`OptionObserver`](crate::impls::OptionObserver) when `T::Spec = DefaultSpec`, but
-    /// [`SnapshotObserver`](crate::builtin::SnapshotObserver) when `T::Spec = SnapshotSpec`.
+    /// [`SnapshotObserver`](crate::general::SnapshotObserver) when `T::Spec = SnapshotSpec`.
     type Spec;
 }
 
@@ -77,7 +77,7 @@ pub trait RefObserve {
     /// For most types, this will be [`DefaultSpec`]. Types can specify [`SnapshotSpec`] to enable
     /// snapshot-based observation strategies. For example, [`Option<T>`] uses
     /// [`OptionObserver`](crate::impls::OptionObserver) when `T::Spec = DefaultSpec`, but
-    /// [`SnapshotObserver`](crate::builtin::SnapshotObserver) when `T::Spec = SnapshotSpec`.
+    /// [`SnapshotObserver`](crate::general::SnapshotObserver) when `T::Spec = SnapshotSpec`.
     type Spec;
 }
 
@@ -165,7 +165,7 @@ pub trait Observer: QuasiObserver<Target = Pointer<<Self as QuasiObserver>::Head
     /// ## Example
     ///
     /// ```
-    /// use morphix::builtin::ShallowObserver;
+    /// use morphix::general::ShallowObserver;
     /// use morphix::observe::Observer;
     ///
     /// let mut value = 42;

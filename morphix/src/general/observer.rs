@@ -22,7 +22,7 @@ use crate::observe::{Observer, RefObserver, SerializeObserver};
 ///
 /// ```
 /// # use std::marker::PhantomData;
-/// # use morphix::builtin::{GeneralHandler, GeneralObserver};
+/// # use morphix::general::{GeneralHandler, GeneralObserver};
 /// # use morphix::helper::ObserverState;
 /// # use morphix::observe::DefaultSpec;
 /// struct ShallowHandler<T> {
@@ -121,7 +121,7 @@ where
 ///
 /// ```
 /// # use std::marker::PhantomData;
-/// use morphix::builtin::{DebugHandler, GeneralHandler, GeneralObserver};
+/// use morphix::general::{DebugHandler, GeneralHandler, GeneralObserver};
 /// use morphix::helper::ObserverState;
 /// use morphix::observe::Observer;
 ///

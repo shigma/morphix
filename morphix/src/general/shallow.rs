@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
+use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
 use crate::helper::{AsDeref, ObserverState, Zero};
 
 /// A general observer that tracks any mutation access as a change.

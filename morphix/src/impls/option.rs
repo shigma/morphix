@@ -5,7 +5,7 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::Mutations;
-use crate::builtin::Snapshot;
+use crate::general::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, RefObserver, SerializeObserver};
@@ -307,7 +307,7 @@ mod tests {
 
     use super::*;
     use crate::adapter::Json;
-    use crate::builtin::GeneralObserver;
+    use crate::general::GeneralObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]

@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::fmt::Debug;
 use std::ops::{AddAssign, Deref, DerefMut};
 
-use crate::builtin::Snapshot;
+use crate::general::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::{DerefObserver, StringObserver};
 use crate::observe::{DefaultSpec, Observer, RefObserve, RefObserver, SerializeObserver};

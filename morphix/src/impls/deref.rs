@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 
-use crate::builtin::Snapshot;
+use crate::general::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Succ, Unsigned};
 use crate::observe::{Observer, RefObserve, RefObserver, SerializeObserver};
 use crate::{Mutations, Observe};

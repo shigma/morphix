@@ -81,7 +81,7 @@ pub fn derive_observe(mut input: syn::DeriveInput) -> TokenStream {
             #[automatically_derived]
             impl #impl_generics ::morphix::Observe for #input_ident #type_generics where #where_predicates {
                 type Observer<#ob_lt, #head, #depth>
-                    = ::morphix::builtin::#ob_ident<#ob_lt, #head, #depth>
+                    = ::morphix::general::#ob_ident<#ob_lt, #head, #depth>
                 where
                     Self: #ob_lt,
                     #depth: ::morphix::helper::Unsigned,

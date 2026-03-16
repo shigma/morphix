@@ -8,7 +8,7 @@ use std::ops::{Deref, DerefMut};
 
 use serde::Serialize;
 
-use crate::builtin::Snapshot;
+use crate::general::Snapshot;
 use crate::helper::macros::default_impl_ref_observe;
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};

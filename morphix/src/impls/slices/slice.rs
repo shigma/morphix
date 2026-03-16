@@ -14,7 +14,7 @@ use std::slice::{
     RSplitNMut, SliceIndex, SplitInclusiveMut, SplitMut, SplitNMut,
 };
 
-use crate::builtin::UnsizeObserver;
+use crate::general::UnsizeObserver;
 use crate::helper::macros::delegate_methods;
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slices::helper::GetDisjointMutIndexImpl;

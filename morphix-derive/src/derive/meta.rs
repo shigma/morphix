@@ -158,7 +158,7 @@ impl ObserveMeta {
                 self.general_impl = Some(GeneralImpl {
                     ob_ident: syn::Ident::new("SnapshotObserver", arg.ident.span()),
                     spec_ident: syn::Ident::new("SnapshotSpec", arg.ident.span()),
-                    bounds: parse_quote! { ::morphix::builtin::Snapshot },
+                    bounds: parse_quote! { ::morphix::general::Snapshot },
                     extra_derive: derive_snapshot,
                 });
             }

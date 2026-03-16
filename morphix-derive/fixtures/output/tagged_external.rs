@@ -268,7 +268,7 @@ const _: () = {
 pub struct Qux {}
 #[rustfmt::skip]
 #[automatically_derived]
-impl ::morphix::builtin::Snapshot for Qux {
+impl ::morphix::general::Snapshot for Qux {
     type Snapshot = ();
     fn to_snapshot(&self) {}
     fn eq_snapshot(&self, snapshot: &()) -> bool {
@@ -278,7 +278,7 @@ impl ::morphix::builtin::Snapshot for Qux {
 #[rustfmt::skip]
 #[automatically_derived]
 impl ::morphix::Observe for Qux {
-    type Observer<'ob, S, N> = ::morphix::builtin::NoopObserver<'ob, S, N>
+    type Observer<'ob, S, N> = ::morphix::general::NoopObserver<'ob, S, N>
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,

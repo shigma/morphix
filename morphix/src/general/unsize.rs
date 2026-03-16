@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::ops::{Index, RangeFrom};
 
-use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
+use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 use crate::helper::{AsDeref, ObserverState, Zero};
 use crate::{MutationKind, Mutations};
 

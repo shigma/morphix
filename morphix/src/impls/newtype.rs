@@ -5,7 +5,7 @@ use std::num::{Saturating, Wrapping};
 use std::ops::{Deref, DerefMut};
 
 use crate::Mutations;
-use crate::builtin::Snapshot;
+use crate::general::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
 use crate::helper::{AsDeref, AsDerefMut, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, RefObserver, SerializeObserver};

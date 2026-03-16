@@ -157,7 +157,7 @@ const _: () = {
         C {},
     }
     #[automatically_derived]
-    impl ::morphix::builtin::Snapshot for Bar {
+    impl ::morphix::general::Snapshot for Bar {
         type Snapshot = BarSnapshot;
         fn to_snapshot(&self) -> Self::Snapshot {
             match self {
@@ -181,9 +181,9 @@ const _: () = {
 #[automatically_derived]
 impl ::morphix::Observe for Bar
 where
-    Self: ::morphix::builtin::Snapshot,
+    Self: ::morphix::general::Snapshot,
 {
-    type Observer<'ob, S, N> = ::morphix::builtin::SnapshotObserver<'ob, S, N>
+    type Observer<'ob, S, N> = ::morphix::general::SnapshotObserver<'ob, S, N>
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,

@@ -4,7 +4,7 @@ use std::slice::SliceIndex;
 
 use serde::Serialize;
 
-use crate::builtin::Snapshot;
+use crate::general::Snapshot;
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{
     SliceIndexImpl, SliceObserver, SliceObserverState, SliceRefObserverState, SliceSerializeObserverState,
@@ -25,7 +25,7 @@ where
     /// typically small length — the resulting batch of per-element mutations is bounded and
     /// comparable in size to a whole-array [`Replace`](crate::MutationKind::Replace), while
     /// unchanged elements can be filtered out by the element observer (e.g.,
-    /// [`SnapshotObserver`](crate::builtin::SnapshotObserver)).
+    /// [`SnapshotObserver`](crate::general::SnapshotObserver)).
     ///
     /// [as_deref_mut_coinductive]: crate::helper::AsDerefMutCoinductive::as_deref_mut_coinductive
     fn invalidate(this: &mut Self, _: &[O::Head; N]) {

@@ -2,7 +2,7 @@ use std::ops::{Index, IndexMut};
 use std::slice::SliceIndex;
 
 use crate::Observe;
-use crate::builtin::UnsizeObserver;
+use crate::general::UnsizeObserver;
 use crate::helper::macros::{delegate_methods, shallow_observer};
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Unsigned};
 use crate::impls::slices::shallow::ShallowMut;

@@ -1,7 +1,7 @@
 use std::ptr::NonNull;
 
 use crate::Observe;
-use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
+use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
 use crate::helper::macros::default_impl_ref_observe;
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Unsigned};
 use crate::observe::DefaultSpec;
@@ -27,7 +27,7 @@ use crate::observe::DefaultSpec;
 /// 3. The type has no interior mutability
 ///
 /// For types where value comparison is cheap and preferred, consider using
-/// [`SnapshotObserver`](crate::builtin::SnapshotObserver) for references.
+/// [`SnapshotObserver`](crate::general::SnapshotObserver) for references.
 pub type PointerObserver<'ob, S, D> = GeneralObserver<'ob, PointerHandler<<S as AsDeref<D>>::Target>, S, D>;
 
 pub struct PointerHandler<T: ?Sized> {

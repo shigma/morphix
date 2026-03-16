@@ -1,6 +1,6 @@
 use std::sync::atomic::Ordering;
 
-use crate::builtin::{Snapshot, SnapshotObserver};
+use crate::general::{Snapshot, SnapshotObserver};
 use crate::helper::{AsDeref, AsDerefMut, Unsigned};
 use crate::observe::{DefaultSpec, Observe, RefObserve};
 

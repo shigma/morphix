@@ -38,10 +38,10 @@ macro_rules! spec_impl_observe {
 
         impl<T> $helper<$crate::observe::SnapshotSpec> for T
         where
-            T: $crate::builtin::Snapshot + $crate::observe::Observe<Spec = $crate::observe::SnapshotSpec>,
+            T: $crate::general::Snapshot + $crate::observe::Observe<Spec = $crate::observe::SnapshotSpec>,
         {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
-                = $crate::builtin::SnapshotObserver<'ob, S, D>
+                = $crate::general::SnapshotObserver<'ob, S, D>
             where
                 Self: 'ob,
                 D: Unsigned,
@@ -90,10 +90,10 @@ macro_rules! spec_impl_observe_from_ref {
 
         impl<T> $helper<$crate::observe::SnapshotSpec> for T
         where
-            T: $crate::builtin::Snapshot + $crate::observe::RefObserve<Spec = $crate::observe::SnapshotSpec>,
+            T: $crate::general::Snapshot + $crate::observe::RefObserve<Spec = $crate::observe::SnapshotSpec>,
         {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
-                = $crate::builtin::SnapshotObserver<'ob, S, D>
+                = $crate::general::SnapshotObserver<'ob, S, D>
             where
                 Self: 'ob,
                 D: Unsigned,
@@ -142,10 +142,10 @@ macro_rules! spec_impl_ref_observe {
 
         impl<T> $helper<$crate::observe::SnapshotSpec> for T
         where
-            T: $crate::builtin::Snapshot + $crate::observe::RefObserve<Spec = $crate::observe::SnapshotSpec>,
+            T: $crate::general::Snapshot + $crate::observe::RefObserve<Spec = $crate::observe::SnapshotSpec>,
         {
             type Observer<'ob, S, D $(, const $arg: $arg_ty)*>
-                = $crate::builtin::SnapshotObserver<'ob, S, D>
+                = $crate::general::SnapshotObserver<'ob, S, D>
             where
                 Self: 'ob,
                 D: Unsigned,
@@ -159,7 +159,7 @@ macro_rules! default_impl_ref_observe {
         $(
             impl <$($($gen)*)?> $crate::observe::RefObserve for $ty {
                 type Observer<'ob, S, D>
-                    = $crate::builtin::PointerObserver<'ob, S, D>
+                    = $crate::general::PointerObserver<'ob, S, D>
                 where
                     Self: 'ob,
                     D: Unsigned,

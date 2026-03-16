@@ -9,7 +9,7 @@ pub struct Foo<T> {
 #[rustfmt::skip]
 #[automatically_derived]
 impl<T> ::morphix::Observe for Foo<T> {
-    type Observer<'ob, S, N> = ::morphix::builtin::ShallowObserver<'ob, S, N>
+    type Observer<'ob, S, N> = ::morphix::general::ShallowObserver<'ob, S, N>
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,
@@ -25,24 +25,24 @@ pub struct Bar<T> {
 const _: () = {
     pub struct BarSnapshot<T>
     where
-        Vec<T>: ::morphix::builtin::Snapshot,
+        Vec<T>: ::morphix::general::Snapshot,
     {
-        a: <Vec<T> as ::morphix::builtin::Snapshot>::Snapshot,
+        a: <Vec<T> as ::morphix::general::Snapshot>::Snapshot,
     }
     #[automatically_derived]
-    impl<T> ::morphix::builtin::Snapshot for Bar<T>
+    impl<T> ::morphix::general::Snapshot for Bar<T>
     where
-        Vec<T>: ::morphix::builtin::Snapshot,
+        Vec<T>: ::morphix::general::Snapshot,
     {
         type Snapshot = BarSnapshot<T>;
         fn to_snapshot(&self) -> Self::Snapshot {
             BarSnapshot {
-                a: ::morphix::builtin::Snapshot::to_snapshot(&self.a),
+                a: ::morphix::general::Snapshot::to_snapshot(&self.a),
             }
         }
         #[allow(clippy::match_like_matches_macro)]
         fn eq_snapshot(&self, snapshot: &Self::Snapshot) -> bool {
-            ::morphix::builtin::Snapshot::eq_snapshot(&self.a, &snapshot.a)
+            ::morphix::general::Snapshot::eq_snapshot(&self.a, &snapshot.a)
         }
     }
 };
@@ -50,9 +50,9 @@ const _: () = {
 #[automatically_derived]
 impl<T> ::morphix::Observe for Bar<T>
 where
-    Self: ::morphix::builtin::Snapshot,
+    Self: ::morphix::general::Snapshot,
 {
-    type Observer<'ob, S, N> = ::morphix::builtin::SnapshotObserver<'ob, S, N>
+    type Observer<'ob, S, N> = ::morphix::general::SnapshotObserver<'ob, S, N>
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,
@@ -64,7 +64,7 @@ where
 pub struct NoopStruct {}
 #[rustfmt::skip]
 #[automatically_derived]
-impl ::morphix::builtin::Snapshot for NoopStruct {
+impl ::morphix::general::Snapshot for NoopStruct {
     type Snapshot = ();
     fn to_snapshot(&self) {}
     fn eq_snapshot(&self, snapshot: &()) -> bool {
@@ -74,7 +74,7 @@ impl ::morphix::builtin::Snapshot for NoopStruct {
 #[rustfmt::skip]
 #[automatically_derived]
 impl ::morphix::Observe for NoopStruct {
-    type Observer<'ob, S, N> = ::morphix::builtin::NoopObserver<'ob, S, N>
+    type Observer<'ob, S, N> = ::morphix::general::NoopObserver<'ob, S, N>
     where
         Self: 'ob,
         N: ::morphix::helper::Unsigned,

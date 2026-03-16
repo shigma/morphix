@@ -12,7 +12,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 use serde::Serialize;
 
-use crate::builtin::Snapshot;
+use crate::general::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};

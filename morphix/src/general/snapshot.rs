@@ -3,7 +3,7 @@ use std::mem::MaybeUninit;
 use std::num::NonZero;
 
 use crate::Observe;
-use crate::builtin::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
+use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Unsigned, Zero};
 use crate::observe::RefObserve;
 
@@ -48,13 +48,16 @@ use crate::observe::RefObserve;
 ///
 /// ## Built-in Usage
 ///
-/// All primitive types ([`i32`], [`f64`], [`bool`], etc.) use [`SnapshotObserver`] as their default
-/// implementation since they're cheap to clone and compare.
+/// All scalar types that are [`Copy`] + [`PartialEq`] use [`SnapshotObserver`] as their default
+/// implementation. This includes numeric primitives ([`i32`], [`f64`], [`bool`], etc.),
+/// [`NonZero`](std::num::NonZero) variants, network types ([`IpAddr`](core::net::IpAddr),
+/// [`SocketAddr`](core::net::SocketAddr)), and time types ([`Duration`](core::time::Duration),
+/// [`SystemTime`](std::time::SystemTime)).
 pub type SnapshotObserver<'ob, S, D = Zero> = GeneralObserver<'ob, SnapshotHandler<<S as AsDeref<D>>::Target>, S, D>;
 
 /// A trait for creating and comparing snapshots of observable values.
 ///
-/// [`Snapshot`] is used by [`SnapshotObserver`](crate::builtin::SnapshotObserver) to detect changes
+/// [`Snapshot`] is used by [`SnapshotObserver`](crate::general::SnapshotObserver) to detect changes
 /// by comparing values before and after observation. It is similar to [`Clone`] + [`PartialEq`],
 /// but emphasizes serialization consistency rather than semantic equality.
 ///

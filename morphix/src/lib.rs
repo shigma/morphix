@@ -12,8 +12,8 @@ extern crate self as morphix;
 
 pub mod adapter;
 mod batch;
-pub mod builtin;
 mod error;
+pub mod general;
 pub mod helper;
 pub mod impls;
 mod mutation;
