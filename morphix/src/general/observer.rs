@@ -581,13 +581,6 @@ macro_rules! generic_impl_cmp {
 generic_impl_cmp! {
     impl [U] _ for std::marker::PhantomData<U>;
     impl ['a, U] _ for &'a [U];
-    impl _ for str;
-    impl _ for String;
-    impl _ for std::ffi::OsStr;
-    impl _ for std::ffi::OsString;
-    impl _ for std::path::Path;
-    impl _ for std::path::PathBuf;
-    impl ['a] _ for std::borrow::Cow<'a, str>;
 }
 
 #[cfg(feature = "chrono")]
