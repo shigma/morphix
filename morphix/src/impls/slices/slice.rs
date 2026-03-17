@@ -9,7 +9,7 @@ use std::slice::{
     RSplitNMut, SliceIndex, SplitInclusiveMut, SplitMut, SplitNMut,
 };
 
-use crate::general::UnsizeObserver;
+use crate::general::{Unsize, UnsizeObserver};
 use crate::helper::macros::delegate_methods;
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slices::helper::GetDisjointMutIndexImpl;
@@ -421,6 +421,18 @@ impl<T: Observe> Observe for [T] {
         S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
     type Spec = DefaultSpec;
+}
+
+impl<T> Unsize for [T] {
+    type Slice = Self;
+
+    fn len(&self) -> usize {
+        <[T]>::len(self)
+    }
+
+    fn range_from(&self, from: usize) -> &Self::Slice {
+        &self[from..]
+    }
 }
 
 impl<T> RefObserve for [T] {

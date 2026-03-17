@@ -10,7 +10,7 @@ use crate::helper::macros::{default_impl_ref_observe, delegate_methods, shallow_
 use crate::helper::{AsDerefMut, QuasiObserver, Unsigned};
 
 shallow_observer! {
-    impl [T] HashSetObserver for HashSet<T>;
+    struct [T] HashSetObserver(HashSet<T>);
 }
 
 default_impl_ref_observe! {

@@ -477,12 +477,21 @@ impl Mutations {
         Self::replace_owned(SerializeRef(value))
     }
 
+    /// Creates a [`Mutations`] containing a single [`Append`](MutationKind::Append) mutation,
+    /// taking ownership of the value.
+    ///
+    /// Unlike [`append`](Self::append), which accepts `&T` (including unsized types) and wraps it
+    /// in [`SerializeRef`], this method takes `T` by value and boxes it directly.
+    pub fn append_owned<T: serde::Serialize + 'static>(value: T) -> Self {
+        MutationKind::Append(Box::new(value) as Box<dyn Serialize>).into()
+    }
+
     /// Creates a [`Mutations`] containing a single [`Append`](MutationKind::Append) mutation
     /// with the given value.
     ///
     /// The value is wrapped in a [`Box<dyn Serialize>`](erased_serde::Serialize) via
     /// [`SerializeRef`], allowing unsized types like `str` and `[T]` to be used.
     pub fn append<T: serde::Serialize + ?Sized + 'static>(value: &T) -> Self {
-        MutationKind::Append(Box::new(SerializeRef(value)) as Box<dyn Serialize>).into()
+        Self::append_owned(SerializeRef(value))
     }
 }

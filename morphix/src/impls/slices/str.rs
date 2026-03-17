@@ -1,15 +1,26 @@
-use std::fmt::Debug;
 use std::ops::{Index, IndexMut};
 use std::slice::SliceIndex;
 
-use crate::general::UnsizeObserver;
+use crate::general::{Unsize, UnsizeObserver};
 use crate::helper::macros::{delegate_methods, shallow_observer};
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Unsigned};
 use crate::impls::slices::shallow::ShallowMut;
 use crate::observe::{DefaultSpec, RefObserve};
 
 shallow_observer! {
-    impl StrObserver for str;
+    struct StrObserver(str);
+}
+
+impl Unsize for str {
+    type Slice = Self;
+
+    fn len(&self) -> usize {
+        self.chars().count()
+    }
+
+    fn range_from(&self, from: usize) -> &Self::Slice {
+        &self[from..]
+    }
 }
 
 impl RefObserve for str {
@@ -76,69 +87,6 @@ where
             ShallowMut::new(left, &raw mut self.mutated),
             ShallowMut::new(right, &raw mut self.mutated),
         ))
-    }
-}
-
-impl<'ob, S: ?Sized, D> AsMut<str> for StrObserver<'ob, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = str>,
-{
-    fn as_mut(&mut self) -> &mut str {
-        self.tracked_mut()
-    }
-}
-
-impl<'ob, S: ?Sized, D> Debug for StrObserver<'ob, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = str>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("StrObserver").field(&self.untracked_ref()).finish()
-    }
-}
-
-impl<'ob, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<StrObserver<'ob, S2, D2>> for StrObserver<'ob, S1, D1>
-where
-    D1: Unsigned,
-    D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialEq<S2::Target>,
-{
-    fn eq(&self, other: &StrObserver<'ob, S2, D2>) -> bool {
-        self.untracked_ref().eq(other.untracked_ref())
-    }
-}
-
-impl<'ob, S: ?Sized, D> Eq for StrObserver<'ob, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = str>,
-{
-}
-
-impl<'ob, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<StrObserver<'ob, S2, D2>> for StrObserver<'ob, S1, D1>
-where
-    D1: Unsigned,
-    D2: Unsigned,
-    S1: AsDeref<D1>,
-    S2: AsDeref<D2>,
-    S1::Target: PartialOrd<S2::Target>,
-{
-    fn partial_cmp(&self, other: &StrObserver<'ob, S2, D2>) -> Option<std::cmp::Ordering> {
-        self.untracked_ref().partial_cmp(other.untracked_ref())
-    }
-}
-
-impl<'ob, S: ?Sized, D> Ord for StrObserver<'ob, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = str>,
-{
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.untracked_ref().cmp(other.untracked_ref())
     }
 }
 

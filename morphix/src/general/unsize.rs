@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
-use std::ops::{Index, RangeFrom};
+
+use serde::Serialize;
 
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 use crate::helper::{AsDeref, ObserverState, Zero};
@@ -7,20 +8,12 @@ use crate::{MutationKind, Mutations};
 
 pub type UnsizeObserver<'ob, S, D = Zero> = GeneralObserver<'ob, UnsizeHandler<<S as AsDeref<D>>::Target>, S, D>;
 
-trait Len {
+pub trait Unsize {
+    type Slice: ?Sized;
+
     fn len(&self) -> usize;
-}
 
-impl Len for str {
-    fn len(&self) -> usize {
-        self.chars().count()
-    }
-}
-
-impl<T> Len for [T] {
-    fn len(&self) -> usize {
-        <[T]>::len(self)
-    }
+    fn range_from(&self, from: usize) -> &Self::Slice;
 }
 
 pub struct UnsizeHandler<T: ?Sized> {
@@ -37,7 +30,7 @@ impl<T: ?Sized> ObserverState for UnsizeHandler<T> {
 
 impl<T: ?Sized> GeneralHandler for UnsizeHandler<T>
 where
-    T: Len,
+    T: Unsize,
 {
     fn observe(value: &T) -> Self {
         Self {
@@ -50,7 +43,7 @@ where
 
 impl<T: ?Sized> SerializeHandler for UnsizeHandler<T>
 where
-    T: Len + Index<RangeFrom<usize>, Output = T> + serde::Serialize + 'static,
+    T: Unsize<Slice: Serialize> + Serialize + 'static,
 {
     unsafe fn flush(&mut self, new_value: &T) -> Mutations {
         let old_addr = self.addr;
@@ -69,7 +62,7 @@ where
         }
         if new_len > old_len {
             #[cfg(feature = "append")]
-            return Mutations::append(&new_value[old_len..]);
+            return Mutations::append(new_value.range_from(old_len));
             #[cfg(not(feature = "append"))]
             return Mutations::replace(new_value);
         }
@@ -77,7 +70,7 @@ where
     }
 }
 
-impl<T: Len + ?Sized> DebugHandler for UnsizeHandler<T> {
+impl<T: Unsize + ?Sized> DebugHandler for UnsizeHandler<T> {
     const NAME: &'static str = "UnsizeObserver";
 }
 

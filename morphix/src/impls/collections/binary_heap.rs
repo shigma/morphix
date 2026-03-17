@@ -2,27 +2,26 @@
 
 use std::collections::binary_heap::{Drain, PeekMut};
 use std::collections::{BinaryHeap, TryReserveError};
-use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods, shallow_observer};
-use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Unsigned};
+use crate::helper::{AsDerefMut, QuasiObserver, Unsigned};
 
 shallow_observer! {
-    impl [T] BinaryHeapObserver for BinaryHeap<T>;
+    struct [T] BinaryHeapObserver(BinaryHeap<T>);
 }
 
 default_impl_ref_observe! {
     impl [T] RefObserve for BinaryHeap<T>;
 }
 
-struct Guard<'a, T> {
+struct LenGuard<'a, T> {
     old_len: usize,
     mutated: &'a mut bool,
     inner: &'a mut BinaryHeap<T>,
 }
 
-impl<T> Drop for Guard<'_, T> {
+impl<T> Drop for LenGuard<'_, T> {
     fn drop(&mut self) {
         if self.old_len != self.inner.len() {
             *self.mutated = true;
@@ -30,7 +29,7 @@ impl<T> Drop for Guard<'_, T> {
     }
 }
 
-impl<T> Deref for Guard<'_, T> {
+impl<T> Deref for LenGuard<'_, T> {
     type Target = BinaryHeap<T>;
 
     fn deref(&self) -> &Self::Target {
@@ -38,7 +37,7 @@ impl<T> Deref for Guard<'_, T> {
     }
 }
 
-impl<T> DerefMut for Guard<'_, T> {
+impl<T> DerefMut for LenGuard<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner
     }
@@ -57,9 +56,9 @@ where
         }
     }
 
-    fn guarded_mut(&mut self) -> Guard<'_, T> {
+    fn guarded_mut(&mut self) -> LenGuard<'_, T> {
         let inner = (*self.ptr).as_deref_mut();
-        Guard {
+        LenGuard {
             old_len: inner.len(),
             mutated: &mut self.mutated,
             inner,
@@ -108,18 +107,5 @@ where
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, iter: I) {
         self.guarded_mut().extend(iter);
-    }
-}
-
-impl<'ob, S: ?Sized, D> Debug for BinaryHeapObserver<'ob, S, D>
-where
-    D: Unsigned,
-    S: AsDeref<D>,
-    S::Target: Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("BinaryHeapObserver")
-            .field(&self.untracked_ref())
-            .finish()
     }
 }

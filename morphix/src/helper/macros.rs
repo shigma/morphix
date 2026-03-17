@@ -172,7 +172,7 @@ macro_rules! default_impl_ref_observe {
 }
 
 macro_rules! shallow_observer {
-    (impl $([$($gen:tt)*])? $ob:ident for $ty:ty;) => {
+    (struct $([$($gen:tt)*])? $ob:ident ($ty:ty);) => {
         #[doc = concat!("Observer implementation for [`", stringify!($ty), "`].")]
         pub struct $ob<'ob, S: ?Sized, D = $crate::helper::Zero> {
             ptr: $crate::helper::Pointer<S>,
@@ -239,6 +239,72 @@ macro_rules! shallow_observer {
                 } else {
                     $crate::mutation::Mutations::new()
                 }
+            }
+        }
+
+        impl<'ob, $($($gen)*,)? S: ?Sized, D> AsMut<$ty> for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDerefMut<D, Target = $ty>,
+        {
+            fn as_mut(&mut self) -> &mut $ty {
+                $crate::helper::QuasiObserver::tracked_mut(self)
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> std::fmt::Debug for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D>,
+            S::Target: std::fmt::Debug,
+        {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_tuple(stringify!($ob)).field(&$crate::helper::QuasiObserver::untracked_ref(self)).finish()
+            }
+        }
+
+        impl<'ob, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<$ob<'ob, S2, D2>> for $ob<'ob, S1, D1>
+        where
+            D1: $crate::helper::Unsigned,
+            D2: $crate::helper::Unsigned,
+            S1: $crate::helper::AsDeref<D1>,
+            S2: $crate::helper::AsDeref<D2>,
+            S1::Target: PartialEq<S2::Target>,
+        {
+            fn eq(&self, other: &$ob<'ob, S2, D2>) -> bool {
+                $crate::helper::QuasiObserver::untracked_ref(self).eq($crate::helper::QuasiObserver::untracked_ref(other))
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> Eq for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D>,
+            S::Target: Eq,
+        {
+        }
+
+        impl<'ob, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<$ob<'ob, S2, D2>> for $ob<'ob, S1, D1>
+        where
+            D1: $crate::helper::Unsigned,
+            D2: $crate::helper::Unsigned,
+            S1: $crate::helper::AsDeref<D1>,
+            S2: $crate::helper::AsDeref<D2>,
+            S1::Target: PartialOrd<S2::Target>,
+        {
+            fn partial_cmp(&self, other: &$ob<'ob, S2, D2>) -> Option<std::cmp::Ordering> {
+                $crate::helper::QuasiObserver::untracked_ref(self).partial_cmp($crate::helper::QuasiObserver::untracked_ref(other))
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> Ord for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D>,
+            S::Target: Ord,
+        {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                $crate::helper::QuasiObserver::untracked_ref(self).cmp($crate::helper::QuasiObserver::untracked_ref(other))
             }
         }
 

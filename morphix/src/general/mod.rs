@@ -18,4 +18,4 @@ pub use observer::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler
 pub use pointer::PointerObserver;
 pub use shallow::ShallowObserver;
 pub use snapshot::{Snapshot, SnapshotObserver};
-pub(crate) use unsize::UnsizeObserver;
+pub(crate) use unsize::{Unsize, UnsizeObserver};
