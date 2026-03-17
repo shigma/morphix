@@ -440,6 +440,7 @@ pub fn derive_observe_for_enum(
     let ob_initial_impl = quote! {
         #(#[#ob_initial_metas])*
         #[derive(Clone, Copy)]
+        #[allow(clippy::enum_variant_names)]
         #input_vis enum #ob_initial_ident {
             #ob_initial_variants
         }

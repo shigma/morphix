@@ -24,6 +24,7 @@ const _: () = {
         phantom: ::std::marker::PhantomData<&'ob mut N>,
     }
     #[derive(Clone, Copy)]
+    #[allow(clippy::enum_variant_names)]
     pub enum FooObserverInitial {
         D,
         E,
