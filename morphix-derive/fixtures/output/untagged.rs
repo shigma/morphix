@@ -85,7 +85,7 @@ const _: () = {
                 }
             }
         }
-        fn flush(&mut self, __value: &Foo) -> ::morphix::Mutations {
+        fn flush(&mut self, __value: *const Foo) -> ::morphix::Mutations {
             match self {
                 Self::A(u0) => {
                     unsafe { ::morphix::observe::SerializeObserver::flush(u0) }
@@ -98,7 +98,7 @@ const _: () = {
                         ::morphix::observe::SerializeObserver::flush(u1)
                     };
                     if mutations_0.is_replace() && mutations_1.is_replace() {
-                        return ::morphix::Mutations::replace(__value);
+                        return ::morphix::Mutations::replace(unsafe { &*__value });
                     }
                     let mut mutations = ::morphix::Mutations::new()
                         .with_capacity(
@@ -114,7 +114,7 @@ const _: () = {
                         ::morphix::observe::SerializeObserver::flush(bar)
                     };
                     if mutations_bar.is_replace() {
-                        return ::morphix::Mutations::replace(__value);
+                        return ::morphix::Mutations::replace(unsafe { &*__value });
                     }
                     let mut mutations = ::morphix::Mutations::new()
                         .with_capacity(!mutations_bar.is_empty() as usize);
@@ -124,7 +124,7 @@ const _: () = {
                 Self::__Unknown => ::morphix::Mutations::new(),
             }
         }
-        fn flat_flush(&mut self, __value: &Foo) -> ::morphix::Mutations {
+        fn flat_flush(&mut self, __value: *const Foo) -> ::morphix::Mutations {
             match self {
                 Self::A(u0) => {
                     unsafe { ::morphix::observe::SerializeObserver::flat_flush(u0) }

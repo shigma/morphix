@@ -379,8 +379,7 @@ where
         pub fn resize_with<F>(&mut self, new_len: usize, f: F) where F: FnMut() -> T;
     }
 
-    delegate_methods! { tracked_mut() as Vec =>
-        // TODO
+    delegate_methods! { untracked_mut() as Vec =>
         pub fn spare_capacity_mut(&mut self) -> &mut [MaybeUninit<T>];
     }
 

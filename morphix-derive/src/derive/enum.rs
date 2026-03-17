@@ -251,7 +251,7 @@ pub fn derive_observe_for_enum(
             quote! {{
                 #flush_field_stmts
                 if #(#mutation_idents.is_replace())&&* {
-                    return ::morphix::Mutations::replace(__value);
+                    return ::morphix::Mutations::replace(unsafe { &*__value });
                 }
                 let mut mutations = ::morphix::Mutations::new().with_capacity(#(#flush_capacity)+*);
                 #flush_mutation_stmts
@@ -487,7 +487,7 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            fn flush(&mut self, __value: &#input_ident #input_type_generics) -> ::morphix::Mutations
+            fn flush(&mut self, __value: *const #input_ident #input_type_generics) -> ::morphix::Mutations
             where
                 #input_serialize_predicates
                 #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*
@@ -497,7 +497,7 @@ pub fn derive_observe_for_enum(
                 }
             }
 
-            fn flat_flush(&mut self, __value: &#input_ident #input_type_generics) -> ::morphix::Mutations
+            fn flat_flush(&mut self, __value: *const #input_ident #input_type_generics) -> ::morphix::Mutations
             where
                 #input_serialize_predicates
                 #(#ob_field_tys: ::morphix::observe::SerializeObserver,)*

@@ -2,11 +2,12 @@
 
 use std::collections::binary_heap::{Drain, PeekMut};
 use std::collections::{BinaryHeap, TryReserveError};
+use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 
 use crate::Observe;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods, shallow_observer};
-use crate::helper::{AsDerefMut, QuasiObserver, Unsigned};
+use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Unsigned};
 use crate::observe::DefaultSpec;
 
 shallow_observer! {
@@ -109,5 +110,18 @@ where
 {
     fn extend<I: IntoIterator<Item = U>>(&mut self, iter: I) {
         self.guarded_mut().extend(iter);
+    }
+}
+
+impl<'ob, S: ?Sized, D> Debug for BinaryHeapObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDeref<D>,
+    S::Target: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("BinaryHeapObserver")
+            .field(&self.untracked_ref())
+            .finish()
     }
 }

@@ -3,13 +3,15 @@
 use std::borrow::Borrow;
 use std::collections::BTreeSet;
 use std::fmt::Debug;
+use std::iter::FusedIterator;
 use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut};
+use std::mem::MaybeUninit;
+use std::ops::{Deref, DerefMut, RangeBounds};
 
 use serde::Serialize;
 
 use crate::general::Snapshot;
-use crate::helper::macros::default_impl_ref_observe;
+use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{Mutations, Observe};
@@ -37,13 +39,16 @@ impl<T: Clone + Ord> BTreeSetObserverState<T> {
     /// Move all original elements in `[v, boundary]` from the prefix into the tail,
     /// then shrink `boundary` to the predecessor of `v`.
     fn shrink_boundary(&mut self, v: &T, set: &BTreeSet<T>) {
-        let boundary = self.boundary.as_ref().unwrap();
+        let boundary = match &self.boundary {
+            Some(boundary) if boundary >= v => boundary,
+            _ => return,
+        };
         self.truncate_len += set.range(v..=boundary).count();
         self.boundary = set.range(..v).next_back().cloned();
     }
 }
 
-impl<T: Clone + Ord> ObserverState for BTreeSetObserverState<T> {
+impl<T: Ord> ObserverState for BTreeSetObserverState<T> {
     type Target = BTreeSet<T>;
 
     fn invalidate(this: &mut Self, set: &BTreeSet<T>) {
@@ -87,7 +92,7 @@ impl<'ob, T, S: ?Sized, D> DerefMut for BTreeSetObserver<'ob, T, S, D> {
 
 impl<'ob, T, S: ?Sized, D> QuasiObserver for BTreeSetObserver<'ob, T, S, D>
 where
-    T: Clone + Ord,
+    T: Ord,
     D: Unsigned,
     S: AsDeref<D, Target = BTreeSet<T>>,
 {
@@ -172,35 +177,40 @@ where
     D: Unsigned,
     S: AsDerefMut<D, Target = BTreeSet<T>>,
 {
-    /// See [`BTreeSet::clear`].
-    pub fn clear(&mut self) {
+    fn nonempty_mut(&mut self) -> &mut BTreeSet<T> {
         if (*self).untracked_ref().is_empty() {
-            self.untracked_mut().clear()
+            self.untracked_mut()
         } else {
-            self.tracked_mut().clear()
+            self.tracked_mut()
         }
+    }
+
+    delegate_methods! { nonempty_mut() as BTreeSet =>
+        pub fn clear(&mut self);
+        pub fn pop_first(&mut self) -> Option<T>;
+    }
+
+    /// See [`BTreeSet::pop_last`].
+    pub fn pop_last(&mut self) -> Option<T> {
+        let set = (*self.ptr).as_deref();
+        if let Some(last) = set.last() {
+            self.state.shrink_boundary(last, set);
+        }
+        self.untracked_mut().pop_last()
     }
 
     /// See [`BTreeSet::insert`].
     pub fn insert(&mut self, value: T) -> bool {
-        if let Some(boundary) = &self.state.boundary
-            && value <= *boundary
-        {
-            let set = (*self.ptr).as_deref();
-            self.state.shrink_boundary(&value, set);
-        }
-        (*self.ptr).as_deref_mut().insert(value)
+        let set = (*self.ptr).as_deref();
+        self.state.shrink_boundary(&value, set);
+        self.untracked_mut().insert(value)
     }
 
     /// See [`BTreeSet::replace`].
     pub fn replace(&mut self, value: T) -> Option<T> {
-        if let Some(boundary) = &self.state.boundary
-            && value <= *boundary
-        {
-            let set = (*self.ptr).as_deref();
-            self.state.shrink_boundary(&value, set);
-        }
-        (*self.ptr).as_deref_mut().replace(value)
+        let set = (*self.ptr).as_deref();
+        self.state.shrink_boundary(&value, set);
+        self.untracked_mut().replace(value)
     }
 
     /// See [`BTreeSet::remove`].
@@ -209,13 +219,11 @@ where
         T: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        if let Some(boundary) = &self.state.boundary
-            && let Some(found) = (*self.ptr).as_deref().get(value)
-            && found <= boundary
-        {
-            self.state.shrink_boundary(found, (*self.ptr).as_deref());
+        let set = (*self.ptr).as_deref();
+        if let Some(found) = set.get(value) {
+            self.state.shrink_boundary(found, set);
         }
-        (*self.ptr).as_deref_mut().remove(value)
+        self.untracked_mut().remove(value)
     }
 
     /// See [`BTreeSet::take`].
@@ -224,77 +232,152 @@ where
         T: Borrow<Q>,
         Q: Ord + ?Sized,
     {
-        if let Some(boundary) = &self.state.boundary
-            && let Some(found) = (*self.ptr).as_deref().get(value)
-            && found <= boundary
-        {
-            self.state.shrink_boundary(found, (*self.ptr).as_deref());
-        }
-        (*self.ptr).as_deref_mut().take(value)
-    }
-
-    /// See [`BTreeSet::pop_first`].
-    pub fn pop_first(&mut self) -> Option<T> {
         let set = (*self.ptr).as_deref();
-        if let Some(first) = set.first()
-            && let Some(boundary) = &self.state.boundary
-            && first <= boundary
-        {
-            self.state.shrink_boundary(first, set);
+        if let Some(found) = set.get(value) {
+            self.state.shrink_boundary(found, set);
         }
-        (*self.ptr).as_deref_mut().pop_first()
-    }
-
-    /// See [`BTreeSet::pop_last`].
-    pub fn pop_last(&mut self) -> Option<T> {
-        let set = (*self.ptr).as_deref();
-        if let Some(last) = set.last()
-            && let Some(boundary) = &self.state.boundary
-            && last <= boundary
-        {
-            self.state.shrink_boundary(last, set);
-        }
-        (*self.ptr).as_deref_mut().pop_last()
+        self.untracked_mut().take(value)
     }
 
     /// See [`BTreeSet::retain`].
-    pub fn retain<F>(&mut self, f: F)
+    pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&T) -> bool,
     {
-        if (*self).untracked_ref().is_empty() {
-            self.untracked_mut().retain(f);
-        } else {
-            self.tracked_mut().retain(f);
-        }
+        self.extract_if(.., |v| !f(v)).for_each(drop);
     }
 
     /// See [`BTreeSet::append`].
     pub fn append(&mut self, other: &mut BTreeSet<T>) {
-        for value in std::mem::take(other) {
-            self.insert(value);
+        let set = (*self.ptr).as_deref();
+        if let Some(first) = other.first() {
+            self.state.shrink_boundary(first, set);
         }
+        self.untracked_mut().append(other);
     }
 
     /// See [`BTreeSet::split_off`].
     pub fn split_off(&mut self, value: &T) -> BTreeSet<T> {
-        if let Some(boundary) = &self.state.boundary
-            && let Some(first_split) = (*self.ptr).as_deref().range(value..).next()
-            && first_split <= boundary
-        {
-            self.state.shrink_boundary(first_split, (*self.ptr).as_deref());
+        let set = (*self.ptr).as_deref();
+        if let Some(found) = set.get(value) {
+            self.state.shrink_boundary(found, set);
         }
-        (*self.ptr).as_deref_mut().split_off(value)
+        self.untracked_mut().split_off(value)
     }
 
     /// See [`BTreeSet::extract_if`].
-    pub fn extract_if<F, R>(&mut self, range: R, pred: F) -> std::collections::btree_set::ExtractIf<'_, T, R, F>
+    pub fn extract_if<F, R>(&mut self, range: R, pred: F) -> ExtractIf<'_, 'ob, T, S, D, R, F>
     where
-        R: std::ops::RangeBounds<T>,
+        R: RangeBounds<T>,
         F: FnMut(&T) -> bool,
     {
-        ObserverState::invalidate(&mut self.state, (*self.ptr).as_deref());
-        (*self.ptr).as_deref_mut().extract_if(range, pred)
+        let set = unsafe { Pointer::as_mut(&self.ptr).as_deref_mut() };
+        let inner = MaybeUninit::new(set.extract_if(range, pred));
+        ExtractIf {
+            inner,
+            ob: self,
+            first_extracted: None,
+            extracted_count: 0,
+        }
+    }
+}
+
+impl<'ob, T, S: ?Sized, D, U> Extend<U> for BTreeSetObserver<'ob, T, S, D>
+where
+    T: Clone + Ord,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = BTreeSet<T>>,
+    BTreeSet<T>: Extend<U>,
+{
+    fn extend<I: IntoIterator<Item = U>>(&mut self, iter: I) {
+        self.tracked_mut().extend(iter);
+    }
+}
+
+/// Iterator produced by [`BTreeSetObserver::extract_if`].
+pub struct ExtractIf<'a, 'ob, T, S: ?Sized, D, R, F>
+where
+    T: Clone + Ord,
+    D: Unsigned,
+    S: AsDeref<D, Target = BTreeSet<T>>,
+{
+    /// Wrapped in [`MaybeUninit`] (a union) to prevent SB from deep-retagging the internal mutable
+    /// references inside stdlib's [`ExtractIf`](std::collections::btree_set::ExtractIf) when
+    /// [`Drop::drop`] is entered. SB does not recurse into unions during retagging, so the strongly
+    /// protected Unique tag from the [`drop_in_place`](std::ptr::drop_in_place) shim won't cover
+    /// those inner references, allowing subsequent [`Pointer`]-based reads of the [`BTreeSet`]
+    /// after the inner iterator is dropped.
+    inner: MaybeUninit<std::collections::btree_set::ExtractIf<'a, T, R, F>>,
+    ob: &'a mut BTreeSetObserver<'ob, T, S, D>,
+    first_extracted: Option<T>,
+    extracted_count: usize,
+}
+
+impl<T, S: ?Sized, D, R, F> Drop for ExtractIf<'_, '_, T, S, D, R, F>
+where
+    T: Clone + Ord,
+    D: Unsigned,
+    S: AsDeref<D, Target = BTreeSet<T>>,
+{
+    fn drop(&mut self) {
+        unsafe { self.inner.assume_init_drop() }
+        let Some(first) = &self.first_extracted else {
+            return;
+        };
+        let set = (*self.ob.ptr).as_deref();
+        self.ob.state.shrink_boundary(first, set);
+        self.ob.state.truncate_len += self.extracted_count;
+    }
+}
+
+impl<T, S: ?Sized, D, R, F> Iterator for ExtractIf<'_, '_, T, S, D, R, F>
+where
+    T: Clone + Ord,
+    D: Unsigned,
+    S: AsDeref<D, Target = BTreeSet<T>>,
+    R: RangeBounds<T>,
+    F: FnMut(&T) -> bool,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let value = unsafe { self.inner.assume_init_mut() }.next()?;
+        if let Some(boundary) = &mut self.ob.state.boundary
+            && value <= *boundary
+        {
+            self.extracted_count += 1;
+            if self.first_extracted.is_none() {
+                self.first_extracted = Some(value.clone());
+            }
+        }
+        Some(value)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        unsafe { self.inner.assume_init_ref() }.size_hint()
+    }
+}
+
+impl<T, S: ?Sized, D, R, F> FusedIterator for ExtractIf<'_, '_, T, S, D, R, F>
+where
+    T: Clone + Ord,
+    D: Unsigned,
+    S: AsDeref<D, Target = BTreeSet<T>>,
+    R: RangeBounds<T>,
+    F: FnMut(&T) -> bool,
+{
+}
+
+impl<T, S: ?Sized, D, R, F> Debug for ExtractIf<'_, '_, T, S, D, R, F>
+where
+    T: Clone + Ord + Debug,
+    D: Unsigned,
+    S: AsDeref<D, Target = BTreeSet<T>>,
+    R: RangeBounds<T>,
+    F: FnMut(&T) -> bool,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        unsafe { self.inner.assume_init_ref() }.fmt(f)
     }
 }
 
@@ -384,18 +467,6 @@ where
 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.untracked_ref().cmp(other.untracked_ref())
-    }
-}
-
-impl<'ob, T, S: ?Sized, D, U> Extend<U> for BTreeSetObserver<'ob, T, S, D>
-where
-    T: Clone + Ord,
-    D: Unsigned,
-    S: AsDerefMut<D, Target = BTreeSet<T>>,
-    BTreeSet<T>: Extend<U>,
-{
-    fn extend<I: IntoIterator<Item = U>>(&mut self, iter: I) {
-        self.tracked_mut().extend(iter);
     }
 }
 
@@ -541,7 +612,37 @@ mod tests {
         let mut set = BTreeSet::from([1, 2, 3]);
         let mut ob = set.__observe();
         assert_eq!(ob.pop_last(), Some(3));
+        assert_eq!(ob.pop_last(), Some(2));
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation, Some(truncate!(_, 1)));
+        assert_eq!(mutation, Some(truncate!(_, 2)));
+    }
+
+    #[test]
+    fn retain_noop() {
+        let mut set = BTreeSet::from([1, 2, 3, 4, 5]);
+        let mut ob = set.__observe();
+        ob.retain(|v| *v < 10);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, None);
+    }
+
+    #[test]
+    fn retain_truncate() {
+        let mut set = BTreeSet::from([1, 2, 3, 4, 5]);
+        let mut ob = set.__observe();
+        ob.retain(|v| *v % 2 == 1);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 4), append!(_, json!([3, 5])))));
+    }
+
+    #[test]
+    fn extract_if_drop() {
+        let mut set = BTreeSet::from([1, 2, 3, 4, 5]);
+        let mut ob = set.__observe();
+        let mut iter = ob.extract_if(.., |v| *v % 2 == 0);
+        assert_eq!(iter.next(), Some(2));
+        drop(iter);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(batch!(_, truncate!(_, 4), append!(_, json!([3, 4, 5])))));
     }
 }
