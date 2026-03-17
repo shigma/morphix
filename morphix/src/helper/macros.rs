@@ -191,14 +191,14 @@ macro_rules! shallow_observer {
         impl<'ob, S: ?Sized, D> ::std::ops::DerefMut for $ob<'ob, S, D> {
             fn deref_mut(&mut self) -> &mut Self::Target {
                 self.mutated = true;
-                $crate::helper::Pointer::invalidate(&mut self.ptr);
+                $crate::helper::QuasiObserver::invalidate(&mut self.ptr);
                 &mut self.ptr
             }
         }
 
-        impl<'ob, S: ?Sized, D> QuasiObserver for $ob<'ob, S, D>
+        impl<'ob, S: ?Sized, D> $crate::helper::QuasiObserver for $ob<'ob, S, D>
         where
-            D: Unsigned,
+            D: $crate::helper::Unsigned,
             S: $crate::helper::AsDeref<D>,
         {
             type Head = S;
@@ -212,8 +212,8 @@ macro_rules! shallow_observer {
 
         impl<'ob, S: ?Sized, D> $crate::observe::Observer for $ob<'ob, S, D>
         where
-            D: Unsigned,
-            S: AsDerefMut<D>,
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDerefMut<D>,
         {
             fn observe(head: &mut Self::Head) -> Self {
                 Self {
@@ -230,7 +230,7 @@ macro_rules! shallow_observer {
 
         impl<'ob, S: ?Sized, D> $crate::observe::SerializeObserver for $ob<'ob, S, D>
         where
-            D: Unsigned,
+            D: $crate::helper::Unsigned,
             S: $crate::helper::AsDeref<D, Target: ::serde::Serialize + 'static>,
         {
             unsafe fn flush(this: &mut Self) -> $crate::mutation::Mutations {
@@ -242,15 +242,15 @@ macro_rules! shallow_observer {
             }
         }
 
-        impl $(<$($gen)*>)? Observe for $ty {
+        impl $(<$($gen)*>)? $crate::observe::Observe for $ty {
             type Observer<'ob, S, D>
                 = $ob<'ob, S, D>
             where
                 Self: 'ob,
-                D: Unsigned,
-                S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+                D: $crate::helper::Unsigned,
+                S: $crate::helper::AsDerefMut<D, Target = Self> + ?Sized + 'ob;
 
-            type Spec = DefaultSpec;
+            type Spec = $crate::observe::DefaultSpec;
         }
     };
 }

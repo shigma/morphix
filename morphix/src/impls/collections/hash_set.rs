@@ -6,10 +6,8 @@ use std::collections::{HashSet, TryReserveError};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 
-use crate::Observe;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods, shallow_observer};
 use crate::helper::{AsDerefMut, QuasiObserver, Unsigned};
-use crate::observe::DefaultSpec;
 
 shallow_observer! {
     impl [T] HashSetObserver for HashSet<T>;
