@@ -198,6 +198,7 @@ where
         pub unsafe fn get_unchecked_mut<I>(&mut self, index: I) -> &mut I::Output where I: SliceIndex<[V::Item]>;
         pub fn as_mut_ptr(&mut self) -> *mut V::Item;
         pub fn as_mut_ptr_range(&mut self) -> Range<*mut V::Item>;
+        #[rustversion::since(1.93)]
         pub fn as_mut_array<const N: usize>(&mut self) -> Option<&mut [V::Item; N]>;
     }
 

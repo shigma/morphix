@@ -404,6 +404,7 @@ impl<V> Mutations<V> {
     }
 
     /// Creates a [`Mutations`] containing a single [`Delete`](MutationKind::Delete) mutation.
+    #[cfg(feature = "delete")]
     pub fn delete() -> Self {
         MutationKind::Delete.into()
     }
@@ -415,6 +416,7 @@ impl<V> Mutations<V> {
     /// mutation is converted individually, preserving the per-field paths. This is used by
     /// [`flat_flush`](crate::observe::SerializeObserver::flat_flush) when the parent needs to emit
     /// deletions for all fields of a flattened struct or map.
+    #[cfg(feature = "delete")]
     pub fn into_delete(mut self) -> Self {
         if let Some(mutation) = &mut self.inner {
             match &mut mutation.kind {

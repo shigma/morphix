@@ -39,6 +39,7 @@
         "retags",
         "rsplit",
         "rsplitn",
+        "rustversion",
         "serde",
         "shigma",
         "shouty",
