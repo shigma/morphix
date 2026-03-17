@@ -87,6 +87,7 @@ where
 }
 
 /// Iterator produced by [`BTreeMapObserver::extract_if`].
+#[rustversion::since(1.91)]
 pub struct ExtractIf<'a, K, V, O, R, F>
 where
     R: RangeBounds<K>,
@@ -96,6 +97,7 @@ where
     state: Option<&'a mut BTreeMapObserverState<K, O>>,
 }
 
+#[rustversion::since(1.91)]
 impl<K, V, O, R, F> Iterator for ExtractIf<'_, K, V, O, R, F>
 where
     K: Clone + Ord,
@@ -117,6 +119,7 @@ where
     }
 }
 
+#[rustversion::since(1.91)]
 impl<K, V, O, R, F> FusedIterator for ExtractIf<'_, K, V, O, R, F>
 where
     K: Clone + Ord,
@@ -125,6 +128,7 @@ where
 {
 }
 
+#[rustversion::since(1.91)]
 impl<K, V, O, R, F> Debug for ExtractIf<'_, K, V, O, R, F>
 where
     K: Debug,
@@ -445,6 +449,7 @@ where
     }
 
     /// See [`BTreeMap::retain`].
+    #[rustversion::since(1.91)]
     pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&K, &mut O::Head) -> bool,
@@ -481,6 +486,7 @@ where
     }
 
     /// See [`BTreeMap::extract_if`].
+    #[rustversion::since(1.91)]
     pub fn extract_if<F, R>(&mut self, range: R, pred: F) -> ExtractIf<'_, K, O::Head, O, R, F>
     where
         R: RangeBounds<K>,

@@ -359,8 +359,9 @@ where
 }
 
 macro_rules! generic_impl_partial_eq {
-    ($(impl $([$($gen:tt)*])? PartialEq<$ty:ty> for String);* $(;)?) => {
+    ($($(#[$meta:meta])* impl $([$($gen:tt)*])? PartialEq<$ty:ty> for String);* $(;)?) => {
         $(
+            $(#[$meta])*
             impl<'ob, $($($gen)*,)? S, D> PartialEq<$ty> for StringObserver<'ob, S, D>
             where
                 D: Unsigned,
@@ -379,7 +380,9 @@ generic_impl_partial_eq! {
     impl PartialEq<String> for String;
     impl ['a, U: ?Sized] PartialEq<&'a U> for String;
     impl ['a, U: ToOwned + ?Sized] PartialEq<Cow<'a, U>> for String;
+    #[rustversion::since(1.91)]
     impl PartialEq<std::path::Path> for String;
+    #[rustversion::since(1.91)]
     impl PartialEq<std::path::PathBuf> for String;
 }
 

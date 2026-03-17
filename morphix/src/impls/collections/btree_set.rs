@@ -240,6 +240,7 @@ where
     }
 
     /// See [`BTreeSet::retain`].
+    #[rustversion::since(1.91)]
     pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&T) -> bool,
@@ -266,6 +267,7 @@ where
     }
 
     /// See [`BTreeSet::extract_if`].
+    #[rustversion::since(1.91)]
     pub fn extract_if<F, R>(&mut self, range: R, pred: F) -> ExtractIf<'_, 'ob, T, S, D, R, F>
     where
         R: RangeBounds<T>,
@@ -295,6 +297,7 @@ where
 }
 
 /// Iterator produced by [`BTreeSetObserver::extract_if`].
+#[rustversion::since(1.91)]
 pub struct ExtractIf<'a, 'ob, T, S: ?Sized, D, R, F>
 where
     T: Clone + Ord,
@@ -313,6 +316,7 @@ where
     extracted_count: usize,
 }
 
+#[rustversion::since(1.91)]
 impl<T, S: ?Sized, D, R, F> Drop for ExtractIf<'_, '_, T, S, D, R, F>
 where
     T: Clone + Ord,
@@ -330,6 +334,7 @@ where
     }
 }
 
+#[rustversion::since(1.91)]
 impl<T, S: ?Sized, D, R, F> Iterator for ExtractIf<'_, '_, T, S, D, R, F>
 where
     T: Clone + Ord,
@@ -358,6 +363,7 @@ where
     }
 }
 
+#[rustversion::since(1.91)]
 impl<T, S: ?Sized, D, R, F> FusedIterator for ExtractIf<'_, '_, T, S, D, R, F>
 where
     T: Clone + Ord,
@@ -368,6 +374,7 @@ where
 {
 }
 
+#[rustversion::since(1.91)]
 impl<T, S: ?Sized, D, R, F> Debug for ExtractIf<'_, '_, T, S, D, R, F>
 where
     T: Clone + Ord + Debug,
