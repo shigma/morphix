@@ -6,6 +6,7 @@ use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::ops::{Bound, Deref, DerefMut, RangeBounds};
 
+use cfg_version::cfg_version;
 use indexmap::{Equivalent, IndexSet, TryReserveError};
 use serde::Serialize;
 
@@ -231,6 +232,7 @@ where
     }
 
     /// See [`IndexSet::extract_if`].
+    #[cfg_version(indexmap = "2.10")]
     pub fn extract_if<F, R>(&mut self, range: R, mut pred: F) -> ExtractIf<'_, T, impl FnMut(&T) -> bool>
     where
         F: FnMut(&T) -> bool,
@@ -271,10 +273,12 @@ where
 
     delegate_methods! { truncate_mut() as IndexSet =>
         pub fn pop(&mut self) -> Option<T>;
+        #[cfg_version(indexmap = "2.12")]
         pub fn pop_if(&mut self, predicate: impl FnOnce(&T) -> bool) -> Option<T>;
     }
 
     /// See [`IndexSet::retain`].
+    #[cfg_version(indexmap = "2.10")]
     pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&T) -> bool,
@@ -285,9 +289,11 @@ where
     delegate_methods! { nonempty_mut() as IndexSet =>
         pub fn sort(&mut self) where T: Ord;
         pub fn sort_by<F>(&mut self, cmp: F) where F: FnMut(&T, &T) -> std::cmp::Ordering;
+        #[cfg_version(indexmap = "2.11")]
         pub fn sort_by_key<K, F>(&mut self, sort_key: F) where K: Ord, F: FnMut(&T) -> K;
         pub fn sort_unstable(&mut self) where T: Ord;
         pub fn sort_unstable_by<F>(&mut self, cmp: F) where F: FnMut(&T, &T) -> std::cmp::Ordering;
+        #[cfg_version(indexmap = "2.11")]
         pub fn sort_unstable_by_key<K, F>(&mut self, sort_key: F) where K: Ord, F: FnMut(&T) -> K;
         pub fn sort_by_cached_key<K, F>(&mut self, sort_key: F) where K: Ord, F: FnMut(&T) -> K;
         pub fn reverse(&mut self);
@@ -338,6 +344,7 @@ where
     }
 
     /// See [`IndexSet::insert_sorted`].
+    #[cfg_version(indexmap = "2.2.4")]
     pub fn insert_sorted(&mut self, value: T) -> (usize, bool)
     where
         T: Ord,
@@ -355,6 +362,7 @@ where
 
     // TODO
     /// See [`IndexSet::insert_sorted_by`].
+    #[cfg_version(indexmap = "2.11")]
     pub fn insert_sorted_by<F>(&mut self, value: T, cmp: F) -> (usize, bool)
     where
         F: FnMut(&T, &T) -> std::cmp::Ordering,
@@ -365,6 +373,7 @@ where
     }
 
     /// See [`IndexSet::insert_sorted_by_key`].
+    #[cfg_version(indexmap = "2.11")]
     pub fn insert_sorted_by_key<K, F>(&mut self, value: T, sort_key: F) -> (usize, bool)
     where
         K: Ord,
@@ -374,6 +383,7 @@ where
     }
 
     /// See [`IndexSet::insert_before`].
+    #[cfg_version(indexmap = "2.5")]
     pub fn insert_before(&mut self, index: usize, value: T) -> (usize, bool) {
         let set = (*self.ptr).as_deref();
         let existed = set.contains(&value);
@@ -392,6 +402,7 @@ where
     }
 
     /// See [`IndexSet::shift_insert`].
+    #[cfg_version(indexmap = "2.2.3")]
     pub fn shift_insert(&mut self, index: usize, value: T) -> bool {
         let set = (*self.ptr).as_deref();
         let old_index = set.get_index_of(&value);
@@ -415,6 +426,7 @@ where
     }
 
     /// See [`IndexSet::replace_full`].
+    #[cfg_version(indexmap = "2.11")]
     pub fn replace_full(&mut self, value: T) -> (usize, Option<T>) {
         let set = (*self.ptr).as_deref();
         if let Some(index) = set.get_index_of(&value) {
@@ -424,6 +436,7 @@ where
     }
 
     /// See [`IndexSet::replace_index`].
+    #[cfg_version(indexmap = "2.11")]
     pub fn replace_index(&mut self, index: usize, value: T) -> Result<T, (usize, T)> {
         self.state.mark_truncate(index);
         self.untracked_mut().replace_index(index, value)
@@ -434,6 +447,7 @@ where
     /// Note: the returned [`Splice`](indexmap::set::Splice) iterator may silently skip
     /// duplicate values from `replace_with`. Any element in the replaced range causes
     /// a truncation from the start of the range.
+    #[cfg_version(indexmap = "2.2")]
     pub fn splice<R, I>(&mut self, range: R, replace_with: I) -> Vec<T>
     where
         R: RangeBounds<usize>,
@@ -449,6 +463,7 @@ where
     }
 
     /// See [`IndexSet::append`].
+    #[cfg_version(indexmap = "2.4")]
     pub fn append(&mut self, other: &mut IndexSet<T>) {
         // IndexSet::append keeps existing elements in place and appends only new ones.
         // However, if `other` contains duplicates of elements already in our set,
@@ -554,6 +569,7 @@ where
 }
 
 /// Iterator produced by [`IndexSetObserver::extract_if`].
+#[cfg_version(indexmap = "2.10")]
 pub struct ExtractIf<'a, T, F>
 where
     F: FnMut(&T) -> bool,
@@ -561,6 +577,7 @@ where
     inner: indexmap::set::ExtractIf<'a, T, F>,
 }
 
+#[cfg_version(indexmap = "2.10")]
 impl<T, F> Iterator for ExtractIf<'_, T, F>
 where
     F: FnMut(&T) -> bool,
@@ -576,8 +593,10 @@ where
     }
 }
 
+#[cfg_version(indexmap = "2.10")]
 impl<T, F> FusedIterator for ExtractIf<'_, T, F> where F: FnMut(&T) -> bool {}
 
+#[cfg_version(indexmap = "2.10")]
 impl<T, F> Debug for ExtractIf<'_, T, F>
 where
     F: FnMut(&T) -> bool,

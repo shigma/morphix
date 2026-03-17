@@ -8,6 +8,7 @@ use std::iter::FusedIterator;
 use std::marker::PhantomData;
 use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 
+use cfg_version::cfg_version;
 use indexmap::map::Entry;
 use indexmap::{Equivalent, IndexMap, TryReserveError};
 use serde::Serialize;
@@ -88,6 +89,7 @@ where
 }
 
 /// Iterator produced by [`IndexMapObserver::extract_if`].
+#[cfg_version(indexmap = "2.10")]
 pub struct ExtractIf<'a, K, V, O, F>
 where
     F: FnMut(&K, &mut V) -> bool,
@@ -96,6 +98,7 @@ where
     state: Option<&'a mut IndexMapObserverState<K, O>>,
 }
 
+#[cfg_version(indexmap = "2.10")]
 impl<K, V, O, F> Iterator for ExtractIf<'_, K, V, O, F>
 where
     K: Clone + Eq + Hash,
@@ -116,6 +119,7 @@ where
     }
 }
 
+#[cfg_version(indexmap = "2.10")]
 impl<K, V, O, F> FusedIterator for ExtractIf<'_, K, V, O, F>
 where
     K: Clone + Eq + Hash,
@@ -123,6 +127,7 @@ where
 {
 }
 
+#[cfg_version(indexmap = "2.10")]
 impl<K, V, O, F> Debug for ExtractIf<'_, K, V, O, F>
 where
     F: FnMut(&K, &mut V) -> bool,
@@ -305,9 +310,11 @@ where
     delegate_methods! { tracked_mut() as IndexMap =>
         pub fn sort_keys(&mut self) where K: Ord;
         pub fn sort_by<F>(&mut self, cmp: F) where F: FnMut(&K, &V, &K, &V) -> Ordering;
+        #[cfg_version(indexmap = "2.11")]
         pub fn sort_by_key<T, F>(&mut self, sort_key: F) where T: Ord, F: FnMut(&K, &V) -> T;
         pub fn sort_unstable_keys(&mut self) where K: Ord;
         pub fn sort_unstable_by<F>(&mut self, cmp: F) where F: FnMut(&K, &V, &K, &V) -> Ordering;
+        #[cfg_version(indexmap = "2.11")]
         pub fn sort_unstable_by_key<T, F>(&mut self, sort_key: F) where T: Ord, F: FnMut(&K, &V) -> T;
         pub fn sort_by_cached_key<T, F>(&mut self, sort_key: F) where T: Ord, F: FnMut(&K, &V) -> T;
         pub fn reverse(&mut self);
@@ -324,14 +331,17 @@ where
     K: Clone + Eq + Hash,
 {
     delegate_methods! { tracked_mut() as IndexMap =>
-        pub fn insert_sorted(&mut self, key: K, value: O::Head) -> (usize, Option<O::Head>)
-        where K: Ord;
-        pub fn insert_sorted_by<F>(&mut self, key: K, value: O::Head, cmp: F) -> (usize, Option<O::Head>)
-        where F: FnMut(&K, &O::Head, &K, &O::Head) -> Ordering;
-        pub fn insert_sorted_by_key<B, F>(&mut self, key: K, value: O::Head, sort_key: F) -> (usize, Option<O::Head>)
-        where B: Ord, F: FnMut(&K, &O::Head) -> B;
+        #[cfg_version(indexmap = "2.2.4")]
+        pub fn insert_sorted(&mut self, key: K, value: O::Head) -> (usize, Option<O::Head>) where K: Ord;
+        #[cfg_version(indexmap = "2.11")]
+        pub fn insert_sorted_by<F>(&mut self, key: K, value: O::Head, cmp: F) -> (usize, Option<O::Head>) where F: FnMut(&K, &O::Head, &K, &O::Head) -> Ordering;
+        #[cfg_version(indexmap = "2.11")]
+        pub fn insert_sorted_by_key<B, F>(&mut self, key: K, value: O::Head, sort_key: F) -> (usize, Option<O::Head>) where B: Ord, F: FnMut(&K, &O::Head) -> B;
+        #[cfg_version(indexmap = "2.5")]
         pub fn insert_before(&mut self, index: usize, key: K, value: O::Head) -> (usize, Option<O::Head>);
+        #[cfg_version(indexmap = "2.2.3")]
         pub fn shift_insert(&mut self, index: usize, key: K, value: O::Head) -> Option<O::Head>;
+        #[cfg_version(indexmap = "2.11")]
         pub fn replace_index(&mut self, index: usize, key: K) -> Result<K, (usize, K)>;
     }
 }
@@ -482,6 +492,7 @@ where
     }
 
     /// See [`IndexMap::extract_if`].
+    #[cfg_version(indexmap = "2.10")]
     pub fn extract_if<F, R>(&mut self, range: R, pred: F) -> ExtractIf<'_, K, O::Head, O, F>
     where
         R: RangeBounds<usize>,
@@ -540,6 +551,7 @@ where
 
     // TODO
     /// See [`IndexMap::splice`].
+    #[cfg_version(indexmap = "2.2")]
     pub fn splice<R, I>(&mut self, range: R, replace_with: I) -> std::vec::IntoIter<(K, O::Head)>
     where
         R: RangeBounds<usize>,
@@ -589,6 +601,7 @@ where
     }
 
     /// See [`IndexMap::append`].
+    #[cfg_version(indexmap = "2.4")]
     pub fn append(&mut self, other: &mut IndexMap<K, O::Head>) {
         self.extend(other.drain(..))
     }
@@ -697,6 +710,7 @@ where
     }
 
     /// See [`IndexMap::retain`].
+    #[cfg_version(indexmap = "2.10")]
     pub fn retain<F>(&mut self, mut f: F)
     where
         F: FnMut(&K, &mut O::Head) -> bool,
