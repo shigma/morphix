@@ -154,7 +154,7 @@ where
             is_replace &= mutations_i.is_replace();
             mutations.insert(PathSegment::Negative(slice.len() - index), mutations_i);
         }
-        if is_replace && (append_index > 0 || truncate_len > 0) {
+        if is_replace && !mutations.is_empty() {
             return Mutations::replace(slice);
         };
         mutations
@@ -636,6 +636,17 @@ mod tests {
         ob.clear();
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!([]))));
+    }
+
+    #[test]
+    fn push_on_empty_triggers_replace() {
+        let mut vec: Vec<i32> = vec![];
+        let mut ob = vec.__observe();
+        ob.push(1);
+        ob.push(2);
+        ob.push(3);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(replace!(_, json!([1, 2, 3]))));
     }
 
     #[test]

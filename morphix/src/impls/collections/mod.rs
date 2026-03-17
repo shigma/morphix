@@ -7,6 +7,8 @@ pub mod hash_map;
 pub mod hash_set;
 #[cfg(feature = "indexmap")]
 pub mod index_map;
+#[cfg(feature = "indexmap")]
+pub mod index_set;
 
 pub use binary_heap::BinaryHeapObserver;
 pub use btree_map::BTreeMapObserver;
@@ -15,3 +17,5 @@ pub use hash_map::HashMapObserver;
 pub use hash_set::HashSetObserver;
 #[cfg(feature = "indexmap")]
 pub use index_map::IndexMapObserver;
+#[cfg(feature = "indexmap")]
+pub use index_set::IndexSetObserver;
