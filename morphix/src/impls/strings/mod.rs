@@ -1,4 +1,4 @@
-//! Observer implementations for collection types in [`std::ffi`] or [`std::path`].
+//! Observer implementations for string types.
 
 mod c_str;
 mod c_string;

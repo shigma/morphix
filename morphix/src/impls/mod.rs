@@ -20,21 +20,21 @@ mod atomic;
 mod collections;
 mod cow;
 mod deref;
-mod ffi;
 mod newtype;
 mod option;
 mod range;
 mod slices;
+mod strings;
 mod tuple;
 mod weak;
 
 pub use collections::*;
 pub use cow::CowObserver;
 pub use deref::{DerefMutObserver, DerefObserver};
-pub use ffi::*;
 pub use newtype::NewtypeObserver;
 pub use option::OptionObserver;
 pub use slices::*;
+pub use strings::*;
 pub use tuple::{
     TupleObserver, TupleObserver2, TupleObserver3, TupleObserver4, TupleObserver5, TupleObserver6, TupleObserver7,
     TupleObserver8, TupleObserver9, TupleObserver10, TupleObserver11, TupleObserver12,

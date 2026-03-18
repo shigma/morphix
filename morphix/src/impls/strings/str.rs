@@ -4,7 +4,7 @@ use std::slice::SliceIndex;
 use crate::general::{Unsize, UnsizeObserver};
 use crate::helper::macros::{delegate_methods, shallow_observer};
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Unsigned};
-use crate::impls::ffi::shallow::ShallowMut;
+use crate::impls::strings::shallow::ShallowMut;
 use crate::observe::{DefaultSpec, RefObserve};
 
 shallow_observer! {
