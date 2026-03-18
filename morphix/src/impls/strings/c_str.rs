@@ -30,7 +30,7 @@ generic_impl_partial_eq! {
     impl _ for CStr;
     impl _ for CString;
     impl ['a, T] _ for &'a T;
-    impl ['a] _ for std::borrow::Cow<'a, CStr>;
+    impl ['a, T: ToOwned] _ for std::borrow::Cow<'a, T>;
 }
 
 impl Unsize for CStr {

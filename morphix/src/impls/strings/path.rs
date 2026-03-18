@@ -1,5 +1,5 @@
-use std::ffi::OsStr;
-use std::path::Path;
+use std::ffi::{OsStr, OsString};
+use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
 
 use crate::Mutations;
@@ -22,6 +22,34 @@ where
     pub fn as_mut_os_str(&mut self) -> ShallowMut<'_, OsStr> {
         ShallowMut::new((*self.ptr).as_deref_mut().as_mut_os_str(), &raw mut self.mutated)
     }
+}
+
+macro_rules! generic_impl_partial_eq {
+    ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
+        $(
+            impl<'ob, $($($gen)*,)? S: ?Sized, D> PartialEq<$ty> for PathObserver<'ob, S, D>
+            where
+                D: Unsigned,
+                S: AsDeref<D>,
+                S::Target: PartialEq<$ty>,
+            {
+                fn eq(&self, other: &$ty) -> bool {
+                    (***self).as_deref().eq(other)
+                }
+            }
+        )*
+    };
+}
+
+generic_impl_partial_eq! {
+    impl _ for str;
+    impl _ for String;
+    impl _ for OsStr;
+    impl _ for OsString;
+    impl _ for Path;
+    impl _ for PathBuf;
+    impl ['a, T] _ for &'a T;
+    impl ['a, T: ToOwned] _ for std::borrow::Cow<'a, T>;
 }
 
 pub struct PathHandler {

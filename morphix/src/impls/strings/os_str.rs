@@ -1,8 +1,9 @@
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
 
 use crate::Mutations;
@@ -48,6 +49,34 @@ impl ShallowMut<'_, OsStr> {
         pub fn make_ascii_uppercase(&mut self);
         pub fn make_ascii_lowercase(&mut self);
     }
+}
+
+macro_rules! generic_impl_partial_eq {
+    ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
+        $(
+            impl<'ob, $($($gen)*,)? S: ?Sized, D> PartialEq<$ty> for OsStrObserver<'ob, S, D>
+            where
+                D: Unsigned,
+                S: AsDeref<D>,
+                S::Target: PartialEq<$ty>,
+            {
+                fn eq(&self, other: &$ty) -> bool {
+                    (***self).as_deref().eq(other)
+                }
+            }
+        )*
+    };
+}
+
+generic_impl_partial_eq! {
+    impl _ for str;
+    impl _ for String;
+    impl _ for OsStr;
+    impl _ for OsString;
+    impl _ for Path;
+    impl _ for PathBuf;
+    impl ['a, T] _ for &'a T;
+    impl ['a, T: ToOwned] _ for std::borrow::Cow<'a, T>;
 }
 
 #[cfg(unix)]
