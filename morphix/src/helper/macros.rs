@@ -162,7 +162,7 @@ macro_rules! default_impl_ref_observe {
                     = $crate::general::PointerObserver<'ob, S, D>
                 where
                     Self: 'ob,
-                    D: Unsigned,
+                    D: $crate::helper::Unsigned,
                     S: $crate::helper::AsDeref<D, Target = Self> + ?Sized + 'ob;
 
                 type Spec = $crate::observe::DefaultSpec;

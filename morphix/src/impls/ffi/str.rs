@@ -4,7 +4,7 @@ use std::slice::SliceIndex;
 use crate::general::{Unsize, UnsizeObserver};
 use crate::helper::macros::{delegate_methods, shallow_observer};
 use crate::helper::{AsDeref, AsDerefMut, QuasiObserver, Unsigned};
-use crate::impls::slices::shallow::ShallowMut;
+use crate::impls::ffi::shallow::ShallowMut;
 use crate::observe::{DefaultSpec, RefObserve};
 
 shallow_observer! {
@@ -54,6 +54,10 @@ where
     }
 
     /// See [`str::as_bytes_mut`].
+    ///
+    /// ## Safety
+    ///
+    /// See [`str::as_bytes_mut`] for safety requirements.
     pub unsafe fn as_bytes_mut(&mut self) -> ShallowMut<'_, [u8]> {
         let inner = unsafe { (*self.ptr).as_deref_mut().as_bytes_mut() };
         ShallowMut::new(inner, &raw mut self.mutated)
@@ -66,6 +70,10 @@ where
     }
 
     /// See [`str::get_unchecked_mut`].
+    ///
+    /// ## Safety
+    ///
+    /// See [`str::get_unchecked_mut`] for safety requirements.
     pub unsafe fn get_unchecked_mut<I: SliceIndex<str, Output = str>>(&mut self, i: I) -> ShallowMut<'_, str> {
         let output = unsafe { (*self.ptr).as_deref_mut().get_unchecked_mut(i) };
         ShallowMut::new(output, &raw mut self.mutated)
@@ -152,12 +160,13 @@ generic_impl_cmp! {
     impl ['a] _ for std::borrow::Cow<'a, str>;
 }
 
-impl<'ob> ShallowMut<'ob, str> {
+impl ShallowMut<'_, str> {
     fn nonempty_mut(&mut self) -> &mut str {
-        if !self.inner.is_empty() {
-            unsafe { *self.mutated = true }
+        if (*self).untracked_ref().is_empty() {
+            self.untracked_mut()
+        } else {
+            self.tracked_mut()
         }
-        self.inner
     }
 
     delegate_methods! { nonempty_mut() as str =>

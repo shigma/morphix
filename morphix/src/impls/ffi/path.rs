@@ -1,14 +1,27 @@
+use std::ffi::OsStr;
 use std::path::Path;
 use std::ptr::NonNull;
 
 use crate::Mutations;
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 use crate::helper::macros::shallow_observer;
-use crate::helper::{AsDeref, ObserverState, Unsigned};
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, Unsigned};
+use crate::impls::shallow::ShallowMut;
 use crate::observe::{DefaultSpec, RefObserve};
 
 shallow_observer! {
     struct PathObserver(Path);
+}
+
+impl<'ob, S: ?Sized, D> PathObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = Path>,
+{
+    /// See [`Path::as_mut_os_str`].
+    pub fn as_mut_os_str(&mut self) -> ShallowMut<'_, OsStr> {
+        ShallowMut::new((*self.ptr).as_deref_mut().as_mut_os_str(), &raw mut self.mutated)
+    }
 }
 
 pub struct PathHandler {

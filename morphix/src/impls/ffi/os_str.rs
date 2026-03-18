@@ -7,12 +7,47 @@ use std::ptr::NonNull;
 
 use crate::Mutations;
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
-use crate::helper::macros::shallow_observer;
-use crate::helper::{AsDeref, ObserverState, Unsigned};
+use crate::helper::macros::{delegate_methods, shallow_observer};
+use crate::helper::{AsDeref, AsDerefMut, ObserverState, QuasiObserver, Unsigned};
+use crate::impls::shallow::ShallowMut;
 use crate::observe::{DefaultSpec, RefObserve};
 
 shallow_observer! {
     struct OsStrObserver(OsStr);
+}
+
+impl<'ob, S: ?Sized, D> OsStrObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = OsStr>,
+{
+    fn nonempty_mut(&mut self) -> &mut OsStr {
+        if (*self).untracked_ref().is_empty() {
+            self.untracked_mut()
+        } else {
+            self.tracked_mut()
+        }
+    }
+
+    delegate_methods! { nonempty_mut() as OsStr =>
+        pub fn make_ascii_uppercase(&mut self);
+        pub fn make_ascii_lowercase(&mut self);
+    }
+}
+
+impl ShallowMut<'_, OsStr> {
+    fn nonempty_mut(&mut self) -> &mut OsStr {
+        if (*self).untracked_ref().is_empty() {
+            self.untracked_mut()
+        } else {
+            self.tracked_mut()
+        }
+    }
+
+    delegate_methods! { nonempty_mut() as OsStr =>
+        pub fn make_ascii_uppercase(&mut self);
+        pub fn make_ascii_lowercase(&mut self);
+    }
 }
 
 #[cfg(unix)]
