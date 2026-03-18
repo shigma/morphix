@@ -403,6 +403,12 @@ impl<V> Mutations<V> {
         self.len() == 0
     }
 
+    /// Creates a [`Mutations`] containing a single [`Truncate`](MutationKind::Truncate) mutation.
+    #[cfg(feature = "truncate")]
+    pub fn truncate(len: usize) -> Self {
+        MutationKind::Truncate(len).into()
+    }
+
     /// Creates a [`Mutations`] containing a single [`Delete`](MutationKind::Delete) mutation.
     #[cfg(feature = "delete")]
     pub fn delete() -> Self {
@@ -482,6 +488,7 @@ impl Mutations {
     ///
     /// Unlike [`append`](Self::append), which accepts `&T` (including unsized types) and wraps it
     /// in [`SerializeRef`], this method takes `T` by value and boxes it directly.
+    #[cfg(feature = "append")]
     pub fn append_owned<T: serde::Serialize + 'static>(value: T) -> Self {
         MutationKind::Append(Box::new(value) as Box<dyn Serialize>).into()
     }
@@ -491,6 +498,7 @@ impl Mutations {
     ///
     /// The value is wrapped in a [`Box<dyn Serialize>`](erased_serde::Serialize) via
     /// [`SerializeRef`], allowing unsized types like `str` and `[T]` to be used.
+    #[cfg(feature = "append")]
     pub fn append<T: serde::Serialize + ?Sized + 'static>(value: &T) -> Self {
         Self::append_owned(SerializeRef(value))
     }

@@ -263,15 +263,13 @@ macro_rules! shallow_observer {
             }
         }
 
-        impl<'ob, S1: ?Sized, S2: ?Sized, D1, D2> PartialEq<$ob<'ob, S2, D2>> for $ob<'ob, S1, D1>
+        impl<'ob, S: ?Sized, D> PartialEq<$ob<'ob, S, D>> for $ob<'ob, S, D>
         where
-            D1: $crate::helper::Unsigned,
-            D2: $crate::helper::Unsigned,
-            S1: $crate::helper::AsDeref<D1>,
-            S2: $crate::helper::AsDeref<D2>,
-            S1::Target: PartialEq<S2::Target>,
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D>,
+            S::Target: PartialEq,
         {
-            fn eq(&self, other: &$ob<'ob, S2, D2>) -> bool {
+            fn eq(&self, other: &$ob<'ob, S, D>) -> bool {
                 $crate::helper::QuasiObserver::untracked_ref(self).eq($crate::helper::QuasiObserver::untracked_ref(other))
             }
         }
@@ -284,15 +282,13 @@ macro_rules! shallow_observer {
         {
         }
 
-        impl<'ob, S1: ?Sized, S2: ?Sized, D1, D2> PartialOrd<$ob<'ob, S2, D2>> for $ob<'ob, S1, D1>
+        impl<'ob, S: ?Sized, D> PartialOrd<$ob<'ob, S, D>> for $ob<'ob, S, D>
         where
-            D1: $crate::helper::Unsigned,
-            D2: $crate::helper::Unsigned,
-            S1: $crate::helper::AsDeref<D1>,
-            S2: $crate::helper::AsDeref<D2>,
-            S1::Target: PartialOrd<S2::Target>,
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D>,
+            S::Target: PartialOrd,
         {
-            fn partial_cmp(&self, other: &$ob<'ob, S2, D2>) -> Option<std::cmp::Ordering> {
+            fn partial_cmp(&self, other: &$ob<'ob, S, D>) -> Option<std::cmp::Ordering> {
                 $crate::helper::QuasiObserver::untracked_ref(self).partial_cmp($crate::helper::QuasiObserver::untracked_ref(other))
             }
         }

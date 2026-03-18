@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::ptr::NonNull;
 
 use serde::Serialize;
 
@@ -17,25 +18,29 @@ pub trait Unsize {
 }
 
 pub struct UnsizeHandler<T: ?Sized> {
-    addr: usize,
-    old_len: usize,
+    raw_parts: Option<(NonNull<()>, usize)>,
     phantom: PhantomData<*const T>,
 }
 
-impl<T: ?Sized> ObserverState for UnsizeHandler<T> {
+impl<T: ?Sized> ObserverState for UnsizeHandler<T>
+where
+    T: Unsize,
+{
     type Target = T;
 
-    fn invalidate(_: &mut Self, _: &T) {}
+    fn invalidate(this: &mut Self, value: &T) {
+        this.raw_parts
+            .get_or_insert_with(|| (NonNull::from(value).cast::<()>(), value.len()));
+    }
 }
 
 impl<T: ?Sized> GeneralHandler for UnsizeHandler<T>
 where
     T: Unsize,
 {
-    fn observe(value: &T) -> Self {
+    fn observe(_: &T) -> Self {
         Self {
-            addr: (value as *const T).cast::<u8>().addr(),
-            old_len: value.len(),
+            raw_parts: None,
             phantom: PhantomData,
         }
     }
@@ -45,26 +50,26 @@ impl<T: ?Sized> SerializeHandler for UnsizeHandler<T>
 where
     T: Unsize<Slice: Serialize> + Serialize + 'static,
 {
-    unsafe fn flush(&mut self, new_value: &T) -> Mutations {
-        let old_addr = self.addr;
-        let old_len = self.old_len;
-        self.addr = (new_value as *const T).cast::<u8>().addr();
-        let new_len = new_value.len();
-        self.old_len = new_len;
-        if (new_value as *const T).cast::<u8>().addr() != old_addr {
-            return Mutations::replace(new_value);
+    unsafe fn flush(&mut self, value: &T) -> Mutations {
+        let Some((old_addr, old_len)) = self.raw_parts.take() else {
+            return Mutations::new();
+        };
+        let new_addr = NonNull::from(value).cast::<()>();
+        let new_len = value.len();
+        if new_addr != old_addr {
+            return Mutations::replace(value);
         }
         if new_len < old_len {
             #[cfg(feature = "truncate")]
             return MutationKind::Truncate(old_len - new_len).into();
             #[cfg(not(feature = "truncate"))]
-            return Mutations::replace(new_value);
+            return Mutations::replace(value);
         }
         if new_len > old_len {
             #[cfg(feature = "append")]
-            return Mutations::append(new_value.range_from(old_len));
+            return Mutations::append(value.range_from(old_len));
             #[cfg(not(feature = "append"))]
-            return Mutations::replace(new_value);
+            return Mutations::replace(value);
         }
         Mutations::new()
     }

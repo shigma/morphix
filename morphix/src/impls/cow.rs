@@ -188,6 +188,7 @@ where
         let cow = AsDerefMut::<D>::as_deref_mut(head);
         if cow.is_empty() {
             self.mutated = true;
+            B::invalidate(&mut self.inner);
             *cow = rhs.into();
         } else if !rhs.is_empty() {
             if let Cow::Borrowed(lhs) = cow {
