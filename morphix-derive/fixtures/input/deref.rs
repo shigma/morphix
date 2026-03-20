@@ -1,7 +1,7 @@
 // Add leading colons to std imports to avoid rustfmt inserting newlines
 use ::std::ops::{Deref, DerefMut};
 #[allow(unused_imports)]
-use morphix_derive::Observe;
+use morphix::Observe;
 use serde::Serialize;
 
 #[rustfmt::skip]

@@ -28,7 +28,7 @@ quote = "1.0.41"
 syn = { version = "2.0.106", features = ["full", "visit", "visit-mut"] }
 
 [dev-dependencies]
-macro_expand = "0.1.2"
+macro_expand = "0.2.0"
 morphix = { path = "../morphix", features = ["full"] }
 morphix_test_utils = { path = "../morphix-test-utils" }
 pretty_assertions = "1.4.1"

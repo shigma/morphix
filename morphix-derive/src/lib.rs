@@ -141,7 +141,9 @@ mod test {
             let output_path = Path::new(output_dir).join(path);
             let input = read_to_string(input_path).unwrap().parse().unwrap();
             let mut ctx = Context::new();
-            ctx.register_proc_macro_derive("Observe".into(), crate::derive::derive_observe, vec!["morphix".into()]);
+            ctx.module("morphix")
+                .proc_macro("observe", crate::observe::observe)
+                .proc_macro_derive("Observe", crate::derive::derive_observe, vec!["morphix".into()]);
             let actual = unparse(&syn::parse2(ctx.transform(input)).unwrap());
             let expect_result = read_to_string(&output_path);
             if let Ok(expect) = &expect_result

@@ -1,6 +1,6 @@
 use ::std::ops::{Deref, DerefMut};
 #[allow(unused_imports)]
-use morphix_derive::Observe;
+use morphix::Observe;
 use serde::Serialize;
 #[rustfmt::skip]
 #[derive(Serialize)]
