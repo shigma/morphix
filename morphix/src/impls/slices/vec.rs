@@ -281,6 +281,13 @@ where
         pub fn shrink_to(&mut self, min_capacity: usize);
     }
 
+    /// See [`Vec::push_mut`].
+    #[rustversion::since(1.95)]
+    pub fn push_mut(&mut self, value: T) -> &mut O {
+        self.untracked_mut().push(value);
+        self.force_mut().last_mut().unwrap()
+    }
+
     delegate_methods! { truncate_mut() as Vec =>
         pub fn truncate(&mut self, len: usize);
     }
@@ -309,6 +316,16 @@ where
     pub fn insert(&mut self, index: usize, element: T) {
         self.untracked_mut().insert(index, element);
         self.state.mark_truncate(index);
+    }
+
+    /// See [`Vec::insert_mut`].
+    #[rustversion::since(1.95)]
+    pub fn insert_mut(&mut self, index: usize, element: T) -> &mut O {
+        self.state.mark_truncate(index);
+        self.untracked_mut().insert(index, element);
+        // Drop stale observers at and beyond `index` — those slots now hold shifted elements.
+        self.state.inner.get_mut().truncate(index);
+        &mut self.force_mut()[index]
     }
 
     /// See [`Vec::remove`].
@@ -922,5 +939,53 @@ mod tests {
         assert_eq!(ob, vec![1, 3, 5]);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(batch!(_, truncate!(_, 2), append!(_, json!([3, 5])),)));
+    }
+
+    #[rustversion::since(1.95)]
+    #[test]
+    fn push_mut_returns_observer() {
+        let mut vec: Vec<String> = vec!["a".into()];
+        let mut ob = vec.__observe();
+        let pushed = ob.push_mut("b".into());
+        pushed.push_str("c");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(append!(_, json!(["bc"]))));
+    }
+
+    #[rustversion::since(1.95)]
+    #[test]
+    fn push_mut_on_empty_triggers_replace() {
+        let mut vec: Vec<String> = vec![];
+        let mut ob = vec.__observe();
+        let pushed = ob.push_mut("x".into());
+        pushed.push_str("y");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(replace!(_, json!(["xy"]))));
+    }
+
+    #[rustversion::since(1.95)]
+    #[test]
+    fn insert_mut_returns_observer() {
+        let mut vec: Vec<String> = vec!["a".into(), "b".into(), "c".into()];
+        let mut ob = vec.__observe();
+        let inserted = ob.insert_mut(1, "X".into());
+        inserted.push_str("Y");
+        assert_eq!(ob, vec!["a".to_string(), "XY".into(), "b".into(), "c".into()]);
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(
+            mutation,
+            Some(batch!(_, truncate!(_, 2), append!(_, json!(["XY", "b", "c"]))))
+        );
+    }
+
+    #[rustversion::since(1.95)]
+    #[test]
+    fn insert_mut_at_end_acts_like_push() {
+        let mut vec: Vec<String> = vec!["a".into(), "b".into(), "c".into()];
+        let mut ob = vec.__observe();
+        let inserted = ob.insert_mut(3, "d".into());
+        inserted.push_str("!");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(append!(_, json!(["d!"]))));
     }
 }

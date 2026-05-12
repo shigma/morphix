@@ -365,6 +365,15 @@ where
         self.untracked_mut().push_front(value);
     }
 
+    /// See [`VecDeque::push_front_mut`].
+    #[rustversion::since(1.95)]
+    pub fn push_front_mut(&mut self, value: O::Head) -> &mut O {
+        self.state.front_mutated = true;
+        self.state.inner.get_mut().clear();
+        self.untracked_mut().push_front(value);
+        self.force_all().front_mut().unwrap()
+    }
+
     /// See [`VecDeque::pop_front`].
     pub fn pop_front(&mut self) -> Option<O::Head> {
         let value = self.untracked_mut().pop_front()?;
@@ -401,6 +410,13 @@ where
         self.untracked_mut().push_back(value);
     }
 
+    /// See [`VecDeque::push_back_mut`].
+    #[rustversion::since(1.95)]
+    pub fn push_back_mut(&mut self, value: O::Head) -> &mut O {
+        self.untracked_mut().push_back(value);
+        self.force_all().back_mut().unwrap()
+    }
+
     /// See [`VecDeque::append`].
     pub fn append(&mut self, other: &mut VecDeque<O::Head>) {
         self.untracked_mut().append(other);
@@ -414,6 +430,20 @@ where
             self.state.inner.get_mut().clear();
             self.tracked_mut().insert(index, value);
         }
+    }
+
+    /// See [`VecDeque::insert_mut`].
+    #[rustversion::since(1.95)]
+    pub fn insert_mut(&mut self, index: usize, value: O::Head) -> &mut O {
+        if index >= self.state.back_append_index {
+            self.untracked_mut().insert(index, value);
+            // Drop stale observers at and beyond `index` — those slots now hold shifted elements.
+            self.state.inner.get_mut().truncate(index);
+        } else {
+            self.state.inner.get_mut().clear();
+            self.tracked_mut().insert(index, value);
+        }
+        self.force_all().get_mut(index).unwrap()
     }
 }
 
@@ -1226,5 +1256,50 @@ mod tests {
         assert_eq!(ob[2], "cd");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, None);
+    }
+
+    #[rustversion::since(1.95)]
+    #[test]
+    fn push_back_mut_returns_observer() {
+        let mut deque = VecDeque::from(["a".to_string()]);
+        let mut ob = deque.__observe();
+        let pushed = ob.push_back_mut("b".into());
+        pushed.push_str("c");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(append!(_, json!(["bc"]))));
+    }
+
+    #[rustversion::since(1.95)]
+    #[test]
+    fn push_front_mut_returns_observer() {
+        let mut deque = VecDeque::from(["a".to_string(), "b".into()]);
+        let mut ob = deque.__observe();
+        let pushed = ob.push_front_mut("x".into());
+        pushed.push_str("y");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(replace!(_, json!(["xy", "a", "b"]))));
+    }
+
+    #[rustversion::since(1.95)]
+    #[test]
+    fn insert_mut_at_back_returns_observer() {
+        let mut deque = VecDeque::from(["a".to_string(), "b".into()]);
+        let mut ob = deque.__observe();
+        let inserted = ob.insert_mut(2, "c".into());
+        inserted.push_str("!");
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(append!(_, json!(["c!"]))));
+    }
+
+    #[rustversion::since(1.95)]
+    #[test]
+    fn insert_mut_in_middle_returns_observer() {
+        let mut deque = VecDeque::from(["a".to_string(), "b".into(), "c".into()]);
+        let mut ob = deque.__observe();
+        let inserted = ob.insert_mut(1, "X".into());
+        inserted.push_str("Y");
+        assert_eq!(ob, VecDeque::from(["a".to_string(), "XY".into(), "b".into(), "c".into()]));
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(replace!(_, json!(["a", "XY", "b", "c"]))));
     }
 }
