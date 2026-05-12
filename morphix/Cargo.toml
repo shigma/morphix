@@ -1,6 +1,6 @@
 [package]
 name = "morphix"
-version = "0.18.5"
+version = "0.18.6"
 edition = "2024"
 license = "MIT"
 authors = [

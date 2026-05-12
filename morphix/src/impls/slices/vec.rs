@@ -273,12 +273,6 @@ where
 
     delegate_methods! { untracked_mut() as Vec =>
         pub fn push(&mut self, value: T);
-        pub fn reserve(&mut self, additional: usize);
-        pub fn reserve_exact(&mut self, additional: usize);
-        pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
-        pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError>;
-        pub fn shrink_to_fit(&mut self);
-        pub fn shrink_to(&mut self, min_capacity: usize);
     }
 
     /// See [`Vec::push_mut`].
@@ -286,6 +280,15 @@ where
     pub fn push_mut(&mut self, value: T) -> &mut O {
         self.untracked_mut().push(value);
         self.force_mut().last_mut().unwrap()
+    }
+
+    delegate_methods! { untracked_mut() as Vec =>
+        pub fn reserve(&mut self, additional: usize);
+        pub fn reserve_exact(&mut self, additional: usize);
+        pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
+        pub fn try_reserve_exact(&mut self, additional: usize) -> Result<(), TryReserveError>;
+        pub fn shrink_to_fit(&mut self);
+        pub fn shrink_to(&mut self, min_capacity: usize);
     }
 
     delegate_methods! { truncate_mut() as Vec =>

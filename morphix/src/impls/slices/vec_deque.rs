@@ -383,6 +383,7 @@ where
     }
 
     /// See [`VecDeque::pop_front_if`].
+    #[rustversion::since(1.93)]
     pub fn pop_front_if(&mut self, predicate: impl FnOnce(&mut O::Head) -> bool) -> Option<O::Head> {
         // We need to check predicate without committing to front_mutated.
         let front = self.untracked_mut().front_mut()?;
@@ -469,6 +470,7 @@ where
     }
 
     /// See [`VecDeque::pop_back_if`].
+    #[rustversion::since(1.93)]
     pub fn pop_back_if(&mut self, predicate: impl FnOnce(&mut O::Head) -> bool) -> Option<O::Head> {
         let back = self.untracked_mut().back_mut()?;
         if predicate(back) { self.pop_back() } else { None }
@@ -856,6 +858,7 @@ mod tests {
         assert_eq!(mutation, Some(replace!(_, json!([2, 3]))));
     }
 
+    #[rustversion::since(1.93)]
     #[test]
     fn pop_front_if_true_triggers_replace() {
         let mut deque = VecDeque::from([1, 2, 3]);
@@ -866,6 +869,7 @@ mod tests {
         assert_eq!(mutation, Some(replace!(_, json!([2, 3]))));
     }
 
+    #[rustversion::since(1.93)]
     #[test]
     fn pop_front_if_false_returns_none() {
         let mut deque = VecDeque::from([1, 2, 3]);
@@ -1044,6 +1048,7 @@ mod tests {
         assert_eq!(mutation, Some(append!(_, json!([0, 0]))));
     }
 
+    #[rustversion::since(1.93)]
     #[test]
     fn pop_back_if_true() {
         let mut deque = VecDeque::from([1, 2, 3]);
@@ -1054,6 +1059,7 @@ mod tests {
         assert_eq!(mutation, Some(truncate!(_, 1)));
     }
 
+    #[rustversion::since(1.93)]
     #[test]
     fn pop_back_if_false() {
         let mut deque = VecDeque::from([1, 2, 3]);
