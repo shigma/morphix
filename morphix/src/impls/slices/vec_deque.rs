@@ -1304,7 +1304,10 @@ mod tests {
         let mut ob = deque.__observe();
         let inserted = ob.insert_mut(1, "X".into());
         inserted.push_str("Y");
-        assert_eq!(ob, VecDeque::from(["a".to_string(), "XY".into(), "b".into(), "c".into()]));
+        assert_eq!(
+            ob,
+            VecDeque::from(["a".to_string(), "XY".into(), "b".into(), "c".into()])
+        );
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!(["a", "XY", "b", "c"]))));
     }

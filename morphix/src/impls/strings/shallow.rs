@@ -125,3 +125,31 @@ generic_impl_cmp! {
     impl _ for std::path::PathBuf;
     impl ['a] _ for std::borrow::Cow<'a, str>;
 }
+
+#[cfg(test)]
+mod tests {
+    use std::ops::DerefMut;
+
+    use morphix_test_utils::*;
+    use serde_json::json;
+
+    use crate::adapter::Json;
+    use crate::impls::StrObserver;
+    use crate::observe::{Observer, SerializeObserverExt};
+
+    #[test]
+    fn split_at_mut() {
+        let mut s = String::from("hello world");
+        let mut ob: StrObserver<'_, str> = Observer::observe(&mut s[..]);
+        let (mut left, mut right) = ob.split_at_mut(5);
+        // SAFETY: ASCII-for-ASCII replacement preserves utf-8.
+        unsafe {
+            left.deref_mut().as_bytes_mut()[0] = b'H';
+            right.deref_mut().as_bytes_mut()[0] = b'_';
+            left.deref_mut().as_bytes_mut()[4] = b'O';
+            right.deref_mut().as_bytes_mut()[5] = b'D';
+        }
+        let Json(mutation) = ob.flush().unwrap();
+        assert_eq!(mutation, Some(replace!(_, json!("HellO_worlD"))));
+    }
+}
