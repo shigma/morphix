@@ -11,7 +11,6 @@ mod path_buf;
 mod str;
 mod string;
 
-pub use c_str::CStrObserver;
 #[cfg(any(unix, windows))]
 pub use os_str::OsStrObserver;
 pub use path::PathObserver;
