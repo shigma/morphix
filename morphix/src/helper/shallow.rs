@@ -10,13 +10,6 @@ use crate::helper::{QuasiObserver, Zero};
 
 /// Value-less counterpart to [`Invalidate`](crate::helper::Invalidate), used by [`ShallowMut`].
 ///
-/// Joins the [`ShallowObserver`](crate::general::ShallowObserver) / [`ShallowMut`] /
-/// [`shallow_observer!`] family — the `Shallow*` prefix marks lightweight tracking variants that
-/// operate on coarser information than their full-fledged counterparts. Here, `ShallowInvalidate`
-/// shares [`Invalidate`](crate::helper::Invalidate)'s goal (mark tracking state so the next flush
-/// emits Replace) but operates without access to the observed value — each implementor falls back
-/// to a value-free encoding (e.g. flipping a `bool`, setting a sentinel).
-///
 /// [`ShallowMut`] only sees a raw pointer to its parent observer's state, not the observed value,
 /// so it can only invoke this hook.
 pub trait ShallowInvalidate {
@@ -172,12 +165,40 @@ generic_impl_cmp! {
 ///
 /// Also generates [`Observe`](crate::Observe), [`Observer`](crate::observe::Observer),
 /// [`SerializeObserver`](crate::observe::SerializeObserver), [`QuasiObserver`], and standard trait
-/// impls ([`Deref`], [`DerefMut`], [`Debug`](std::fmt::Debug), [`PartialEq`], [`Eq`],
-/// [`PartialOrd`], [`Ord`], [`AsMut`]).
+/// impls ([`Deref`], [`DerefMut`], [`Debug`], [`PartialEq`], [`Eq`], [`PartialOrd`], [`Ord`],
+/// [`AsMut`]).
+#[doc(hidden)]
 #[macro_export]
 macro_rules! __shallow_observer {
-    (struct $([$($gen:tt)*])? $ob:ident ($ty:ty);) => {
+    () => {};
+
+    ($(#[$meta:meta])* struct $ob:ident ($($arg:tt)*); $($rest:tt)*) => {
+        $crate::__shallow_observer!(@impl $(#[$meta])* struct $ob [] ($($arg)*););
+        $crate::__shallow_observer!($($rest)*);
+    };
+
+    ($(#[$meta:meta])* struct $ob:ident < $($rest:tt)*) => {
+        $crate::__shallow_observer!(@gen $(#[$meta])* struct $ob [] $($rest)*);
+    };
+
+    (@gen $(#[$meta:meta])* struct $ob:ident [$($gen:tt)*] > ($($arg:tt)*); $($rest:tt)*) => {
+        $crate::__shallow_observer!(@impl $(#[$meta])* struct $ob [$($gen)* ,] ($($arg)*););
+        $crate::__shallow_observer!($($rest)*);
+    };
+
+    (@gen $(#[$meta:meta])* struct $ob:ident [$($gen:tt)*] >> ($($arg:tt)*); $($rest:tt)*) => {
+        $crate::__shallow_observer!(@impl $(#[$meta])* struct $ob [$($gen)* >,] ($($arg)*););
+        $crate::__shallow_observer!($($rest)*);
+    };
+
+    (@gen $(#[$meta:meta])* struct $ob:ident [$($gen:tt)*] $tt:tt $($rest:tt)*) => {
+        $crate::__shallow_observer!(@gen $(#[$meta])* struct $ob [$($gen)* $tt] $($rest)*);
+    };
+
+    (@impl $(#[$meta:meta])* struct $ob:ident [$($gen:tt)*] ($ty:ty);) => {
         #[doc = concat!("Observer implementation for [`", stringify!($ty), "`].")]
+        #[doc = ""]
+        $(#[$meta])*
         pub struct $ob<'ob, S: ?Sized, D = $crate::helper::Zero> {
             ptr: $crate::helper::Pointer<S>,
             mutated: bool,
@@ -246,7 +267,7 @@ macro_rules! __shallow_observer {
             }
         }
 
-        impl<'ob, $($($gen)*,)? S: ?Sized, D> AsMut<$ty> for $ob<'ob, S, D>
+        impl<'ob, $($gen)* S: ?Sized, D> AsMut<$ty> for $ob<'ob, S, D>
         where
             D: $crate::helper::Unsigned,
             S: $crate::helper::AsDerefMut<D, Target = $ty>,
@@ -308,7 +329,7 @@ macro_rules! __shallow_observer {
             }
         }
 
-        impl $(<$($gen)*>)? $crate::observe::Observe for $ty {
+        impl <$($gen)*> $crate::observe::Observe for $ty {
             type Observer<'ob, S, D>
                 = $ob<'ob, S, D>
             where
@@ -321,4 +342,5 @@ macro_rules! __shallow_observer {
     };
 }
 
+#[doc(inline)]
 pub use crate::__shallow_observer as shallow_observer;

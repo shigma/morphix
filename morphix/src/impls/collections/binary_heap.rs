@@ -9,7 +9,7 @@ use crate::helper::shallow::shallow_observer;
 use crate::helper::{AsDerefMut, QuasiObserver, Unsigned};
 
 shallow_observer! {
-    struct [T] BinaryHeapObserver(BinaryHeap<T>);
+    struct BinaryHeapObserver<T>(BinaryHeap<T>);
 }
 
 default_impl_ref_observe! {

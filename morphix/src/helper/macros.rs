@@ -259,7 +259,8 @@ macro_rules! delegate_methods {
     };
 }
 
-pub(crate) use {
-    default_impl_ref_observe, delegate_methods, spec_impl_observe, spec_impl_observe_from_ref,
-    spec_impl_ref_observe,
-};
+pub(crate) use default_impl_ref_observe;
+pub(crate) use delegate_methods;
+pub(crate) use spec_impl_observe;
+pub(crate) use spec_impl_observe_from_ref;
+pub(crate) use spec_impl_ref_observe;

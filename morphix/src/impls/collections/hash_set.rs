@@ -11,7 +11,7 @@ use crate::helper::shallow::shallow_observer;
 use crate::helper::{AsDerefMut, QuasiObserver, Unsigned};
 
 shallow_observer! {
-    struct [T] HashSetObserver(HashSet<T>);
+    struct HashSetObserver<T>(HashSet<T>);
 }
 
 default_impl_ref_observe! {
