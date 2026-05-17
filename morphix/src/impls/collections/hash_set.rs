@@ -6,7 +6,8 @@ use std::collections::{HashSet, TryReserveError};
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut};
 
-use crate::helper::macros::{default_impl_ref_observe, delegate_methods, shallow_observer};
+use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
+use crate::helper::shallow::shallow_observer;
 use crate::helper::{AsDerefMut, QuasiObserver, Unsigned};
 
 shallow_observer! {

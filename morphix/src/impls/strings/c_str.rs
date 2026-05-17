@@ -1,7 +1,7 @@
 use std::ffi::{CStr, CString};
 
 use crate::general::{Unsize, UnsizeObserver};
-use crate::helper::macros::shallow_observer;
+use crate::helper::shallow::shallow_observer;
 use crate::helper::{AsDeref, Unsigned};
 use crate::observe::{DefaultSpec, RefObserve};
 

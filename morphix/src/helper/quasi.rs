@@ -236,9 +236,6 @@ impl<T: ?Sized> QuasiObserver for Pointer<T> {
 /// Registered with [`Pointer::register_state`] for fallback invalidation. The method is named
 /// `invalidate` rather than `mark_replace` to avoid coupling with
 /// [`MutationKind`](crate::MutationKind).
-///
-/// See [`ShallowInvalidate`] for the value-less counterpart used by
-/// [`ShallowMut`](crate::helper::ShallowMut).
 pub trait Invalidate {
     /// The observed value type that this state tracks.
     type Target: ?Sized;
@@ -249,20 +246,4 @@ pub trait Invalidate {
     /// The post-invalidation state is **not** the "initial" state (which would be the clean state
     /// right after `observe`), but rather a state that signals "all granular tracking is lost."
     fn invalidate(&mut self, value: &Self::Target);
-}
-
-/// Value-less counterpart to [`Invalidate`], used by [`ShallowMut`](crate::helper::ShallowMut).
-///
-/// Joins the [`ShallowObserver`](crate::general::ShallowObserver) /
-/// [`ShallowMut`](crate::helper::ShallowMut) / `shallow_observer!` family — the `Shallow*` prefix
-/// marks lightweight tracking variants that operate on coarser information than their full-fledged
-/// counterparts. Here, [`ShallowInvalidate`] shares [`Invalidate`]'s goal (mark tracking state so
-/// the next flush emits Replace) but operates without access to the observed value — each
-/// implementor falls back to a value-free encoding (e.g. flipping a `bool`, setting a sentinel).
-///
-/// [`ShallowMut`](crate::helper::ShallowMut) only sees a raw pointer to its parent observer's
-/// state, not the observed value, so it can only invoke this hook.
-pub trait ShallowInvalidate {
-    /// Invalidates granular tracking state without access to the current value.
-    fn invalidate(&mut self);
 }

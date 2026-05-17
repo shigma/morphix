@@ -7,9 +7,8 @@ use std::slice::SliceIndex;
 
 use crate::general::{Unsize, UnsizeObserver};
 use crate::helper::macros::delegate_methods;
-use crate::helper::{
-    AsDeref, AsDerefMut, Invalidate, Pointer, ShallowInvalidate, QuasiObserver, ShallowMut, Succ, Unsigned, Zero,
-};
+use crate::helper::shallow::{ShallowInvalidate, ShallowMut};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::strings::string::StringObserverState;
 use crate::mutation::Mutations;
 use crate::observe::{DefaultSpec, Observe, Observer, RefObserve, SerializeObserver};

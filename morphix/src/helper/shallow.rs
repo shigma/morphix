@@ -1,10 +1,28 @@
-//! [`ShallowMut`]: a thin mutable wrapper that invalidates a shared state on `DerefMut`.
+//! Shallow observer infrastructure: [`ShallowInvalidate`] trait, [`ShallowMut`] wrapper, and the
+//! [`shallow_observer!`] macro for generating simple observers that track mutations via a single
+//! boolean flag.
 
 use std::fmt::Debug;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 use crate::helper::quasi::DerefMutUntracked;
-use crate::helper::{ShallowInvalidate, QuasiObserver, Zero};
+use crate::helper::{QuasiObserver, Zero};
+
+/// Value-less counterpart to [`Invalidate`](crate::helper::Invalidate), used by [`ShallowMut`].
+///
+/// Joins the [`ShallowObserver`](crate::general::ShallowObserver) / [`ShallowMut`] /
+/// [`shallow_observer!`] family — the `Shallow*` prefix marks lightweight tracking variants that
+/// operate on coarser information than their full-fledged counterparts. Here, `ShallowInvalidate`
+/// shares [`Invalidate`](crate::helper::Invalidate)'s goal (mark tracking state so the next flush
+/// emits Replace) but operates without access to the observed value — each implementor falls back
+/// to a value-free encoding (e.g. flipping a `bool`, setting a sentinel).
+///
+/// [`ShallowMut`] only sees a raw pointer to its parent observer's state, not the observed value,
+/// so it can only invoke this hook.
+pub trait ShallowInvalidate {
+    /// Invalidates granular tracking state without access to the current value.
+    fn invalidate(&mut self);
+}
 
 impl ShallowInvalidate for bool {
     fn invalidate(&mut self) {
@@ -16,8 +34,8 @@ impl ShallowInvalidate for bool {
 ///
 /// [`ShallowMut`] decouples the borrowed value from its invalidation target: [`Self::inner`] is the
 /// value the caller mutates, while [`Self::state`] is a raw pointer to a separate piece of state
-/// (often living on a parent observer) that gets invalidated through the [`ShallowInvalidate`] trait
-/// on each [`DerefMut`].
+/// (often living on a parent observer) that gets invalidated through the [`ShallowInvalidate`]
+/// trait on each [`DerefMut`].
 pub struct ShallowMut<'ob, T: ?Sized, V: ?Sized> {
     pub(crate) inner: &'ob mut T,
     pub(crate) state: *mut V,
@@ -144,3 +162,163 @@ generic_impl_cmp! {
     impl _ for std::path::PathBuf;
     impl ['a] _ for std::borrow::Cow<'a, str>;
 }
+
+/// Generates a shallow observer type that tracks mutations via a single `bool` flag.
+///
+/// The generated observer uses [`ShallowInvalidate`] on the flag, and emits a whole-value
+/// [`Replace`](crate::MutationKind::Replace) on [`flush`](crate::observe::SerializeObserver::flush)
+/// when the flag is set. This is appropriate for types whose internal structure is opaque or where
+/// per-field granularity is not needed.
+///
+/// Also generates [`Observe`](crate::Observe), [`Observer`](crate::observe::Observer),
+/// [`SerializeObserver`](crate::observe::SerializeObserver), [`QuasiObserver`], and standard trait
+/// impls ([`Deref`], [`DerefMut`], [`Debug`](std::fmt::Debug), [`PartialEq`], [`Eq`],
+/// [`PartialOrd`], [`Ord`], [`AsMut`]).
+#[macro_export]
+macro_rules! __shallow_observer {
+    (struct $([$($gen:tt)*])? $ob:ident ($ty:ty);) => {
+        #[doc = concat!("Observer implementation for [`", stringify!($ty), "`].")]
+        pub struct $ob<'ob, S: ?Sized, D = $crate::helper::Zero> {
+            ptr: $crate::helper::Pointer<S>,
+            mutated: bool,
+            phantom: ::std::marker::PhantomData<&'ob mut D>,
+        }
+
+        impl<'ob, S: ?Sized, D> ::std::ops::Deref for $ob<'ob, S, D> {
+            type Target = $crate::helper::Pointer<S>;
+
+            fn deref(&self) -> &Self::Target {
+                &self.ptr
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> ::std::ops::DerefMut for $ob<'ob, S, D> {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                $crate::helper::shallow::ShallowInvalidate::invalidate(&mut self.mutated);
+                $crate::helper::QuasiObserver::invalidate(&mut self.ptr);
+                &mut self.ptr
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> $crate::helper::QuasiObserver for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D>,
+        {
+            type Head = S;
+            type OuterDepth = $crate::helper::Succ<$crate::helper::Zero>;
+            type InnerDepth = D;
+
+            fn invalidate(this: &mut Self) {
+                $crate::helper::shallow::ShallowInvalidate::invalidate(&mut this.mutated);
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> $crate::observe::Observer for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDerefMut<D>,
+        {
+            fn observe(head: &mut Self::Head) -> Self {
+                Self {
+                    ptr: $crate::helper::Pointer::new(head),
+                    mutated: false,
+                    phantom: ::std::marker::PhantomData,
+                }
+            }
+
+            unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
+                $crate::helper::Pointer::set(this, head);
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> $crate::observe::SerializeObserver for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D, Target: ::serde::Serialize + 'static>,
+        {
+            unsafe fn flush(this: &mut Self) -> $crate::mutation::Mutations {
+                if ::std::mem::take(&mut this.mutated) {
+                    $crate::mutation::Mutations::replace((*this.ptr).as_deref())
+                } else {
+                    $crate::mutation::Mutations::new()
+                }
+            }
+        }
+
+        impl<'ob, $($($gen)*,)? S: ?Sized, D> AsMut<$ty> for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDerefMut<D, Target = $ty>,
+        {
+            fn as_mut(&mut self) -> &mut $ty {
+                $crate::helper::QuasiObserver::tracked_mut(self)
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> std::fmt::Debug for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D>,
+            S::Target: std::fmt::Debug,
+        {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.debug_tuple(stringify!($ob)).field(&$crate::helper::QuasiObserver::untracked_ref(self)).finish()
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> PartialEq<$ob<'ob, S, D>> for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D>,
+            S::Target: PartialEq,
+        {
+            fn eq(&self, other: &$ob<'ob, S, D>) -> bool {
+                $crate::helper::QuasiObserver::untracked_ref(self).eq($crate::helper::QuasiObserver::untracked_ref(other))
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> Eq for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D>,
+            S::Target: Eq,
+        {
+        }
+
+        impl<'ob, S: ?Sized, D> PartialOrd<$ob<'ob, S, D>> for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D>,
+            S::Target: PartialOrd,
+        {
+            fn partial_cmp(&self, other: &$ob<'ob, S, D>) -> Option<std::cmp::Ordering> {
+                $crate::helper::QuasiObserver::untracked_ref(self).partial_cmp($crate::helper::QuasiObserver::untracked_ref(other))
+            }
+        }
+
+        impl<'ob, S: ?Sized, D> Ord for $ob<'ob, S, D>
+        where
+            D: $crate::helper::Unsigned,
+            S: $crate::helper::AsDeref<D>,
+            S::Target: Ord,
+        {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                $crate::helper::QuasiObserver::untracked_ref(self).cmp($crate::helper::QuasiObserver::untracked_ref(other))
+            }
+        }
+
+        impl $(<$($gen)*>)? $crate::observe::Observe for $ty {
+            type Observer<'ob, S, D>
+                = $ob<'ob, S, D>
+            where
+                Self: 'ob,
+                D: $crate::helper::Unsigned,
+                S: $crate::helper::AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+            type Spec = $crate::observe::DefaultSpec;
+        }
+    };
+}
+
+pub use crate::__shallow_observer as shallow_observer;

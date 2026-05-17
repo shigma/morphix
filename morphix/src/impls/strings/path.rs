@@ -4,8 +4,8 @@ use std::ptr::NonNull;
 
 use crate::Mutations;
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
-use crate::helper::macros::shallow_observer;
-use crate::helper::{AsDeref, AsDerefMut, Invalidate, ShallowMut, Unsigned};
+use crate::helper::shallow::{ShallowMut, shallow_observer};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Unsigned};
 use crate::observe::{DefaultSpec, RefObserve};
 
 shallow_observer! {
