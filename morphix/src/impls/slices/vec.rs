@@ -639,6 +639,7 @@ mod tests {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -704,7 +705,7 @@ mod tests {
         let mut ob = vec.__observe();
         assert_eq!(ob[0], 1);
         ob.reserve(4); // force reallocation
-        **ob[0] = 99;
+        *ob[0].tracked_mut() = 99;
         ob.reserve(64); // force reallocation
         assert_eq!(ob[0], 99);
         let Json(mutation) = ob.flush().unwrap();
@@ -715,7 +716,7 @@ mod tests {
     fn index_by_usize_2() {
         let mut vec: Vec<i32> = vec![1, 2];
         let mut ob = vec.__observe();
-        **ob[0] = 99;
+        *ob[0].tracked_mut() = 99;
         ob.reserve(64); // force reallocation
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(-2, json!(99))));
@@ -725,9 +726,9 @@ mod tests {
     fn append_and_index() {
         let mut vec: Vec<i32> = vec![1];
         let mut ob = vec.__observe();
-        **ob[0] = 11;
+        *ob[0].tracked_mut() = 11;
         ob.push(2);
-        **ob[1] = 12;
+        *ob[1].tracked_mut() = 12;
         let Json(mutation) = ob.flush().unwrap();
         // All existing elements (only ob[0]) report Replace, and there are appended elements.
         // The optimization collapses everything into a single whole-vec Replace.
@@ -740,8 +741,8 @@ mod tests {
         let mut ob = vec.__observe();
         {
             let slice = &mut ob[1..];
-            **slice[0] = 222;
-            **slice[1] = 333;
+            *slice[0].tracked_mut() = 222;
+            *slice[1].tracked_mut() = 333;
         }
         assert_eq!(ob, vec![1, 222, 333, 4]);
         assert_eq!(&ob[..], &[1, 222, 333, 4]);

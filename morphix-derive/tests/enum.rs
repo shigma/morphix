@@ -91,7 +91,7 @@ fn field_variant_no_change() {
     let mut s = Shape::Circle { radius: 3.0 };
     let mut ob = s.__observe();
     // Read-only access through Deref (does not trigger mutation tracking)
-    if let Shape::Circle { radius } = &**ob {
+    if let Shape::Circle { radius } = ob.untracked_ref() {
         let _ = *radius;
     }
     let Json(mutation) = ob.flush().unwrap();

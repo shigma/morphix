@@ -428,6 +428,7 @@ mod tests {
     use super::*;
     use crate::adapter::Json;
     use crate::general::GeneralObserver;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -442,7 +443,7 @@ mod tests {
     fn range_deref_triggers_replace() {
         let mut range = 0..10i32;
         let mut ob = range.__observe();
-        **ob = 5..15;
+        *ob.tracked_mut() = 5..15;
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!({"start": 5, "end": 15}))));
     }
@@ -469,7 +470,7 @@ mod tests {
     fn range_both_fields_replace_collapse() {
         let mut range = String::from("a")..String::from("z");
         let mut ob = range.__observe();
-        **ob = String::from("b")..String::from("y");
+        *ob.tracked_mut() = String::from("b")..String::from("y");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!({"start": "b", "end": "y"}))));
     }

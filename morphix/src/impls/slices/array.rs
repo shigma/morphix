@@ -353,6 +353,7 @@ mod tests {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -370,7 +371,7 @@ mod tests {
         assert_eq!(ob[1], 20);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, None);
-        **ob[1] = 99;
+        *ob[1].tracked_mut() = 99;
         assert_eq!(ob[1], 99);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(1, json!(99))));
@@ -380,8 +381,8 @@ mod tests {
     fn multiple_index_mutations() {
         let mut arr = [1u32, 2, 3];
         let mut ob = arr.__observe();
-        **ob[0] = 10;
-        **ob[2] = 30;
+        *ob[0].tracked_mut() = 10;
+        *ob[2].tracked_mut() = 30;
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
@@ -393,7 +394,7 @@ mod tests {
     fn deref_mut_triggers_replace() {
         let mut arr = [1u32, 2, 3];
         let mut ob = arr.__observe();
-        ***ob = [4, 5, 6];
+        *ob.tracked_mut() = [4, 5, 6];
         let Json(mutation) = ob.flush().unwrap();
         // DerefMut on array: all elements changed, so the optimization collapses into a single
         // whole-array Replace instead of a batch of per-element mutations.
@@ -404,7 +405,7 @@ mod tests {
     fn deref_mut_same_value_returns_none() {
         let mut arr = [1u32, 2, 3];
         let mut ob = arr.__observe();
-        ***ob = [1, 2, 3];
+        *ob.tracked_mut() = [1, 2, 3];
         let Json(mutation) = ob.flush().unwrap();
         // ShallowObserver detects no change on each element.
         assert_eq!(mutation, None);

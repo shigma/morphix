@@ -286,7 +286,7 @@ mod tests {
     fn deref_mut_triggers_replace() {
         let mut set = HashSet::from([1, 2]);
         let mut ob = set.__observe();
-        **ob = HashSet::from([10, 20, 30]);
+        *ob.tracked_mut() = HashSet::from([10, 20, 30]);
         let Json(mutation) = ob.flush().unwrap();
         assert!(is_replace(&mutation));
     }

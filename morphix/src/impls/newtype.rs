@@ -384,6 +384,7 @@ mod tests {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -398,7 +399,7 @@ mod tests {
     fn wrapping_replace() {
         let mut value = Wrapping(String::from("hello"));
         let mut ob = value.__observe();
-        **ob = Wrapping(String::from("world"));
+        *ob.tracked_mut() = Wrapping(String::from("world"));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("world"))));
     }
@@ -415,7 +416,7 @@ mod tests {
     fn saturating_replace() {
         let mut value = Saturating(42u32);
         let mut ob = value.__observe();
-        **ob = Saturating(100u32);
+        *ob.tracked_mut() = Saturating(100u32);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!(100))));
     }
@@ -432,7 +433,7 @@ mod tests {
     fn reverse_replace() {
         let mut value = Reverse(String::from("hello"));
         let mut ob = value.__observe();
-        **ob = Reverse(String::from("world"));
+        *ob.tracked_mut() = Reverse(String::from("world"));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("world"))));
     }

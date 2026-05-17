@@ -417,6 +417,7 @@ mod test {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -436,7 +437,7 @@ mod test {
         let mut ob = value.__observe();
         assert_eq!(*ob, "Hello, World!");
 
-        *****ob = String::from("42");
+        **ob.tracked_mut() = String::from("42");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("42"))));
     }
@@ -447,7 +448,7 @@ mod test {
         let mut ob = value.__observe();
         assert_eq!(*ob, "Hello, World!");
 
-        *****ob = String::from("42");
+        **ob.tracked_mut() = String::from("42");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("42"))));
     }

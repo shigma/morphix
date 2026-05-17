@@ -739,6 +739,7 @@ mod tests {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -1098,7 +1099,7 @@ mod tests {
     fn index_mut_triggers_replace() {
         let mut deque = VecDeque::from([1i32, 2, 3]);
         let mut ob = deque.__observe();
-        **ob[1] = 99;
+        *ob[1].tracked_mut() = 99;
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(-2, json!(99))));
     }

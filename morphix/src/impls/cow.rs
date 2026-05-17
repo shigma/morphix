@@ -299,6 +299,7 @@ mod tests {
 
     use super::*;
     use crate::adapter::Json;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -313,7 +314,7 @@ mod tests {
     fn replace_via_deref_mut() {
         let mut cow = Cow::Borrowed("hello");
         let mut ob = cow.__observe();
-        ***ob = Cow::Owned(String::from("world"));
+        *ob.tracked_mut() = Cow::Owned(String::from("world"));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("world"))));
     }
@@ -323,7 +324,7 @@ mod tests {
         const S: &str = "hello world";
         let mut cow = Cow::Borrowed(&S[..5]);
         let mut ob = cow.__observe();
-        ***ob = Cow::Borrowed(S);
+        *ob.tracked_mut() = Cow::Borrowed(S);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(append!(_, json!(" world"))));
     }
@@ -333,7 +334,7 @@ mod tests {
         const S: &str = "hello world";
         let mut cow = Cow::Borrowed(S);
         let mut ob = cow.__observe();
-        ***ob = Cow::Borrowed(&S[..5]);
+        *ob.tracked_mut() = Cow::Borrowed(&S[..5]);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(truncate!(_, 6)));
     }
@@ -363,7 +364,7 @@ mod tests {
         let mut cow = Cow::Borrowed("hello");
         let mut ob = cow.__observe();
         ob.to_mut().push_str(" world");
-        ***ob = Cow::Borrowed("replaced");
+        *ob.tracked_mut() = Cow::Borrowed("replaced");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("replaced"))));
     }
@@ -372,7 +373,7 @@ mod tests {
     fn to_mut_after_replace() {
         let mut cow = Cow::Borrowed("hello");
         let mut ob = cow.__observe();
-        ***ob = Cow::Borrowed("replaced");
+        *ob.tracked_mut() = Cow::Borrowed("replaced");
         ob.to_mut().push_str(" world");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("replaced world"))));
@@ -390,7 +391,7 @@ mod tests {
     fn owned_cow_replace() {
         let mut cow: Cow<'_, str> = Cow::Owned(String::from("hello"));
         let mut ob = cow.__observe();
-        ***ob = Cow::Owned(String::from("world"));
+        *ob.tracked_mut() = Cow::Owned(String::from("world"));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("world"))));
     }

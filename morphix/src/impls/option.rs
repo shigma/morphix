@@ -308,6 +308,7 @@ mod tests {
     use super::*;
     use crate::adapter::Json;
     use crate::general::GeneralObserver;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -327,27 +328,27 @@ mod tests {
     fn deref_triggers_replace() {
         let mut opt: Option<i32> = Some(42);
         let mut ob = opt.__observe();
-        **ob = None;
+        *ob.tracked_mut() = None;
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!(null))));
 
         let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
-        **ob = Some(42);
+        *ob.tracked_mut() = Some(42);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!(42))));
 
         let mut opt: Option<i32> = None;
         let mut ob = opt.__observe();
-        **ob = Some(42);
-        **ob = None;
+        *ob.tracked_mut() = Some(42);
+        *ob.tracked_mut() = None;
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, None);
 
         let mut opt: Option<&str> = Some("42");
         let mut ob = opt.__observe();
-        **ob = None;
-        **ob = Some("42");
+        *ob.tracked_mut() = None;
+        *ob.tracked_mut() = Some("42");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("42"))));
     }
@@ -422,9 +423,9 @@ mod tests {
     fn relocate() {
         let mut vec = vec![None::<i32>];
         let mut ob = vec.__observe();
-        **ob[0] = Some(1);
+        *ob[0].tracked_mut() = Some(1);
         ob.reserve(10); // force reallocation
-        assert_eq!(**ob[0], Some(1));
+        assert_eq!(*ob[0].untracked_ref(), Some(1));
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!([1]))));
     }

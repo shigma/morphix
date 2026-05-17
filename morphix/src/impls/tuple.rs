@@ -529,7 +529,7 @@ mod tests {
         // StringObserver would incorrectly produce Append(" world").
         let mut tuple = (String::from("hello"),);
         let mut ob = tuple.__observe();
-        **ob = (String::from("hello world"),);
+        *ob.tracked_mut() = (String::from("hello world"),);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!(["hello world"]))));
     }

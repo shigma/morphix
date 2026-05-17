@@ -516,6 +516,7 @@ mod tests {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -589,7 +590,7 @@ mod tests {
     fn deref_mut_triggers_replace() {
         let mut set = BTreeSet::from([1, 2, 3]);
         let mut ob = set.__observe();
-        **ob = BTreeSet::from([4, 5]);
+        *ob.tracked_mut() = BTreeSet::from([4, 5]);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!([4, 5]))));
     }

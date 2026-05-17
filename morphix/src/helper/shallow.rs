@@ -8,10 +8,7 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 use crate::helper::quasi::DerefMutUntracked;
 use crate::helper::{QuasiObserver, Zero};
 
-/// Value-less counterpart to [`Invalidate`](crate::helper::Invalidate), used by [`ShallowMut`].
-///
-/// [`ShallowMut`] only sees a raw pointer to its parent observer's state, not the observed value,
-/// so it can only invoke this hook.
+/// Marks granular tracking state as dirty without access to the observed value.
 pub trait ShallowInvalidate {
     /// Invalidates granular tracking state without access to the current value.
     fn invalidate(&mut self);

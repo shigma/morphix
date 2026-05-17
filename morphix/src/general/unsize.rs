@@ -85,6 +85,7 @@ mod test {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -93,7 +94,7 @@ mod test {
         const B: &str = "hello world 2";
         let mut a = &A[0..12];
         let mut ob = a.__observe();
-        ***ob = &B[0..12];
+        *ob.tracked_mut() = &B[0..12];
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("hello world "))));
     }
@@ -103,7 +104,7 @@ mod test {
         const A: &str = "hello world";
         let mut a = A;
         let mut ob = a.__observe();
-        ***ob = &A[0..];
+        *ob.tracked_mut() = &A[0..];
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, None);
     }
@@ -113,7 +114,7 @@ mod test {
         const A: &str = "hello world";
         let mut a = &A[0..5];
         let mut ob = a.__observe();
-        ***ob = A;
+        *ob.tracked_mut() = A;
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(append!(_, json!(" world"))));
     }
@@ -123,7 +124,7 @@ mod test {
         const A: &str = "hello world";
         let mut a = A;
         let mut ob = a.__observe();
-        ***ob = &A[0..5];
+        *ob.tracked_mut() = &A[0..5];
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(truncate!(_, 6)));
     }

@@ -700,9 +700,9 @@ mod tests {
     use morphix_test_utils::*;
     use serde_json::json;
 
-    use super::*;
     use crate::MutationKind;
     use crate::adapter::Json;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -969,7 +969,7 @@ mod tests {
     fn flat_flush_deref_mut_only() {
         let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
         let mut ob = map.__observe();
-        **ob = BTreeMap::from([("a", 10), ("b", 20)]);
+        *ob.tracked_mut() = BTreeMap::from([("a", 10), ("b", 20)]);
         let Json(mutation) = ob.flat_flush().unwrap();
         assert_eq!(
             mutation,
@@ -983,7 +983,7 @@ mod tests {
         let mut map = BTreeMap::from([("a", 1i32)]);
         let mut ob = map.__observe();
         ob.insert("b", 2);
-        **ob = BTreeMap::from([("a", 10)]);
+        *ob.tracked_mut() = BTreeMap::from([("a", 10)]);
         let Json(mutation) = ob.flat_flush().unwrap();
         assert_eq!(mutation, Some(replace!(a, json!(10))));
     }
@@ -994,7 +994,7 @@ mod tests {
         let mut map = BTreeMap::from([("a", 1i32)]);
         let mut ob = map.__observe();
         ob.insert("b", 2);
-        **ob = BTreeMap::from([("a", 10), ("b", 20)]);
+        *ob.tracked_mut() = BTreeMap::from([("a", 10), ("b", 20)]);
         let Json(mutation) = ob.flat_flush().unwrap();
         assert_eq!(
             mutation,
@@ -1008,7 +1008,7 @@ mod tests {
         let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
         let mut ob = map.__observe();
         ob.remove("b");
-        **ob = BTreeMap::from([("a", 10)]);
+        *ob.tracked_mut() = BTreeMap::from([("a", 10)]);
         let Json(mutation) = ob.flat_flush().unwrap();
         assert_eq!(mutation, Some(batch!(_, replace!(a, json!(10)), delete!(b))));
     }
@@ -1019,7 +1019,7 @@ mod tests {
         let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
         let mut ob = map.__observe();
         ob.remove("b");
-        **ob = BTreeMap::from([("a", 10), ("b", 20)]);
+        *ob.tracked_mut() = BTreeMap::from([("a", 10), ("b", 20)]);
         let Json(mutation) = ob.flat_flush().unwrap();
         assert_eq!(
             mutation,
@@ -1033,7 +1033,7 @@ mod tests {
         let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
         let mut ob = map.__observe();
         ob.insert("b", 99);
-        **ob = BTreeMap::from([("a", 10)]);
+        *ob.tracked_mut() = BTreeMap::from([("a", 10)]);
         let Json(mutation) = ob.flat_flush().unwrap();
         assert_eq!(mutation, Some(batch!(_, replace!(a, json!(10)), delete!(b))));
     }
@@ -1044,7 +1044,7 @@ mod tests {
         let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
         let mut ob = map.__observe();
         ob.insert("b", 99);
-        **ob = BTreeMap::from([("a", 10), ("b", 20)]);
+        *ob.tracked_mut() = BTreeMap::from([("a", 10), ("b", 20)]);
         let Json(mutation) = ob.flat_flush().unwrap();
         assert_eq!(
             mutation,
@@ -1067,7 +1067,7 @@ mod tests {
     fn flat_flush_deref_mut_new_keys() {
         let mut map = BTreeMap::from([("a", 1i32), ("b", 2)]);
         let mut ob = map.__observe();
-        **ob = BTreeMap::from([("c", 30)]);
+        *ob.tracked_mut() = BTreeMap::from([("c", 30)]);
         let Json(mutation) = ob.flat_flush().unwrap();
         assert_eq!(
             mutation,

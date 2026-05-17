@@ -452,6 +452,7 @@ mod tests {
     use serde_json::json;
 
     use crate::adapter::Json;
+    use crate::helper::QuasiObserver;
     use crate::observe::{ObserveExt, SerializeObserverExt};
 
     #[test]
@@ -461,7 +462,7 @@ mod tests {
         assert_eq!(ob[2], 2);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, None);
-        **ob[2] = 42;
+        *ob[2].tracked_mut() = 42;
         assert_eq!(ob[2], 42);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(-1, json!(42))));
@@ -474,7 +475,7 @@ mod tests {
         assert_eq!(*ob.get_mut(2).unwrap(), 2);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, None);
-        ***ob.get_mut(2).unwrap() = 42;
+        *ob.get_mut(2).unwrap().tracked_mut() = 42;
         assert_eq!(*ob.get_mut(2).unwrap(), 42);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(-1, json!(42))));
@@ -485,7 +486,7 @@ mod tests {
         let slice: &mut [u32] = &mut [0, 1, 2];
         let mut ob = slice.__observe();
         ob.swap(0, 1);
-        assert_eq!(**ob, [1, 0, 2]);
+        assert_eq!(*ob.untracked_ref(), [1, 0, 2]);
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
