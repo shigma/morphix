@@ -32,8 +32,8 @@ use crate::observe::{Observer, RefObserver, SerializeObserver};
 ///
 /// impl<T> Invalidate for ShallowHandler<T> {
 ///     type Target = T;
-///     fn invalidate(this: &mut Self, _value: &T) {
-///         this.mutated = true;
+///     fn invalidate(&mut self, _value: &T) {
+///         self.mutated = true;
 ///     }
 /// }
 ///
@@ -129,7 +129,7 @@ where
 ///
 /// impl<T> Invalidate for MyHandler<T> {
 ///     type Target = T;
-///     fn invalidate(_: &mut Self, _: &T) {}
+///     fn invalidate(&mut self, _: &T) {}
 /// }
 ///
 /// impl<T> GeneralHandler for MyHandler<T> {

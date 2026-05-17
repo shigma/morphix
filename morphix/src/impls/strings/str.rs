@@ -8,7 +8,7 @@ use std::slice::SliceIndex;
 use crate::general::{Unsize, UnsizeObserver};
 use crate::helper::macros::delegate_methods;
 use crate::helper::{
-    AsDeref, AsDerefMut, Invalidate, Pointer, QuasiInvalidate, QuasiObserver, ShallowMut, Succ, Unsigned, Zero,
+    AsDeref, AsDerefMut, Invalidate, Pointer, ShallowInvalidate, QuasiObserver, ShallowMut, Succ, Unsigned, Zero,
 };
 use crate::impls::strings::string::StringObserverState;
 use crate::mutation::Mutations;
@@ -100,7 +100,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> StrObserver<'ob, V, S, D>
 where
-    V: QuasiInvalidate + Invalidate<Target = str>,
+    V: ShallowInvalidate + Invalidate<Target = str>,
     D: Unsigned,
     S: AsDerefMut<D, Target = str>,
 {
@@ -159,7 +159,7 @@ where
     }
 }
 
-impl<V: QuasiInvalidate + ?Sized> ShallowMut<'_, str, V> {
+impl<V: ShallowInvalidate + ?Sized> ShallowMut<'_, str, V> {
     fn nonempty_mut(&mut self) -> &mut str {
         if (*self).untracked_ref().is_empty() {
             self.untracked_mut()

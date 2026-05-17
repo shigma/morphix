@@ -37,7 +37,7 @@ pub struct PointerHandler<T: ?Sized> {
 impl<T: ?Sized> Invalidate for PointerHandler<T> {
     type Target = T;
 
-    fn invalidate(_: &mut Self, _: &T) {}
+    fn invalidate(&mut self, _: &T) {}
 }
 
 impl<T: ?Sized> GeneralHandler for PointerHandler<T> {

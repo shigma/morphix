@@ -71,8 +71,8 @@ where
 {
     type Target = [O::Head];
 
-    fn invalidate(this: &mut Self, _: &[O::Head]) {
-        this.mark_replace();
+    fn invalidate(&mut self, _: &[O::Head]) {
+        self.mark_replace();
     }
 }
 

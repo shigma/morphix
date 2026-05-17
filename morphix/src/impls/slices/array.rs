@@ -26,8 +26,8 @@ where
     /// [`SnapshotObserver`](crate::general::SnapshotObserver)).
     ///
     /// [as_deref_mut_coinductive]: crate::helper::AsDerefMutCoinductive::as_deref_mut_coinductive
-    fn invalidate(this: &mut Self, _: &[O::Head; N]) {
-        for ob in this.as_mut_slice() {
+    fn invalidate(&mut self, _: &[O::Head; N]) {
+        for ob in self.as_mut_slice() {
             O::invalidate(ob);
         }
     }

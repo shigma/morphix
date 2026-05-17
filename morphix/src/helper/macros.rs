@@ -190,7 +190,7 @@ macro_rules! shallow_observer {
 
         impl<'ob, S: ?Sized, D> ::std::ops::DerefMut for $ob<'ob, S, D> {
             fn deref_mut(&mut self) -> &mut Self::Target {
-                $crate::helper::QuasiInvalidate::invalidate(&mut self.mutated);
+                $crate::helper::ShallowInvalidate::invalidate(&mut self.mutated);
                 $crate::helper::QuasiObserver::invalidate(&mut self.ptr);
                 &mut self.ptr
             }
@@ -206,7 +206,7 @@ macro_rules! shallow_observer {
             type InnerDepth = D;
 
             fn invalidate(this: &mut Self) {
-                $crate::helper::QuasiInvalidate::invalidate(&mut this.mutated);
+                $crate::helper::ShallowInvalidate::invalidate(&mut this.mutated);
             }
         }
 

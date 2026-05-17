@@ -58,8 +58,8 @@ pub struct PathHandler {
 impl Invalidate for PathHandler {
     type Target = Path;
 
-    fn invalidate(this: &mut Self, value: &Path) {
-        this.raw_parts.get_or_insert_with(|| {
+    fn invalidate(&mut self, value: &Path) {
+        self.raw_parts.get_or_insert_with(|| {
             value
                 .to_str()
                 .map(|str| (NonNull::from(str).cast::<()>(), str.chars().count()))

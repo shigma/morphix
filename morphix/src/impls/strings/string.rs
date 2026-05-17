@@ -7,7 +7,7 @@ use std::ops::{AddAssign, Bound, Deref, DerefMut, Range, RangeBounds};
 use std::string::Drain;
 
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::{AsDeref, AsDerefMut, QuasiInvalidate, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, ShallowInvalidate, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::strings::str::{StrObserver, StrObserverState, StrSerializeObserverState};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe};
@@ -32,21 +32,21 @@ impl StringObserverState {
 impl Invalidate for StringObserverState {
     type Target = str;
 
-    fn invalidate(this: &mut Self, value: &str) {
-        this.mark_replace(value);
+    fn invalidate(&mut self, value: &str) {
+        self.mark_replace(value);
     }
 }
 
-impl QuasiInvalidate for StringObserverState {
-    fn invalidate(this: &mut Self) {
+impl ShallowInvalidate for StringObserverState {
+    fn invalidate(&mut self) {
         // Encode "everything replaced" via the (append_index == 0, truncate_len > 0) pattern
         // that `flush` recognizes as Replace. The exact `truncate_len` value is not read on the
         // Replace branch, so a sentinel of 1 suffices — but it must be > 0, otherwise `flush`
         // would fall through to the Append branch and emit `Append(full_value)` instead of
         // Replace, double-applying content on the receiver. `.max(1)` preserves any larger
         // value left by a prior `mark_truncate`.
-        this.append_index = 0;
-        this.truncate_len = this.truncate_len.max(1);
+        self.append_index = 0;
+        self.truncate_len = self.truncate_len.max(1);
     }
 }
 

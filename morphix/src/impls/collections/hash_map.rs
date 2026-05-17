@@ -54,14 +54,14 @@ where
 {
     type Target = HashMap<K, O::Head>;
 
-    fn invalidate(this: &mut Self, map: &Self::Target) {
-        if !this.mutated {
-            this.mutated = true;
+    fn invalidate(&mut self, map: &Self::Target) {
+        if !self.mutated {
+            self.mutated = true;
             for key in map.keys() {
-                this.mark_deleted(key.clone());
+                self.mark_deleted(key.clone());
             }
         }
-        this.inner.get_mut().clear();
+        self.inner.get_mut().clear();
     }
 }
 

@@ -51,9 +51,9 @@ impl<T: Clone + Ord> BTreeSetObserverState<T> {
 impl<T: Ord> Invalidate for BTreeSetObserverState<T> {
     type Target = BTreeSet<T>;
 
-    fn invalidate(this: &mut Self, set: &BTreeSet<T>) {
-        if let Some(boundary) = this.boundary.take() {
-            this.truncate_len += set.range(..=boundary).count();
+    fn invalidate(&mut self, set: &BTreeSet<T>) {
+        if let Some(boundary) = self.boundary.take() {
+            self.truncate_len += set.range(..=boundary).count();
         }
     }
 }

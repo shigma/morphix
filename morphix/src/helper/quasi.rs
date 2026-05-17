@@ -237,7 +237,7 @@ impl<T: ?Sized> QuasiObserver for Pointer<T> {
 /// `invalidate` rather than `mark_replace` to avoid coupling with
 /// [`MutationKind`](crate::MutationKind).
 ///
-/// See [`QuasiInvalidate`] for the value-less counterpart used by
+/// See [`ShallowInvalidate`] for the value-less counterpart used by
 /// [`ShallowMut`](crate::helper::ShallowMut).
 pub trait Invalidate {
     /// The observed value type that this state tracks.
@@ -248,20 +248,21 @@ pub trait Invalidate {
     ///
     /// The post-invalidation state is **not** the "initial" state (which would be the clean state
     /// right after `observe`), but rather a state that signals "all granular tracking is lost."
-    fn invalidate(this: &mut Self, value: &Self::Target);
+    fn invalidate(&mut self, value: &Self::Target);
 }
 
 /// Value-less counterpart to [`Invalidate`], used by [`ShallowMut`](crate::helper::ShallowMut).
 ///
-/// The "quasi" prefix mirrors [`QuasiObserver`]: in both cases, `Quasi*` denotes a weaker,
-/// approximate sibling of the primary trait. Here, `QuasiInvalidate` provides the same goal as
-/// [`Invalidate`] (mark tracking state so the next flush emits Replace) but without access to the
-/// observed value — each implementor falls back to whatever value-free encoding it can manage
-/// (e.g. flipping a `bool`, setting a sentinel).
+/// Joins the [`ShallowObserver`](crate::general::ShallowObserver) /
+/// [`ShallowMut`](crate::helper::ShallowMut) / `shallow_observer!` family — the `Shallow*` prefix
+/// marks lightweight tracking variants that operate on coarser information than their full-fledged
+/// counterparts. Here, [`ShallowInvalidate`] shares [`Invalidate`]'s goal (mark tracking state so
+/// the next flush emits Replace) but operates without access to the observed value — each
+/// implementor falls back to a value-free encoding (e.g. flipping a `bool`, setting a sentinel).
 ///
 /// [`ShallowMut`](crate::helper::ShallowMut) only sees a raw pointer to its parent observer's
-/// state, not the observed value, so it can only invoke this weaker hook.
-pub trait QuasiInvalidate {
+/// state, not the observed value, so it can only invoke this hook.
+pub trait ShallowInvalidate {
     /// Invalidates granular tracking state without access to the current value.
-    fn invalidate(this: &mut Self);
+    fn invalidate(&mut self);
 }

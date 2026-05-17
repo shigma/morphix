@@ -22,9 +22,9 @@ where
 {
     type Target = Option<O::Head>;
 
-    fn invalidate(this: &mut Self, _value: &Self::Target) {
-        this.mutated = true;
-        this.inner = None;
+    fn invalidate(&mut self, _value: &Self::Target) {
+        self.mutated = true;
+        self.inner = None;
     }
 }
 

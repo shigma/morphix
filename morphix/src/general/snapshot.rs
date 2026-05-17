@@ -95,7 +95,7 @@ pub struct SnapshotHandler<T: Snapshot + ?Sized> {
 impl<T: Snapshot + ?Sized> Invalidate for SnapshotHandler<T> {
     type Target = T;
 
-    fn invalidate(_: &mut Self, _: &T) {}
+    fn invalidate(&mut self, _: &T) {}
 }
 
 impl<T: Snapshot + ?Sized> GeneralHandler for SnapshotHandler<T> {

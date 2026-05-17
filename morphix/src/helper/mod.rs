@@ -20,7 +20,7 @@ pub mod unsigned;
 
 pub use deref::{AsDeref, AsDerefCoinductive, AsDerefMut, AsDerefMutCoinductive};
 pub use pointer::Pointer;
-pub use quasi::{QuasiInvalidate, Invalidate, QuasiObserver};
+pub use quasi::{ShallowInvalidate, Invalidate, QuasiObserver};
 pub use shallow::ShallowMut;
 pub use unsigned::{Succ, Unsigned, Zero};
 #[doc(hidden)]

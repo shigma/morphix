@@ -4,11 +4,11 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut, Index, IndexMut};
 
 use crate::helper::quasi::DerefMutUntracked;
-use crate::helper::{QuasiInvalidate, QuasiObserver, Zero};
+use crate::helper::{ShallowInvalidate, QuasiObserver, Zero};
 
-impl QuasiInvalidate for bool {
-    fn invalidate(this: &mut Self) {
-        *this = true;
+impl ShallowInvalidate for bool {
+    fn invalidate(&mut self) {
+        *self = true;
     }
 }
 
@@ -16,7 +16,7 @@ impl QuasiInvalidate for bool {
 ///
 /// [`ShallowMut`] decouples the borrowed value from its invalidation target: [`Self::inner`] is the
 /// value the caller mutates, while [`Self::state`] is a raw pointer to a separate piece of state
-/// (often living on a parent observer) that gets invalidated through the [`QuasiInvalidate`] trait
+/// (often living on a parent observer) that gets invalidated through the [`ShallowInvalidate`] trait
 /// on each [`DerefMut`].
 pub struct ShallowMut<'ob, T: ?Sized, V: ?Sized> {
     pub(crate) inner: &'ob mut T,
@@ -41,14 +41,14 @@ impl<'ob, T: ?Sized, V: ?Sized> Deref for ShallowMut<'ob, T, V> {
     }
 }
 
-impl<'ob, T: ?Sized, V: QuasiInvalidate + ?Sized> DerefMut for ShallowMut<'ob, T, V> {
+impl<'ob, T: ?Sized, V: ShallowInvalidate + ?Sized> DerefMut for ShallowMut<'ob, T, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { QuasiInvalidate::invalidate(&mut *self.state) }
+        unsafe { ShallowInvalidate::invalidate(&mut *self.state) }
         self.inner
     }
 }
 
-impl<'ob, T: ?Sized, V: QuasiInvalidate + ?Sized> DerefMutUntracked for ShallowMut<'ob, T, V> {}
+impl<'ob, T: ?Sized, V: ShallowInvalidate + ?Sized> DerefMutUntracked for ShallowMut<'ob, T, V> {}
 
 impl<'ob, T: ?Sized, V: ?Sized> QuasiObserver for ShallowMut<'ob, T, V> {
     type Head = T;
@@ -58,7 +58,7 @@ impl<'ob, T: ?Sized, V: ?Sized> QuasiObserver for ShallowMut<'ob, T, V> {
     fn invalidate(_: &mut Self) {}
 }
 
-impl<'ob, T: ?Sized, V: QuasiInvalidate + ?Sized> AsMut<T> for ShallowMut<'ob, T, V> {
+impl<'ob, T: ?Sized, V: ShallowInvalidate + ?Sized> AsMut<T> for ShallowMut<'ob, T, V> {
     fn as_mut(&mut self) -> &mut T {
         self.tracked_mut()
     }
@@ -105,7 +105,7 @@ impl<'ob, T: Index<I> + ?Sized, I, V: ?Sized> Index<I> for ShallowMut<'ob, T, V>
     }
 }
 
-impl<'ob, T: IndexMut<I> + ?Sized, I, V: QuasiInvalidate + ?Sized> IndexMut<I> for ShallowMut<'ob, T, V> {
+impl<'ob, T: IndexMut<I> + ?Sized, I, V: ShallowInvalidate + ?Sized> IndexMut<I> for ShallowMut<'ob, T, V> {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         self.tracked_mut().index_mut(index)
     }

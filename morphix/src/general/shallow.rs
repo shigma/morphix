@@ -47,8 +47,8 @@ pub struct ShallowHandler<T: ?Sized> {
 impl<T: ?Sized> Invalidate for ShallowHandler<T> {
     type Target = T;
 
-    fn invalidate(this: &mut Self, _: &T) {
-        this.mutated = true;
+    fn invalidate(&mut self, _: &T) {
+        self.mutated = true;
     }
 }
 

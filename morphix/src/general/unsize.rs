@@ -28,8 +28,8 @@ where
 {
     type Target = T;
 
-    fn invalidate(this: &mut Self, value: &T) {
-        this.raw_parts
+    fn invalidate(&mut self, value: &T) {
+        self.raw_parts
             .get_or_insert_with(|| (NonNull::from(value).cast::<()>(), value.len()));
     }
 }

@@ -35,7 +35,7 @@ pub struct NoopHandler<T: ?Sized>(PhantomData<T>);
 impl<T: ?Sized> Invalidate for NoopHandler<T> {
     type Target = T;
 
-    fn invalidate(_: &mut Self, _: &T) {}
+    fn invalidate(&mut self, _: &T) {}
 }
 
 impl<T: ?Sized> GeneralHandler for NoopHandler<T> {
