@@ -4,7 +4,7 @@ use std::num::NonZero;
 
 use crate::Observe;
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Unsigned, Zero};
 use crate::observe::RefObserve;
 
 /// A general observer that uses snapshot comparison to detect actual value changes.
@@ -92,7 +92,7 @@ pub struct SnapshotHandler<T: Snapshot + ?Sized> {
     phantom: PhantomData<T>,
 }
 
-impl<T: Snapshot + ?Sized> ObserverState for SnapshotHandler<T> {
+impl<T: Snapshot + ?Sized> Invalidate for SnapshotHandler<T> {
     type Target = T;
 
     fn invalidate(_: &mut Self, _: &T) {}

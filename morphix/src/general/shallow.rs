@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, ObserverState, Zero};
+use crate::helper::{AsDeref, Invalidate, Zero};
 
 /// A general observer that tracks any mutation access as a change.
 ///
@@ -44,7 +44,7 @@ pub struct ShallowHandler<T: ?Sized> {
     phantom: PhantomData<T>,
 }
 
-impl<T: ?Sized> ObserverState for ShallowHandler<T> {
+impl<T: ?Sized> Invalidate for ShallowHandler<T> {
     type Target = T;
 
     fn invalidate(this: &mut Self, _: &T) {

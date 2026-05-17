@@ -11,7 +11,7 @@ use std::slice::{
 
 use crate::general::{Unsize, UnsizeObserver};
 use crate::helper::macros::delegate_methods;
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slices::helper::GetDisjointMutIndexImpl;
 use crate::impls::vec::VecObserverState;
 use crate::observe::{DefaultSpec, Observer, RefObserve, RefObserver, SerializeObserver};
@@ -21,7 +21,7 @@ use crate::{Mutations, Observe};
 ///
 /// This trait abstracts over the storage and initialization of element observers, allowing
 /// [`SliceObserver`] to lazily create observers for individual elements as they are accessed.
-pub trait SliceObserverState: ObserverState<Target: AsRef<[<Self::Item as QuasiObserver>::Head]>> + Sized {
+pub trait SliceObserverState: Invalidate<Target: AsRef<[<Self::Item as QuasiObserver>::Head]>> + Sized {
     /// The element [`Observer`] type.
     type Item: Observer<InnerDepth = Zero, Head: Sized>;
 
@@ -48,7 +48,7 @@ pub trait SliceObserverState: ObserverState<Target: AsRef<[<Self::Item as QuasiO
 }
 
 /// Shared-reference counterpart to [`SliceObserverState`] for element [`RefObserver`] management.
-pub trait SliceRefObserverState: ObserverState<Target: AsRef<[<Self::Item as QuasiObserver>::Head]>> + Sized {
+pub trait SliceRefObserverState: Invalidate<Target: AsRef<[<Self::Item as QuasiObserver>::Head]>> + Sized {
     /// The element [`RefObserver`] type.
     type Item: RefObserver<InnerDepth = Zero, Head: Sized>;
 
@@ -62,7 +62,7 @@ pub trait SliceRefObserverState: ObserverState<Target: AsRef<[<Self::Item as Qua
 /// choose its own mutability requirement: [`[O; N]`](prim@array) bounds `S: AsDeref<D>` (shared
 /// access), while [`VecObserverState`] bounds `S: AsDerefMut<D>` (mutable access for element
 /// relocation).
-pub trait SliceSerializeObserverState<S: ?Sized, D>: ObserverState {
+pub trait SliceSerializeObserverState<S: ?Sized, D>: Invalidate {
     /// Consumes the accumulated mutation state, flushes inner element observers, and returns the
     /// collected [`Mutations`].
     ///
@@ -96,7 +96,7 @@ impl<V, S: ?Sized, D> DerefMut for SliceObserver<V, S, D> {
 
 impl<V, S: ?Sized, D> QuasiObserver for SliceObserver<V, S, D>
 where
-    V: ObserverState,
+    V: Invalidate,
     D: Unsigned,
     S: AsDeref<D, Target = V::Target>,
 {
@@ -105,7 +105,7 @@ where
     type InnerDepth = D;
 
     fn invalidate(this: &mut Self) {
-        ObserverState::invalidate(&mut this.state, (*this.ptr).as_deref());
+        Invalidate::invalidate(&mut this.state, (*this.ptr).as_deref());
     }
 }
 

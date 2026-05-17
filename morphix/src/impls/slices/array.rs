@@ -5,12 +5,12 @@ use std::slice::SliceIndex;
 use serde::Serialize;
 
 use crate::general::Snapshot;
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceObserver, SliceObserverState, SliceRefObserverState, SliceSerializeObserverState};
 use crate::observe::{DefaultSpec, Observer, RefObserve, RefObserver, SerializeObserver};
 use crate::{Mutations, Observe};
 
-impl<O, const N: usize> ObserverState for [O; N]
+impl<O, const N: usize> Invalidate for [O; N]
 where
     O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
 {

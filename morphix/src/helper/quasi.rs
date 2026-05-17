@@ -1,4 +1,4 @@
-//! [`QuasiObserver`] trait, [`ObserverState`] trait, and autoref-based specialization for the
+//! [`QuasiObserver`] trait, [`Invalidate`] trait, and autoref-based specialization for the
 //! [`observe!`](crate::observe!) macro.
 //!
 //! The [`observe!`](crate::observe!) macro transforms assignments (`lhs = rhs`) and comparisons
@@ -8,9 +8,9 @@
 //! selects the correct implementation depending on whether the operand is an observer or a plain
 //! value.
 //!
-//! [`ObserverState`] is the companion trait for types that carry internal tracking state (diff
+//! [`Invalidate`] is the companion trait for types that carry internal tracking state (diff
 //! trackers, inner observer containers). It provides a single
-//! [`invalidate`](ObserverState::invalidate) entry point used by the fallback invalidation
+//! [`invalidate`](Invalidate::invalidate) entry point used by the fallback invalidation
 //! mechanism in [`Pointer`].
 //!
 //! See the [Observer Mechanism](https://github.com/shigma/morphix#observer-mechanism) section in
@@ -121,7 +121,7 @@ pub trait QuasiObserver: AsDerefMutCoinductive<Self::OuterDepth, Target: Deref<T
     /// flush should produce a [`Replace`](crate::MutationKind::Replace) mutation.
     ///
     /// For plain references (`&T`, `&mut T`) and [`Pointer<T>`], this is a no-op. For observers,
-    /// it delegates to [`ObserverState::invalidate`] on the internal tracking state and recursively
+    /// it delegates to [`Invalidate::invalidate`] on the internal tracking state and recursively
     /// invalidates child observers.
     fn invalidate(this: &mut Self);
 
@@ -231,12 +231,15 @@ impl<T: ?Sized> QuasiObserver for Pointer<T> {
     }
 }
 
-/// A trait for types that carry observer-internal state requiring invalidation.
+/// Invalidation hook for state types that track an observed value of type [`Target`](Self::Target).
 ///
 /// Registered with [`Pointer::register_state`] for fallback invalidation. The method is named
 /// `invalidate` rather than `mark_replace` to avoid coupling with
 /// [`MutationKind`](crate::MutationKind).
-pub trait ObserverState {
+///
+/// See [`QuasiInvalidate`] for the value-less counterpart used by
+/// [`ShallowMut`](crate::helper::ShallowMut).
+pub trait Invalidate {
     /// The observed value type that this state tracks.
     type Target: ?Sized;
 
@@ -246,4 +249,19 @@ pub trait ObserverState {
     /// The post-invalidation state is **not** the "initial" state (which would be the clean state
     /// right after `observe`), but rather a state that signals "all granular tracking is lost."
     fn invalidate(this: &mut Self, value: &Self::Target);
+}
+
+/// Value-less counterpart to [`Invalidate`], used by [`ShallowMut`](crate::helper::ShallowMut).
+///
+/// The "quasi" prefix mirrors [`QuasiObserver`]: in both cases, `Quasi*` denotes a weaker,
+/// approximate sibling of the primary trait. Here, `QuasiInvalidate` provides the same goal as
+/// [`Invalidate`] (mark tracking state so the next flush emits Replace) but without access to the
+/// observed value — each implementor falls back to whatever value-free encoding it can manage
+/// (e.g. flipping a `bool`, setting a sentinel).
+///
+/// [`ShallowMut`](crate::helper::ShallowMut) only sees a raw pointer to its parent observer's
+/// state, not the observed value, so it can only invoke this weaker hook.
+pub trait QuasiInvalidate {
+    /// Invalidates granular tracking state without access to the current value.
+    fn invalidate(this: &mut Self);
 }

@@ -436,7 +436,7 @@ mod test {
         let mut ob = value.__observe();
         assert_eq!(*ob, "Hello, World!");
 
-        ****ob = String::from("42");
+        *****ob = String::from("42");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("42"))));
     }
@@ -447,7 +447,7 @@ mod test {
         let mut ob = value.__observe();
         assert_eq!(*ob, "Hello, World!");
 
-        ****ob = String::from("42");
+        *****ob = String::from("42");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("42"))));
     }

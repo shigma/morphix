@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 use serde::Serialize;
 
 use crate::Mutations;
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, RefObserver, SerializeObserver};
 
 /// A handler trait for implementing change detection strategies in [`GeneralObserver`].
@@ -23,14 +23,14 @@ use crate::observe::{Observer, RefObserver, SerializeObserver};
 /// ```
 /// # use std::marker::PhantomData;
 /// # use morphix::general::{GeneralHandler, GeneralObserver};
-/// # use morphix::helper::ObserverState;
+/// # use morphix::helper::Invalidate;
 /// # use morphix::observe::DefaultSpec;
 /// struct ShallowHandler<T> {
 ///     mutated: bool,
 ///     phantom: PhantomData<T>,
 /// }
 ///
-/// impl<T> ObserverState for ShallowHandler<T> {
+/// impl<T> Invalidate for ShallowHandler<T> {
 ///     type Target = T;
 ///     fn invalidate(this: &mut Self, _value: &T) {
 ///         this.mutated = true;
@@ -45,7 +45,7 @@ use crate::observe::{Observer, RefObserver, SerializeObserver};
 ///
 /// type ShallowObserver<'ob, T> = GeneralObserver<'ob, T, ShallowHandler<T>>;
 /// ```
-pub trait GeneralHandler: ObserverState {
+pub trait GeneralHandler: Invalidate {
     /// Implementation for [`Observer::observe`].
     fn observe(value: &Self::Target) -> Self;
 }
@@ -122,12 +122,12 @@ where
 /// ```
 /// # use std::marker::PhantomData;
 /// use morphix::general::{DebugHandler, GeneralHandler, GeneralObserver};
-/// use morphix::helper::ObserverState;
+/// use morphix::helper::Invalidate;
 /// use morphix::observe::Observer;
 ///
 /// pub struct MyHandler<T>(PhantomData<T>);
 ///
-/// impl<T> ObserverState for MyHandler<T> {
+/// impl<T> Invalidate for MyHandler<T> {
 ///     type Target = T;
 ///     fn invalidate(_: &mut Self, _: &T) {}
 /// }

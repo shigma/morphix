@@ -7,7 +7,7 @@ use serde::Serialize;
 use crate::Mutations;
 use crate::general::Snapshot;
 use crate::helper::macros::{spec_impl_observe, spec_impl_ref_observe};
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{Observer, RefObserver, SerializeObserver};
 
 struct OptionObserverState<O> {
@@ -16,7 +16,7 @@ struct OptionObserverState<O> {
     inner: Option<O>,
 }
 
-impl<O> ObserverState for OptionObserverState<O>
+impl<O> Invalidate for OptionObserverState<O>
 where
     O: QuasiObserver<Head: Sized>,
 {
@@ -62,7 +62,7 @@ where
     type InnerDepth = D;
 
     fn invalidate(this: &mut Self) {
-        ObserverState::invalidate(&mut this.state, (*this.ptr).as_deref());
+        Invalidate::invalidate(&mut this.state, (*this.ptr).as_deref());
     }
 }
 

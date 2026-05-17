@@ -10,7 +10,7 @@ use std::ops::{Bound, Deref, DerefMut, Index, IndexMut, RangeBounds};
 use serde::Serialize;
 
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe, PathSegment};
 
@@ -51,7 +51,7 @@ impl<O> VecDequeObserverState<O> {
     }
 }
 
-impl<O> ObserverState for VecDequeObserverState<O>
+impl<O> Invalidate for VecDequeObserverState<O>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
@@ -332,7 +332,7 @@ where
     /// See [`VecDeque::swap`].
     pub fn swap(&mut self, i: usize, j: usize) {
         if i != j {
-            // Invalidate observers for swapped elements.
+            // QuasiInvalidate observers for swapped elements.
             let observers = self.state.inner.get_mut();
             if let Some(ob) = observers.get_mut(i) {
                 QuasiObserver::invalidate(ob);

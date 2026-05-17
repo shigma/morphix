@@ -8,7 +8,6 @@ mod os_str;
 mod os_string;
 mod path;
 mod path_buf;
-pub(crate) mod shallow;
 mod str;
 mod string;
 

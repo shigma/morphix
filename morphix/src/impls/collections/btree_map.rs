@@ -13,7 +13,7 @@ use serde::Serialize;
 
 use crate::general::Snapshot;
 use crate::helper::macros::default_impl_ref_observe;
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe, PathSegment};
 
@@ -68,7 +68,7 @@ where
     }
 }
 
-impl<K, O> ObserverState for BTreeMapObserverState<K, O>
+impl<K, O> Invalidate for BTreeMapObserverState<K, O>
 where
     K: Clone + Ord,
     O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
@@ -183,7 +183,7 @@ where
     type InnerDepth = D;
 
     fn invalidate(this: &mut Self) {
-        ObserverState::invalidate(&mut this.state, (*this.ptr).as_deref());
+        Invalidate::invalidate(&mut this.state, (*this.ptr).as_deref());
     }
 }
 

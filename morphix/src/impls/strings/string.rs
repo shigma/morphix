@@ -1,16 +1,18 @@
+//! Observer implementation for [`String`].
+
 use std::borrow::Cow;
 use std::collections::TryReserveError;
 use std::fmt::{Debug, Display};
-use std::marker::PhantomData;
 use std::ops::{AddAssign, Bound, Deref, DerefMut, Range, RangeBounds};
 use std::string::Drain;
 
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, QuasiInvalidate, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::impls::strings::str::{StrObserver, StrObserverState, StrSerializeObserverState};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe};
 
-struct StringObserverState {
+pub struct StringObserverState {
     pub append_index: usize, // byte index
     pub truncate_len: usize, // char count
 }
@@ -27,86 +29,48 @@ impl StringObserverState {
     }
 }
 
-impl ObserverState for StringObserverState {
-    type Target = String;
+impl Invalidate for StringObserverState {
+    type Target = str;
 
-    fn invalidate(this: &mut Self, value: &String) {
-        this.mark_replace(value.as_str());
+    fn invalidate(this: &mut Self, value: &str) {
+        this.mark_replace(value);
     }
 }
 
-/// Observer implementation for [`String`].
-pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
-    ptr: Pointer<S>,
-    mutation: StringObserverState,
-    phantom: PhantomData<&'ob mut D>,
-}
-
-impl<'ob, S: ?Sized, D> Deref for StringObserver<'ob, S, D> {
-    type Target = Pointer<S>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.ptr
-    }
-}
-
-impl<'ob, S: ?Sized, D> DerefMut for StringObserver<'ob, S, D> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        std::ptr::from_mut(self).expose_provenance();
-        Pointer::invalidate(&mut self.ptr);
-        &mut self.ptr
-    }
-}
-
-impl<'ob, S: ?Sized, D> QuasiObserver for StringObserver<'ob, S, D>
-where
-    D: Unsigned,
-    S: AsDeref<D, Target = String>,
-{
-    type Head = S;
-    type OuterDepth = Succ<Zero>;
-    type InnerDepth = D;
-
+impl QuasiInvalidate for StringObserverState {
     fn invalidate(this: &mut Self) {
-        ObserverState::invalidate(&mut this.mutation, (*this.ptr).as_deref());
+        // Encode "everything replaced" via the (append_index == 0, truncate_len > 0) pattern
+        // that `flush` recognizes as Replace. The exact `truncate_len` value is not read on the
+        // Replace branch, so a sentinel of 1 suffices — but it must be > 0, otherwise `flush`
+        // would fall through to the Append branch and emit `Append(full_value)` instead of
+        // Replace, double-applying content on the receiver. `.max(1)` preserves any larger
+        // value left by a prior `mark_truncate`.
+        this.append_index = 0;
+        this.truncate_len = this.truncate_len.max(1);
     }
 }
 
-impl<'ob, S: ?Sized, D> Observer for StringObserver<'ob, S, D>
-where
-    D: Unsigned,
-    S: AsDerefMut<D, Target = String>,
-{
-    fn observe(head: &mut Self::Head) -> Self {
-        let this = Self {
-            mutation: StringObserverState {
-                append_index: head.as_deref_mut().len(),
-                truncate_len: 0,
-            },
-            ptr: Pointer::new(head),
-            phantom: PhantomData,
-        };
-        Pointer::register_state::<_, D>(&this.ptr, &this.mutation);
-        this
-    }
-
-    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
-        Pointer::set(this, head);
+impl StrObserverState for StringObserverState {
+    fn observe(value: &str) -> Self {
+        Self {
+            append_index: value.len(),
+            truncate_len: 0,
+        }
     }
 }
 
-impl<'ob, S: ?Sized, D> SerializeObserver for StringObserver<'ob, S, D>
+impl<S: ?Sized, D> StrSerializeObserverState<S, D> for StringObserverState
 where
     D: Unsigned,
-    S: AsDeref<D, Target = String>,
+    S: AsDeref<D, Target = str>,
 {
-    unsafe fn flush(this: &mut Self) -> Mutations {
-        let value = (*this.ptr).as_deref();
+    fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations {
+        let value = (**ptr).as_deref();
         let len = value.len();
-        let append_index = std::mem::replace(&mut this.mutation.append_index, len);
-        let truncate_len = std::mem::replace(&mut this.mutation.truncate_len, 0);
-        // After invalidate (mark_replace), append_index = 0 and truncate_len > 0,
-        // meaning all tracked content was replaced.
+        let append_index = std::mem::replace(&mut self.append_index, len);
+        let truncate_len = std::mem::replace(&mut self.truncate_len, 0);
+        // After invalidate, append_index = 0 and truncate_len > 0, meaning all
+        // tracked content was replaced.
         if append_index == 0 && truncate_len > 0 {
             return Mutations::replace(value);
         }
@@ -120,6 +84,65 @@ where
             mutations.extend(Mutations::append(&value[append_index..]));
         }
         mutations
+    }
+}
+
+/// Observer implementation for [`String`].
+pub struct StringObserver<'ob, S: ?Sized, D = Zero> {
+    inner: StrObserver<'ob, StringObserverState, S, Succ<D>>,
+}
+
+impl<'ob, S: ?Sized, D> Deref for StringObserver<'ob, S, D> {
+    type Target = StrObserver<'ob, StringObserverState, S, Succ<D>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<'ob, S: ?Sized, D> DerefMut for StringObserver<'ob, S, D> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
+
+impl<'ob, S: ?Sized, D> QuasiObserver for StringObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDeref<D, Target = String>,
+{
+    type Head = S;
+    type OuterDepth = Succ<Succ<Zero>>;
+    type InnerDepth = D;
+
+    fn invalidate(this: &mut Self) {
+        Invalidate::invalidate(&mut this.inner.state, (*this.inner.ptr).as_deref().as_str());
+    }
+}
+
+impl<'ob, S: ?Sized, D> Observer for StringObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDerefMut<D, Target = String>,
+{
+    fn observe(head: &mut Self::Head) -> Self {
+        Self {
+            inner: Observer::observe(head),
+        }
+    }
+
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
+        unsafe { Observer::relocate(&mut this.inner, head) }
+    }
+}
+
+impl<'ob, S: ?Sized, D> SerializeObserver for StringObserver<'ob, S, D>
+where
+    D: Unsigned,
+    S: AsDeref<D, Target = String>,
+{
+    unsafe fn flush(this: &mut Self) -> Mutations {
+        unsafe { SerializeObserver::flush(&mut this.inner) }
     }
 }
 
@@ -145,7 +168,7 @@ where
     S: AsDerefMut<D, Target = String>,
 {
     fn __append_index(&mut self) -> usize {
-        self.mutation.append_index
+        self.inner.state.append_index
     }
 
     delegate_methods! { untracked_mut() as String =>
@@ -182,8 +205,8 @@ where
 {
     fn __mark_truncate(&mut self, range: Range<usize>) {
         let count = (*self).untracked_ref()[range.clone()].chars().count();
-        self.mutation.truncate_len += count;
-        self.mutation.append_index = range.start;
+        self.inner.state.truncate_len += count;
+        self.inner.state.append_index = range.start;
     }
 
     /// See [`String::clear`].
@@ -202,11 +225,11 @@ where
         if idx >= append_index {
             // no-op
         } else if cfg!(feature = "truncate") && idx + char.len_utf8() == append_index {
-            self.mutation.truncate_len += 1;
-            self.mutation.append_index = idx;
+            self.inner.state.truncate_len += 1;
+            self.inner.state.append_index = idx;
         } else {
-            let value = (*self.ptr).as_deref();
-            self.mutation.mark_replace(value);
+            let value = (*self.inner.ptr).as_deref().as_str();
+            self.inner.state.mark_replace(value);
         }
         char
     }
@@ -219,11 +242,11 @@ where
         if len >= append_index {
             // no-op
         } else if cfg!(feature = "truncate") && len + char.len_utf8() == append_index {
-            self.mutation.truncate_len += 1;
-            self.mutation.append_index = len;
+            self.inner.state.truncate_len += 1;
+            self.inner.state.append_index = len;
         } else {
-            let value = (*self.ptr).as_deref();
-            self.mutation.mark_replace(value);
+            let value = (*self.inner.ptr).as_deref().as_str();
+            self.inner.state.mark_replace(value);
         }
         Some(char)
     }
@@ -521,7 +544,7 @@ mod tests {
         let mut s = String::from("abc");
         let mut ob = s.__observe();
         ob.push_str("def");
-        **ob = String::from("xyz");
+        ***ob = String::from("xyz");
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("xyz"))));
     }

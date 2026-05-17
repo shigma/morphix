@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::general::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::slice::{SliceObserver, SliceObserverState, SliceSerializeObserverState};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe, PathSegment};
@@ -65,7 +65,7 @@ impl<O> VecObserverState<O> {
     }
 }
 
-impl<O> ObserverState for VecObserverState<O>
+impl<O> Invalidate for VecObserverState<O>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
@@ -192,7 +192,7 @@ where
 
     fn invalidate(this: &mut Self) {
         // SliceObserver::invalidate(&mut this.inner);
-        ObserverState::invalidate(&mut this.inner.state, (*this.inner.ptr).as_deref());
+        Invalidate::invalidate(&mut this.inner.state, (*this.inner.ptr).as_deref());
     }
 }
 

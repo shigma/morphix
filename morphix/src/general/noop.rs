@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
-use crate::helper::{AsDeref, ObserverState, Zero};
+use crate::helper::{AsDeref, Invalidate, Zero};
 
 /// A general observer that never reports changes.
 ///
@@ -32,7 +32,7 @@ pub type NoopObserver<'ob, S, D = Zero> = GeneralObserver<'ob, NoopHandler<<S as
 
 pub struct NoopHandler<T: ?Sized>(PhantomData<T>);
 
-impl<T: ?Sized> ObserverState for NoopHandler<T> {
+impl<T: ?Sized> Invalidate for NoopHandler<T> {
     type Target = T;
 
     fn invalidate(_: &mut Self, _: &T) {}

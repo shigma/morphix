@@ -9,8 +9,7 @@ use std::ptr::NonNull;
 use crate::Mutations;
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 use crate::helper::macros::{delegate_methods, shallow_observer};
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, QuasiObserver, Unsigned};
-use crate::impls::shallow::ShallowMut;
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, QuasiInvalidate, QuasiObserver, ShallowMut, Unsigned};
 use crate::observe::{DefaultSpec, RefObserve};
 
 shallow_observer! {
@@ -36,7 +35,7 @@ where
     }
 }
 
-impl ShallowMut<'_, OsStr> {
+impl<V: QuasiInvalidate + ?Sized> ShallowMut<'_, OsStr, V> {
     fn nonempty_mut(&mut self) -> &mut OsStr {
         if (*self).untracked_ref().is_empty() {
             self.untracked_mut()
@@ -93,7 +92,7 @@ pub struct OsStrHandler {
     raw_parts: Option<(NonNull<()>, usize)>,
 }
 
-impl ObserverState for OsStrHandler {
+impl Invalidate for OsStrHandler {
     type Target = OsStr;
 
     fn invalidate(this: &mut Self, value: &OsStr) {

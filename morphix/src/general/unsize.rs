@@ -4,7 +4,7 @@ use std::ptr::NonNull;
 use serde::Serialize;
 
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
-use crate::helper::{AsDeref, ObserverState, Zero};
+use crate::helper::{AsDeref, Invalidate, Zero};
 use crate::{MutationKind, Mutations};
 
 pub type UnsizeObserver<'ob, S, D = Zero> = GeneralObserver<'ob, UnsizeHandler<<S as AsDeref<D>>::Target>, S, D>;
@@ -22,7 +22,7 @@ pub struct UnsizeHandler<T: ?Sized> {
     phantom: PhantomData<*const T>,
 }
 
-impl<T: ?Sized> ObserverState for UnsizeHandler<T>
+impl<T: ?Sized> Invalidate for UnsizeHandler<T>
 where
     T: Unsize,
 {

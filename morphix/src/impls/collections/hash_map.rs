@@ -14,7 +14,7 @@ use serde::Serialize;
 
 use crate::general::Snapshot;
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe, PathSegment};
 
@@ -47,7 +47,7 @@ impl<K, O> Default for HashMapObserverState<K, O> {
     }
 }
 
-impl<K, O> ObserverState for HashMapObserverState<K, O>
+impl<K, O> Invalidate for HashMapObserverState<K, O>
 where
     K: Clone + Eq + Hash,
     O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
@@ -175,7 +175,7 @@ where
     type InnerDepth = D;
 
     fn invalidate(this: &mut Self) {
-        ObserverState::invalidate(&mut this.state, (*this.ptr).as_deref());
+        Invalidate::invalidate(&mut this.state, (*this.ptr).as_deref());
     }
 }
 

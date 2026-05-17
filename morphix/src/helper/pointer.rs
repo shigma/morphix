@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
-use crate::helper::quasi::ObserverState;
+use crate::helper::quasi::Invalidate;
 use crate::helper::{AsDeref, QuasiObserver, Unsigned};
 
 /// Recovers a `*const S` with [exposed provenance](std::ptr#exposed-provenance) from a raw pointer
@@ -83,7 +83,7 @@ fn recover_provenance_mut<S: ?Sized>(raw: *mut S) -> *mut S {
 /// mechanism. When [`DerefMut`] is triggered on a tail observer, it iterates all registered
 /// entries and calls their invalidation functions. Each entry records the byte offset from this
 /// [`Pointer`] to a sibling observer or state, plus a type-erased function that calls
-/// [`ObserverState::invalidate`] or [`QuasiObserver::invalidate`] on it.
+/// [`Invalidate::invalidate`] or [`QuasiObserver::invalidate`] on it.
 ///
 /// See the [Inline-Field Invariant](crate::observe::Observer#inline-field-invariant) section on
 /// [`Observer`](crate::observe::Observer) for the provenance requirements and registration rules
@@ -174,12 +174,12 @@ impl<S: ?Sized> Pointer<S> {
         unsafe { &mut *recover_provenance_mut(this.inner.get().as_ptr()) }
     }
 
-    /// Registers an [`ObserverState`] implementor for fallback invalidation.
+    /// Registers an [`Invalidate`] implementor for fallback invalidation.
     ///
     /// When [`DerefMut`] is triggered on a tail observer, it calls the invalidation function on the
     /// [`Pointer`], which iterates all registered entries and calls their invalidation functions.
     /// For states registered via this method, the erased function calls
-    /// [`ObserverState::invalidate`] with a reference to the observed value.
+    /// [`Invalidate::invalidate`] with a reference to the observed value.
     ///
     /// The `state` must be an inline field relative to this [`Pointer`] (fixed byte offset,
     /// invariant under moves). This is guaranteed by the inline-field invariant.
@@ -187,13 +187,13 @@ impl<S: ?Sized> Pointer<S> {
     where
         D: Unsigned,
         S: AsDeref<D>,
-        O: ObserverState<Target = S::Target>,
+        O: Invalidate<Target = S::Target>,
     {
         unsafe fn invalidate<O, D, S>(ptr: *mut u8, value: &S)
         where
             D: Unsigned,
             S: AsDeref<D> + ?Sized,
-            O: ObserverState<Target = S::Target>,
+            O: Invalidate<Target = S::Target>,
         {
             let state = unsafe { &mut *(ptr as *mut O) };
             O::invalidate(state, value.as_deref());

@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 use crate::Observe;
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, ReplaceHandler};
 use crate::helper::macros::default_impl_ref_observe;
-use crate::helper::{AsDeref, AsDerefMut, ObserverState, Unsigned};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Unsigned};
 use crate::observe::DefaultSpec;
 
 /// A general observer implementation for reference types.
@@ -34,7 +34,7 @@ pub struct PointerHandler<T: ?Sized> {
     ptr: Option<NonNull<T>>,
 }
 
-impl<T: ?Sized> ObserverState for PointerHandler<T> {
+impl<T: ?Sized> Invalidate for PointerHandler<T> {
     type Target = T;
 
     fn invalidate(_: &mut Self, _: &T) {}

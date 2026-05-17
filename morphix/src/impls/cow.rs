@@ -175,7 +175,7 @@ where
     }
 }
 
-impl<'ob, 'a, B, D, R> AddAssign<R> for CowObserver<B, StringObserver<'ob, String, Zero>>
+impl<'a, 'ob, B, D, R> AddAssign<R> for CowObserver<B, StringObserver<'ob, String, Zero>>
 where
     D: Unsigned,
     B: Observer<InnerDepth = Succ<D>>,
