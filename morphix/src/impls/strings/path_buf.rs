@@ -7,15 +7,14 @@ use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 
+use super::os_str::OsStrObserver;
+use super::os_string::OsStringObserver;
+use super::path::{PathObserver, PathObserverState, PathSerializeObserverState};
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::shallow::ShallowDelegate;
 use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe};
-
-use super::os_str::OsStrObserver;
-use super::os_string::OsStringObserver;
-use super::path::{PathObserver, PathObserverState, PathSerializeObserverState};
 
 pub struct PathBufObserverState {
     pub append_index: usize,
@@ -175,7 +174,9 @@ where
     pub fn pop(&mut self) -> bool {
         let value = (*self.inner.ptr).as_deref_mut();
         let preserved = value.parent().map_or(value.as_os_str().len(), |p| p.as_os_str().len());
-        self.inner.state.mark_truncate(preserved, value.as_os_str().as_encoded_bytes());
+        self.inner
+            .state
+            .mark_truncate(preserved, value.as_os_str().as_encoded_bytes());
         value.pop()
     }
 
@@ -183,7 +184,9 @@ where
     pub fn set_file_name<S2: AsRef<OsStr>>(&mut self, file_name: S2) {
         let value = (*self.inner.ptr).as_deref_mut();
         let preserved = value.parent().map_or(value.as_os_str().len(), |p| p.as_os_str().len());
-        self.inner.state.mark_truncate(preserved, value.as_os_str().as_encoded_bytes());
+        self.inner
+            .state
+            .mark_truncate(preserved, value.as_os_str().as_encoded_bytes());
         value.set_file_name(file_name);
     }
 
@@ -191,7 +194,9 @@ where
     pub fn set_extension<S2: AsRef<OsStr>>(&mut self, extension: S2) -> bool {
         let value = (*self.inner.ptr).as_deref_mut();
         let preserved = value.as_os_str().len() - value.extension().map_or(0, |e| e.len() + 1);
-        self.inner.state.mark_truncate(preserved, value.as_os_str().as_encoded_bytes());
+        self.inner
+            .state
+            .mark_truncate(preserved, value.as_os_str().as_encoded_bytes());
         value.set_extension(extension)
     }
 
@@ -201,9 +206,7 @@ where
     }
 
     /// See [`PathBuf::as_mut_os_string`].
-    pub fn as_mut_os_string(
-        &mut self,
-    ) -> OsStringObserver<'_, ShallowDelegate<OsStr, PathBufObserverState>, OsString> {
+    pub fn as_mut_os_string(&mut self) -> OsStringObserver<'_, ShallowDelegate<PathBufObserverState>, OsString> {
         let state = ShallowDelegate::new(&raw mut self.inner.state);
         let os_string = (*self.inner.ptr).as_deref_mut().as_mut_os_string();
         let inner_ob = OsStrObserver {
@@ -427,7 +430,10 @@ mod tests {
         let mut ob = p.__observe();
         ob.set_file_name("other.rs");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(mutation, Some(batch!(_, truncate!(_, 9), append!(_, json!("/other.rs")))));
+        assert_eq!(
+            mutation,
+            Some(batch!(_, truncate!(_, 9), append!(_, json!("/other.rs"))))
+        );
     }
 
     #[test]

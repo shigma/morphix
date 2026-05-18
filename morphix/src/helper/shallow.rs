@@ -1,12 +1,14 @@
 //! Shallow observer infrastructure: [`ShallowMut`] wrapper and the [`shallow_observer!`] macro
 //! for generating simple observers that track mutations via a single boolean flag.
+//!
+//! ## Stability
+//!
+//! APIs in this module are unstable and may change in a future version.
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
-use std::ops::{Deref, DerefMut, Index, IndexMut};
+use std::ops::{Deref, DerefMut};
 
-use crate::helper::quasi::DerefMutUntracked;
-use crate::helper::{Invalidate, QuasiObserver, Zero};
+use crate::helper::Invalidate;
 
 impl<T: ?Sized> Invalidate<T> for bool {
     fn invalidate(&mut self, _: &T) {
@@ -16,27 +18,23 @@ impl<T: ?Sized> Invalidate<T> for bool {
 
 /// A delegate state that forwards invalidation to an external state `V` via a raw pointer.
 ///
-/// Implements [`Invalidate<T>`] for any target type `T`, delegating to `V`'s blind
-/// [`Invalidate`] implementation. Use this as the state type in generic observers to create
+/// Implements [`Invalidate<T>`] for any `T` where `V: Invalidate<T>`, forwarding the call
+/// through the raw pointer. Use this as the state type in generic observers to create
 /// views that propagate invalidation to a parent observer's state.
-pub struct ShallowDelegate<T: ?Sized, V: ?Sized> {
+pub struct ShallowDelegate<V: ?Sized> {
     state: *mut V,
-    phantom: PhantomData<*const T>,
 }
 
-impl<T: ?Sized, V: ?Sized> ShallowDelegate<T, V> {
+impl<V: ?Sized> ShallowDelegate<V> {
     /// Creates a new [`ShallowDelegate`] from a raw pointer to the external state.
     pub fn new(state: *mut V) -> Self {
-        Self {
-            state,
-            phantom: PhantomData,
-        }
+        Self { state }
     }
 }
 
-impl<T: ?Sized, V: Invalidate<()> + ?Sized> Invalidate<T> for ShallowDelegate<T, V> {
-    fn invalidate(&mut self, _value: &T) {
-        unsafe { Invalidate::invalidate(&mut *self.state, &()) }
+impl<T: ?Sized, V: Invalidate<T> + ?Sized> Invalidate<T> for ShallowDelegate<V> {
+    fn invalidate(&mut self, value: &T) {
+        unsafe { Invalidate::invalidate(&mut *self.state, value) }
     }
 }
 
@@ -76,101 +74,10 @@ impl<'ob, T: ?Sized, V: Invalidate<()> + ?Sized> DerefMut for ShallowMut<'ob, T,
     }
 }
 
-impl<'ob, T: ?Sized, V: Invalidate<()> + ?Sized> DerefMutUntracked for ShallowMut<'ob, T, V> {}
-
-impl<'ob, T: ?Sized, V: ?Sized> QuasiObserver for ShallowMut<'ob, T, V> {
-    type Head = T;
-    type OuterDepth = Zero;
-    type InnerDepth = Zero;
-
-    fn invalidate(_: &mut Self) {}
-}
-
-impl<'ob, T: ?Sized, V: Invalidate<()> + ?Sized> AsMut<T> for ShallowMut<'ob, T, V> {
-    fn as_mut(&mut self) -> &mut T {
-        self.tracked_mut()
-    }
-}
-
 impl<'ob, T: Debug + ?Sized, V: ?Sized> Debug for ShallowMut<'ob, T, V> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("ShallowMut").field(&self.untracked_ref()).finish()
+        f.debug_tuple("ShallowMut").field(&self.inner).finish()
     }
-}
-
-impl<'ob, T1: ?Sized, T2: ?Sized, V1: ?Sized, V2: ?Sized> PartialEq<ShallowMut<'ob, T2, V2>> for ShallowMut<'ob, T1, V1>
-where
-    T1: PartialEq<T2>,
-{
-    fn eq(&self, other: &ShallowMut<'ob, T2, V2>) -> bool {
-        self.untracked_ref().eq(other.untracked_ref())
-    }
-}
-
-impl<'ob, T: Eq + ?Sized, V: ?Sized> Eq for ShallowMut<'ob, T, V> {}
-
-impl<'ob, T1: ?Sized, T2: ?Sized, V1: ?Sized, V2: ?Sized> PartialOrd<ShallowMut<'ob, T2, V2>>
-    for ShallowMut<'ob, T1, V1>
-where
-    T1: PartialOrd<T2>,
-{
-    fn partial_cmp(&self, other: &ShallowMut<'ob, T2, V2>) -> Option<std::cmp::Ordering> {
-        self.untracked_ref().partial_cmp(other.untracked_ref())
-    }
-}
-
-impl<'ob, T: Ord + ?Sized, V: ?Sized> Ord for ShallowMut<'ob, T, V> {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.untracked_ref().cmp(other.untracked_ref())
-    }
-}
-
-impl<'ob, T: Index<I> + ?Sized, I, V: ?Sized> Index<I> for ShallowMut<'ob, T, V> {
-    type Output = T::Output;
-
-    fn index(&self, index: I) -> &Self::Output {
-        self.untracked_ref().index(index)
-    }
-}
-
-impl<'ob, T: IndexMut<I> + ?Sized, I, V: Invalidate<()> + ?Sized> IndexMut<I> for ShallowMut<'ob, T, V> {
-    fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        self.tracked_mut().index_mut(index)
-    }
-}
-
-macro_rules! generic_impl_cmp {
-    ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
-        $(
-            impl<'ob, $($($gen)*,)? T: ?Sized, V: ?Sized> PartialEq<$ty> for ShallowMut<'ob, T, V>
-            where
-                T: PartialEq<$ty>,
-            {
-                fn eq(&self, other: &$ty) -> bool {
-                    (**self).eq(other)
-                }
-            }
-
-            impl<'ob, $($($gen)*,)? T: ?Sized, V: ?Sized> PartialOrd<$ty> for ShallowMut<'ob, T, V>
-            where
-                T: PartialOrd<$ty>,
-            {
-                fn partial_cmp(&self, other: &$ty) -> Option<std::cmp::Ordering> {
-                    (**self).partial_cmp(other)
-                }
-            }
-        )*
-    };
-}
-
-generic_impl_cmp! {
-    impl _ for str;
-    impl _ for String;
-    impl _ for std::ffi::OsStr;
-    impl _ for std::ffi::OsString;
-    impl _ for std::path::Path;
-    impl _ for std::path::PathBuf;
-    impl ['a] _ for std::borrow::Cow<'a, str>;
 }
 
 /// Generates a shallow observer type that tracks mutations via a single `bool` flag.

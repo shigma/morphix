@@ -7,7 +7,7 @@ use std::slice::SliceIndex;
 
 use crate::general::{Unsize, UnsizeObserver};
 use crate::helper::macros::delegate_methods;
-use crate::helper::shallow::ShallowMut;
+use crate::helper::shallow::{ShallowDelegate, ShallowMut};
 use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::strings::string::StringObserverState;
 use crate::mutation::Mutations;
@@ -128,9 +128,19 @@ where
     }
 
     /// See [`str::get_mut`].
-    pub fn get_mut<I: SliceIndex<str, Output = str>>(&mut self, i: I) -> Option<ShallowMut<'_, str, V>> {
+    pub fn get_mut<I: SliceIndex<str, Output = str>>(
+        &mut self,
+        i: I,
+    ) -> Option<StrObserver<'_, ShallowDelegate<V>, str>> {
         let output = (*self.ptr).as_deref_mut().get_mut(i)?;
-        Some(ShallowMut::new(output, &raw mut self.state))
+        let state = ShallowDelegate::new(&raw mut self.state);
+        let ob = StrObserver {
+            ptr: Pointer::new(output),
+            state,
+            phantom: PhantomData,
+        };
+        Pointer::register_state::<_, Zero>(&ob.ptr, &ob.state);
+        Some(ob)
     }
 
     /// See [`str::get_unchecked_mut`].
@@ -138,79 +148,70 @@ where
     /// ## Safety
     ///
     /// See [`str::get_unchecked_mut`] for safety requirements.
-    pub unsafe fn get_unchecked_mut<I: SliceIndex<str, Output = str>>(&mut self, i: I) -> ShallowMut<'_, str, V> {
+    pub unsafe fn get_unchecked_mut<I: SliceIndex<str, Output = str>>(
+        &mut self,
+        i: I,
+    ) -> StrObserver<'_, ShallowDelegate<V>, str> {
         let output = unsafe { (*self.ptr).as_deref_mut().get_unchecked_mut(i) };
-        ShallowMut::new(output, &raw mut self.state)
+        let state = ShallowDelegate::new(&raw mut self.state);
+        let ob = StrObserver {
+            ptr: Pointer::new(output),
+            state,
+            phantom: PhantomData,
+        };
+        Pointer::register_state::<_, Zero>(&ob.ptr, &ob.state);
+        ob
     }
 
     /// See [`str::split_at_mut`].
-    pub fn split_at_mut(&mut self, mid: usize) -> (ShallowMut<'_, str, V>, ShallowMut<'_, str, V>) {
+    pub fn split_at_mut(
+        &mut self,
+        mid: usize,
+    ) -> (
+        StrObserver<'_, ShallowDelegate<V>, str>,
+        StrObserver<'_, ShallowDelegate<V>, str>,
+    ) {
         let state = &raw mut self.state;
         let (left, right) = (*self.ptr).as_deref_mut().split_at_mut(mid);
-        (ShallowMut::new(left, state), ShallowMut::new(right, state))
+        let left_ob = StrObserver {
+            ptr: Pointer::new(left),
+            state: ShallowDelegate::new(state),
+            phantom: PhantomData,
+        };
+        Pointer::register_state::<_, Zero>(&left_ob.ptr, &left_ob.state);
+        let right_ob = StrObserver {
+            ptr: Pointer::new(right),
+            state: ShallowDelegate::new(state),
+            phantom: PhantomData,
+        };
+        Pointer::register_state::<_, Zero>(&right_ob.ptr, &right_ob.state);
+        (left_ob, right_ob)
     }
 
     /// See [`str::split_at_mut_checked`].
-    pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(ShallowMut<'_, str, V>, ShallowMut<'_, str, V>)> {
+    #[allow(clippy::type_complexity)]
+    pub fn split_at_mut_checked(
+        &mut self,
+        mid: usize,
+    ) -> Option<(
+        StrObserver<'_, ShallowDelegate<V>, str>,
+        StrObserver<'_, ShallowDelegate<V>, str>,
+    )> {
         let state = &raw mut self.state;
         let (left, right) = (*self.ptr).as_deref_mut().split_at_mut_checked(mid)?;
-        Some((ShallowMut::new(left, state), ShallowMut::new(right, state)))
-    }
-}
-
-impl<V: Invalidate<()> + ?Sized> ShallowMut<'_, str, V> {
-    fn nonempty_mut(&mut self) -> &mut str {
-        if (*self).untracked_ref().is_empty() {
-            self.untracked_mut()
-        } else {
-            self.tracked_mut()
-        }
-    }
-
-    delegate_methods! { nonempty_mut() as str =>
-        pub fn as_mut_ptr(&mut self) -> *mut u8;
-        pub fn make_ascii_uppercase(&mut self);
-        pub fn make_ascii_lowercase(&mut self);
-    }
-
-    /// See [`str::as_bytes_mut`].
-    ///
-    /// ## Safety
-    ///
-    /// See [`str::as_bytes_mut`] for safety requirements.
-    pub unsafe fn as_bytes_mut(&mut self) -> ShallowMut<'_, [u8], V> {
-        let inner = unsafe { self.inner.as_bytes_mut() };
-        ShallowMut::new(inner, self.state)
-    }
-
-    /// See [`str::get_mut`].
-    pub fn get_mut<I: SliceIndex<str, Output = str>>(&mut self, i: I) -> Option<ShallowMut<'_, str, V>> {
-        let output = self.inner.get_mut(i)?;
-        Some(ShallowMut::new(output, self.state))
-    }
-
-    /// See [`str::get_unchecked_mut`].
-    ///
-    /// ## Safety
-    ///
-    /// See [`str::get_unchecked_mut`] for safety requirements.
-    pub unsafe fn get_unchecked_mut<I: SliceIndex<str, Output = str>>(&mut self, i: I) -> ShallowMut<'_, str, V> {
-        let output = unsafe { self.inner.get_unchecked_mut(i) };
-        ShallowMut::new(output, self.state)
-    }
-
-    /// See [`str::split_at_mut`].
-    pub fn split_at_mut(&mut self, mid: usize) -> (ShallowMut<'_, str, V>, ShallowMut<'_, str, V>) {
-        let state = self.state;
-        let (left, right) = self.inner.split_at_mut(mid);
-        (ShallowMut::new(left, state), ShallowMut::new(right, state))
-    }
-
-    /// See [`str::split_at_mut_checked`].
-    pub fn split_at_mut_checked(&mut self, mid: usize) -> Option<(ShallowMut<'_, str, V>, ShallowMut<'_, str, V>)> {
-        let state = self.state;
-        let (left, right) = self.inner.split_at_mut_checked(mid)?;
-        Some((ShallowMut::new(left, state), ShallowMut::new(right, state)))
+        let left_ob = StrObserver {
+            ptr: Pointer::new(left),
+            state: ShallowDelegate::new(state),
+            phantom: PhantomData,
+        };
+        Pointer::register_state::<_, Zero>(&left_ob.ptr, &left_ob.state);
+        let right_ob = StrObserver {
+            ptr: Pointer::new(right),
+            state: ShallowDelegate::new(state),
+            phantom: PhantomData,
+        };
+        Pointer::register_state::<_, Zero>(&right_ob.ptr, &right_ob.state);
+        Some((left_ob, right_ob))
     }
 }
 
@@ -336,8 +337,6 @@ impl RefObserve for str {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::DerefMut;
-
     use morphix_test_utils::*;
     use serde_json::json;
 
@@ -352,10 +351,10 @@ mod tests {
         let (mut left, mut right) = ob.split_at_mut(5);
         // SAFETY: ASCII-for-ASCII replacement preserves utf-8.
         unsafe {
-            left.deref_mut().as_bytes_mut()[0] = b'H';
-            right.deref_mut().as_bytes_mut()[0] = b'_';
-            left.deref_mut().as_bytes_mut()[4] = b'O';
-            right.deref_mut().as_bytes_mut()[5] = b'D';
+            left.as_bytes_mut()[0] = b'H';
+            right.as_bytes_mut()[0] = b'_';
+            left.as_bytes_mut()[4] = b'O';
+            right.as_bytes_mut()[5] = b'D';
         }
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(mutation, Some(replace!(_, json!("HellO_worlD"))));

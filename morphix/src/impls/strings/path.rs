@@ -97,12 +97,12 @@ where
 
 impl<'ob, V, S: ?Sized, D> PathObserver<'ob, V, S, D>
 where
-    V: Invalidate<()> + Invalidate<Path>,
+    V: Invalidate<()> + Invalidate<Path> + Invalidate<OsStr>,
     D: Unsigned,
     S: AsDerefMut<D, Target = Path>,
 {
     /// See [`Path::as_mut_os_str`].
-    pub fn as_mut_os_str(&mut self) -> OsStrObserver<'_, ShallowDelegate<OsStr, V>, OsStr> {
+    pub fn as_mut_os_str(&mut self) -> OsStrObserver<'_, ShallowDelegate<V>, OsStr> {
         let state = ShallowDelegate::new(&raw mut self.state);
         let os_str = (*self.ptr).as_deref_mut().as_mut_os_str();
         let ob = OsStrObserver {

@@ -9,12 +9,11 @@ use std::os::unix::ffi::OsStrExt;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
 
+use super::os_str::{OsStrObserver, OsStrObserverState, OsStrSerializeObserverState, os_str_len};
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
 use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe};
-
-use super::os_str::{OsStrObserver, OsStrObserverState, OsStrSerializeObserverState, os_str_len};
 
 pub struct OsStringObserverState {
     pub append_index: usize,
@@ -79,9 +78,9 @@ where
                 #[cfg(unix)]
                 mutations.extend(Mutations::append(&value.as_bytes()[append_index..]));
                 #[cfg(windows)]
-                mutations.extend(
-                    Mutations::append_owned(value.encode_wide().skip(append_index).collect::<Vec<_>>()),
-                );
+                mutations.extend(Mutations::append_owned(
+                    value.encode_wide().skip(append_index).collect::<Vec<_>>(),
+                ));
             }
             #[cfg(not(feature = "append"))]
             return Mutations::replace(value);
@@ -286,8 +285,7 @@ generic_impl_partial_eq! {
     impl ['a] PartialEq<&'a OsStr> for OsString;
 }
 
-impl<'ob, V1, V2, S1, S2, D1, D2> PartialEq<OsStringObserver<'ob, V2, S2, D2>>
-    for OsStringObserver<'ob, V1, S1, D1>
+impl<'ob, V1, V2, S1, S2, D1, D2> PartialEq<OsStringObserver<'ob, V2, S2, D2>> for OsStringObserver<'ob, V1, S1, D1>
 where
     V1: Invalidate<OsStr>,
     V2: Invalidate<OsStr>,
@@ -320,8 +318,7 @@ where
     }
 }
 
-impl<'ob, V1, V2, S1, S2, D1, D2> PartialOrd<OsStringObserver<'ob, V2, S2, D2>>
-    for OsStringObserver<'ob, V1, S1, D1>
+impl<'ob, V1, V2, S1, S2, D1, D2> PartialOrd<OsStringObserver<'ob, V2, S2, D2>> for OsStringObserver<'ob, V1, S1, D1>
 where
     V1: Invalidate<OsStr>,
     V2: Invalidate<OsStr>,
@@ -471,10 +468,7 @@ mod tests {
         ob.clear();
         ob.push("world");
         let Json(mutation) = ob.flush().unwrap();
-        assert_eq!(
-            mutation,
-            Some(replace!(_, json!({"Unix": [119, 111, 114, 108, 100]})))
-        );
+        assert_eq!(mutation, Some(replace!(_, json!({"Unix": [119, 111, 114, 108, 100]}))));
     }
 
     #[test]
@@ -486,7 +480,10 @@ mod tests {
         let Json(mutation) = ob.flush().unwrap();
         assert_eq!(
             mutation,
-            Some(replace!(_, json!({"Unix": [104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]})))
+            Some(replace!(
+                _,
+                json!({"Unix": [104, 101, 108, 108, 111, 32, 119, 111, 114, 108, 100]})
+            ))
         );
     }
 }
