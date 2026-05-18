@@ -68,14 +68,12 @@ where
     }
 }
 
-impl<K, O> Invalidate for BTreeMapObserverState<K, O>
+impl<K, O> Invalidate<BTreeMap<K, O::Head>> for BTreeMapObserverState<K, O>
 where
     K: Clone + Ord,
     O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
 {
-    type Target = BTreeMap<K, O::Head>;
-
-    fn invalidate(&mut self, map: &Self::Target) {
+    fn invalidate(&mut self, map: &BTreeMap<K, O::Head>) {
         if !self.mutated {
             self.mutated = true;
             for key in map.keys() {

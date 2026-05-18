@@ -231,19 +231,19 @@ impl<T: ?Sized> QuasiObserver for Pointer<T> {
     }
 }
 
-/// Invalidation hook for state types that track an observed value of type [`Target`](Self::Target).
+/// Invalidation hook for state types that track an observed value.
 ///
 /// Registered with [`Pointer::register_state`] for fallback invalidation. The method is named
 /// `invalidate` rather than `mark_replace` to avoid coupling with
 /// [`MutationKind`](crate::MutationKind).
-pub trait Invalidate {
-    /// The observed value type that this state tracks.
-    type Target: ?Sized;
-
+///
+/// The type parameter `T` represents the observed value type. `Invalidate<()>` represents
+/// "blind" invalidation without access to the current value.
+pub trait Invalidate<T: ?Sized> {
     /// Invalidates all granular tracking state. The next flush should produce a
     /// [`Replace`](crate::MutationKind::Replace) mutation.
     ///
     /// The post-invalidation state is **not** the "initial" state (which would be the clean state
     /// right after `observe`), but rather a state that signals "all granular tracking is lost."
-    fn invalidate(&mut self, value: &Self::Target);
+    fn invalidate(&mut self, value: &T);
 }

@@ -8,7 +8,7 @@ use std::slice::SliceIndex;
 use std::string::Drain;
 
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::shallow::{ShallowInvalidate, ShallowMut};
+use crate::helper::shallow::ShallowMut;
 use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::strings::str::{StrObserver, StrObserverState, StrSerializeObserverState};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
@@ -30,16 +30,14 @@ impl StringObserverState {
     }
 }
 
-impl Invalidate for StringObserverState {
-    type Target = str;
-
+impl Invalidate<str> for StringObserverState {
     fn invalidate(&mut self, value: &str) {
         self.mark_truncate(value, 0);
     }
 }
 
-impl ShallowInvalidate for StringObserverState {
-    fn invalidate(&mut self) {
+impl Invalidate<()> for StringObserverState {
+    fn invalidate(&mut self, _: &()) {
         // Encode "everything replaced" via the (append_index == 0, truncate_len > 0) pattern
         // that `flush` recognizes as Replace. The exact `truncate_len` value is not read on the
         // Replace branch, so a sentinel of 1 suffices — but it must be > 0, otherwise `flush`
@@ -161,8 +159,7 @@ where
 
     delegate_methods! { untracked_mut() as String =>
         pub fn push_str(&mut self, string: &str);
-        pub fn extend_from_within<R>(&mut self, src: R)
-        where R: RangeBounds<usize>;
+        pub fn extend_from_within<R>(&mut self, src: R) where R: RangeBounds<usize>;
         pub fn reserve(&mut self, additional: usize);
         pub fn reserve_exact(&mut self, additional: usize);
         pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;

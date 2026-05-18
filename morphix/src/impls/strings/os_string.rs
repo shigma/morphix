@@ -10,7 +10,6 @@ use std::os::unix::ffi::OsStrExt;
 use std::os::windows::ffi::OsStrExt;
 
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::shallow::ShallowInvalidate;
 use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe};
@@ -32,16 +31,14 @@ impl OsStringObserverState {
     }
 }
 
-impl Invalidate for OsStringObserverState {
-    type Target = OsStr;
-
+impl Invalidate<OsStr> for OsStringObserverState {
     fn invalidate(&mut self, _value: &OsStr) {
         self.mark_truncate(0);
     }
 }
 
-impl ShallowInvalidate for OsStringObserverState {
-    fn invalidate(&mut self) {
+impl Invalidate<()> for OsStringObserverState {
+    fn invalidate(&mut self, _: &()) {
         self.append_index = 0;
         self.truncate_len = self.truncate_len.max(1);
     }
@@ -117,7 +114,7 @@ impl<'ob, V, S: ?Sized, D> DerefMut for OsStringObserver<'ob, V, S, D> {
 
 impl<'ob, V, S: ?Sized, D> QuasiObserver for OsStringObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -178,7 +175,7 @@ where
 // Capacity-only methods (generic over V)
 impl<'ob, V, S: ?Sized, D> OsStringObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDerefMut<D, Target = OsString>,
 {
@@ -205,7 +202,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> IndexMut<RangeFull> for OsStringObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDerefMut<D, Target = OsString>,
 {
@@ -216,7 +213,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> Index<RangeFull> for OsStringObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -243,7 +240,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> Debug for OsStringObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -254,7 +251,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> Display for OsStringObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -268,7 +265,7 @@ macro_rules! generic_impl_partial_eq {
         $(
             impl<'ob, $($($gen)*,)? V, S: ?Sized, D> PartialEq<$ty> for OsStringObserver<'ob, V, S, D>
             where
-                V: Invalidate<Target = OsStr>,
+                V: Invalidate<OsStr>,
                 D: Unsigned,
                 S: AsDeref<D, Target = OsString>,
                 OsString: PartialEq<$ty>,
@@ -292,8 +289,8 @@ generic_impl_partial_eq! {
 impl<'ob, V1, V2, S1, S2, D1, D2> PartialEq<OsStringObserver<'ob, V2, S2, D2>>
     for OsStringObserver<'ob, V1, S1, D1>
 where
-    V1: Invalidate<Target = OsStr>,
-    V2: Invalidate<Target = OsStr>,
+    V1: Invalidate<OsStr>,
+    V2: Invalidate<OsStr>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDeref<D1, Target = OsString>,
@@ -306,7 +303,7 @@ where
 
 impl<'ob, V, S, D> Eq for OsStringObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -314,7 +311,7 @@ where
 
 impl<'ob, V, S, D> PartialOrd<OsString> for OsStringObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -326,8 +323,8 @@ where
 impl<'ob, V1, V2, S1, S2, D1, D2> PartialOrd<OsStringObserver<'ob, V2, S2, D2>>
     for OsStringObserver<'ob, V1, S1, D1>
 where
-    V1: Invalidate<Target = OsStr>,
-    V2: Invalidate<Target = OsStr>,
+    V1: Invalidate<OsStr>,
+    V2: Invalidate<OsStr>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDeref<D1, Target = OsString>,
@@ -340,7 +337,7 @@ where
 
 impl<'ob, V, S, D> Ord for OsStringObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {

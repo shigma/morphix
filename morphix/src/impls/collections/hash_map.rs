@@ -47,14 +47,12 @@ impl<K, O> Default for HashMapObserverState<K, O> {
     }
 }
 
-impl<K, O> Invalidate for HashMapObserverState<K, O>
+impl<K, O> Invalidate<HashMap<K, O::Head>> for HashMapObserverState<K, O>
 where
     K: Clone + Eq + Hash,
     O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
 {
-    type Target = HashMap<K, O::Head>;
-
-    fn invalidate(&mut self, map: &Self::Target) {
+    fn invalidate(&mut self, map: &HashMap<K, O::Head>) {
         if !self.mutated {
             self.mutated = true;
             for key in map.keys() {

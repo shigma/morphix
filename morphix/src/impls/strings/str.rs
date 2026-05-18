@@ -7,20 +7,20 @@ use std::slice::SliceIndex;
 
 use crate::general::{Unsize, UnsizeObserver};
 use crate::helper::macros::delegate_methods;
-use crate::helper::shallow::{ShallowInvalidate, ShallowMut};
+use crate::helper::shallow::ShallowMut;
 use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::strings::string::StringObserverState;
 use crate::mutation::Mutations;
 use crate::observe::{DefaultSpec, Observe, Observer, RefObserve, SerializeObserver};
 
 /// Trait for managing the internal state of a [`StrObserver`].
-pub trait StrObserverState: Invalidate<Target = str> + Sized {
+pub trait StrObserverState: Invalidate<str> + Sized {
     /// Creates state observing the given `str`.
     fn observe(value: &str) -> Self;
 }
 
 /// Flush logic for str-backed observer state, parameterized by `S` and `D`.
-pub trait StrSerializeObserverState<S: ?Sized, D>: Invalidate {
+pub trait StrSerializeObserverState<S: ?Sized, D>: Invalidate<str> {
     /// Consumes the accumulated mutation state and returns the collected [`Mutations`].
     ///
     /// Must fully reset internal state so an immediately subsequent call returns empty.
@@ -52,7 +52,7 @@ impl<'ob, V, S: ?Sized, D> DerefMut for StrObserver<'ob, V, S, D> {
 
 impl<'ob, V, S: ?Sized, D> QuasiObserver for StrObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = str>,
+    V: Invalidate<str>,
     D: Unsigned,
     S: AsDeref<D, Target = str>,
 {
@@ -88,7 +88,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> SerializeObserver for StrObserver<'ob, V, S, D>
 where
-    V: StrSerializeObserverState<S, D, Target = str>,
+    V: StrSerializeObserverState<S, D>,
     D: Unsigned,
     S: AsDeref<D, Target = str>,
 {
@@ -99,7 +99,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> StrObserver<'ob, V, S, D>
 where
-    V: ShallowInvalidate + Invalidate<Target = str>,
+    V: Invalidate<()> + Invalidate<str>,
     D: Unsigned,
     S: AsDerefMut<D, Target = str>,
 {
@@ -158,7 +158,7 @@ where
     }
 }
 
-impl<V: ShallowInvalidate + ?Sized> ShallowMut<'_, str, V> {
+impl<V: Invalidate<()> + ?Sized> ShallowMut<'_, str, V> {
     fn nonempty_mut(&mut self) -> &mut str {
         if (*self).untracked_ref().is_empty() {
             self.untracked_mut()
@@ -216,7 +216,7 @@ impl<V: ShallowInvalidate + ?Sized> ShallowMut<'_, str, V> {
 
 impl<'ob, V, S: ?Sized, D, I> Index<I> for StrObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = str>,
+    V: Invalidate<str>,
     D: Unsigned,
     S: AsDeref<D, Target = str>,
     I: SliceIndex<str>,
@@ -230,7 +230,7 @@ where
 
 impl<'ob, V, S: ?Sized, D, I> IndexMut<I> for StrObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = str>,
+    V: Invalidate<str>,
     D: Unsigned,
     S: AsDerefMut<D, Target = str>,
     I: SliceIndex<str>,
@@ -242,7 +242,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> Debug for StrObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = str>,
+    V: Invalidate<str>,
     D: Unsigned,
     S: AsDeref<D, Target = str>,
 {
@@ -253,7 +253,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> Display for StrObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = str>,
+    V: Invalidate<str>,
     D: Unsigned,
     S: AsDeref<D, Target = str>,
 {

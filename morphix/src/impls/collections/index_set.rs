@@ -55,9 +55,7 @@ impl<T> IndexSetObserverState<T> {
     }
 }
 
-impl<T> Invalidate for IndexSetObserverState<T> {
-    type Target = IndexSet<T>;
-
+impl<T> Invalidate<IndexSet<T>> for IndexSetObserverState<T> {
     fn invalidate(&mut self, _set: &IndexSet<T>) {
         self.mark_truncate(0);
     }

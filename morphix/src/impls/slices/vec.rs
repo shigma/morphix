@@ -65,12 +65,10 @@ impl<O> VecObserverState<O> {
     }
 }
 
-impl<O> Invalidate for VecObserverState<O>
+impl<O> Invalidate<[O::Head]> for VecObserverState<O>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
-    type Target = [O::Head];
-
     fn invalidate(&mut self, _: &[O::Head]) {
         self.mark_replace();
     }
@@ -80,6 +78,7 @@ impl<O> SliceObserverState for VecObserverState<O>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
+    type Target = [O::Head];
     type Item = O;
 
     fn as_slice(&self) -> &[Self::Item] {
@@ -120,6 +119,7 @@ where
     O: Observer<InnerDepth = Zero> + SerializeObserver,
     O::Head: Serialize + Sized + 'static,
 {
+    type Target = [O::Head];
     fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations {
         // Drop stale inner observers beyond `append_index`. Elements in this region were popped
         // since the last flush; their observers carry outdated state. Truncating here lets

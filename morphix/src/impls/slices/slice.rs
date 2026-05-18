@@ -21,7 +21,9 @@ use crate::{Mutations, Observe};
 ///
 /// This trait abstracts over the storage and initialization of element observers, allowing
 /// [`SliceObserver`] to lazily create observers for individual elements as they are accessed.
-pub trait SliceObserverState: Invalidate<Target: AsRef<[<Self::Item as QuasiObserver>::Head]>> + Sized {
+pub trait SliceObserverState: Invalidate<Self::Target> + Sized {
+    /// The slice-like type being observed.
+    type Target: AsRef<[<Self::Item as QuasiObserver>::Head]> + ?Sized;
     /// The element [`Observer`] type.
     type Item: Observer<InnerDepth = Zero, Head: Sized>;
 
@@ -48,7 +50,9 @@ pub trait SliceObserverState: Invalidate<Target: AsRef<[<Self::Item as QuasiObse
 }
 
 /// Shared-reference counterpart to [`SliceObserverState`] for element [`RefObserver`] management.
-pub trait SliceRefObserverState: Invalidate<Target: AsRef<[<Self::Item as QuasiObserver>::Head]>> + Sized {
+pub trait SliceRefObserverState: Invalidate<Self::Target> + Sized {
+    /// The slice-like type being observed.
+    type Target: AsRef<[<Self::Item as QuasiObserver>::Head]> + ?Sized;
     /// The element [`RefObserver`] type.
     type Item: RefObserver<InnerDepth = Zero, Head: Sized>;
 
@@ -62,7 +66,9 @@ pub trait SliceRefObserverState: Invalidate<Target: AsRef<[<Self::Item as QuasiO
 /// choose its own mutability requirement: [`[O; N]`](prim@array) bounds `S: AsDeref<D>` (shared
 /// access), while [`VecObserverState`] bounds `S: AsDerefMut<D>` (mutable access for element
 /// relocation).
-pub trait SliceSerializeObserverState<S: ?Sized, D>: Invalidate {
+pub trait SliceSerializeObserverState<S: ?Sized, D>: Invalidate<Self::Target> {
+    /// The slice-like type being observed.
+    type Target: ?Sized;
     /// Consumes the accumulated mutation state, flushes inner element observers, and returns the
     /// collected [`Mutations`].
     ///
@@ -94,11 +100,11 @@ impl<V, S: ?Sized, D> DerefMut for SliceObserver<V, S, D> {
     }
 }
 
-impl<V, S: ?Sized, D> QuasiObserver for SliceObserver<V, S, D>
+impl<V, S: ?Sized, D, T: ?Sized> QuasiObserver for SliceObserver<V, S, D>
 where
-    V: Invalidate,
+    V: Invalidate<T>,
     D: Unsigned,
-    S: AsDeref<D, Target = V::Target>,
+    S: AsDeref<D, Target = T>,
 {
     type Head = S;
     type OuterDepth = Succ<Zero>;

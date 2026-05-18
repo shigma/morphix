@@ -8,7 +8,7 @@ use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 
 use crate::helper::macros::{default_impl_ref_observe, delegate_methods};
-use crate::helper::shallow::{ShallowDelegate, ShallowInvalidate};
+use crate::helper::shallow::ShallowDelegate;
 use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observer, SerializeObserver};
 use crate::{MutationKind, Mutations, Observe};
@@ -41,19 +41,8 @@ impl PathBufObserverState {
     }
 }
 
-impl Invalidate for PathBufObserverState {
-    type Target = Path;
-
-    fn invalidate(&mut self, _value: &Path) {
-        if self.append_index > 0 {
-            self.append_index = 0;
-            self.truncate_len = self.truncate_len.max(1);
-        }
-    }
-}
-
-impl ShallowInvalidate for PathBufObserverState {
-    fn invalidate(&mut self) {
+impl<T: ?Sized> Invalidate<T> for PathBufObserverState {
+    fn invalidate(&mut self, _value: &T) {
         if self.append_index > 0 {
             self.append_index = 0;
             self.truncate_len = self.truncate_len.max(1);

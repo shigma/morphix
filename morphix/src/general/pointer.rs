@@ -34,13 +34,13 @@ pub struct PointerHandler<T: ?Sized> {
     ptr: Option<NonNull<T>>,
 }
 
-impl<T: ?Sized> Invalidate for PointerHandler<T> {
-    type Target = T;
-
+impl<T: ?Sized> Invalidate<T> for PointerHandler<T> {
     fn invalidate(&mut self, _: &T) {}
 }
 
 impl<T: ?Sized> GeneralHandler for PointerHandler<T> {
+    type Target = T;
+
     fn observe(value: &T) -> Self {
         Self {
             ptr: Some(NonNull::from(value)),

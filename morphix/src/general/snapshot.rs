@@ -92,13 +92,13 @@ pub struct SnapshotHandler<T: Snapshot + ?Sized> {
     phantom: PhantomData<T>,
 }
 
-impl<T: Snapshot + ?Sized> Invalidate for SnapshotHandler<T> {
-    type Target = T;
-
+impl<T: Snapshot + ?Sized> Invalidate<T> for SnapshotHandler<T> {
     fn invalidate(&mut self, _: &T) {}
 }
 
 impl<T: Snapshot + ?Sized> GeneralHandler for SnapshotHandler<T> {
+    type Target = T;
+
     fn observe(value: &T) -> Self {
         Self {
             snapshot: MaybeUninit::new(value.to_snapshot()),

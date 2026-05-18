@@ -9,19 +9,19 @@ use std::ptr::NonNull;
 
 use crate::Mutations;
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
-use crate::helper::shallow::{ShallowDelegate, ShallowInvalidate, ShallowState};
+use crate::helper::shallow::ShallowDelegate;
 use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::impls::strings::os_str::OsStrObserver;
 use crate::observe::{DefaultSpec, Observe, Observer, RefObserve, SerializeObserver};
 
 /// Trait for managing the internal state of a [`PathObserver`].
-pub trait PathObserverState: Invalidate<Target = Path> + Sized {
+pub trait PathObserverState: Invalidate<Path> + Sized {
     /// Creates state observing the given `Path`.
     fn observe(value: &Path) -> Self;
 }
 
 /// Flush logic for Path-backed observer state, parameterized by `S` and `D`.
-pub trait PathSerializeObserverState<S: ?Sized, D>: Invalidate {
+pub trait PathSerializeObserverState<S: ?Sized, D>: Invalidate<Path> {
     fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations;
 }
 
@@ -50,7 +50,7 @@ impl<'ob, V, S: ?Sized, D> DerefMut for PathObserver<'ob, V, S, D> {
 
 impl<'ob, V, S: ?Sized, D> QuasiObserver for PathObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = Path>,
+    V: Invalidate<Path>,
     D: Unsigned,
     S: AsDeref<D, Target = Path>,
 {
@@ -86,7 +86,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> SerializeObserver for PathObserver<'ob, V, S, D>
 where
-    V: PathSerializeObserverState<S, D, Target = Path>,
+    V: PathSerializeObserverState<S, D>,
     D: Unsigned,
     S: AsDeref<D, Target = Path>,
 {
@@ -97,7 +97,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> PathObserver<'ob, V, S, D>
 where
-    V: ShallowInvalidate + Invalidate<Target = Path>,
+    V: Invalidate<()> + Invalidate<Path>,
     D: Unsigned,
     S: AsDerefMut<D, Target = Path>,
 {
@@ -117,7 +117,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> Debug for PathObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = Path>,
+    V: Invalidate<Path>,
     D: Unsigned,
     S: AsDeref<D, Target = Path>,
 {
@@ -131,7 +131,7 @@ macro_rules! generic_impl_partial_eq {
         $(
             impl<'ob, $($($gen)*,)? V, S: ?Sized, D> PartialEq<$ty> for PathObserver<'ob, V, S, D>
             where
-                V: Invalidate<Target = Path>,
+                V: Invalidate<Path>,
                 D: Unsigned,
                 S: AsDeref<D>,
                 S::Target: PartialEq<$ty>,
@@ -159,9 +159,7 @@ pub struct PathHandler {
     raw_parts: Option<Option<(NonNull<()>, usize)>>,
 }
 
-impl Invalidate for PathHandler {
-    type Target = Path;
-
+impl Invalidate<Path> for PathHandler {
     fn invalidate(&mut self, value: &Path) {
         self.raw_parts.get_or_insert_with(|| {
             value
@@ -172,6 +170,8 @@ impl Invalidate for PathHandler {
 }
 
 impl GeneralHandler for PathHandler {
+    type Target = Path;
+
     fn observe(_: &Path) -> Self {
         Self { raw_parts: None }
     }
@@ -212,19 +212,19 @@ impl DebugHandler for PathHandler {
     const NAME: &'static str = "PathHandler";
 }
 
-impl PathObserverState for ShallowState<Path> {
+impl PathObserverState for bool {
     fn observe(_value: &Path) -> Self {
-        ShallowState::new()
+        false
     }
 }
 
-impl<S: ?Sized, D> PathSerializeObserverState<S, D> for ShallowState<Path>
+impl<S: ?Sized, D> PathSerializeObserverState<S, D> for bool
 where
     D: Unsigned,
     S: AsDeref<D, Target = Path>,
 {
     fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations {
-        if self.take() {
+        if std::mem::take(self) {
             Mutations::replace((**ptr).as_deref())
         } else {
             Mutations::new()
@@ -234,7 +234,7 @@ where
 
 impl Observe for Path {
     type Observer<'ob, S, D>
-        = PathObserver<'ob, ShallowState<Path>, S, D>
+        = PathObserver<'ob, bool, S, D>
     where
         Self: 'ob,
         D: Unsigned,

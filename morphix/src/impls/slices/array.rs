@@ -10,12 +10,10 @@ use crate::impls::slice::{SliceObserver, SliceObserverState, SliceRefObserverSta
 use crate::observe::{DefaultSpec, Observer, RefObserve, RefObserver, SerializeObserver};
 use crate::{Mutations, Observe};
 
-impl<O, const N: usize> Invalidate for [O; N]
+impl<O, const N: usize> Invalidate<[O::Head; N]> for [O; N]
 where
     O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
 {
-    type Target = [O::Head; N];
-
     /// Unlike [`UnsafeCell<Vec<O>>`](core::cell::UnsafeCell) which clears its storage on `DerefMut`
     /// (producing a full [`Replace`](crate::MutationKind::Replace)), the array implementation
     /// triggers [`as_deref_mut_coinductive()`][as_deref_mut_coinductive] on each element,
@@ -37,6 +35,7 @@ impl<O, const N: usize> SliceObserverState for [O; N]
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
+    type Target = [O::Head; N];
     type Item = O;
 
     fn as_slice(&self) -> &[O] {
@@ -60,6 +59,7 @@ impl<O, const N: usize> SliceRefObserverState for [O; N]
 where
     O: RefObserver<InnerDepth = Zero, Head: Sized>,
 {
+    type Target = [O::Head; N];
     type Item = O;
 
     fn observe(slice: &Self::Target) -> Self {
@@ -74,6 +74,7 @@ where
     O: SerializeObserver<InnerDepth = Zero>,
     O::Head: Serialize + Sized + 'static,
 {
+    type Target = [O::Head; N];
     fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations {
         let slice = (**ptr).as_deref();
         let mut mutations = Mutations::new();

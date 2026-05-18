@@ -32,13 +32,13 @@ pub type NoopObserver<'ob, S, D = Zero> = GeneralObserver<'ob, NoopHandler<<S as
 
 pub struct NoopHandler<T: ?Sized>(PhantomData<T>);
 
-impl<T: ?Sized> Invalidate for NoopHandler<T> {
-    type Target = T;
-
+impl<T: ?Sized> Invalidate<T> for NoopHandler<T> {
     fn invalidate(&mut self, _: &T) {}
 }
 
 impl<T: ?Sized> GeneralHandler for NoopHandler<T> {
+    type Target = T;
+
     fn observe(_value: &T) -> Self {
         Self(PhantomData)
     }

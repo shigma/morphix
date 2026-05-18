@@ -16,13 +16,11 @@ struct OptionObserverState<O> {
     inner: Option<O>,
 }
 
-impl<O> Invalidate for OptionObserverState<O>
+impl<O> Invalidate<Option<O::Head>> for OptionObserverState<O>
 where
     O: QuasiObserver<Head: Sized>,
 {
-    type Target = Option<O::Head>;
-
-    fn invalidate(&mut self, _value: &Self::Target) {
+    fn invalidate(&mut self, _value: &Option<O::Head>) {
         self.mutated = true;
         self.inner = None;
     }

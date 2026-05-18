@@ -30,14 +30,14 @@ use crate::observe::{Observer, RefObserver, SerializeObserver};
 ///     phantom: PhantomData<T>,
 /// }
 ///
-/// impl<T> Invalidate for ShallowHandler<T> {
-///     type Target = T;
+/// impl<T> Invalidate<T> for ShallowHandler<T> {
 ///     fn invalidate(&mut self, _value: &T) {
 ///         self.mutated = true;
 ///     }
 /// }
 ///
 /// impl<T> GeneralHandler for ShallowHandler<T> {
+///     type Target = T;
 ///     fn observe(_value: &T) -> Self {
 ///         Self { mutated: false, phantom: PhantomData }
 ///     }
@@ -45,7 +45,10 @@ use crate::observe::{Observer, RefObserver, SerializeObserver};
 ///
 /// type ShallowObserver<'ob, T> = GeneralObserver<'ob, T, ShallowHandler<T>>;
 /// ```
-pub trait GeneralHandler: Invalidate {
+pub trait GeneralHandler: Invalidate<Self::Target> {
+    /// The observed value type that this handler tracks changes for.
+    type Target: ?Sized;
+
     /// Implementation for [`Observer::observe`].
     fn observe(value: &Self::Target) -> Self;
 }
@@ -127,12 +130,12 @@ where
 ///
 /// pub struct MyHandler<T>(PhantomData<T>);
 ///
-/// impl<T> Invalidate for MyHandler<T> {
-///     type Target = T;
+/// impl<T> Invalidate<T> for MyHandler<T> {
 ///     fn invalidate(&mut self, _: &T) {}
 /// }
 ///
 /// impl<T> GeneralHandler for MyHandler<T> {
+///     type Target = T;
 ///     fn observe(_value: &T) -> Self { Self(PhantomData) }
 /// }
 ///

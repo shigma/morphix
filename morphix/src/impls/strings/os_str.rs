@@ -14,18 +14,17 @@ use std::ptr::NonNull;
 use crate::Mutations;
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 use crate::helper::macros::delegate_methods;
-use crate::helper::shallow::ShallowState;
 use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
 use crate::observe::{DefaultSpec, Observe, Observer, RefObserve, SerializeObserver};
 
 /// Trait for managing the internal state of an [`OsStrObserver`].
-pub trait OsStrObserverState: Invalidate<Target = OsStr> + Sized {
+pub trait OsStrObserverState: Invalidate<OsStr> + Sized {
     /// Creates state observing the given `OsStr`.
     fn observe(value: &OsStr) -> Self;
 }
 
 /// Flush logic for OsStr-backed observer state, parameterized by `S` and `D`.
-pub trait OsStrSerializeObserverState<S: ?Sized, D>: Invalidate {
+pub trait OsStrSerializeObserverState<S: ?Sized, D>: Invalidate<OsStr> {
     fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations;
 }
 
@@ -64,7 +63,7 @@ impl<'ob, V, S: ?Sized, D> DerefMut for OsStrObserver<'ob, V, S, D> {
 
 impl<'ob, V, S: ?Sized, D> QuasiObserver for OsStrObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsStr>,
 {
@@ -100,7 +99,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> SerializeObserver for OsStrObserver<'ob, V, S, D>
 where
-    V: OsStrSerializeObserverState<S, D, Target = OsStr>,
+    V: OsStrSerializeObserverState<S, D>,
     D: Unsigned,
     S: AsDeref<D, Target = OsStr>,
 {
@@ -111,7 +110,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> OsStrObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDerefMut<D, Target = OsStr>,
 {
@@ -131,7 +130,7 @@ where
 
 impl<'ob, V, S: ?Sized, D> Debug for OsStrObserver<'ob, V, S, D>
 where
-    V: Invalidate<Target = OsStr>,
+    V: Invalidate<OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsStr>,
 {
@@ -145,7 +144,7 @@ macro_rules! generic_impl_partial_eq {
         $(
             impl<'ob, $($($gen)*,)? V, S: ?Sized, D> PartialEq<$ty> for OsStrObserver<'ob, V, S, D>
             where
-                V: Invalidate<Target = OsStr>,
+                V: Invalidate<OsStr>,
                 D: Unsigned,
                 S: AsDeref<D>,
                 S::Target: PartialEq<$ty>,
@@ -173,9 +172,7 @@ pub struct OsStrHandler {
     raw_parts: Option<(NonNull<()>, usize)>,
 }
 
-impl Invalidate for OsStrHandler {
-    type Target = OsStr;
-
+impl Invalidate<OsStr> for OsStrHandler {
     fn invalidate(&mut self, value: &OsStr) {
         self.raw_parts
             .get_or_insert_with(|| (NonNull::from(value).cast::<()>(), os_str_len(value)));
@@ -183,6 +180,8 @@ impl Invalidate for OsStrHandler {
 }
 
 impl GeneralHandler for OsStrHandler {
+    type Target = OsStr;
+
     fn observe(_: &OsStr) -> Self {
         Self { raw_parts: None }
     }
@@ -229,19 +228,19 @@ impl DebugHandler for OsStrHandler {
     const NAME: &'static str = "OsStrHandler";
 }
 
-impl OsStrObserverState for ShallowState<OsStr> {
+impl OsStrObserverState for bool {
     fn observe(_value: &OsStr) -> Self {
-        ShallowState::new()
+        false
     }
 }
 
-impl<S: ?Sized, D> OsStrSerializeObserverState<S, D> for ShallowState<OsStr>
+impl<S: ?Sized, D> OsStrSerializeObserverState<S, D> for bool
 where
     D: Unsigned,
     S: AsDeref<D, Target = OsStr>,
 {
     fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations {
-        if self.take() {
+        if std::mem::take(self) {
             Mutations::replace((**ptr).as_deref())
         } else {
             Mutations::new()
@@ -251,7 +250,7 @@ where
 
 impl Observe for OsStr {
     type Observer<'ob, S, D>
-        = OsStrObserver<'ob, ShallowState<OsStr>, S, D>
+        = OsStrObserver<'ob, bool, S, D>
     where
         Self: 'ob,
         D: Unsigned,

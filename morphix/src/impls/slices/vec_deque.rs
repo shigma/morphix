@@ -51,12 +51,10 @@ impl<O> VecDequeObserverState<O> {
     }
 }
 
-impl<O> Invalidate for VecDequeObserverState<O>
+impl<O> Invalidate<VecDeque<O::Head>> for VecDequeObserverState<O>
 where
     O: Observer<InnerDepth = Zero, Head: Sized>,
 {
-    type Target = VecDeque<O::Head>;
-
     fn invalidate(&mut self, _: &VecDeque<O::Head>) {
         self.mark_replace();
     }
@@ -332,7 +330,7 @@ where
     /// See [`VecDeque::swap`].
     pub fn swap(&mut self, i: usize, j: usize) {
         if i != j {
-            // ShallowInvalidate observers for swapped elements.
+            // Invalidate observers for swapped elements.
             let observers = self.state.inner.get_mut();
             if let Some(ob) = observers.get_mut(i) {
                 QuasiObserver::invalidate(ob);

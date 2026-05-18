@@ -44,15 +44,15 @@ pub struct ShallowHandler<T: ?Sized> {
     phantom: PhantomData<T>,
 }
 
-impl<T: ?Sized> Invalidate for ShallowHandler<T> {
-    type Target = T;
-
+impl<T: ?Sized> Invalidate<T> for ShallowHandler<T> {
     fn invalidate(&mut self, _: &T) {
         self.mutated = true;
     }
 }
 
 impl<T: ?Sized> GeneralHandler for ShallowHandler<T> {
+    type Target = T;
+
     fn observe(_value: &T) -> Self {
         Self {
             mutated: false,

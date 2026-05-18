@@ -49,14 +49,12 @@ impl<K, O> Default for IndexMapObserverState<K, O> {
     }
 }
 
-impl<K, O> Invalidate for IndexMapObserverState<K, O>
+impl<K, O> Invalidate<IndexMap<K, O::Head>> for IndexMapObserverState<K, O>
 where
     K: Clone + Eq + Hash,
     O: QuasiObserver<InnerDepth = Zero, Head: Sized>,
 {
-    type Target = IndexMap<K, O::Head>;
-
-    fn invalidate(&mut self, map: &Self::Target) {
+    fn invalidate(&mut self, map: &IndexMap<K, O::Head>) {
         if !self.mutated {
             self.mutated = true;
             for key in map.keys() {

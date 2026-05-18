@@ -1,6 +1,5 @@
-//! Shallow observer infrastructure: [`ShallowInvalidate`] trait, [`ShallowMut`] wrapper, and the
-//! [`shallow_observer!`] macro for generating simple observers that track mutations via a single
-//! boolean flag.
+//! Shallow observer infrastructure: [`ShallowMut`] wrapper and the [`shallow_observer!`] macro
+//! for generating simple observers that track mutations via a single boolean flag.
 
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -9,69 +8,17 @@ use std::ops::{Deref, DerefMut, Index, IndexMut};
 use crate::helper::quasi::DerefMutUntracked;
 use crate::helper::{Invalidate, QuasiObserver, Zero};
 
-/// Marks granular tracking state as dirty without access to the observed value.
-pub trait ShallowInvalidate {
-    /// Invalidates granular tracking state without access to the current value.
-    fn invalidate(&mut self);
-}
-
-impl ShallowInvalidate for bool {
-    fn invalidate(&mut self) {
+impl<T: ?Sized> Invalidate<T> for bool {
+    fn invalidate(&mut self, _: &T) {
         *self = true;
-    }
-}
-
-/// A shallow state wrapper that implements [`Invalidate`] for a given target type `T`.
-///
-/// Wraps a single `bool` flag — set to `true` on invalidation, consumed on flush.
-/// Use this as the state type `V` in generic observers (e.g.
-/// [`OsStrObserver<V>`](crate::impls::OsStrObserver)) when only shallow
-/// ([`Replace`](crate::Mutations::replace)-level) tracking is needed.
-pub struct ShallowState<T: ?Sized> {
-    mutated: bool,
-    phantom: PhantomData<*const T>,
-}
-
-impl<T: ?Sized> Default for ShallowState<T> {
-    fn default() -> Self {
-        Self {
-            mutated: false,
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<T: ?Sized> ShallowState<T> {
-    /// Creates a new [`ShallowState`] with the flag set to `false`.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Takes the current flag value, resetting it to `false`.
-    pub fn take(&mut self) -> bool {
-        std::mem::take(&mut self.mutated)
-    }
-}
-
-impl<T: ?Sized> Invalidate for ShallowState<T> {
-    type Target = T;
-
-    fn invalidate(&mut self, _value: &T) {
-        self.mutated = true;
-    }
-}
-
-impl<T: ?Sized> ShallowInvalidate for ShallowState<T> {
-    fn invalidate(&mut self) {
-        self.mutated = true;
     }
 }
 
 /// A delegate state that forwards invalidation to an external state `V` via a raw pointer.
 ///
-/// Implements [`Invalidate<Target = T>`](Invalidate) for any target type `T`, delegating to
-/// `V`'s [`ShallowInvalidate`] implementation. Use this as the state type in generic observers
-/// to create views that propagate invalidation to a parent observer's state.
+/// Implements [`Invalidate<T>`] for any target type `T`, delegating to `V`'s blind
+/// [`Invalidate`] implementation. Use this as the state type in generic observers to create
+/// views that propagate invalidation to a parent observer's state.
 pub struct ShallowDelegate<T: ?Sized, V: ?Sized> {
     state: *mut V,
     phantom: PhantomData<*const T>,
@@ -87,17 +34,9 @@ impl<T: ?Sized, V: ?Sized> ShallowDelegate<T, V> {
     }
 }
 
-impl<T: ?Sized, V: ShallowInvalidate + ?Sized> Invalidate for ShallowDelegate<T, V> {
-    type Target = T;
-
+impl<T: ?Sized, V: Invalidate<()> + ?Sized> Invalidate<T> for ShallowDelegate<T, V> {
     fn invalidate(&mut self, _value: &T) {
-        unsafe { ShallowInvalidate::invalidate(&mut *self.state) }
-    }
-}
-
-impl<T: ?Sized, V: ShallowInvalidate + ?Sized> ShallowInvalidate for ShallowDelegate<T, V> {
-    fn invalidate(&mut self) {
-        unsafe { ShallowInvalidate::invalidate(&mut *self.state) }
+        unsafe { Invalidate::invalidate(&mut *self.state, &()) }
     }
 }
 
@@ -105,7 +44,7 @@ impl<T: ?Sized, V: ShallowInvalidate + ?Sized> ShallowInvalidate for ShallowDele
 ///
 /// [`ShallowMut`] decouples the borrowed value from its invalidation target: [`Self::inner`] is the
 /// value the caller mutates, while [`Self::state`] is a raw pointer to a separate piece of state
-/// (often living on a parent observer) that gets invalidated through the [`ShallowInvalidate`]
+/// (often living on a parent observer) that gets invalidated through the [`Invalidate`]
 /// trait on each [`DerefMut`].
 pub struct ShallowMut<'ob, T: ?Sized, V: ?Sized> {
     pub(crate) inner: &'ob mut T,
@@ -130,14 +69,14 @@ impl<'ob, T: ?Sized, V: ?Sized> Deref for ShallowMut<'ob, T, V> {
     }
 }
 
-impl<'ob, T: ?Sized, V: ShallowInvalidate + ?Sized> DerefMut for ShallowMut<'ob, T, V> {
+impl<'ob, T: ?Sized, V: Invalidate<()> + ?Sized> DerefMut for ShallowMut<'ob, T, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { ShallowInvalidate::invalidate(&mut *self.state) }
+        unsafe { Invalidate::invalidate(&mut *self.state, &()) }
         self.inner
     }
 }
 
-impl<'ob, T: ?Sized, V: ShallowInvalidate + ?Sized> DerefMutUntracked for ShallowMut<'ob, T, V> {}
+impl<'ob, T: ?Sized, V: Invalidate<()> + ?Sized> DerefMutUntracked for ShallowMut<'ob, T, V> {}
 
 impl<'ob, T: ?Sized, V: ?Sized> QuasiObserver for ShallowMut<'ob, T, V> {
     type Head = T;
@@ -147,7 +86,7 @@ impl<'ob, T: ?Sized, V: ?Sized> QuasiObserver for ShallowMut<'ob, T, V> {
     fn invalidate(_: &mut Self) {}
 }
 
-impl<'ob, T: ?Sized, V: ShallowInvalidate + ?Sized> AsMut<T> for ShallowMut<'ob, T, V> {
+impl<'ob, T: ?Sized, V: Invalidate<()> + ?Sized> AsMut<T> for ShallowMut<'ob, T, V> {
     fn as_mut(&mut self) -> &mut T {
         self.tracked_mut()
     }
@@ -194,7 +133,7 @@ impl<'ob, T: Index<I> + ?Sized, I, V: ?Sized> Index<I> for ShallowMut<'ob, T, V>
     }
 }
 
-impl<'ob, T: IndexMut<I> + ?Sized, I, V: ShallowInvalidate + ?Sized> IndexMut<I> for ShallowMut<'ob, T, V> {
+impl<'ob, T: IndexMut<I> + ?Sized, I, V: Invalidate<()> + ?Sized> IndexMut<I> for ShallowMut<'ob, T, V> {
     fn index_mut(&mut self, index: I) -> &mut Self::Output {
         self.tracked_mut().index_mut(index)
     }
@@ -236,7 +175,7 @@ generic_impl_cmp! {
 
 /// Generates a shallow observer type that tracks mutations via a single `bool` flag.
 ///
-/// The generated observer uses [`ShallowInvalidate`] on the flag, and emits a whole-value
+/// The generated observer uses [`Invalidate`] on the flag, and emits a whole-value
 /// [`Replace`](crate::MutationKind::Replace) on [`flush`](crate::observe::SerializeObserver::flush)
 /// when the flag is set. This is appropriate for types whose internal structure is opaque or where
 /// per-field granularity is not needed.
@@ -293,7 +232,7 @@ macro_rules! __shallow_observer {
 
         impl<'ob, S: ?Sized, D> ::std::ops::DerefMut for $ob<'ob, S, D> {
             fn deref_mut(&mut self) -> &mut Self::Target {
-                $crate::helper::shallow::ShallowInvalidate::invalidate(&mut self.mutated);
+                $crate::helper::Invalidate::invalidate(&mut self.mutated, &());
                 $crate::helper::QuasiObserver::invalidate(&mut self.ptr);
                 &mut self.ptr
             }
@@ -309,7 +248,7 @@ macro_rules! __shallow_observer {
             type InnerDepth = D;
 
             fn invalidate(this: &mut Self) {
-                $crate::helper::shallow::ShallowInvalidate::invalidate(&mut this.mutated);
+                $crate::helper::Invalidate::invalidate(&mut this.mutated, &());
             }
         }
 

@@ -22,12 +22,10 @@ pub struct UnsizeHandler<T: ?Sized> {
     phantom: PhantomData<*const T>,
 }
 
-impl<T: ?Sized> Invalidate for UnsizeHandler<T>
+impl<T: ?Sized> Invalidate<T> for UnsizeHandler<T>
 where
     T: Unsize,
 {
-    type Target = T;
-
     fn invalidate(&mut self, value: &T) {
         self.raw_parts
             .get_or_insert_with(|| (NonNull::from(value).cast::<()>(), value.len()));
@@ -38,6 +36,8 @@ impl<T: ?Sized> GeneralHandler for UnsizeHandler<T>
 where
     T: Unsize,
 {
+    type Target = T;
+
     fn observe(_: &T) -> Self {
         Self {
             raw_parts: None,

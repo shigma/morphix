@@ -187,13 +187,13 @@ impl<S: ?Sized> Pointer<S> {
     where
         D: Unsigned,
         S: AsDeref<D>,
-        O: Invalidate<Target = S::Target>,
+        O: Invalidate<S::Target>,
     {
         unsafe fn invalidate<O, D, S>(ptr: *mut u8, value: &S)
         where
             D: Unsigned,
             S: AsDeref<D> + ?Sized,
-            O: Invalidate<Target = S::Target>,
+            O: Invalidate<S::Target>,
         {
             let state = unsafe { &mut *(ptr as *mut O) };
             O::invalidate(state, value.as_deref());
