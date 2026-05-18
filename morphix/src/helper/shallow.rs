@@ -197,8 +197,8 @@ macro_rules! __shallow_observer {
         #[doc = ""]
         $(#[$meta])*
         pub struct $ob<'ob, S: ?Sized, D = $crate::helper::Zero> {
-            ptr: $crate::helper::Pointer<S>,
-            mutated: bool,
+            pub(crate) ptr: $crate::helper::Pointer<S>,
+            pub(crate) mutated: bool,
             phantom: ::std::marker::PhantomData<&'ob mut D>,
         }
 

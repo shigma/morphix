@@ -1,24 +1,118 @@
+//! Observer implementation for [`OsStr`].
+
 use std::ffi::{OsStr, OsString};
+use std::fmt::Debug;
+use std::marker::PhantomData;
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
+use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
 
 use crate::Mutations;
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 use crate::helper::macros::delegate_methods;
-use crate::helper::shallow::{ShallowInvalidate, ShallowMut, shallow_observer};
-use crate::helper::{AsDeref, AsDerefMut, Invalidate, QuasiObserver, Unsigned};
-use crate::observe::{DefaultSpec, RefObserve};
+use crate::helper::shallow::{ShallowInvalidate, ShallowMut};
+use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
+use crate::impls::strings::os_string::OsStringObserverState;
+use crate::observe::{DefaultSpec, Observe, Observer, RefObserve, SerializeObserver};
 
-shallow_observer! {
-    struct OsStrObserver(OsStr);
+/// Trait for managing the internal state of an [`OsStrObserver`].
+pub trait OsStrObserverState: Invalidate<Target = OsStr> + Sized {
+    /// Creates state observing the given `OsStr`.
+    fn observe(value: &OsStr) -> Self;
 }
 
-impl<'ob, S: ?Sized, D> OsStrObserver<'ob, S, D>
+/// Flush logic for OsStr-backed observer state, parameterized by `S` and `D`.
+pub trait OsStrSerializeObserverState<S: ?Sized, D>: Invalidate {
+    fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations;
+}
+
+#[cfg(unix)]
+pub(super) fn os_str_len(value: &OsStr) -> usize {
+    value.as_bytes().len()
+}
+
+#[cfg(windows)]
+pub(super) fn os_str_len(value: &OsStr) -> usize {
+    value.encode_wide().count()
+}
+
+/// Observer implementation for [`OsStr`].
+pub struct OsStrObserver<'ob, V, S: ?Sized, D = Zero> {
+    pub(super) ptr: Pointer<S>,
+    pub(super) state: V,
+    phantom: PhantomData<&'ob mut D>,
+}
+
+impl<'ob, V, S: ?Sized, D> Deref for OsStrObserver<'ob, V, S, D> {
+    type Target = Pointer<S>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.ptr
+    }
+}
+
+impl<'ob, V, S: ?Sized, D> DerefMut for OsStrObserver<'ob, V, S, D> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        std::ptr::from_mut(self).expose_provenance();
+        Pointer::invalidate(&mut self.ptr);
+        &mut self.ptr
+    }
+}
+
+impl<'ob, V, S: ?Sized, D> QuasiObserver for OsStrObserver<'ob, V, S, D>
 where
+    V: Invalidate<Target = OsStr>,
+    D: Unsigned,
+    S: AsDeref<D, Target = OsStr>,
+{
+    type Head = S;
+    type OuterDepth = Succ<Zero>;
+    type InnerDepth = D;
+
+    fn invalidate(this: &mut Self) {
+        Invalidate::invalidate(&mut this.state, (*this.ptr).as_deref());
+    }
+}
+
+impl<'ob, V, S: ?Sized, D> Observer for OsStrObserver<'ob, V, S, D>
+where
+    V: OsStrObserverState,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = OsStr>,
+{
+    fn observe(head: &mut Self::Head) -> Self {
+        let this = Self {
+            state: V::observe(head.as_deref_mut()),
+            ptr: Pointer::new(head),
+            phantom: PhantomData,
+        };
+        Pointer::register_state::<_, D>(&this.ptr, &this.state);
+        this
+    }
+
+    unsafe fn relocate(this: &mut Self, head: &mut Self::Head) {
+        Pointer::set(this, head);
+    }
+}
+
+impl<'ob, V, S: ?Sized, D> SerializeObserver for OsStrObserver<'ob, V, S, D>
+where
+    V: OsStrSerializeObserverState<S, D, Target = OsStr>,
+    D: Unsigned,
+    S: AsDeref<D, Target = OsStr>,
+{
+    unsafe fn flush(this: &mut Self) -> Mutations {
+        this.state.flush(&mut this.ptr)
+    }
+}
+
+impl<'ob, V, S: ?Sized, D> OsStrObserver<'ob, V, S, D>
+where
+    V: ShallowInvalidate + Invalidate<Target = OsStr>,
     D: Unsigned,
     S: AsDerefMut<D, Target = OsStr>,
 {
@@ -51,11 +145,23 @@ impl<V: ShallowInvalidate + ?Sized> ShallowMut<'_, OsStr, V> {
     }
 }
 
+impl<'ob, V, S: ?Sized, D> Debug for OsStrObserver<'ob, V, S, D>
+where
+    V: Invalidate<Target = OsStr>,
+    D: Unsigned,
+    S: AsDeref<D, Target = OsStr>,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("OsStrObserver").field(&self.untracked_ref()).finish()
+    }
+}
+
 macro_rules! generic_impl_partial_eq {
     ($(impl $([$($gen:tt)*])? _ for $ty:ty);* $(;)?) => {
         $(
-            impl<'ob, $($($gen)*,)? S: ?Sized, D> PartialEq<$ty> for OsStrObserver<'ob, S, D>
+            impl<'ob, $($($gen)*,)? V, S: ?Sized, D> PartialEq<$ty> for OsStrObserver<'ob, V, S, D>
             where
+                V: Invalidate<Target = OsStr>,
                 D: Unsigned,
                 S: AsDeref<D>,
                 S::Target: PartialEq<$ty>,
@@ -77,16 +183,6 @@ generic_impl_partial_eq! {
     impl _ for PathBuf;
     impl ['a, T] _ for &'a T;
     impl ['a, T: ToOwned] _ for std::borrow::Cow<'a, T>;
-}
-
-#[cfg(unix)]
-fn os_str_len(value: &OsStr) -> usize {
-    value.as_bytes().len()
-}
-
-#[cfg(windows)]
-fn os_str_len(value: &OsStr) -> usize {
-    value.encode_wide().count()
 }
 
 pub struct OsStrHandler {
@@ -147,6 +243,17 @@ impl SerializeHandler for OsStrHandler {
 
 impl DebugHandler for OsStrHandler {
     const NAME: &'static str = "OsStrHandler";
+}
+
+impl Observe for OsStr {
+    type Observer<'ob, S, D>
+        = OsStrObserver<'ob, OsStringObserverState, S, D>
+    where
+        Self: 'ob,
+        D: Unsigned,
+        S: AsDerefMut<D, Target = Self> + ?Sized + 'ob;
+
+    type Spec = DefaultSpec;
 }
 
 impl RefObserve for OsStr {
