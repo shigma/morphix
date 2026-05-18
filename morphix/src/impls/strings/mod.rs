@@ -16,5 +16,6 @@ pub use os_str::OsStrObserver;
 #[cfg(any(unix, windows))]
 pub use os_string::OsStringObserver;
 pub use path::PathObserver;
+pub use path_buf::PathBufObserver;
 pub use str::StrObserver;
 pub use string::StringObserver;

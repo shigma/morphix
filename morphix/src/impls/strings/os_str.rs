@@ -3,20 +3,19 @@
 use std::ffi::{OsStr, OsString};
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 #[cfg(windows)]
 use std::os::windows::ffi::OsStrExt;
-use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 use std::ptr::NonNull;
 
 use crate::Mutations;
 use crate::general::{DebugHandler, GeneralHandler, GeneralObserver, SerializeHandler};
 use crate::helper::macros::delegate_methods;
-use crate::helper::shallow::{ShallowInvalidate, ShallowMut};
+use crate::helper::shallow::ShallowState;
 use crate::helper::{AsDeref, AsDerefMut, Invalidate, Pointer, QuasiObserver, Succ, Unsigned, Zero};
-use crate::impls::strings::os_string::OsStringObserverState;
 use crate::observe::{DefaultSpec, Observe, Observer, RefObserve, SerializeObserver};
 
 /// Trait for managing the internal state of an [`OsStrObserver`].
@@ -44,7 +43,7 @@ pub(super) fn os_str_len(value: &OsStr) -> usize {
 pub struct OsStrObserver<'ob, V, S: ?Sized, D = Zero> {
     pub(super) ptr: Pointer<S>,
     pub(super) state: V,
-    phantom: PhantomData<&'ob mut D>,
+    pub(super) phantom: PhantomData<&'ob mut D>,
 }
 
 impl<'ob, V, S: ?Sized, D> Deref for OsStrObserver<'ob, V, S, D> {
@@ -112,25 +111,10 @@ where
 
 impl<'ob, V, S: ?Sized, D> OsStrObserver<'ob, V, S, D>
 where
-    V: ShallowInvalidate + Invalidate<Target = OsStr>,
+    V: Invalidate<Target = OsStr>,
     D: Unsigned,
     S: AsDerefMut<D, Target = OsStr>,
 {
-    fn nonempty_mut(&mut self) -> &mut OsStr {
-        if (*self).untracked_ref().is_empty() {
-            self.untracked_mut()
-        } else {
-            self.tracked_mut()
-        }
-    }
-
-    delegate_methods! { nonempty_mut() as OsStr =>
-        pub fn make_ascii_uppercase(&mut self);
-        pub fn make_ascii_lowercase(&mut self);
-    }
-}
-
-impl<V: ShallowInvalidate + ?Sized> ShallowMut<'_, OsStr, V> {
     fn nonempty_mut(&mut self) -> &mut OsStr {
         if (*self).untracked_ref().is_empty() {
             self.untracked_mut()
@@ -245,9 +229,29 @@ impl DebugHandler for OsStrHandler {
     const NAME: &'static str = "OsStrHandler";
 }
 
+impl OsStrObserverState for ShallowState<OsStr> {
+    fn observe(_value: &OsStr) -> Self {
+        ShallowState::new()
+    }
+}
+
+impl<S: ?Sized, D> OsStrSerializeObserverState<S, D> for ShallowState<OsStr>
+where
+    D: Unsigned,
+    S: AsDeref<D, Target = OsStr>,
+{
+    fn flush(&mut self, ptr: &mut Pointer<S>) -> Mutations {
+        if self.take() {
+            Mutations::replace((**ptr).as_deref())
+        } else {
+            Mutations::new()
+        }
+    }
+}
+
 impl Observe for OsStr {
     type Observer<'ob, S, D>
-        = OsStrObserver<'ob, OsStringObserverState, S, D>
+        = OsStrObserver<'ob, ShallowState<OsStr>, S, D>
     where
         Self: 'ob,
         D: Unsigned,

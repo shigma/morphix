@@ -97,26 +97,27 @@ where
 }
 
 /// Observer implementation for [`OsString`].
-pub struct OsStringObserver<'ob, S: ?Sized, D = Zero> {
-    inner: OsStrObserver<'ob, OsStringObserverState, S, Succ<D>>,
+pub struct OsStringObserver<'ob, V, S: ?Sized, D = Zero> {
+    pub(super) inner: OsStrObserver<'ob, V, S, Succ<D>>,
 }
 
-impl<'ob, S: ?Sized, D> Deref for OsStringObserver<'ob, S, D> {
-    type Target = OsStrObserver<'ob, OsStringObserverState, S, Succ<D>>;
+impl<'ob, V, S: ?Sized, D> Deref for OsStringObserver<'ob, V, S, D> {
+    type Target = OsStrObserver<'ob, V, S, Succ<D>>;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
     }
 }
 
-impl<'ob, S: ?Sized, D> DerefMut for OsStringObserver<'ob, S, D> {
+impl<'ob, V, S: ?Sized, D> DerefMut for OsStringObserver<'ob, V, S, D> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<'ob, S: ?Sized, D> QuasiObserver for OsStringObserver<'ob, S, D>
+impl<'ob, V, S: ?Sized, D> QuasiObserver for OsStringObserver<'ob, V, S, D>
 where
+    V: Invalidate<Target = OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -129,7 +130,7 @@ where
     }
 }
 
-impl<'ob, S: ?Sized, D> Observer for OsStringObserver<'ob, S, D>
+impl<'ob, S: ?Sized, D> Observer for OsStringObserver<'ob, OsStringObserverState, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = OsString>,
@@ -145,7 +146,7 @@ where
     }
 }
 
-impl<'ob, S: ?Sized, D> SerializeObserver for OsStringObserver<'ob, S, D>
+impl<'ob, S: ?Sized, D> SerializeObserver for OsStringObserver<'ob, OsStringObserverState, S, D>
 where
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
@@ -155,7 +156,8 @@ where
     }
 }
 
-impl<'ob, S: ?Sized, D> OsStringObserver<'ob, S, D>
+// Methods requiring OsStringObserverState (append/truncate tracking)
+impl<'ob, S: ?Sized, D> OsStringObserver<'ob, OsStringObserverState, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = OsString>,
@@ -171,7 +173,15 @@ where
         state.mark_truncate(0);
         (*self.inner.ptr).as_deref_mut().clear();
     }
+}
 
+// Capacity-only methods (generic over V)
+impl<'ob, V, S: ?Sized, D> OsStringObserver<'ob, V, S, D>
+where
+    V: Invalidate<Target = OsStr>,
+    D: Unsigned,
+    S: AsDerefMut<D, Target = OsString>,
+{
     delegate_methods! { untracked_mut() as OsString =>
         pub fn reserve(&mut self, additional: usize);
         pub fn try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>;
@@ -182,7 +192,7 @@ where
     }
 }
 
-impl<'ob, S: ?Sized, D, U> Extend<U> for OsStringObserver<'ob, S, D>
+impl<'ob, S: ?Sized, D, U> Extend<U> for OsStringObserver<'ob, OsStringObserverState, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = OsString>,
@@ -193,8 +203,9 @@ where
     }
 }
 
-impl<'ob, S: ?Sized, D> IndexMut<RangeFull> for OsStringObserver<'ob, S, D>
+impl<'ob, V, S: ?Sized, D> IndexMut<RangeFull> for OsStringObserver<'ob, V, S, D>
 where
+    V: Invalidate<Target = OsStr>,
     D: Unsigned,
     S: AsDerefMut<D, Target = OsString>,
 {
@@ -203,8 +214,9 @@ where
     }
 }
 
-impl<'ob, S: ?Sized, D> Index<RangeFull> for OsStringObserver<'ob, S, D>
+impl<'ob, V, S: ?Sized, D> Index<RangeFull> for OsStringObserver<'ob, V, S, D>
 where
+    V: Invalidate<Target = OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -215,7 +227,7 @@ where
     }
 }
 
-impl<'ob, S: ?Sized, D> Write for OsStringObserver<'ob, S, D>
+impl<'ob, S: ?Sized, D> Write for OsStringObserver<'ob, OsStringObserverState, S, D>
 where
     D: Unsigned,
     S: AsDerefMut<D, Target = OsString>,
@@ -229,8 +241,9 @@ where
     }
 }
 
-impl<'ob, S: ?Sized, D> Debug for OsStringObserver<'ob, S, D>
+impl<'ob, V, S: ?Sized, D> Debug for OsStringObserver<'ob, V, S, D>
 where
+    V: Invalidate<Target = OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -239,8 +252,9 @@ where
     }
 }
 
-impl<'ob, S: ?Sized, D> Display for OsStringObserver<'ob, S, D>
+impl<'ob, V, S: ?Sized, D> Display for OsStringObserver<'ob, V, S, D>
 where
+    V: Invalidate<Target = OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -252,8 +266,9 @@ where
 macro_rules! generic_impl_partial_eq {
     ($(impl $([$($gen:tt)*])? PartialEq<$ty:ty> for OsString);* $(;)?) => {
         $(
-            impl<'ob, $($($gen)*,)? S: ?Sized, D> PartialEq<$ty> for OsStringObserver<'ob, S, D>
+            impl<'ob, $($($gen)*,)? V, S: ?Sized, D> PartialEq<$ty> for OsStringObserver<'ob, V, S, D>
             where
+                V: Invalidate<Target = OsStr>,
                 D: Unsigned,
                 S: AsDeref<D, Target = OsString>,
                 OsString: PartialEq<$ty>,
@@ -274,27 +289,32 @@ generic_impl_partial_eq! {
     impl ['a] PartialEq<&'a OsStr> for OsString;
 }
 
-impl<'ob, S1, S2, D1, D2> PartialEq<OsStringObserver<'ob, S2, D2>> for OsStringObserver<'ob, S1, D1>
+impl<'ob, V1, V2, S1, S2, D1, D2> PartialEq<OsStringObserver<'ob, V2, S2, D2>>
+    for OsStringObserver<'ob, V1, S1, D1>
 where
+    V1: Invalidate<Target = OsStr>,
+    V2: Invalidate<Target = OsStr>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDeref<D1, Target = OsString>,
     S2: AsDeref<D2, Target = OsString>,
 {
-    fn eq(&self, other: &OsStringObserver<'ob, S2, D2>) -> bool {
+    fn eq(&self, other: &OsStringObserver<'ob, V2, S2, D2>) -> bool {
         self.untracked_ref().eq(other.untracked_ref())
     }
 }
 
-impl<'ob, S, D> Eq for OsStringObserver<'ob, S, D>
+impl<'ob, V, S, D> Eq for OsStringObserver<'ob, V, S, D>
 where
+    V: Invalidate<Target = OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
 }
 
-impl<'ob, S, D> PartialOrd<OsString> for OsStringObserver<'ob, S, D>
+impl<'ob, V, S, D> PartialOrd<OsString> for OsStringObserver<'ob, V, S, D>
 where
+    V: Invalidate<Target = OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -303,20 +323,24 @@ where
     }
 }
 
-impl<'ob, S1, S2, D1, D2> PartialOrd<OsStringObserver<'ob, S2, D2>> for OsStringObserver<'ob, S1, D1>
+impl<'ob, V1, V2, S1, S2, D1, D2> PartialOrd<OsStringObserver<'ob, V2, S2, D2>>
+    for OsStringObserver<'ob, V1, S1, D1>
 where
+    V1: Invalidate<Target = OsStr>,
+    V2: Invalidate<Target = OsStr>,
     D1: Unsigned,
     D2: Unsigned,
     S1: AsDeref<D1, Target = OsString>,
     S2: AsDeref<D2, Target = OsString>,
 {
-    fn partial_cmp(&self, other: &OsStringObserver<'ob, S2, D2>) -> Option<std::cmp::Ordering> {
+    fn partial_cmp(&self, other: &OsStringObserver<'ob, V2, S2, D2>) -> Option<std::cmp::Ordering> {
         self.untracked_ref().partial_cmp(other.untracked_ref())
     }
 }
 
-impl<'ob, S, D> Ord for OsStringObserver<'ob, S, D>
+impl<'ob, V, S, D> Ord for OsStringObserver<'ob, V, S, D>
 where
+    V: Invalidate<Target = OsStr>,
     D: Unsigned,
     S: AsDeref<D, Target = OsString>,
 {
@@ -327,7 +351,7 @@ where
 
 impl Observe for OsString {
     type Observer<'ob, S, D>
-        = OsStringObserver<'ob, S, D>
+        = OsStringObserver<'ob, OsStringObserverState, S, D>
     where
         Self: 'ob,
         D: Unsigned,
